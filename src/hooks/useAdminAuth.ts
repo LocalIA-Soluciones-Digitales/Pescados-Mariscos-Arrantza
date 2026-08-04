@@ -2,8 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 
-const ADMIN_EMAIL = 'pescaderia@arrantza.local';
-
 export function useAdminAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,14 +20,14 @@ export function useAdminAuth() {
     return () => subscription.subscription.unsubscribe();
   }, []);
 
-  const signIn = useCallback(async (password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     setError(null);
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: ADMIN_EMAIL,
+      email,
       password,
     });
     if (signInError) {
-      setError('Contraseña incorrecta');
+      setError('Correo o contraseña incorrectos');
       return false;
     }
     return true;

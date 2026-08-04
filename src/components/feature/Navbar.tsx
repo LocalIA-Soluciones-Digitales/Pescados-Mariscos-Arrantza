@@ -84,6 +84,21 @@ export default function Navbar() {
 
           {/* Right side: language + mobile toggle */}
           <div className="flex items-center gap-4">
+            {/* Admin access — discreet, desktop only */}
+            <a
+              href="/admin"
+              onClick={(e) => { e.preventDefault(); navigate('/admin'); }}
+              className={`hidden lg:flex w-8 h-8 items-center justify-center rounded-full transition-colors duration-300 ${
+                scrolled
+                  ? 'text-foreground-300 hover:text-foreground-600 hover:bg-background-100'
+                  : 'text-background-50/40 hover:text-background-50/80 hover:bg-background-50/10'
+              }`}
+              aria-label="Acceso pescadero"
+              title="Acceso pescadero"
+            >
+              <i className="ri-lock-line text-base"></i>
+            </a>
+
             {/* Language switcher */}
             <div className={`flex items-center rounded-full border overflow-hidden transition-colors duration-500 ${
               scrolled ? 'border-foreground-200/50' : 'border-background-50/25'
@@ -148,6 +163,18 @@ export default function Navbar() {
               {t(link.key)}
             </a>
           ))}
+
+          <a
+            href="/admin"
+            onClick={(e) => { e.preventDefault(); handleNavClick('/admin'); }}
+            className={`inline-flex items-center gap-1.5 text-xs text-foreground-300 hover:text-foreground-500 transition-all duration-300 mt-4 ${
+              mobileOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            }`}
+            style={{ transitionDelay: mobileOpen ? `${navLinks.length * 70}ms` : '0ms' }}
+          >
+            <i className="ri-lock-line text-xs"></i>
+            Acceso pescadero
+          </a>
         </div>
       </div>
     </nav>

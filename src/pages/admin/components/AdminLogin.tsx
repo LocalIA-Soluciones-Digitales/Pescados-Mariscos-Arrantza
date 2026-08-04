@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 
 export default function AdminLogin({ signIn, error }: Pick<ReturnType<typeof useAdminAuth>, 'signIn' | 'error'>) {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    await signIn(password);
+    await signIn(email, password);
     setSubmitting(false);
   };
 
@@ -25,13 +26,24 @@ export default function AdminLogin({ signIn, error }: Pick<ReturnType<typeof use
           Pescados y Mariscos Arrantza
         </p>
 
+        <label htmlFor="admin-email" className="block text-xs font-medium text-foreground-500 mb-2">
+          Correo
+        </label>
+        <input
+          id="admin-email"
+          type="email"
+          autoFocus
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full mb-4 px-4 py-3 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all"
+        />
+
         <label htmlFor="admin-password" className="block text-xs font-medium text-foreground-500 mb-2">
           Contraseña
         </label>
         <input
           id="admin-password"
           type="password"
-          autoFocus
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full px-4 py-3 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all"
@@ -43,7 +55,7 @@ export default function AdminLogin({ signIn, error }: Pick<ReturnType<typeof use
 
         <button
           type="submit"
-          disabled={submitting || !password}
+          disabled={submitting || !email || !password}
           className="w-full mt-5 px-4 py-3 bg-primary-500 text-background-50 rounded-lg text-sm font-medium hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {submitting ? 'Entrando…' : 'Entrar'}
