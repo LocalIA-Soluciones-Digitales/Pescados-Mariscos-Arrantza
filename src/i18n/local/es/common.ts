@@ -132,6 +132,8 @@ const common = {
   "products.badge_seasonal": "De temporada",
   "products.badge_premium": "Especialidad",
   "products.badge_new": "Novedad",
+  "products.badge_agotado": "Agotado",
+  "products.loading": "Cargando catálogo…",
   "products.add_to_order": "Añadir al pedido",
   "products.add_short": "+ Añadir",
   "products.added_short": "✓ Añadido",

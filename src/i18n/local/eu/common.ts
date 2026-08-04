@@ -152,6 +152,8 @@ const common = {
   "products.badge_seasonal": "Sasoikoa",
   "products.badge_premium": "Berezitasuna",
   "products.badge_new": "Berria",
+  "products.badge_agotado": "Agortuta",
+  "products.loading": "Katalogoa kargatzen…",
   "products.add_to_order": "Eskaerara gehitu",
   "products.add_short": "+ Gehitu",
   "products.added_short": "✓ Gehituta",

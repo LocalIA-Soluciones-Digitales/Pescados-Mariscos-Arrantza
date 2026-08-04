@@ -6,8 +6,10 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { useCart } from '@/hooks/useCart';
 import type { CartItem } from '@/hooks/useCart';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
-import { todosLosProductos, temporada } from '@/mocks/productos';
-import type { ProductoItem } from '@/mocks/productos';
+import { temporada } from '@/mocks/productos';
+import { useProductos } from '@/hooks/useProductos';
+import { pickLang } from '@/types/producto';
+import type { Producto } from '@/types/producto';
 
 /* ------------------------------------------------------------------ */
 /*  Category types                                                    */
@@ -40,16 +42,16 @@ const categories: { key: CategoryFilter; labelKey: string }[] = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Precomputed product counts per filter                             */
+/*  Product counts per filter — computed from live Supabase data      */
 /* ------------------------------------------------------------------ */
-const categoryCounts: Record<CategoryFilter, number> = (() => {
+function computeCategoryCounts(productos: Producto[]): Record<CategoryFilter, number> {
   const counts: Partial<Record<CategoryFilter, number>> = {};
   const mainCats = ['pescado', 'especial', 'raciones', 'marisco'] as CategoryFilter[];
 
-  counts.todos = todosLosProductos.length;
+  counts.todos = productos.length;
 
   mainCats.forEach((cat) => {
-    counts[cat] = todosLosProductos.filter((p) => p.category === cat).length;
+    counts[cat] = productos.filter((p) => p.categoria === cat).length;
   });
 
   const subCats: CategoryFilter[] = [
@@ -62,16 +64,16 @@ const categoryCounts: Record<CategoryFilter, number> = (() => {
   ];
 
   subCats.forEach((sub) => {
-    counts[sub] = todosLosProductos.filter((p) => p.subcategory === sub).length;
+    counts[sub] = productos.filter((p) => p.subcategoria === sub).length;
   });
 
   return counts as Record<CategoryFilter, number>;
-})();
+}
 
 /* ------------------------------------------------------------------ */
 /*  Badge style map — muted elegant colors per badge type             */
 /* ------------------------------------------------------------------ */
-const badgeStyleMap: Record<ProductoItem['badge'], { dot: string; bg: string; text: string }> = {
+const badgeStyleMap: Record<Producto['estado'], { dot: string; bg: string; text: string }> = {
   available: {
     dot: 'bg-emerald-500',
     bg: 'bg-emerald-100/80',
@@ -94,7 +96,7 @@ const badgeStyleMap: Record<ProductoItem['badge'], { dot: string; bg: string; te
   },
 };
 
-function getBadgeLabel(badge: ProductoItem['badge']) {
+function getBadgeLabel(badge: Producto['estado']) {
   const map: Record<string, string> = {
     available: 'products.badge_available',
     seasonal: 'products.badge_seasonal',
@@ -131,12 +133,12 @@ function AddToCartToast({
   onDismiss,
   drawerOpen,
 }: {
-  product: ProductoItem | null;
+  product: Producto | null;
   visible: boolean;
   onDismiss: () => void;
   drawerOpen: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [dismissing, setDismissing] = useState(false);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -205,8 +207,8 @@ function AddToCartToast({
         {/* Product thumbnail */}
         <div className="w-10 h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
           <img
-            src={product.image}
-            alt={t(product.nameKey)}
+            src={product.imagen_url ?? ''}
+            alt={pickLang(product, 'nombre', i18n.language)}
             className="w-full h-full object-cover object-top"
           />
         </div>
@@ -214,7 +216,7 @@ function AddToCartToast({
         {/* Info */}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground-950 truncate">
-            {t(product.nameKey)}
+            {pickLang(product, 'nombre', i18n.language)}
           </p>
           <p className="text-xs text-foreground-400">
             {t('products.toast_added')}
@@ -507,17 +509,18 @@ function ProductCard({
   onAddToCart,
   onRemoveFromCart,
 }: {
-  product: ProductoItem;
+  product: Producto;
   index: number;
   isInCart: boolean;
   cartItem: CartItem | undefined;
   isRemoving: boolean;
-  onAddToCart: (p: ProductoItem) => void;
+  onAddToCart: (p: Producto) => void;
   onRemoveFromCart: (productId: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
-  const badgeStyle = badgeStyleMap[product.badge];
+  const badgeStyle = badgeStyleMap[product.estado];
+  const agotado = !product.disponible;
 
   return (
     <div
@@ -532,38 +535,50 @@ function ProductCard({
       {/* Image */}
       <div className="relative aspect-[5/4] overflow-hidden bg-background-100">
         <img
-          src={product.image}
-          alt={t(product.nameKey)}
-          className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+          src={product.imagen_url ?? ''}
+          alt={pickLang(product, 'nombre', i18n.language)}
+          className={`w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03] ${agotado ? 'opacity-40 grayscale' : ''}`}
           loading="lazy"
         />
 
-        {/* Color-coded badge */}
+        {/* Color-coded badge — "agotado" takes priority over the highlight badge */}
         <div className="absolute top-2 left-2 md:top-4 md:left-4">
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full ${badgeStyle.bg} ${badgeStyle.text} text-[10px] md:text-[11px] font-medium whitespace-nowrap`}>
-            <span className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${badgeStyle.dot}`}></span>
-            {t(getBadgeLabel(product.badge))}
-          </span>
+          {agotado ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full bg-foreground-200/90 text-foreground-700 text-[10px] md:text-[11px] font-medium whitespace-nowrap">
+              <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-foreground-500"></span>
+              {t('products.badge_agotado')}
+            </span>
+          ) : (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full ${badgeStyle.bg} ${badgeStyle.text} text-[10px] md:text-[11px] font-medium whitespace-nowrap`}>
+              <span className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${badgeStyle.dot}`}></span>
+              {t(getBadgeLabel(product.estado))}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Info — cleaner, less text */}
       <div className="px-3 pt-3 pb-3 md:px-5 md:pt-5 md:pb-5">
         <h3 className="text-[13px] md:text-base font-heading font-semibold text-foreground-950 leading-tight mb-1 md:mb-2">
-          {t(product.nameKey)}
+          {pickLang(product, 'nombre', i18n.language)}
         </h3>
 
         <p className="text-[10px] md:text-xs text-foreground-400 mb-3 md:mb-4">
           <span className="w-3 h-3 md:w-3.5 md:h-3.5 inline-flex items-center justify-center mr-0.5 md:mr-1 align-middle">
             <i className="ri-map-pin-line text-[9px] md:text-[10px]"></i>
           </span>
-          {t(product.originKey)}
+          {pickLang(product, 'origen', i18n.language)}
         </p>
 
         <div className="flex items-center justify-between gap-1 md:gap-4">
           <span className="text-[11px] md:text-lg font-semibold text-foreground-950 leading-none">
-            {product.price}
+            {product.precio}
           </span>
+          {agotado ? (
+            <span className="inline-flex items-center px-2.5 py-2 md:px-4 md:py-2 rounded-full bg-background-200/60 text-foreground-400 text-[11px] md:text-xs font-medium whitespace-nowrap cursor-not-allowed">
+              {t('products.badge_agotado')}
+            </span>
+          ) : (
           <button
             type="button"
             key={isInCart ? 'added' : 'add'}
@@ -597,6 +612,7 @@ function ProductCard({
               <span>{t('products.add_short')}</span>
             )}
           </button>
+          )}
         </div>
       </div>
     </div>
@@ -632,10 +648,10 @@ function CatalogGrid({
   removingProductId,
   groupBy,
 }: {
-  products: ProductoItem[];
+  products: Producto[];
   isInCart: (id: string) => boolean;
   getItem: (id: string) => CartItem | undefined;
-  onAddToCart: (p: ProductoItem) => void;
+  onAddToCart: (p: Producto) => void;
   onRemoveFromCart: (productId: string) => void;
   removingProductId: string | null;
   groupBy?: 'subcategory';
@@ -670,13 +686,13 @@ function CatalogGrid({
   }
 
   /* ---- Grouped mode ---- */
-  const grouped: Record<string, ProductoItem[]> = {};
-  const ungrouped: ProductoItem[] = [];
+  const grouped: Record<string, Producto[]> = {};
+  const ungrouped: Producto[] = [];
 
   products.forEach((p) => {
-    if (p.subcategory) {
-      if (!grouped[p.subcategory]) grouped[p.subcategory] = [];
-      grouped[p.subcategory].push(p);
+    if (p.subcategoria) {
+      if (!grouped[p.subcategoria]) grouped[p.subcategoria] = [];
+      grouped[p.subcategoria].push(p);
     } else {
       ungrouped.push(p);
     }
@@ -913,7 +929,8 @@ function RestaurantSupplySection() {
 /*  Main page                                                         */
 /* ------------------------------------------------------------------ */
 export default function Productos() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { productos, loading: productosLoading } = useProductos();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('todos');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -1011,36 +1028,35 @@ export default function Productos() {
   }, [cartVersion, lastItemRemoving]);
 
   // Toast state
-  const [toastProduct, setToastProduct] = useState<ProductoItem | null>(null);
+  const [toastProduct, setToastProduct] = useState<Producto | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const categoryCounts = useMemo(() => computeCategoryCounts(productos), [productos]);
+
   const filteredProducts = useMemo(() => {
-    let result = todosLosProductos;
+    let result = productos;
 
     if (activeCategory !== 'todos') {
       const mainCategories = ['pescado', 'especial', 'raciones', 'marisco'];
       if (mainCategories.includes(activeCategory)) {
-        result = result.filter(p => p.category === activeCategory);
+        result = result.filter(p => p.categoria === activeCategory);
       } else {
-        result = result.filter(p => p.subcategory === activeCategory);
+        result = result.filter(p => p.subcategoria === activeCategory);
       }
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       result = result.filter(p => {
-        const translatedName = t(p.nameKey).toLowerCase();
-        return (
-          p.id.toLowerCase().includes(q) ||
-          translatedName.includes(q) ||
-          p.originKey.toLowerCase().includes(q)
-        );
+        const name = pickLang(p, 'nombre', i18n.language).toLowerCase();
+        const origen = pickLang(p, 'origen', i18n.language).toLowerCase();
+        return name.includes(q) || origen.includes(q);
       });
     }
 
     return result;
-  }, [activeCategory, searchQuery, t]);
+  }, [productos, activeCategory, searchQuery, i18n.language]);
 
   // Determine whether to group products by subcategory in the grid.
   // Group when viewing a main category that has subcategories, or when viewing "all".
@@ -1060,7 +1076,7 @@ export default function Productos() {
   }, [activeCategory, searchQuery]);
 
   const handleAddToCart = useCallback(
-    (product: ProductoItem) => {
+    (product: Producto) => {
       addItem(product.id);
 
       // Show or update toast — never stack multiple notifications
@@ -1178,15 +1194,21 @@ export default function Productos() {
                   : 'productos encontrados'}
               </p>
             )}
-            <CatalogGrid
-              products={filteredProducts}
-              isInCart={isInCart}
-              getItem={getItem}
-              onAddToCart={handleAddToCart}
-              onRemoveFromCart={handleRemoveFromCart}
-              removingProductId={removingProductId}
-              groupBy={shouldGroupBySubcategory ? 'subcategory' : undefined}
-            />
+            {productosLoading ? (
+              <div className="text-center py-20 md:py-28 text-sm text-foreground-400">
+                {t('products.loading')}
+              </div>
+            ) : (
+              <CatalogGrid
+                products={filteredProducts}
+                isInCart={isInCart}
+                getItem={getItem}
+                onAddToCart={handleAddToCart}
+                onRemoveFromCart={handleRemoveFromCart}
+                removingProductId={removingProductId}
+                groupBy={shouldGroupBySubcategory ? 'subcategory' : undefined}
+              />
+            )}
           </div>
         </section>
 
@@ -1200,6 +1222,7 @@ export default function Productos() {
       <CartDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
+        productos={productos}
         items={cartItems}
         customer={customer}
         onIncrease={increaseKg}

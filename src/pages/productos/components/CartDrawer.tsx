@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { CartItem, CartCustomerInfo } from '@/hooks/useCart';
-import { todosLosProductos } from '@/mocks/productos';
-import type { ProductoItem } from '@/mocks/productos';
+import type { Producto } from '@/types/producto';
+import { pickLang } from '@/types/producto';
 import RollingNumber from '@/components/base/RollingNumber';
 import { useTurnstile } from '@/hooks/useTurnstile';
 import TurnstileWidget from '@/components/feature/TurnstileWidget';
@@ -12,14 +12,14 @@ import { isTurnstileEnabled } from '@/config/turnstile';
 /* ------------------------------------------------------------------ */
 /*  Badge style — same muted palette as catalogue                     */
 /* ------------------------------------------------------------------ */
-const badgeStyleMap: Record<ProductoItem['badge'], { dot: string; bg: string; text: string }> = {
+const badgeStyleMap: Record<Producto['estado'], { dot: string; bg: string; text: string }> = {
   available: { dot: 'bg-emerald-500', bg: 'bg-emerald-100/80', text: 'text-emerald-700' },
   new:      { dot: 'bg-sky-500',      bg: 'bg-sky-100/80',      text: 'text-sky-700' },
   premium:  { dot: 'bg-amber-500',    bg: 'bg-amber-100/80',    text: 'text-amber-700' },
   seasonal: { dot: 'bg-orange-500',    bg: 'bg-orange-100/80',   text: 'text-orange-700' },
 };
 
-function getBadgeLabelKey(badge: ProductoItem['badge']): string {
+function getBadgeLabelKey(badge: Producto['estado']): string {
   const map: Record<string, string> = {
     available: 'cart.badge_available',
     seasonal: 'cart.badge_seasonal',
@@ -68,7 +68,7 @@ function generateWhatsAppMessage(params: {
   deliveryCost: number;
   getProductName: (productId: string) => string;
   getPreparationLabel: (prep: string) => string;
-  productMap: Map<string, ProductoItem>;
+  productMap: Map<string, Producto>;
 }): string {
   const { customer, items, totalProducts, totalWeight, subTotalAmount, deliveryCost, getProductName, getPreparationLabel, productMap } = params;
   const sep = '━━━━━━━━━━━━━━━━━━━━━━';
@@ -145,7 +145,7 @@ function generateWhatsAppMessage(params: {
   for (const item of items) {
     const name = getProductName(item.productId);
     const product = productMap.get(item.productId);
-    const pricePerKg = product ? extractPricePerKg(product.price) : 0;
+    const pricePerKg = product ? extractPricePerKg(product.precio) : 0;
     const subtotal = pricePerKg * item.kg;
     const prepLabel = getPreparationLabel(item.preparation || 'whole');
 
@@ -253,7 +253,7 @@ function CartLineItem({
   justAddedId,
 }: {
   cartItem: CartItem;
-  product: ProductoItem;
+  product: Producto;
   onIncrease: () => void;
   onDecrease: () => void;
   onRemove: () => void;
@@ -262,9 +262,9 @@ function CartLineItem({
   onSetKg: (kg: number) => void;
   justAddedId: string | null;
 }) {
-  const { t } = useTranslation();
-  const badgeStyle = badgeStyleMap[product.badge];
-  const pricePerKg = extractPricePerKg(product.price);
+  const { t, i18n } = useTranslation();
+  const badgeStyle = badgeStyleMap[product.estado];
+  const pricePerKg = extractPricePerKg(product.precio);
   const subtotal = pricePerKg * cartItem.kg;
 
   // ── Green flash when this item is newly added ──
@@ -350,8 +350,8 @@ function CartLineItem({
       {/* Thumbnail */}
       <div className="w-16 h-16 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
         <img
-          src={product.image}
-          alt={t(product.nameKey)}
+          src={product.imagen_url ?? ''}
+          alt={pickLang(product, 'nombre', i18n.language)}
           className="w-full h-full object-cover object-top"
         />
       </div>
@@ -360,7 +360,7 @@ function CartLineItem({
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2 mb-1">
           <h4 className="text-sm font-semibold text-foreground-950 truncate">
-            {t(product.nameKey)}
+            {pickLang(product, 'nombre', i18n.language)}
           </h4>
           <button
             type="button"
@@ -376,12 +376,19 @@ function CartLineItem({
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           <span className="text-[11px] text-foreground-400 inline-flex items-center gap-0.5">
             <i className="ri-map-pin-line text-[9px]"></i>
-            {t(product.originKey)}
+            {pickLang(product, 'origen', i18n.language)}
           </span>
-          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${badgeStyle.bg} ${badgeStyle.text} text-[10px] font-medium whitespace-nowrap`}>
-            <span className={`w-1 h-1 rounded-full ${badgeStyle.dot}`}></span>
-            {t(getBadgeLabelKey(product.badge))}
-          </span>
+          {!product.disponible ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-foreground-200/90 text-foreground-700 text-[10px] font-medium whitespace-nowrap">
+              <span className="w-1 h-1 rounded-full bg-foreground-500"></span>
+              {t('products.badge_agotado')}
+            </span>
+          ) : (
+            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${badgeStyle.bg} ${badgeStyle.text} text-[10px] font-medium whitespace-nowrap`}>
+              <span className={`w-1 h-1 rounded-full ${badgeStyle.dot}`}></span>
+              {t(getBadgeLabelKey(product.estado))}
+            </span>
+          )}
         </div>
 
         {/* Quantity selector */}
@@ -557,6 +564,7 @@ function CartLineItem({
 interface CartDrawerProps {
   open: boolean;
   onClose: () => void;
+  productos: Producto[];
   items: CartItem[];
   customer: CartCustomerInfo;
   onIncrease: (productId: string) => void;
@@ -578,6 +586,7 @@ interface CartDrawerProps {
 export default function CartDrawer({
   open,
   onClose,
+  productos,
   items,
   customer,
   onIncrease,
@@ -595,7 +604,8 @@ export default function CartDrawer({
   onSaveLastOrder,
   onLoadLastOrder,
 }: CartDrawerProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const productMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [animating, setAnimating] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -733,8 +743,6 @@ export default function CartDrawer({
       return;
     }
 
-    const productMap = new Map(todosLosProductos.map(p => [p.id, p]));
-
     const message = generateWhatsAppMessage({
       customer,
       items,
@@ -743,12 +751,12 @@ export default function CartDrawer({
       subTotalAmount: items.reduce((sum, item) => {
         const product = productMap.get(item.productId);
         if (!product) return sum;
-        return sum + extractPricePerKg(product.price) * item.kg;
+        return sum + extractPricePerKg(product.precio) * item.kg;
       }, 0),
       deliveryCost,
       getProductName: (productId) => {
         const product = productMap.get(productId);
-        return product ? t(product.nameKey) : productId;
+        return product ? pickLang(product, 'nombre', i18n.language) : productId;
       },
       getPreparationLabel: (prep) => t(`cart.prep_${prep}` as any),
       productMap,
@@ -766,11 +774,10 @@ export default function CartDrawer({
   if (!open) return null;
 
   // Compute estimated total (incl. delivery)
-  const productMap = new Map(todosLosProductos.map(p => [p.id, p]));
   const subTotalAmount = items.reduce((sum, item) => {
     const product = productMap.get(item.productId);
     if (!product) return sum;
-    return sum + extractPricePerKg(product.price) * item.kg;
+    return sum + extractPricePerKg(product.precio) * item.kg;
   }, 0);
   const estimatedTotal = subTotalAmount + deliveryCost;
 
@@ -1461,7 +1468,7 @@ export default function CartDrawer({
                   deliveryCost,
                   getProductName: (productId) => {
                     const product = productMap.get(productId);
-                    return product ? t(product.nameKey) : productId;
+                    return product ? pickLang(product, 'nombre', i18n.language) : productId;
                   },
                   getPreparationLabel: (prep) => t(`cart.prep_${prep}` as any),
                   productMap,
