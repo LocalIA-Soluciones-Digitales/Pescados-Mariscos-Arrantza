@@ -84,11 +84,11 @@ export default function Navbar() {
             onClick={(e) => { e.preventDefault(); handleLogoClick(); }}
             className="flex items-center gap-2 group"
           >
-            <span className={`font-heading text-xl md:text-2xl font-semibold tracking-tight transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
+            <span className={`font-heading text-xl md:text-2xl font-semibold leading-none tracking-tight transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
               Arrantza
             </span>
-            <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-accent-500 mt-1"></span>
-            <span className={`hidden sm:inline text-xs tracking-[0.15em] uppercase mt-0.5 transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'}`}>
+            <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-accent-500"></span>
+            <span className={`hidden sm:inline text-xs leading-none tracking-[0.15em] uppercase transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'}`}>
               {currentLang === 'es' ? 'Pescados y Mariscos' : 'Arrainak eta Itsaskiak'}
             </span>
           </a>
@@ -100,7 +100,7 @@ export default function Navbar() {
                 key={link.key}
                 href={link.href}
                 onClick={(e) => { e.preventDefault(); handleNavClick(link.href); }}
-                className={`text-sm font-medium transition-colors duration-300 whitespace-nowrap ${
+                className={`text-sm font-medium leading-none transition-colors duration-300 whitespace-nowrap ${
                   showDark
                     ? 'text-foreground-500 hover:text-foreground-950'
                     : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.6)] hover:text-white/80'
