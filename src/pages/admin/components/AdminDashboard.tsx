@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useProductos } from '@/hooks/useProductos';
-import type { Producto, ProductoEstado } from '@/types/producto';
+import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
 import ProductoFormModal from './ProductoFormModal';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
@@ -10,6 +10,16 @@ const ESTADO_LABELS: Record<ProductoEstado, string> = {
   premium: 'Especialidad',
   seasonal: 'Temporada',
 };
+
+type CategoriaFiltro = 'todos' | ProductoCategoria;
+
+const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string }[] = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'pescado', label: 'Pescado' },
+  { value: 'especial', label: 'Especial' },
+  { value: 'raciones', label: 'Raciones' },
+  { value: 'marisco', label: 'Marisco' },
+];
 
 function ProductoCard({ producto, onChanged, onEdit }: { producto: Producto; onChanged: () => void; onEdit: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -96,25 +106,94 @@ function ProductoCard({ producto, onChanged, onEdit }: { producto: Producto; onC
 export default function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
   const { productos, loading, refetch } = useProductos();
   const [editing, setEditing] = useState<Producto | null | 'new'>(null);
+  const [search, setSearch] = useState('');
+  const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
+  const [soloAgotados, setSoloAgotados] = useState(false);
+
+  const agotadosCount = useMemo(() => productos.filter((p) => !p.disponible).length, [productos]);
+
+  const visibles = useMemo(() => {
+    let result = productos;
+
+    if (categoria !== 'todos') {
+      result = result.filter((p) => p.categoria === categoria);
+    }
+    if (soloAgotados) {
+      result = result.filter((p) => !p.disponible);
+    }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = result.filter((p) => p.nombre_es.toLowerCase().includes(q) || p.nombre_eu?.toLowerCase().includes(q));
+    }
+
+    // Agotados primero — así el pescadero ve de un vistazo qué falta reponer
+    return [...result].sort((a, b) => Number(a.disponible) - Number(b.disponible) || a.orden - b.orden);
+  }, [productos, categoria, soloAgotados, search]);
 
   return (
     <div className="min-h-screen bg-background-100">
-      <header className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-4 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-base font-heading font-semibold text-foreground-950">Gestión de productos</h1>
           <p className="text-xs text-foreground-400">Pescados y Mariscos Arrantza</p>
         </div>
-        <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950">
+        <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 flex-shrink-0">
           Cerrar sesión
         </button>
       </header>
 
+      {/* Filtros */}
+      <div className="sticky top-[65px] z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center">
+        <div className="relative flex-1 max-w-[280px]">
+          <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar producto…"
+            className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
+          />
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          {CATEGORIA_FILTROS.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setCategoria(c.value)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+                categoria === c.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => setSoloAgotados((v) => !v)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors flex items-center gap-1 ${
+              soloAgotados ? 'bg-red-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+            }`}
+          >
+            Agotados
+            {agotadosCount > 0 && (
+              <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${soloAgotados ? 'bg-background-50/25' : 'bg-red-100 text-red-600'}`}>
+                {agotadosCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
       <main className="px-4 md:px-8 py-6 pb-28">
         {loading ? (
           <p className="text-sm text-foreground-400">Cargando…</p>
+        ) : visibles.length === 0 ? (
+          <p className="text-sm text-foreground-400">No hay productos que coincidan con el filtro.</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {productos.map((producto) => (
+            {visibles.map((producto) => (
               <ProductoCard
                 key={producto.id}
                 producto={producto}

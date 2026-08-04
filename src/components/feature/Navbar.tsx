@@ -96,7 +96,7 @@ export default function Navbar() {
               aria-label="Acceso pescadero"
               title="Acceso pescadero"
             >
-              <i className="ri-lock-line text-base"></i>
+              <i className="ri-shield-user-line text-base"></i>
             </a>
 
             {/* Language switcher */}
@@ -172,7 +172,7 @@ export default function Navbar() {
             }`}
             style={{ transitionDelay: mobileOpen ? `${navLinks.length * 70}ms` : '0ms' }}
           >
-            <i className="ri-lock-line text-xs"></i>
+            <i className="ri-shield-user-line text-xs"></i>
             Acceso pescadero
           </a>
         </div>
