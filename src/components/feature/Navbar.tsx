@@ -68,6 +68,12 @@ export default function Navbar() {
       }`}
       data-scrolled={showDark}
     >
+      {/* Scrim behind the transparent navbar — guarantees contrast for white text
+          regardless of what's in the hero photo directly underneath it */}
+      {!showDark && (
+        <div className="absolute inset-x-0 top-0 h-28 md:h-32 bg-gradient-to-b from-black/45 to-transparent pointer-events-none -z-10" />
+      )}
+
       <div className="w-full max-w-[1440px] mx-auto px-4 md:px-6 lg:px-12">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
