@@ -71,7 +71,7 @@ export default function Navbar() {
       {/* Scrim behind the transparent navbar — guarantees contrast for white text
           regardless of what's in the hero photo directly underneath it */}
       {!showDark && (
-        <div className="absolute inset-x-0 top-0 h-28 md:h-32 bg-gradient-to-b from-black/45 to-transparent pointer-events-none -z-10" />
+        <div className="absolute inset-x-0 top-0 h-24 md:h-28 bg-gradient-to-b from-black/70 via-black/35 to-transparent pointer-events-none -z-10" />
       )}
 
       <div className="w-full max-w-[1440px] mx-auto px-4 md:px-6 lg:px-12">
@@ -82,11 +82,11 @@ export default function Navbar() {
             onClick={(e) => { e.preventDefault(); handleLogoClick(); }}
             className="flex items-center gap-2 group"
           >
-            <span className={`font-heading text-xl md:text-2xl font-semibold tracking-tight transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-background-50'}`}>
+            <span className={`font-heading text-xl md:text-2xl font-semibold tracking-tight transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
               Arrantza
             </span>
             <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-accent-500 mt-1"></span>
-            <span className={`hidden sm:inline text-xs tracking-[0.15em] uppercase mt-0.5 transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-background-50/60'}`}>
+            <span className={`hidden sm:inline text-xs tracking-[0.15em] uppercase mt-0.5 transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'}`}>
               {currentLang === 'es' ? 'Pescados y Mariscos' : 'Arrainak eta Itsaskiak'}
             </span>
           </a>
@@ -98,10 +98,10 @@ export default function Navbar() {
                 key={link.key}
                 href={link.href}
                 onClick={(e) => { e.preventDefault(); handleNavClick(link.href); }}
-                className={`text-sm transition-colors duration-300 whitespace-nowrap ${
+                className={`text-sm font-medium transition-colors duration-300 whitespace-nowrap ${
                   showDark
                     ? 'text-foreground-500 hover:text-foreground-950'
-                    : 'text-background-50/80 hover:text-background-50'
+                    : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.6)] hover:text-white/80'
                 }`}
               >
                 {t(link.key)}
@@ -118,7 +118,7 @@ export default function Navbar() {
               className={`hidden lg:flex w-8 h-8 items-center justify-center rounded-full transition-colors duration-300 ${
                 showDark
                   ? 'text-foreground-300 hover:text-foreground-600 hover:bg-background-100'
-                  : 'text-background-50/40 hover:text-background-50/80 hover:bg-background-50/10'
+                  : 'text-white/50 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)] hover:text-white hover:bg-white/10'
               }`}
               aria-label="Gestión de productos"
               title="Gestión de productos"
@@ -128,14 +128,14 @@ export default function Navbar() {
 
             {/* Language switcher */}
             <div className={`flex items-center rounded-full border overflow-hidden transition-colors duration-500 ${
-              showDark ? 'border-foreground-200/50' : 'border-background-50/25'
+              showDark ? 'border-foreground-200/50' : 'border-white/40 bg-black/10'
             }`}>
               <button
                 onClick={() => currentLang !== 'es' && toggleLanguage()}
                 className={`px-2.5 py-1 text-xs font-medium transition-colors duration-300 whitespace-nowrap cursor-pointer ${
                   currentLang === 'es'
                     ? 'bg-primary-500 text-background-50'
-                    : showDark ? 'text-foreground-500 hover:text-foreground-950' : 'text-white hover:text-white'
+                    : showDark ? 'text-foreground-500 hover:text-foreground-950' : 'text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'
                 }`}
                 aria-label="Cambiar a español"
               >
@@ -146,7 +146,7 @@ export default function Navbar() {
                 className={`px-2.5 py-1 text-xs font-medium transition-colors duration-300 whitespace-nowrap cursor-pointer ${
                   currentLang === 'eu'
                     ? 'bg-primary-500 text-background-50'
-                    : showDark ? 'text-foreground-500 hover:text-foreground-950' : 'text-white hover:text-white'
+                    : showDark ? 'text-foreground-500 hover:text-foreground-950' : 'text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'
                 }`}
                 aria-label="Aldatu euskarara"
               >
