@@ -75,7 +75,9 @@ export default function Navbar() {
       )}
 
       <div className="w-full max-w-[1440px] mx-auto px-4 md:px-6 lg:px-12">
-        <div className="flex items-center justify-between h-16 md:h-20">
+        {/* Grid (not flex justify-between) so the middle nav group centers on
+            the row regardless of how wide the logo vs. right-side content is */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center h-16 md:h-20">
           {/* Logo */}
           <a
             href="/"
@@ -110,7 +112,7 @@ export default function Navbar() {
           </div>
 
           {/* Right side: language + mobile toggle */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 justify-self-end">
             {/* Admin access — discreet, desktop only */}
             <a
               href="/admin"
