@@ -11,14 +11,21 @@ const ESTADO_LABELS: Record<ProductoEstado, string> = {
   seasonal: 'Temporada',
 };
 
-type CategoriaFiltro = 'todos' | ProductoCategoria;
+type CategoriaFiltro = 'todos' | ProductoCategoria | string;
 
-const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string }[] = [
-  { value: 'todos', label: 'Todos' },
-  { value: 'pescado', label: 'Pescado' },
-  { value: 'especial', label: 'Especial' },
-  { value: 'raciones', label: 'Raciones' },
-  { value: 'marisco', label: 'Marisco' },
+// Mismo listado y orden que el filtro del catálogo público (categorías + subcategorías de pescado)
+const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categoria' | 'subcategoria' }[] = [
+  { value: 'todos', label: 'Todos', tipo: 'categoria' },
+  { value: 'pescado', label: 'Pescado', tipo: 'categoria' },
+  { value: 'especial', label: 'Especial', tipo: 'categoria' },
+  { value: 'raciones', label: 'Raciones', tipo: 'categoria' },
+  { value: 'marisco', label: 'Marisco', tipo: 'categoria' },
+  { value: 'azul', label: 'Pescado Azul', tipo: 'subcategoria' },
+  { value: 'blanco', label: 'Pescado Blanco', tipo: 'subcategoria' },
+  { value: 'cefalopodos', label: 'Cefalópodos', tipo: 'subcategoria' },
+  { value: 'bivalvos', label: 'Bivalvos / Moluscos', tipo: 'subcategoria' },
+  { value: 'crustaceos_grandes', label: 'Crustáceos Grandes', tipo: 'subcategoria' },
+  { value: 'gambas_langostinos', label: 'Gambas y Langostinos', tipo: 'subcategoria' },
 ];
 
 function ProductoCard({ producto, onChanged, onEdit }: { producto: Producto; onChanged: () => void; onEdit: () => void }) {
@@ -112,11 +119,25 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
 
   const agotadosCount = useMemo(() => productos.filter((p) => !p.disponible).length, [productos]);
 
+  const categoriaCounts = useMemo(() => {
+    const counts: Record<string, number> = { todos: productos.length };
+    CATEGORIA_FILTROS.forEach((c) => {
+      if (c.value === 'todos') return;
+      counts[c.value] = productos.filter((p) =>
+        c.tipo === 'categoria' ? p.categoria === c.value : p.subcategoria === c.value,
+      ).length;
+    });
+    return counts;
+  }, [productos]);
+
   const visibles = useMemo(() => {
     let result = productos;
 
     if (categoria !== 'todos') {
-      result = result.filter((p) => p.categoria === categoria);
+      const filtro = CATEGORIA_FILTROS.find((c) => c.value === categoria);
+      result = result.filter((p) =>
+        filtro?.tipo === 'subcategoria' ? p.subcategoria === categoria : p.categoria === categoria,
+      );
     }
     if (soloAgotados) {
       result = result.filter((p) => !p.disponible);
@@ -161,11 +182,18 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
               key={c.value}
               type="button"
               onClick={() => setCategoria(c.value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
                 categoria === c.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
               }`}
             >
               {c.label}
+              <span
+                className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-none ${
+                  categoria === c.value ? 'bg-background-50/20 text-background-50' : 'bg-background-200/60 text-foreground-400'
+                }`}
+              >
+                {categoriaCounts[c.value] ?? 0}
+              </span>
             </button>
           ))}
 
