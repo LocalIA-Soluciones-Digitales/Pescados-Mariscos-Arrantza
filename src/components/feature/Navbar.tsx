@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
 
 const navLinks = [
@@ -14,8 +14,15 @@ export default function Navbar() {
   const { t } = useTranslation();
   const { currentLang, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Only the home hero is a dark full-bleed photo — everywhere else the
+  // navbar must render with dark text/solid background from the start,
+  // otherwise light text disappears against those pages' light hero.
+  const isHome = location.pathname === '/';
+  const showDark = scrolled || !isHome;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 60);
@@ -31,6 +38,11 @@ export default function Navbar() {
   const handleNavClick = (href: string) => {
     setMobileOpen(false);
     if (href.startsWith('#')) {
+      if (location.pathname !== '/') {
+        navigate('/');
+        setTimeout(() => document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' }), 100);
+        return;
+      }
       const el = document.querySelector(href);
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     } else {
@@ -38,28 +50,37 @@ export default function Navbar() {
     }
   };
 
+  const handleLogoClick = () => {
+    setMobileOpen(false);
+    if (location.pathname === '/') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      navigate('/');
+    }
+  };
+
   return (
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled
+        showDark
           ? 'bg-background-50/95 backdrop-blur-md shadow-[0_1px_0_0_rgba(0,0,0,0.04)]'
           : 'bg-transparent'
       }`}
-      data-scrolled={scrolled}
+      data-scrolled={showDark}
     >
       <div className="w-full max-w-[1440px] mx-auto px-4 md:px-6 lg:px-12">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <a
-            href="#"
-            onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            href="/"
+            onClick={(e) => { e.preventDefault(); handleLogoClick(); }}
             className="flex items-center gap-2 group"
           >
-            <span className={`font-heading text-xl md:text-2xl font-semibold tracking-tight transition-colors duration-500 ${scrolled ? 'text-foreground-950' : 'text-background-50'}`}>
+            <span className={`font-heading text-xl md:text-2xl font-semibold tracking-tight transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-background-50'}`}>
               Arrantza
             </span>
             <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-accent-500 mt-1"></span>
-            <span className={`hidden sm:inline text-xs tracking-[0.15em] uppercase mt-0.5 transition-colors duration-500 ${scrolled ? 'text-foreground-400' : 'text-background-50/60'}`}>
+            <span className={`hidden sm:inline text-xs tracking-[0.15em] uppercase mt-0.5 transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-background-50/60'}`}>
               {currentLang === 'es' ? 'Pescados y Mariscos' : 'Arrainak eta Itsaskiak'}
             </span>
           </a>
@@ -72,7 +93,7 @@ export default function Navbar() {
                 href={link.href}
                 onClick={(e) => { e.preventDefault(); handleNavClick(link.href); }}
                 className={`text-sm transition-colors duration-300 whitespace-nowrap ${
-                  scrolled
+                  showDark
                     ? 'text-foreground-500 hover:text-foreground-950'
                     : 'text-background-50/80 hover:text-background-50'
                 }`}
@@ -89,26 +110,26 @@ export default function Navbar() {
               href="/admin"
               onClick={(e) => { e.preventDefault(); navigate('/admin'); }}
               className={`hidden lg:flex w-8 h-8 items-center justify-center rounded-full transition-colors duration-300 ${
-                scrolled
+                showDark
                   ? 'text-foreground-300 hover:text-foreground-600 hover:bg-background-100'
                   : 'text-background-50/40 hover:text-background-50/80 hover:bg-background-50/10'
               }`}
-              aria-label="Acceso pescadero"
-              title="Acceso pescadero"
+              aria-label="Gestión de productos"
+              title="Gestión de productos"
             >
               <i className="ri-shield-user-line text-base"></i>
             </a>
 
             {/* Language switcher */}
             <div className={`flex items-center rounded-full border overflow-hidden transition-colors duration-500 ${
-              scrolled ? 'border-foreground-200/50' : 'border-background-50/25'
+              showDark ? 'border-foreground-200/50' : 'border-background-50/25'
             }`}>
               <button
                 onClick={() => currentLang !== 'es' && toggleLanguage()}
                 className={`px-2.5 py-1 text-xs font-medium transition-colors duration-300 whitespace-nowrap cursor-pointer ${
                   currentLang === 'es'
                     ? 'bg-primary-500 text-background-50'
-                    : scrolled ? 'text-foreground-500 hover:text-foreground-950' : 'text-white hover:text-white'
+                    : showDark ? 'text-foreground-500 hover:text-foreground-950' : 'text-white hover:text-white'
                 }`}
                 aria-label="Cambiar a español"
               >
@@ -119,7 +140,7 @@ export default function Navbar() {
                 className={`px-2.5 py-1 text-xs font-medium transition-colors duration-300 whitespace-nowrap cursor-pointer ${
                   currentLang === 'eu'
                     ? 'bg-primary-500 text-background-50'
-                    : scrolled ? 'text-foreground-500 hover:text-foreground-950' : 'text-white hover:text-white'
+                    : showDark ? 'text-foreground-500 hover:text-foreground-950' : 'text-white hover:text-white'
                 }`}
                 aria-label="Aldatu euskarara"
               >
@@ -134,9 +155,9 @@ export default function Navbar() {
               aria-label={mobileOpen ? t('common.close') : t('common.open')}
             >
               <div className="flex flex-col gap-1.5 w-5 items-center">
-                <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'rotate-45 translate-y-[3.5px] bg-foreground-950' : scrolled ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
-                <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'opacity-0 bg-foreground-950' : scrolled ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
-                <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? '-rotate-45 -translate-y-[3.5px] bg-foreground-950' : scrolled ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
+                <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'rotate-45 translate-y-[3.5px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
+                <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'opacity-0 bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
+                <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? '-rotate-45 -translate-y-[3.5px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
               </div>
             </button>
           </div>
@@ -175,7 +196,7 @@ export default function Navbar() {
           style={{ transitionDelay: mobileOpen ? `${navLinks.length * 70}ms` : '0ms' }}
         >
           <i className="ri-shield-user-line text-sm"></i>
-          Acceso pescadero
+          Gestión de productos
         </a>
       </div>
     </nav>
