@@ -163,19 +163,20 @@ export default function Navbar() {
               {t(link.key)}
             </a>
           ))}
-
-          <a
-            href="/admin"
-            onClick={(e) => { e.preventDefault(); handleNavClick('/admin'); }}
-            className={`inline-flex items-center gap-1.5 text-xs text-foreground-300 hover:text-foreground-500 transition-all duration-300 mt-4 ${
-              mobileOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-            }`}
-            style={{ transitionDelay: mobileOpen ? `${navLinks.length * 70}ms` : '0ms' }}
-          >
-            <i className="ri-shield-user-line text-xs"></i>
-            Acceso pescadero
-          </a>
         </div>
+
+        {/* Admin access — separated from primary nav, styled as a discreet utility action */}
+        <a
+          href="/admin"
+          onClick={(e) => { e.preventDefault(); handleNavClick('/admin'); }}
+          className={`absolute left-1/2 -translate-x-1/2 bottom-10 inline-flex items-center gap-2 px-4 py-2 rounded-full border border-background-200/70 text-xs font-medium text-foreground-400 hover:text-foreground-700 hover:border-background-300 transition-all duration-300 ${
+            mobileOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+          style={{ transitionDelay: mobileOpen ? `${navLinks.length * 70}ms` : '0ms' }}
+        >
+          <i className="ri-shield-user-line text-sm"></i>
+          Acceso pescadero
+        </a>
       </div>
     </nav>
   );
