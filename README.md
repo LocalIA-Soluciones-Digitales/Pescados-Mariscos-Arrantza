@@ -18,15 +18,23 @@ Multilingüe: Español (por defecto) y Euskera, con arquitectura preparada para 
 
 ```
 src/
-├── components/       # Componentes base y de feature (Navbar, Turnstile...)
-├── config/           # Configuración (Turnstile)
-├── hooks/            # useCart, useLanguage, useScrollAnimation, useTurnstile
-├── i18n/             # Configuración y traducciones (es, eu)
-├── mocks/            # Datos de ejemplo de productos
+├── components/
+│   ├── base/          # Componentes genéricos (RollingNumber...)
+│   └── feature/        # Componentes de feature (Navbar, TurnstileWidget)
+├── config/            # Configuración (Turnstile)
+├── hooks/             # useAdminAuth, useCart, useLanguage, useProductos, useScrollAnimation, useTurnstile
+├── i18n/              # Configuración y traducciones (es, eu)
+├── lib/               # Clientes de servicios externos (Supabase)
+├── mocks/             # Datos de ejemplo de productos
 ├── pages/
-│   ├── home/          # Página principal (Hero, About, Gallery, FAQ, Contact...)
-│   └── productos/      # Catálogo de productos + carrito
-└── router/           # Configuración de rutas
+│   ├── admin/          # Panel de administración (login, dashboard, alta/edición de productos)
+│   ├── home/           # Página principal (Hero, About, Gallery, FAQ, Contact...)
+│   ├── productos/       # Catálogo de productos + carrito
+│   └── NotFound.tsx
+├── router/            # Configuración de rutas
+└── types/             # Tipos compartidos (Producto...)
+
+supabase/              # Esquema y datos de siembra (schema.sql, seed.sql)
 ```
 
 ## Desarrollo

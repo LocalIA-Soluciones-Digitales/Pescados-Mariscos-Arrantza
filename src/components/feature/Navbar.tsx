@@ -84,7 +84,7 @@ export default function Navbar() {
             onClick={(e) => { e.preventDefault(); handleLogoClick(); }}
             className="flex items-center gap-2 group"
           >
-            <span className={`font-heading text-xl md:text-2xl font-semibold leading-none tracking-tight transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
+            <span className={`font-heading text-xl md:text-2xl font-semibold leading-none tracking-tight -translate-y-[3px] transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
               Arrantza
             </span>
             <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-accent-500"></span>
