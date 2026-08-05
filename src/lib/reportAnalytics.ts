@@ -1,4 +1,4 @@
-import type { SourceCategory, VisitEntry } from './visitLog';
+import type { DeviceType, SourceCategory, VisitEntry } from './visitLog';
 
 export type Granularity = 'day' | 'week' | 'month';
 
@@ -36,6 +36,29 @@ export interface Comparison {
   pageviewsChangePct: number | null;
   conversionsChangePct: number | null;
   conversionRateChangePct: number | null;
+}
+
+export interface OverviewStats {
+  uniqueVisitors: number;
+  totalPageviews: number;
+  avgPagesPerSession: number;
+  bounceRate: number;
+  newVisitorPct: number;
+}
+
+export interface PageBreakdown {
+  path: string;
+  views: number;
+}
+
+export interface DeviceBreakdown {
+  device_type: DeviceType;
+  views: number;
+}
+
+export interface WeekdayBreakdown {
+  weekday: number; // 0 = lunes … 6 = domingo
+  views: number;
 }
 
 const isConversion = (e: VisitEntry) => e.event_type === 'tel_click' || e.event_type === 'whatsapp_click';
@@ -102,6 +125,73 @@ export function buildSourceBreakdown(visits: VisitEntry[]): SourceBreakdown[] {
   }
 
   return Array.from(byCategory.values()).sort((a, b) => b.pageviews - a.pageviews);
+}
+
+export function buildOverviewStats(visits: VisitEntry[]): OverviewStats {
+  const pageviews = visits.filter((v) => v.event_type === 'pageview');
+  const bySession = new Map<string, { count: number; isReturning: boolean }>();
+
+  for (const v of pageviews) {
+    const entry = bySession.get(v.session_id) ?? { count: 0, isReturning: v.is_returning };
+    entry.count += 1;
+    bySession.set(v.session_id, entry);
+  }
+
+  const sessions = Array.from(bySession.values());
+  const totalSessions = sessions.length;
+  const bounces = sessions.filter((s) => s.count === 1).length;
+  const returning = sessions.filter((s) => s.isReturning).length;
+
+  return {
+    uniqueVisitors: totalSessions,
+    totalPageviews: pageviews.length,
+    avgPagesPerSession: totalSessions > 0 ? pageviews.length / totalSessions : 0,
+    bounceRate: totalSessions > 0 ? bounces / totalSessions : 0,
+    newVisitorPct: totalSessions > 0 ? ((totalSessions - returning) / totalSessions) * 100 : 0,
+  };
+}
+
+const INTERNAL_PATH_PREFIXES = ['/admin'];
+
+export function buildTopPages(visits: VisitEntry[], limit = 10): PageBreakdown[] {
+  const byPath = new Map<string, number>();
+
+  for (const v of visits) {
+    if (v.event_type !== 'pageview') continue;
+    if (INTERNAL_PATH_PREFIXES.some((p) => v.path.startsWith(p))) continue;
+    byPath.set(v.path, (byPath.get(v.path) ?? 0) + 1);
+  }
+
+  return Array.from(byPath.entries())
+    .map(([path, views]) => ({ path, views }))
+    .sort((a, b) => b.views - a.views)
+    .slice(0, limit);
+}
+
+export function buildDeviceBreakdown(visits: VisitEntry[]): DeviceBreakdown[] {
+  const byDevice = new Map<DeviceType, number>();
+
+  for (const v of visits) {
+    if (v.event_type !== 'pageview' || !v.device_type) continue;
+    byDevice.set(v.device_type, (byDevice.get(v.device_type) ?? 0) + 1);
+  }
+
+  return Array.from(byDevice.entries())
+    .map(([device_type, views]) => ({ device_type, views }))
+    .sort((a, b) => b.views - a.views);
+}
+
+export function buildWeekdayBreakdown(visits: VisitEntry[]): WeekdayBreakdown[] {
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+
+  for (const v of visits) {
+    if (v.event_type !== 'pageview') continue;
+    const jsDay = new Date(v.created_at).getDay(); // 0 = domingo … 6 = sábado
+    const mondayFirst = (jsDay + 6) % 7;
+    counts[mondayFirst] += 1;
+  }
+
+  return counts.map((views, weekday) => ({ weekday, views }));
 }
 
 function periodStats(visits: VisitEntry[], from: Date, to: Date): PeriodStats {

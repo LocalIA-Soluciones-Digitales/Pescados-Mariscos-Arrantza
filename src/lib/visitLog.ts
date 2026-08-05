@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient';
 
 export type EventType = 'pageview' | 'tel_click' | 'whatsapp_click' | 'category_view';
 export type SourceCategory = 'google_ads' | 'google_organic' | 'social' | 'referral' | 'direct' | 'other';
+export type DeviceType = 'mobile' | 'tablet' | 'desktop';
 
 export interface VisitEntry {
   id: string;
@@ -14,11 +15,15 @@ export interface VisitEntry {
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
+  device_type: DeviceType | null;
+  is_returning: boolean;
   created_at: string;
 }
 
 const SESSION_KEY = 'pmz_session_id';
 const SOURCE_KEY = 'pmz_source';
+const VISITOR_KEY = 'pmz_visitor_id';
+const RETURNING_KEY = 'pmz_is_returning';
 
 const AD_MEDIUMS = ['cpc', 'ppc', 'paid', 'ads'];
 const SOCIAL_HOSTS = ['facebook.com', 'instagram.com', 'x.com', 'twitter.com', 'tiktok.com'];
@@ -30,6 +35,27 @@ function getSessionId(): string {
     sessionStorage.setItem(SESSION_KEY, id);
   }
   return id;
+}
+
+function detectDeviceType(): DeviceType {
+  const ua = navigator.userAgent;
+  if (/iPad|Android(?!.*Mobile)|Tablet/i.test(ua)) return 'tablet';
+  if (/Mobi|iPhone|iPod/i.test(ua)) return 'mobile';
+  return 'desktop';
+}
+
+// Identificador anónimo y persistente (sin datos personales) solo para
+// distinguir visitantes nuevos de recurrentes entre sesiones distintas.
+function isReturningVisitor(): boolean {
+  const cached = sessionStorage.getItem(RETURNING_KEY);
+  if (cached !== null) return cached === '1';
+
+  const hadVisitorId = !!localStorage.getItem(VISITOR_KEY);
+  if (!hadVisitorId) {
+    localStorage.setItem(VISITOR_KEY, crypto.randomUUID());
+  }
+  sessionStorage.setItem(RETURNING_KEY, hadVisitorId ? '1' : '0');
+  return hadVisitorId;
 }
 
 interface Attribution {
@@ -94,6 +120,8 @@ async function insertEvent(eventType: EventType, path: string, label?: string) {
       utm_source: attribution.utm_source,
       utm_medium: attribution.utm_medium,
       utm_campaign: attribution.utm_campaign,
+      device_type: detectDeviceType(),
+      is_returning: isReturningVisitor(),
     });
   } catch {
     // El registro de visitas nunca debe interrumpir la navegación del usuario.

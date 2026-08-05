@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
+import DeveloperDashboard from './components/DeveloperDashboard';
 
 export default function Admin() {
   const { session, loading, error, signIn, signOut, isDeveloper } = useAdminAuth();
@@ -20,5 +21,5 @@ export default function Admin() {
     return <AdminLogin signIn={signIn} error={error} />;
   }
 
-  return <AdminDashboard onSignOut={handleSignOut} isDeveloper={isDeveloper} />;
+  return isDeveloper ? <DeveloperDashboard onSignOut={handleSignOut} /> : <AdminDashboard onSignOut={handleSignOut} />;
 }

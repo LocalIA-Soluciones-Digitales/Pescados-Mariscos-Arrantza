@@ -13,8 +13,33 @@ import {
 } from 'recharts';
 import { useVisits } from '@/hooks/useVisits';
 import { useSetting } from '@/hooks/useSetting';
-import { buildCategoryBreakdown, buildComparison, buildSeries, buildSourceBreakdown, type Granularity } from '@/lib/reportAnalytics';
-import type { SourceCategory } from '@/lib/visitLog';
+import {
+  buildCategoryBreakdown,
+  buildComparison,
+  buildDeviceBreakdown,
+  buildOverviewStats,
+  buildSeries,
+  buildSourceBreakdown,
+  buildTopPages,
+  buildWeekdayBreakdown,
+  type Granularity,
+} from '@/lib/reportAnalytics';
+import type { DeviceType, SourceCategory } from '@/lib/visitLog';
+
+const WEEKDAY_LABELS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+const PAGE_LABELS: Record<string, string> = {
+  '/': 'Inicio',
+  '/productos': 'Catálogo',
+  '/aviso-legal': 'Aviso legal',
+  '/cookies': 'Política de cookies',
+};
+
+const DEVICE_LABELS: Record<DeviceType, string> = {
+  mobile: 'Móvil',
+  tablet: 'Tablet',
+  desktop: 'Escritorio',
+};
 
 const COMPARISON_WINDOW_DAYS = 14;
 
@@ -73,10 +98,18 @@ export default function ReportsPanel() {
   const [granularity, setGranularity] = useState<Granularity>('week');
 
   const series = useMemo(() => buildSeries(visits, granularity), [visits, granularity]);
+  const overview = useMemo(() => buildOverviewStats(visits), [visits]);
+  const topPages = useMemo(() => buildTopPages(visits), [visits]);
+  const deviceBreakdown = useMemo(() => buildDeviceBreakdown(visits), [visits]);
+  const weekdayBreakdown = useMemo(
+    () => buildWeekdayBreakdown(visits).map((w) => ({ ...w, label: WEEKDAY_LABELS[w.weekday] })),
+    [visits],
+  );
   const sourceBreakdown = useMemo(() => buildSourceBreakdown(visits), [visits]);
   const categoryBreakdown = useMemo(() => buildCategoryBreakdown(visits), [visits]);
   const totalPageviews = useMemo(() => sourceBreakdown.reduce((sum, s) => sum + s.pageviews, 0), [sourceBreakdown]);
   const totalCategoryViews = useMemo(() => categoryBreakdown.reduce((sum, c) => sum + c.views, 0), [categoryBreakdown]);
+  const totalDeviceViews = useMemo(() => deviceBreakdown.reduce((sum, d) => sum + d.views, 0), [deviceBreakdown]);
 
   const comparison = useMemo(
     () => (launchDateStr ? buildComparison(visits, new Date(`${launchDateStr}T00:00:00`), COMPARISON_WINDOW_DAYS) : null),
@@ -118,6 +151,30 @@ export default function ReportsPanel() {
         <p className="text-sm text-foreground-400">Todavía no hay visitas registradas.</p>
       ) : (
         <>
+          {/* Visión general */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            <div className="bg-background-50 border border-background-200/70 rounded-lg p-4 text-center">
+              <p className="text-xl font-semibold text-foreground-950">{overview.uniqueVisitors}</p>
+              <p className="text-xs text-foreground-400 mt-1">Visitantes únicos</p>
+            </div>
+            <div className="bg-background-50 border border-background-200/70 rounded-lg p-4 text-center">
+              <p className="text-xl font-semibold text-foreground-950">{overview.totalPageviews}</p>
+              <p className="text-xs text-foreground-400 mt-1">Páginas vistas</p>
+            </div>
+            <div className="bg-background-50 border border-background-200/70 rounded-lg p-4 text-center">
+              <p className="text-xl font-semibold text-foreground-950">{overview.avgPagesPerSession.toFixed(1)}</p>
+              <p className="text-xs text-foreground-400 mt-1">Páginas / sesión</p>
+            </div>
+            <div className="bg-background-50 border border-background-200/70 rounded-lg p-4 text-center">
+              <p className="text-xl font-semibold text-foreground-950">{(overview.bounceRate * 100).toFixed(0)}%</p>
+              <p className="text-xs text-foreground-400 mt-1">Tasa de rebote</p>
+            </div>
+            <div className="bg-background-50 border border-background-200/70 rounded-lg p-4 text-center">
+              <p className="text-xl font-semibold text-foreground-950">{overview.newVisitorPct.toFixed(0)}%</p>
+              <p className="text-xs text-foreground-400 mt-1">Visitantes nuevos</p>
+            </div>
+          </div>
+
           {/* Comparativa automática antes/después */}
           {comparison && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -190,6 +247,51 @@ export default function ReportsPanel() {
                 <Bar dataKey="conversions" name="Conversiones" fill="oklch(0.63 0.028 70)" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+
+          {/* Páginas más vistas, dispositivo y día de la semana */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="bg-background-50 border border-background-200/70 rounded-lg p-4">
+              <p className="text-sm font-medium text-foreground-950 mb-4">Páginas más vistas</p>
+              <div className="space-y-2">
+                {topPages.map((p) => (
+                  <div key={p.path} className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-foreground-600 truncate">{PAGE_LABELS[p.path] ?? p.path}</span>
+                    <span className="text-xs text-foreground-400 flex-shrink-0">{p.views}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-background-50 border border-background-200/70 rounded-lg p-4">
+              <p className="text-sm font-medium text-foreground-950 mb-4">Dispositivo</p>
+              <div className="space-y-2">
+                {deviceBreakdown.map((d) => {
+                  const pct = totalDeviceViews > 0 ? (d.views / totalDeviceViews) * 100 : 0;
+                  return (
+                    <div key={d.device_type} className="flex items-center gap-3">
+                      <span className="text-xs text-foreground-600 w-20 flex-shrink-0">{DEVICE_LABELS[d.device_type]}</span>
+                      <div className="flex-1 h-2 bg-background-200/60 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-primary-400" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs text-foreground-400 w-10 flex-shrink-0 text-right">{pct.toFixed(0)}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="bg-background-50 border border-background-200/70 rounded-lg p-4">
+              <p className="text-sm font-medium text-foreground-950 mb-4">Visitas por día de la semana</p>
+              <ResponsiveContainer width="100%" height={150}>
+                <BarChart data={weekdayBreakdown}>
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.slice(0, 3)} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={28} />
+                  <Tooltip />
+                  <Bar dataKey="views" name="Visitas" fill="oklch(0.28 0.035 238)" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           {/* Desglose por origen */}

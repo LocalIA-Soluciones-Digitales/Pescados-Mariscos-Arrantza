@@ -239,3 +239,17 @@ create policy "settings_all_admin"
   to authenticated
   using (public.is_developer())
   with check (public.is_developer());
+
+-- ============================================================
+-- Más señal para analizar la web: tipo de dispositivo y si el
+-- visitante ya había estado antes (nuevo vs. recurrente).
+-- ============================================================
+
+alter table public.visits add column if not exists device_type text;
+alter table public.visits drop constraint if exists visits_device_type_check;
+alter table public.visits add constraint visits_device_type_check
+  check (device_type is null or device_type in ('mobile', 'tablet', 'desktop'));
+
+alter table public.visits add column if not exists is_returning boolean not null default false;
+
+create index if not exists idx_visits_path on public.visits (path);
