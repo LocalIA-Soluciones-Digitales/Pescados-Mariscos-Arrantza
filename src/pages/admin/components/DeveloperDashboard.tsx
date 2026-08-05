@@ -26,7 +26,7 @@ export default function DeveloperDashboard({ onSignOut }: { onSignOut: () => voi
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-base font-heading font-semibold text-foreground-950">{TITLES[tab]}</h1>
-            <p className="text-xs text-foreground-400">Pescados y Mariscos Arrantza · panel de desarrollo</p>
+            <p className="text-xs text-foreground-400">Pescados y Mariscos Arrantza · Panel de Desarrollo</p>
           </div>
           <div className="flex items-center gap-1.5">
             {TABS.map((t) => (
