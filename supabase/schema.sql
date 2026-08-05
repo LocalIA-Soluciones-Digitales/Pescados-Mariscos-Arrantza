@@ -196,3 +196,46 @@ alter table public.visits add column if not exists label text;
 alter table public.visits drop constraint if exists visits_event_type_check;
 alter table public.visits add constraint visits_event_type_check
   check (event_type in ('pageview', 'tel_click', 'whatsapp_click', 'category_view'));
+
+-- ============================================================
+-- Separación de roles: el pescadero solo gestiona productos;
+-- informes/errores/ajustes quedan restringidos a los desarrolladores.
+-- Mantener esta lista sincronizada con DEVELOPER_EMAILS en
+-- src/config/devEmails.ts.
+-- ============================================================
+
+create or replace function public.is_developer()
+returns boolean as $$
+  select (auth.jwt() ->> 'email') = any (array['edortadossantos@gmail.com']);
+$$ language sql stable;
+
+drop policy if exists "error_logs_select_admin" on public.error_logs;
+create policy "error_logs_select_admin"
+  on public.error_logs for select
+  to authenticated
+  using (public.is_developer());
+
+drop policy if exists "error_logs_delete_admin" on public.error_logs;
+create policy "error_logs_delete_admin"
+  on public.error_logs for delete
+  to authenticated
+  using (public.is_developer());
+
+drop policy if exists "visits_select_admin" on public.visits;
+create policy "visits_select_admin"
+  on public.visits for select
+  to authenticated
+  using (public.is_developer());
+
+drop policy if exists "visits_delete_admin" on public.visits;
+create policy "visits_delete_admin"
+  on public.visits for delete
+  to authenticated
+  using (public.is_developer());
+
+drop policy if exists "settings_all_admin" on public.settings;
+create policy "settings_all_admin"
+  on public.settings for all
+  to authenticated
+  using (public.is_developer())
+  with check (public.is_developer());

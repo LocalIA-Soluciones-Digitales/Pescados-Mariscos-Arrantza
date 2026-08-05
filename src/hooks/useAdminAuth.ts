@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
+import { DEVELOPER_EMAILS } from '@/config/devEmails';
 
 export function useAdminAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isDeveloper = !!session?.user.email && DEVELOPER_EMAILS.includes(session.user.email);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -37,5 +39,5 @@ export function useAdminAuth() {
     await supabase.auth.signOut();
   }, []);
 
-  return { session, loading, error, signIn, signOut };
+  return { session, loading, error, signIn, signOut, isDeveloper };
 }

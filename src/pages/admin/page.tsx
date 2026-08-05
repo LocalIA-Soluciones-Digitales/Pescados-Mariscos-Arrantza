@@ -4,7 +4,7 @@ import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 
 export default function Admin() {
-  const { session, loading, error, signIn, signOut } = useAdminAuth();
+  const { session, loading, error, signIn, signOut, isDeveloper } = useAdminAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -20,5 +20,5 @@ export default function Admin() {
     return <AdminLogin signIn={signIn} error={error} />;
   }
 
-  return <AdminDashboard onSignOut={handleSignOut} />;
+  return <AdminDashboard onSignOut={handleSignOut} isDeveloper={isDeveloper} />;
 }

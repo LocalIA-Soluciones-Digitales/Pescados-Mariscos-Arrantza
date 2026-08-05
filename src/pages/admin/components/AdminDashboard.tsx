@@ -113,7 +113,7 @@ function ProductoCard({ producto, onChanged, onEdit }: { producto: Producto; onC
   );
 }
 
-export default function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
+export default function AdminDashboard({ onSignOut, isDeveloper }: { onSignOut: () => void; isDeveloper: boolean }) {
   const [tab, setTab] = useState<'productos' | 'informes' | 'resumen' | 'errores'>('productos');
   const { productos, loading, refetch } = useProductos();
   const [editing, setEditing] = useState<Producto | null | 'new'>(null);
@@ -181,33 +181,37 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
             >
               Productos
             </button>
-            <button
-              type="button"
-              onClick={() => setTab('informes')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                tab === 'informes' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
-              }`}
-            >
-              Informes
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('resumen')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                tab === 'resumen' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
-              }`}
-            >
-              Resumen
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('errores')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                tab === 'errores' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
-              }`}
-            >
-              Errores
-            </button>
+            {isDeveloper && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setTab('informes')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    tab === 'informes' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+                  }`}
+                >
+                  Informes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab('resumen')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    tab === 'resumen' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+                  }`}
+                >
+                  Resumen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab('errores')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    tab === 'errores' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+                  }`}
+                >
+                  Errores
+                </button>
+              </>
+            )}
           </div>
         </div>
         <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 flex-shrink-0">
@@ -215,11 +219,11 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
         </button>
       </header>
 
-      {tab === 'errores' ? (
+      {isDeveloper && tab === 'errores' ? (
         <ErrorLogsPanel />
-      ) : tab === 'informes' ? (
+      ) : isDeveloper && tab === 'informes' ? (
         <ReportsPanel />
-      ) : tab === 'resumen' ? (
+      ) : isDeveloper && tab === 'resumen' ? (
         <SummaryPanel />
       ) : (
         <>
