@@ -75,9 +75,10 @@ export default function Navbar() {
       )}
 
       <div className="w-full max-w-[1440px] mx-auto px-4 md:px-6 lg:px-12">
-        {/* Grid (not flex justify-between) so the middle nav group centers on
-            the row regardless of how wide the logo vs. right-side content is */}
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center h-16 md:h-20">
+        {/* Plain flex justify-between so mobile always gets equal, predictable
+            left/right margins. Desktop nav links are pulled out of this flow
+            and centered absolutely, so they can't disturb that spacing. */}
+        <div className="relative flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <a
             href="/"
@@ -93,8 +94,8 @@ export default function Navbar() {
             </span>
           </a>
 
-          {/* Desktop nav */}
-          <div className="hidden lg:flex items-center gap-8">
+          {/* Desktop nav — centered on the row independently of logo/right-side widths */}
+          <div className="hidden lg:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
             {navLinks.map((link) => (
               <a
                 key={link.key}
@@ -112,7 +113,7 @@ export default function Navbar() {
           </div>
 
           {/* Right side: language + mobile toggle */}
-          <div className="flex items-center gap-4 justify-self-end">
+          <div className="flex items-center gap-4">
             {/* Admin access — discreet, desktop only */}
             <a
               href="/admin"
