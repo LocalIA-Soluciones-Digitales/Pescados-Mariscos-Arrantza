@@ -3,6 +3,9 @@ import { supabase } from '@/lib/supabaseClient';
 import { useProductos } from '@/hooks/useProductos';
 import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
 import ProductoFormModal from './ProductoFormModal';
+import ErrorLogsPanel from './ErrorLogsPanel';
+import ReportsPanel from './ReportsPanel';
+import SummaryPanel from './SummaryPanel';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -111,6 +114,7 @@ function ProductoCard({ producto, onChanged, onEdit }: { producto: Producto; onC
 }
 
 export default function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
+  const [tab, setTab] = useState<'productos' | 'informes' | 'resumen' | 'errores'>('productos');
   const { productos, loading, refetch } = useProductos();
   const [editing, setEditing] = useState<Producto | null | 'new'>(null);
   const [search, setSearch] = useState('');
@@ -153,16 +157,72 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
 
   return (
     <div className="min-h-screen bg-background-100">
-      <header className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-4 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-base font-heading font-semibold text-foreground-950">Gestión de productos</h1>
-          <p className="text-xs text-foreground-400">Pescados y Mariscos Arrantza</p>
+      <header className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-4 flex items-center justify-between gap-4 print:hidden">
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-base font-heading font-semibold text-foreground-950">
+              {tab === 'productos'
+                ? 'Gestión de productos'
+                : tab === 'informes'
+                  ? 'Informes de visitas'
+                  : tab === 'resumen'
+                    ? 'Resumen'
+                    : 'Registro de errores'}
+            </h1>
+            <p className="text-xs text-foreground-400">Pescados y Mariscos Arrantza</p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setTab('productos')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                tab === 'productos' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              Productos
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('informes')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                tab === 'informes' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              Informes
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('resumen')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                tab === 'resumen' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              Resumen
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('errores')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                tab === 'errores' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              Errores
+            </button>
+          </div>
         </div>
         <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 flex-shrink-0">
           Cerrar sesión
         </button>
       </header>
 
+      {tab === 'errores' ? (
+        <ErrorLogsPanel />
+      ) : tab === 'informes' ? (
+        <ReportsPanel />
+      ) : tab === 'resumen' ? (
+        <SummaryPanel />
+      ) : (
+        <>
       {/* Filtros */}
       <div className="sticky top-[65px] z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center">
         <div className="relative flex-1 max-w-[280px]">
@@ -252,6 +312,8 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
             refetch();
           }}
         />
+      )}
+        </>
       )}
     </div>
   );

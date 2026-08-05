@@ -83,3 +83,116 @@ create policy "productos_storage_escritura_admin"
   to authenticated
   using (bucket_id = 'productos')
   with check (bucket_id = 'productos');
+
+-- ============================================================
+-- Registro de errores del frontend (solo lectura para desarrolladores)
+-- ============================================================
+
+create table if not exists public.error_logs (
+  id uuid primary key default gen_random_uuid(),
+  message text not null,
+  stack text,
+  source text not null default 'unknown' check (source in ('window_error', 'unhandled_rejection', 'react_boundary', 'api')),
+  url text,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.error_logs enable row level security;
+
+-- Cualquier visitante puede reportar un error (es lo que ocurre cuando falla la página)…
+drop policy if exists "error_logs_insert_publico" on public.error_logs;
+create policy "error_logs_insert_publico"
+  on public.error_logs for insert
+  to anon, authenticated
+  with check (true);
+
+-- …pero solo el desarrollador autenticado puede leerlos o borrarlos
+drop policy if exists "error_logs_select_admin" on public.error_logs;
+create policy "error_logs_select_admin"
+  on public.error_logs for select
+  to authenticated
+  using (true);
+
+drop policy if exists "error_logs_delete_admin" on public.error_logs;
+create policy "error_logs_delete_admin"
+  on public.error_logs for delete
+  to authenticated
+  using (true);
+
+create index if not exists idx_error_logs_created_at on public.error_logs (created_at desc);
+
+-- ============================================================
+-- Visitas y conversiones (para comparar tráfico antes/después de Google Ads)
+-- ============================================================
+
+create table if not exists public.visits (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null,
+  event_type text not null default 'pageview' check (event_type in ('pageview', 'tel_click', 'whatsapp_click')),
+  path text not null,
+  referrer text,
+  source_category text not null default 'direct' check (source_category in ('google_ads', 'google_organic', 'social', 'referral', 'direct', 'other')),
+  utm_source text,
+  utm_medium text,
+  utm_campaign text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.visits enable row level security;
+
+-- Cualquier visitante genera eventos de navegación…
+drop policy if exists "visits_insert_publico" on public.visits;
+create policy "visits_insert_publico"
+  on public.visits for insert
+  to anon, authenticated
+  with check (true);
+
+-- …pero solo el desarrollador autenticado puede leerlos o borrarlos
+drop policy if exists "visits_select_admin" on public.visits;
+create policy "visits_select_admin"
+  on public.visits for select
+  to authenticated
+  using (true);
+
+drop policy if exists "visits_delete_admin" on public.visits;
+create policy "visits_delete_admin"
+  on public.visits for delete
+  to authenticated
+  using (true);
+
+create index if not exists idx_visits_created_at on public.visits (created_at desc);
+create index if not exists idx_visits_event_type on public.visits (event_type);
+create index if not exists idx_visits_session_id on public.visits (session_id);
+
+-- Ajustes internos del panel (p.ej. fecha de lanzamiento de Google Ads),
+-- solo para el desarrollador autenticado.
+create table if not exists public.settings (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_settings_updated_at on public.settings;
+create trigger trg_settings_updated_at
+  before update on public.settings
+  for each row execute function public.set_updated_at();
+
+alter table public.settings enable row level security;
+
+drop policy if exists "settings_all_admin" on public.settings;
+create policy "settings_all_admin"
+  on public.settings for all
+  to authenticated
+  using (true)
+  with check (true);
+
+-- ============================================================
+-- Interés por categoría (qué buscan más los visitantes en /productos)
+-- ============================================================
+
+alter table public.visits add column if not exists label text;
+
+alter table public.visits drop constraint if exists visits_event_type_check;
+alter table public.visits add constraint visits_event_type_check
+  check (event_type in ('pageview', 'tel_click', 'whatsapp_click', 'category_view'));

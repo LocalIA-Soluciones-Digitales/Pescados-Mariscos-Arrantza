@@ -8,6 +8,7 @@ import RollingNumber from '@/components/base/RollingNumber';
 import { useTurnstile } from '@/hooks/useTurnstile';
 import TurnstileWidget from '@/components/feature/TurnstileWidget';
 import { isTurnstileEnabled } from '@/config/turnstile';
+import { logConversion } from '@/lib/visitLog';
 
 /* ------------------------------------------------------------------ */
 /*  Badge style — same muted palette as catalogue                     */
@@ -768,6 +769,7 @@ export default function CartDrawer({
     // ── Save as last order for Buy Again ──
     onSaveLastOrder();
 
+    logConversion('whatsapp_click');
     window.open(whatsappUrl, '_blank');
   };
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
+import { logConversion } from '@/lib/visitLog';
 
 export default function Contact() {
   const { t } = useTranslation();
@@ -68,6 +69,7 @@ export default function Contact() {
           {/* Phone */}
           <a
             href="tel:+34608240759"
+            onClick={() => logConversion('tel_click')}
             className="group bg-background-50 rounded-lg p-6 sm:p-8 text-center hover:-translate-y-1 transition-all duration-500 cursor-pointer"
           >
             <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-4 sm:mb-5 flex items-center justify-center rounded-full bg-primary-100 text-primary-600 transition-colors duration-300 group-hover:bg-primary-200">

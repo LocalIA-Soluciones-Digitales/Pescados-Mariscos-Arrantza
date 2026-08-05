@@ -8,6 +8,7 @@ import type { CartItem } from '@/hooks/useCart';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
 import { temporada } from '@/mocks/productos';
 import { useProductos } from '@/hooks/useProductos';
+import { logCategoryView, logConversion } from '@/lib/visitLog';
 import { pickLang } from '@/types/producto';
 import type { Producto } from '@/types/producto';
 
@@ -855,6 +856,7 @@ function SpecialOrdersSection() {
           </p>
           <a
             href="tel:+34608240759"
+            onClick={() => logConversion('tel_click')}
             className="inline-flex items-center gap-3 px-8 py-4 bg-accent-500 text-background-50 rounded-full text-sm md:text-base font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-accent-600 hover:scale-[1.03] active:scale-95 group"
           >
             <i className="ri-phone-line text-lg"></i>
@@ -913,6 +915,7 @@ function RestaurantSupplySection() {
 
             <a
               href="tel:+34608240759"
+              onClick={() => logConversion('tel_click')}
               className="inline-flex items-center gap-3 px-6 py-4 bg-primary-500 text-background-50 rounded-full text-sm font-medium cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-primary-600 group"
             >
               {t('products.restaurant.cta_new')}
@@ -1163,7 +1166,10 @@ export default function Productos() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           activeCategory={activeCategory}
-          onCategoryChange={setActiveCategory}
+          onCategoryChange={(cat) => {
+            setActiveCategory(cat);
+            if (cat !== 'todos') logCategoryView(cat);
+          }}
           cartCount={totalProducts}
           cartBounceKey={cartBounceKey}
           cartAnimStyle={cartAnimStyle}
