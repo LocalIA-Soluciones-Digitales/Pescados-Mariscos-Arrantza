@@ -3,6 +3,12 @@ import { supabase } from '@/lib/supabaseClient';
 import { useProductos } from '@/hooks/useProductos';
 import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
 import ProductoFormModal from './ProductoFormModal';
+import PedidosPanel from './PedidosPanel';
+import ResenasPanel from './ResenasPanel';
+import { usePedidos } from '@/hooks/usePedidos';
+import { useResenas } from '@/hooks/useResenas';
+
+type Tab = 'productos' | 'pedidos' | 'resenas';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -110,12 +116,25 @@ function ProductoCard({ producto, onChanged, onEdit }: { producto: Producto; onC
   );
 }
 
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'productos', label: 'Productos' },
+  { value: 'pedidos', label: 'Pedidos' },
+  { value: 'resenas', label: 'Reseñas' },
+];
+
 export default function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
   const { productos, loading, refetch } = useProductos();
   const [editing, setEditing] = useState<Producto | null | 'new'>(null);
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
   const [soloAgotados, setSoloAgotados] = useState(false);
+  const [tab, setTab] = useState<Tab>('productos');
+
+  // Solo para el contador de la pestaña — cada panel trae sus propios datos.
+  const { pedidos } = usePedidos();
+  const { resenas } = useResenas();
+  const pedidosNuevos = useMemo(() => pedidos.filter((p) => p.estado === 'nuevo').length, [pedidos]);
+  const resenasPendientes = useMemo(() => resenas.filter((r) => r.estado === 'pendiente').length, [resenas]);
 
   const agotadosCount = useMemo(() => productos.filter((p) => !p.disponible).length, [productos]);
 
@@ -154,15 +173,45 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
   return (
     <div className="min-h-screen bg-background-100">
       <header className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-4 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-base font-heading font-semibold text-foreground-950">Gestión de productos</h1>
-          <p className="text-xs text-foreground-400">Pescados y Mariscos Arrantza</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-base font-heading font-semibold text-foreground-950">Gestión</h1>
+            <p className="text-xs text-foreground-400">Pescados y Mariscos Arrantza</p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {TABS.map((t) => {
+              const badge = t.value === 'pedidos' ? pedidosNuevos : t.value === 'resenas' ? resenasPendientes : 0;
+              return (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setTab(t.value)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    tab === t.value ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+                  }`}
+                >
+                  {t.label}
+                  {badge > 0 && (
+                    <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-none ${tab === t.value ? 'bg-background-50/20' : 'bg-red-100 text-red-600'}`}>
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 flex-shrink-0">
           Cerrar sesión
         </button>
       </header>
 
+      {tab === 'pedidos' ? (
+        <PedidosPanel />
+      ) : tab === 'resenas' ? (
+        <ResenasPanel />
+      ) : (
+        <>
       {/* Filtros */}
       <div className="sticky top-[65px] z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center">
         <div className="relative flex-1 max-w-[280px]">
@@ -258,6 +307,8 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
             refetch();
           }}
         />
+      )}
+        </>
       )}
     </div>
   );

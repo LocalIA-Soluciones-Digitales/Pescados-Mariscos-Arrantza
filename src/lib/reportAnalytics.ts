@@ -20,6 +20,12 @@ export interface CategoryBreakdown {
   views: number;
 }
 
+export interface ProductBreakdown {
+  productId: string;
+  views: number;
+  addsToCart: number;
+}
+
 export interface PeriodStats {
   days: number;
   pageviews: number;
@@ -109,6 +115,26 @@ export function buildCategoryBreakdown(visits: VisitEntry[]): CategoryBreakdown[
   return Array.from(byCategory.entries())
     .map(([category, views]) => ({ category, views }))
     .sort((a, b) => b.views - a.views);
+}
+
+// Compara cuánto se mira un producto (product_view) frente a cuánto se
+// añade realmente al pedido (add_to_cart) — permite detectar productos que
+// se miran mucho pero apenas se piden, o al revés.
+export function buildProductBreakdown(visits: VisitEntry[]): ProductBreakdown[] {
+  const byProduct = new Map<string, ProductBreakdown>();
+
+  for (const v of visits) {
+    if (v.event_type !== 'product_view' && v.event_type !== 'add_to_cart') continue;
+    if (!v.label) continue;
+    if (!byProduct.has(v.label)) {
+      byProduct.set(v.label, { productId: v.label, views: 0, addsToCart: 0 });
+    }
+    const entry = byProduct.get(v.label)!;
+    if (v.event_type === 'product_view') entry.views += 1;
+    else entry.addsToCart += 1;
+  }
+
+  return Array.from(byProduct.values()).sort((a, b) => b.views - a.views);
 }
 
 export function buildSourceBreakdown(visits: VisitEntry[]): SourceBreakdown[] {

@@ -8,7 +8,7 @@ import type { CartItem } from '@/hooks/useCart';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
 import { temporada } from '@/mocks/productos';
 import { useProductos } from '@/hooks/useProductos';
-import { logCategoryView, logConversion } from '@/lib/visitLog';
+import { logAddToCart, logCategoryView, logConversion, logProductView } from '@/lib/visitLog';
 import { pickLang } from '@/types/producto';
 import type { Producto } from '@/types/producto';
 
@@ -522,6 +522,12 @@ function ProductCard({
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
   const badgeStyle = badgeStyleMap[product.estado];
   const agotado = !product.disponible;
+
+  // Se registra una vez por aparición en pantalla (useScrollAnimation deja
+  // de observar tras el primer isVisible=true, así que esto no se repite).
+  useEffect(() => {
+    if (isVisible) logProductView(product.id);
+  }, [isVisible, product.id]);
 
   return (
     <div
@@ -1081,6 +1087,7 @@ export default function Productos() {
   const handleAddToCart = useCallback(
     (product: Producto) => {
       addItem(product.id);
+      logAddToCart(product.id);
 
       // Show or update toast — never stack multiple notifications
       if (toastTimerRef.current) {

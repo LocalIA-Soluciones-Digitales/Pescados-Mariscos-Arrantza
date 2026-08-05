@@ -9,6 +9,7 @@ import { useTurnstile } from '@/hooks/useTurnstile';
 import TurnstileWidget from '@/components/feature/TurnstileWidget';
 import { isTurnstileEnabled } from '@/config/turnstile';
 import { logConversion } from '@/lib/visitLog';
+import { logPedido } from '@/lib/pedidosLog';
 
 /* ------------------------------------------------------------------ */
 /*  Badge style — same muted palette as catalogue                     */
@@ -744,16 +745,18 @@ export default function CartDrawer({
       return;
     }
 
+    const subTotalAmount = items.reduce((sum, item) => {
+      const product = productMap.get(item.productId);
+      if (!product) return sum;
+      return sum + extractPricePerKg(product.precio) * item.kg;
+    }, 0);
+
     const message = generateWhatsAppMessage({
       customer,
       items,
       totalProducts,
       totalWeight,
-      subTotalAmount: items.reduce((sum, item) => {
-        const product = productMap.get(item.productId);
-        if (!product) return sum;
-        return sum + extractPricePerKg(product.precio) * item.kg;
-      }, 0),
+      subTotalAmount,
       deliveryCost,
       getProductName: (productId) => {
         const product = productMap.get(productId);
@@ -770,6 +773,36 @@ export default function CartDrawer({
     onSaveLastOrder();
 
     logConversion('whatsapp_click');
+
+    // Persiste el detalle del pedido (antes solo se registraba el clic).
+    void logPedido({
+      items: items.map((item) => {
+        const product = productMap.get(item.productId);
+        return {
+          productoId: item.productId,
+          nombre: product ? pickLang(product, 'nombre', i18n.language) : item.productId,
+          kg: item.kg,
+          preparacion: item.preparation,
+          nota: item.note,
+          precioKg: product ? extractPricePerKg(product.precio) : 0,
+        };
+      }),
+      totalProductos: totalProducts,
+      pesoTotal: totalWeight,
+      importeEstimado: subTotalAmount + deliveryCost,
+      metodoEntrega: customer.deliveryMethod,
+      clienteNombre: customer.name,
+      clienteNegocio: customer.business,
+      clienteTelefono: customer.phone,
+      clienteEmail: customer.email,
+      clienteDireccion: customer.address,
+      clienteCiudad: customer.city,
+      clienteCp: customer.postalCode,
+      fechaPreferida: customer.preferredDate,
+      horaPreferida: customer.preferredTime,
+      notas: customer.notes,
+    });
+
     window.open(whatsappUrl, '_blank');
   };
 

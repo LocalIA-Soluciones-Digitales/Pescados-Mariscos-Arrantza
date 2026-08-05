@@ -253,3 +253,131 @@ alter table public.visits add constraint visits_device_type_check
 alter table public.visits add column if not exists is_returning boolean not null default false;
 
 create index if not exists idx_visits_path on public.visits (path);
+
+-- ============================================================
+-- Tracking a nivel de producto: qué se mira vs. qué se añade al
+-- pedido. Reutiliza la tabla visits — label guarda el id del
+-- producto (igual que category_view guarda la categoría).
+-- ============================================================
+
+alter table public.visits drop constraint if exists visits_event_type_check;
+alter table public.visits add constraint visits_event_type_check
+  check (event_type in ('pageview', 'tel_click', 'whatsapp_click', 'category_view', 'product_view', 'add_to_cart'));
+
+-- ============================================================
+-- Pedidos: persiste el contenido de cada pedido enviado por
+-- WhatsApp (antes solo se registraba el clic, no qué se pedía).
+-- Da al pescadero un historial real de demanda para comprar en
+-- lonja y calcular ticket medio.
+-- ============================================================
+
+create table if not exists public.pedidos (
+  id uuid primary key default gen_random_uuid(),
+  items jsonb not null,
+  total_productos integer not null default 0,
+  peso_total numeric not null default 0,
+  importe_estimado numeric,
+  metodo_entrega text not null default 'pickup' check (metodo_entrega in ('home', 'pickup')),
+  cliente_nombre text,
+  cliente_negocio text,
+  cliente_telefono text,
+  cliente_email text,
+  cliente_direccion text,
+  cliente_ciudad text,
+  cliente_cp text,
+  fecha_preferida text,
+  hora_preferida text,
+  notas text,
+  estado text not null default 'nuevo' check (estado in ('nuevo', 'confirmado', 'completado', 'cancelado')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.pedidos enable row level security;
+
+-- El cliente envía el pedido desde la web (sin sesión)…
+drop policy if exists "pedidos_insert_publico" on public.pedidos;
+create policy "pedidos_insert_publico"
+  on public.pedidos for insert
+  to anon, authenticated
+  with check (true);
+
+-- …pero solo el pescadero (autenticado) puede verlos y gestionarlos.
+drop policy if exists "pedidos_select_admin" on public.pedidos;
+create policy "pedidos_select_admin"
+  on public.pedidos for select
+  to authenticated
+  using (true);
+
+drop policy if exists "pedidos_update_admin" on public.pedidos;
+create policy "pedidos_update_admin"
+  on public.pedidos for update
+  to authenticated
+  using (true)
+  with check (true);
+
+drop policy if exists "pedidos_delete_admin" on public.pedidos;
+create policy "pedidos_delete_admin"
+  on public.pedidos for delete
+  to authenticated
+  using (true);
+
+create index if not exists idx_pedidos_created_at on public.pedidos (created_at desc);
+create index if not exists idx_pedidos_estado on public.pedidos (estado);
+
+-- ============================================================
+-- Reseñas de clientes: las rellena el propio cliente después de
+-- usar la web (no contenido inventado). Quedan pendientes de
+-- aprobación del pescadero antes de mostrarse en público, para
+-- evitar spam o abuso.
+-- ============================================================
+
+create table if not exists public.resenas (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null,
+  valoracion integer not null check (valoracion between 1 and 5),
+  comentario text not null,
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'aprobada', 'rechazada')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.resenas enable row level security;
+
+-- Cualquier visitante puede dejar su opinión…
+drop policy if exists "resenas_insert_publico" on public.resenas;
+create policy "resenas_insert_publico"
+  on public.resenas for insert
+  to anon, authenticated
+  with check (
+    char_length(nombre) between 1 and 100
+    and char_length(comentario) between 1 and 1000
+  );
+
+-- …el público solo ve las aprobadas…
+drop policy if exists "resenas_select_publico" on public.resenas;
+create policy "resenas_select_publico"
+  on public.resenas for select
+  to anon, authenticated
+  using (estado = 'aprobada');
+
+-- …y el pescadero (autenticado) las ve todas y las modera.
+drop policy if exists "resenas_select_admin" on public.resenas;
+create policy "resenas_select_admin"
+  on public.resenas for select
+  to authenticated
+  using (true);
+
+drop policy if exists "resenas_update_admin" on public.resenas;
+create policy "resenas_update_admin"
+  on public.resenas for update
+  to authenticated
+  using (true)
+  with check (true);
+
+drop policy if exists "resenas_delete_admin" on public.resenas;
+create policy "resenas_delete_admin"
+  on public.resenas for delete
+  to authenticated
+  using (true);
+
+create index if not exists idx_resenas_estado on public.resenas (estado);
+create index if not exists idx_resenas_created_at on public.resenas (created_at desc);

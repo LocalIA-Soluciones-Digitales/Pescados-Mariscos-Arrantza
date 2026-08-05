@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 
-export type EventType = 'pageview' | 'tel_click' | 'whatsapp_click' | 'category_view';
+export type EventType = 'pageview' | 'tel_click' | 'whatsapp_click' | 'category_view' | 'product_view' | 'add_to_cart';
 export type SourceCategory = 'google_ads' | 'google_organic' | 'social' | 'referral' | 'direct' | 'other';
 export type DeviceType = 'mobile' | 'tablet' | 'desktop';
 
@@ -138,4 +138,14 @@ export function logConversion(type: Extract<EventType, 'tel_click' | 'whatsapp_c
 
 export function logCategoryView(category: string) {
   void insertEvent('category_view', window.location.pathname, category);
+}
+
+// label guarda el id del producto — se resuelve a nombre en el panel de
+// informes cruzando con el catálogo actual (igual que category_view).
+export function logProductView(productId: string) {
+  void insertEvent('product_view', window.location.pathname, productId);
+}
+
+export function logAddToCart(productId: string) {
+  void insertEvent('add_to_cart', window.location.pathname, productId);
 }

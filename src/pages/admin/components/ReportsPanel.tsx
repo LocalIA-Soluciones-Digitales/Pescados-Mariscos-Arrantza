@@ -13,18 +13,23 @@ import {
 } from 'recharts';
 import { useVisits } from '@/hooks/useVisits';
 import { useSetting } from '@/hooks/useSetting';
+import { useProductos } from '@/hooks/useProductos';
+import { usePedidos } from '@/hooks/usePedidos';
 import {
   buildCategoryBreakdown,
   buildComparison,
   buildDeviceBreakdown,
   buildOverviewStats,
+  buildProductBreakdown,
   buildSeries,
   buildSourceBreakdown,
   buildTopPages,
   buildWeekdayBreakdown,
   type Granularity,
 } from '@/lib/reportAnalytics';
+import { buildPedidosStats, buildProductoPedidoBreakdown } from '@/lib/pedidosAnalytics';
 import type { DeviceType, SourceCategory } from '@/lib/visitLog';
+import { pickLang } from '@/types/producto';
 
 const WEEKDAY_LABELS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
@@ -93,9 +98,20 @@ function pctColor(pct: number | null): string {
 
 export default function ReportsPanel() {
   const { visits, loading } = useVisits();
+  const { productos } = useProductos();
+  const { pedidos } = usePedidos();
   const { value: launchDateStr, save: saveLaunchDate } = useSetting<string>('google_ads_launch_date', '');
   const [draftDate, setDraftDate] = useState('');
   const [granularity, setGranularity] = useState<Granularity>('week');
+
+  const productBreakdown = useMemo(() => buildProductBreakdown(visits).slice(0, 8), [visits]);
+  const productNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    productos.forEach((p) => map.set(p.id, pickLang(p, 'nombre', 'es')));
+    return map;
+  }, [productos]);
+  const pedidosStats = useMemo(() => buildPedidosStats(pedidos), [pedidos]);
+  const productoPedidoBreakdown = useMemo(() => buildProductoPedidoBreakdown(pedidos, 8), [pedidos]);
 
   const series = useMemo(() => buildSeries(visits, granularity), [visits, granularity]);
   const overview = useMemo(() => buildOverviewStats(visits), [visits]);
@@ -315,6 +331,79 @@ export default function ReportsPanel() {
               })}
             </div>
           </div>
+
+          {/* Demanda real: ticket medio y qué se pide de verdad */}
+          {pedidosStats.totalPedidos > 0 && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-background-50 border border-background-200/70 rounded-lg p-4 text-center">
+                  <p className="text-xl font-semibold text-foreground-950">{pedidosStats.totalPedidos}</p>
+                  <p className="text-xs text-foreground-400 mt-1">Pedidos registrados</p>
+                </div>
+                <div className="bg-background-50 border border-background-200/70 rounded-lg p-4 text-center">
+                  <p className="text-xl font-semibold text-foreground-950">{pedidosStats.ticketMedio.toFixed(2)} €</p>
+                  <p className="text-xs text-foreground-400 mt-1">Ticket medio</p>
+                </div>
+                <div className="bg-background-50 border border-background-200/70 rounded-lg p-4 text-center">
+                  <p className="text-xl font-semibold text-foreground-950">{pedidosStats.pesoMedioKg.toFixed(1)} kg</p>
+                  <p className="text-xs text-foreground-400 mt-1">Peso medio por pedido</p>
+                </div>
+              </div>
+
+              <div className="bg-background-50 border border-background-200/70 rounded-lg p-4">
+                <p className="text-sm font-medium text-foreground-950 mb-4">Lo que más se pide (no solo se mira)</p>
+                <div className="space-y-2">
+                  {productoPedidoBreakdown.map((p) => {
+                    const max = productoPedidoBreakdown[0]?.vecesPedido || 1;
+                    const pct = (p.vecesPedido / max) * 100;
+                    return (
+                      <div key={p.nombre} className="flex items-center gap-3">
+                        <span className="text-xs text-foreground-600 w-40 flex-shrink-0 truncate">{p.nombre}</span>
+                        <div className="flex-1 h-2 bg-background-200/60 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-primary-500" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs text-foreground-400 w-28 flex-shrink-0 text-right">
+                          {p.vecesPedido} pedido{p.vecesPedido === 1 ? '' : 's'} · {p.kgTotal.toFixed(1)} kg
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Se mira vs. se pide — detecta productos que llaman la atención pero no se venden, o al revés */}
+          {productBreakdown.length > 0 && (
+            <div className="bg-background-50 border border-background-200/70 rounded-lg p-4">
+              <p className="text-sm font-medium text-foreground-950 mb-1">Productos: se miran vs. se añaden al pedido</p>
+              <p className="text-xs text-foreground-400 mb-4">Si un producto tiene muchas vistas pero pocos añadidos, algo no convence (precio, foto, descripción).</p>
+              <div className="space-y-2">
+                {productBreakdown.map((p) => {
+                  const max = productBreakdown[0]?.views || 1;
+                  const viewsPct = (p.views / max) * 100;
+                  const addsPct = (p.addsToCart / max) * 100;
+                  const nombre = productNameById.get(p.productId) ?? p.productId;
+                  return (
+                    <div key={p.productId} className="py-1.5">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-foreground-600 truncate">{nombre}</span>
+                        <span className="text-xs text-foreground-400 flex-shrink-0">{p.views} vistas · {p.addsToCart} añadidos</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="flex-1 h-1.5 bg-background-200/60 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-secondary-400" style={{ width: `${viewsPct}%` }} />
+                        </div>
+                        <div className="flex-1 h-1.5 bg-background-200/60 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-accent-500" style={{ width: `${addsPct}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Categorías más buscadas */}
           {categoryBreakdown.length > 0 && (
