@@ -206,7 +206,7 @@ alter table public.visits add constraint visits_event_type_check
 
 create or replace function public.is_developer()
 returns boolean as $$
-  select (auth.jwt() ->> 'email') = any (array['edortadossantos@gmail.com']);
+  select (auth.jwt() ->> 'email') = any (array['edortadossantos@gmail.com', 'admin@developers.local']);
 $$ language sql stable;
 
 drop policy if exists "error_logs_select_admin" on public.error_logs;
