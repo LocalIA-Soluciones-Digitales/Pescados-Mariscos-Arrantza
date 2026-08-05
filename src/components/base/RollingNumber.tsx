@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 
 interface RollingNumberProps {
   value: string;
@@ -6,7 +6,7 @@ interface RollingNumberProps {
 }
 
 export default function RollingNumber({ value, className = '' }: RollingNumberProps) {
-  const chars = value.split('');
+  const chars = useMemo(() => value.split(''), [value]);
   const prevRef = useRef(chars);
   const [animating, setAnimating] = useState<Set<number>>(new Set());
 
@@ -33,7 +33,7 @@ export default function RollingNumber({ value, className = '' }: RollingNumberPr
     }
 
     prevRef.current = chars;
-  }, [value]);
+  }, [chars]);
 
   return (
     <span className={`inline-flex ${className}`}>

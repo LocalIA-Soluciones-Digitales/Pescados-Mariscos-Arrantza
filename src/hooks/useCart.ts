@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export interface CartItem {
   productId: string;
@@ -114,7 +114,7 @@ export function useCart() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [cartVersion, setCartVersion] = useState(0);
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
-  const clearJustAddedTimeoutRef = { current: null as ReturnType<typeof setTimeout> | null };
+  const clearJustAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hasLastOrder, setHasLastOrder] = useState<boolean>(() => readLastOrder() !== null);
 
   // Mark as loaded after first render to prevent hydration mismatches
