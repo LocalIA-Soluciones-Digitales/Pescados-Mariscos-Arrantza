@@ -17,7 +17,11 @@ jobs:
           node-version: 20
           cache: npm
 
-      - run: npm ci
+      # npm ci exige que package-lock.json esté ya sincronizado con
+      # package.json. Usamos npm install hasta que el lockfile se
+      # regenere localmente (ver README/PR) — luego se puede volver
+      # a npm ci si se quiere una instalación más estricta/rápida.
+      - run: npm install
 
       - run: npm run lint
 
