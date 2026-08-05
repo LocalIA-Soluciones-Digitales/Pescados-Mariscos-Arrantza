@@ -287,7 +287,7 @@ function StickyToolbar({
   onCategoryChange: (c: CategoryFilter) => void;
   cartCount: number;
   cartBounceKey: number;
-  cartAnimStyle: 'bounce' | 'shake';
+  cartAnimStyle: 'bounce' | 'shake' | 'lastItem';
   onCartClick: () => void;
   filterCounts: Record<CategoryFilter, number>;
 }) {
