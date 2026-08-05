@@ -17,83 +17,50 @@ export default function AvisoLegal() {
           <div className="space-y-8 text-sm md:text-base text-foreground-600 leading-relaxed">
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
-                1. Datos identificativos
+                {t('legal.aviso.s1.title')}
               </h2>
-              <p>
-                En cumplimiento del deber de información recogido en el artículo 10 de la
-                Ley 34/2002, de 11 de julio, de Servicios de la Sociedad de la Información
-                y del Comercio Electrónico, se informa a los usuarios del sitio web de los
-                siguientes datos:
-              </p>
+              <p>{t('legal.aviso.s1.p')}</p>
               <ul className="mt-2 space-y-1">
-                <li><strong>Titular:</strong> Pescados y Mariscos Arrantza</li>
-                <li><strong>Dirección:</strong> Calle Jesús Aramburu, 1, 48950 Erandio, Bizkaia, España</li>
-                <li><strong>Teléfono:</strong> +34 608 240 759</li>
-                <li><strong>Correo electrónico:</strong> jonmendiola98@gmail.com</li>
+                <li><strong>{t('legal.aviso.owner_label')}:</strong> Pescados y Mariscos Arrantza</li>
+                <li><strong>{t('legal.aviso.address_label')}:</strong> Calle Jesús Aramburu, 1, 48950 Erandio, Bizkaia, España</li>
+                <li><strong>{t('legal.aviso.phone_label')}:</strong> +34 608 240 759</li>
+                <li><strong>{t('legal.aviso.email_label')}:</strong> jonmendiola98@gmail.com</li>
               </ul>
             </section>
 
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
-                2. Objeto
+                {t('legal.aviso.s2.title')}
               </h2>
-              <p>
-                El presente sitio web tiene como finalidad ofrecer información sobre los
-                productos y servicios de Pescados y Mariscos Arrantza, así como facilitar
-                la realización de pedidos y encargos por parte de los usuarios.
-              </p>
+              <p>{t('legal.aviso.s2.p')}</p>
             </section>
 
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
-                3. Condiciones de uso
+                {t('legal.aviso.s3.title')}
               </h2>
-              <p>
-                El acceso y uso de este sitio web atribuye la condición de usuario y
-                supone la aceptación plena de todas las cláusulas incluidas en este
-                Aviso Legal. El usuario se compromete a hacer un uso adecuado de los
-                contenidos y servicios que se ofrecen, y a no emplearlos para incurrir
-                en actividades ilícitas o contrarias a la buena fe y al ordenamiento legal.
-              </p>
+              <p>{t('legal.aviso.s3.p')}</p>
             </section>
 
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
-                4. Propiedad intelectual e industrial
+                {t('legal.aviso.s4.title')}
               </h2>
-              <p>
-                Todos los contenidos del sitio web (textos, imágenes, marcas, logotipos y
-                demás elementos gráficos), así como su código fuente, son propiedad de
-                Pescados y Mariscos Arrantza o de terceros que han autorizado su uso, y
-                están protegidos por la normativa de propiedad intelectual e industrial.
-                Queda prohibida su reproducción, distribución o transformación sin
-                autorización expresa del titular.
-              </p>
+              <p>{t('legal.aviso.s4.p')}</p>
             </section>
 
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
-                5. Responsabilidad
+                {t('legal.aviso.s5.title')}
               </h2>
-              <p>
-                Pescados y Mariscos Arrantza no se hace responsable de los daños y
-                perjuicios de cualquier naturaleza que pudieran derivarse de la falta de
-                disponibilidad o continuidad del funcionamiento del sitio web, ni de
-                errores u omisiones en los contenidos, sin perjuicio de las medidas que
-                se adopten para evitarlo.
-              </p>
+              <p>{t('legal.aviso.s5.p')}</p>
             </section>
 
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
-                6. Legislación aplicable
+                {t('legal.aviso.s6.title')}
               </h2>
-              <p>
-                Las presentes condiciones se rigen por la legislación española. Para
-                cualquier controversia derivada del uso del sitio web, las partes se
-                someten a los juzgados y tribunales del domicilio del usuario, salvo que
-                la ley disponga otra cosa.
-              </p>
+              <p>{t('legal.aviso.s6.p')}</p>
             </section>
           </div>
         </div>

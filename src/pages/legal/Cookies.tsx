@@ -17,73 +17,52 @@ export default function Cookies() {
           <div className="space-y-8 text-sm md:text-base text-foreground-600 leading-relaxed">
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
-                1. ¿Qué son las cookies?
+                {t('legal.cookies.s1.title')}
               </h2>
-              <p>
-                Las cookies son pequeños archivos de texto que este sitio web, propiedad
-                de Pescados y Mariscos Arrantza, almacena en el navegador del usuario para
-                permitir su correcto funcionamiento, recordar preferencias y, en su caso,
-                obtener información estadística sobre la navegación.
-              </p>
+              <p>{t('legal.cookies.s1.p')}</p>
             </section>
 
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
-                2. Tipos de cookies utilizadas
+                {t('legal.cookies.s2.title')}
               </h2>
               <ul className="space-y-2 list-disc pl-5">
                 <li>
-                  <strong>Cookies técnicas (necesarias):</strong> imprescindibles para el
-                  funcionamiento básico del sitio, como recordar el idioma seleccionado o
-                  los productos añadidos al carrito de pedido.
+                  <strong>{t('legal.cookies.s2.li1_label')}:</strong> {t('legal.cookies.s2.li1')}
                 </li>
                 <li>
-                  <strong>Cookies de preferencias:</strong> permiten recordar información
-                  para que el usuario acceda al servicio con determinadas características
-                  que puedan diferenciar su experiencia de la de otros usuarios.
+                  <strong>{t('legal.cookies.s2.li2_label')}:</strong> {t('legal.cookies.s2.li2')}
                 </li>
                 <li>
-                  <strong>Cookies analíticas:</strong> permiten el seguimiento y análisis
-                  del comportamiento de los usuarios en el sitio web, con el fin de mejorar
-                  la oferta de productos y servicios.
+                  <strong>{t('legal.cookies.s2.li3_label')}:</strong> {t('legal.cookies.s2.li3')}
                 </li>
               </ul>
             </section>
 
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
-                3. Desactivación y eliminación de cookies
+                {t('legal.cookies.s3.title')}
               </h2>
-              <p>
-                El usuario puede permitir, bloquear o eliminar las cookies instaladas en
-                su equipo mediante la configuración de las opciones de su navegador. A
-                continuación se facilitan enlaces a las instrucciones de los navegadores
-                más habituales:
-              </p>
+              <p>{t('legal.cookies.s3.p')}</p>
               <ul className="mt-2 space-y-1 list-disc pl-5">
                 <li>Google Chrome</li>
                 <li>Mozilla Firefox</li>
                 <li>Safari</li>
                 <li>Microsoft Edge</li>
               </ul>
-              <p className="mt-2">
-                Ten en cuenta que la desactivación de determinadas cookies puede afectar
-                a la disponibilidad y correcto funcionamiento de algunas secciones del
-                sitio, como el carrito de pedido.
-              </p>
+              <p className="mt-2">{t('legal.cookies.s3.p2')}</p>
             </section>
 
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
-                4. Más información
+                {t('legal.cookies.s4.title')}
               </h2>
               <p>
-                Para cualquier duda o consulta sobre esta política de cookies, puedes
-                contactar con nosotros en{' '}
+                {t('legal.cookies.s4.p1')}{' '}
                 <a href="mailto:jonmendiola98@gmail.com" className="text-primary-600 hover:underline">
                   jonmendiola98@gmail.com
                 </a>{' '}
-                o en el teléfono +34 608 240 759.
+                {t('legal.cookies.s4.p2')} +34 608 240 759.
               </p>
             </section>
           </div>
