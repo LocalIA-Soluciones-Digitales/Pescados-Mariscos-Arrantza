@@ -181,7 +181,10 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
             <button
               key={c.value}
               type="button"
-              onClick={() => setCategoria(c.value)}
+              onClick={() => {
+                setCategoria(c.value);
+                setSoloAgotados(false);
+              }}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
                 categoria === c.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
               }`}
@@ -199,7 +202,10 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
 
           <button
             type="button"
-            onClick={() => setSoloAgotados((v) => !v)}
+            onClick={() => {
+              setSoloAgotados((v) => !v);
+              setCategoria('todos');
+            }}
             className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors flex items-center gap-1 ${
               soloAgotados ? 'bg-red-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
             }`}
