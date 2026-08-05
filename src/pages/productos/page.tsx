@@ -107,6 +107,10 @@ function getBadgeLabel(badge: Producto['estado']) {
   return map[badge] || 'products.badge_available';
 }
 
+function formatKg(kg: number): string {
+  return `${kg} kg`;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Subcategory display config — icon + i18n label key               */
 /* ------------------------------------------------------------------ */
@@ -509,6 +513,9 @@ function ProductCard({
   isRemoving,
   onAddToCart,
   onRemoveFromCart,
+  onIncrease,
+  onDecrease,
+  onSetKg,
 }: {
   product: Producto;
   index: number;
@@ -517,11 +524,40 @@ function ProductCard({
   isRemoving: boolean;
   onAddToCart: (p: Producto) => void;
   onRemoveFromCart: (productId: string) => void;
+  onIncrease: (productId: string) => void;
+  onDecrease: (productId: string) => void;
+  onSetKg: (productId: string, kg: number) => void;
 }) {
   const { t, i18n } = useTranslation();
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
   const badgeStyle = badgeStyleMap[product.estado];
   const agotado = !product.disponible;
+
+  const [isEditingWeight, setIsEditingWeight] = useState(false);
+  const [editWeightValue, setEditWeightValue] = useState('');
+
+  const handleStartEditWeight = () => {
+    if (!cartItem) return;
+    setEditWeightValue(String(cartItem.kg));
+    setIsEditingWeight(true);
+  };
+
+  const handleConfirmEditWeight = () => {
+    const parsed = parseFloat(editWeightValue);
+    if (!isNaN(parsed) && parsed >= 0.5) {
+      const rounded = Math.max(0.5, Math.round(parsed * 2) / 2);
+      onSetKg(product.id, rounded);
+    }
+    setIsEditingWeight(false);
+  };
+
+  const handleWeightKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleConfirmEditWeight();
+    } else if (e.key === 'Escape') {
+      setIsEditingWeight(false);
+    }
+  };
 
   // Se registra una vez por aparición en pantalla (useScrollAnimation deja
   // de observar tras el primer isVisible=true, así que esto no se repite).
@@ -585,42 +621,83 @@ function ProductCard({
             <span className="inline-flex items-center px-2.5 py-2 md:px-4 md:py-2 rounded-full bg-background-200/60 text-foreground-400 text-[11px] md:text-xs font-medium whitespace-nowrap cursor-not-allowed">
               {t('products.badge_agotado')}
             </span>
-          ) : (
-          <button
-            type="button"
-            key={isInCart ? 'added' : 'add'}
-            onClick={() => onAddToCart(product)}
-            className={`inline-flex items-center gap-[2px] md:gap-1.5 rounded-full font-medium cursor-pointer whitespace-nowrap transition-all duration-300 active:scale-95 animate-added-pop max-w-full overflow-hidden ${
-              isInCart
-                ? 'bg-emerald-100/80 text-emerald-700 hover:bg-emerald-200/80 pl-1 pr-0.5 py-1 md:px-4 md:py-2 text-[10px] md:text-xs'
-                : 'bg-primary-500 text-background-50 hover:bg-primary-600 px-2.5 py-2 md:px-4 md:py-2 text-[11px] md:text-xs'
-            }`}
-          >
-            {isInCart ? (
-              <>
-                {cartItem && (
-                  <span className="inline-flex items-center justify-center min-w-[14px] h-[14px] px-[2px] rounded-full bg-emerald-200/60 text-emerald-700 text-[9px] font-semibold leading-none tabular-nums flex-shrink-0"
-                  >
-                    {cartItem.kg}
-                  </span>
-                )}
+          ) : !isInCart ? (
+            <button
+              type="button"
+              onClick={() => onAddToCart(product)}
+              className="inline-flex items-center gap-[2px] md:gap-1.5 rounded-full font-medium cursor-pointer whitespace-nowrap transition-all duration-300 active:scale-95 animate-added-pop max-w-full overflow-hidden bg-primary-500 text-background-50 hover:bg-primary-600 px-2.5 py-2 md:px-4 md:py-2 text-[11px] md:text-xs"
+            >
+              <span>{t('products.add_short')}</span>
+            </button>
+          ) : null}
+        </div>
+
+        {/* Quantity stepper — editable by text or ±0.5kg steps, shown once in cart */}
+        {!agotado && isInCart && cartItem && (
+          <div className="flex items-center justify-between gap-2 mt-2 animate-added-pop">
+            <div className="flex items-center bg-background-100 rounded-full p-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (cartItem.kg <= 0.5) return;
+                  onDecrease(product.id);
+                }}
+                disabled={cartItem.kg <= 0.5}
+                className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                  cartItem.kg <= 0.5
+                    ? 'text-foreground-300 cursor-not-allowed'
+                    : 'text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer'
+                }`}
+                aria-label="Reducir cantidad"
+              >
+                −
+              </button>
+              {isEditingWeight ? (
+                <input
+                  type="number"
+                  value={editWeightValue}
+                  onChange={(e) => setEditWeightValue(e.target.value)}
+                  onBlur={handleConfirmEditWeight}
+                  onKeyDown={handleWeightKeyDown}
+                  step="0.5"
+                  min="0.5"
+                  autoFocus
+                  inputMode="decimal"
+                  className="w-[42px] text-center text-[11px] md:text-xs font-semibold text-foreground-950 bg-transparent border-0 outline-none appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none tabular-nums"
+                  aria-label="Editar peso en kg"
+                />
+              ) : (
                 <span
+                  onClick={handleStartEditWeight}
                   role="button"
                   tabIndex={0}
-                  onClick={(e) => { e.stopPropagation(); onRemoveFromCart(product.id); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onRemoveFromCart(product.id); } }}
-                  className="inline-flex items-center justify-center w-[14px] h-[14px] md:w-5 md:h-5 rounded-full bg-emerald-200/60 text-emerald-600 hover:bg-emerald-300/70 hover:text-emerald-800 cursor-pointer transition-all duration-200 active:scale-90 flex-shrink-0"
-                  aria-label={t('products.remove_label')}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStartEditWeight(); } }}
+                  className="min-w-[38px] text-center text-[11px] md:text-xs font-semibold text-foreground-950 tabular-nums cursor-pointer hover:text-primary-600 transition-colors duration-200 select-none inline-block"
+                  title="Haz clic para editar el peso"
+                  aria-label="Haz clic para editar el peso"
                 >
-                  <i className="ri-close-line text-[8px] md:text-[10px]"></i>
+                  {formatKg(cartItem.kg)}
                 </span>
-              </>
-            ) : (
-              <span>{t('products.add_short')}</span>
-            )}
-          </button>
-          )}
-        </div>
+              )}
+              <button
+                type="button"
+                onClick={() => onIncrease(product.id)}
+                className="w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200"
+                aria-label="Aumentar cantidad"
+              >
+                +
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => onRemoveFromCart(product.id)}
+              className="w-6 h-6 flex items-center justify-center rounded-full text-foreground-400 hover:text-red-500 hover:bg-red-50 cursor-pointer transition-all duration-200 flex-shrink-0"
+              aria-label={t('products.remove_label')}
+            >
+              <i className="ri-close-line text-xs"></i>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -652,6 +729,9 @@ function CatalogGrid({
   getItem,
   onAddToCart,
   onRemoveFromCart,
+  onIncrease,
+  onDecrease,
+  onSetKg,
   removingProductId,
   groupBy,
 }: {
@@ -660,6 +740,9 @@ function CatalogGrid({
   getItem: (id: string) => CartItem | undefined;
   onAddToCart: (p: Producto) => void;
   onRemoveFromCart: (productId: string) => void;
+  onIncrease: (productId: string) => void;
+  onDecrease: (productId: string) => void;
+  onSetKg: (productId: string, kg: number) => void;
   removingProductId: string | null;
   groupBy?: 'subcategory';
 }) {
@@ -686,7 +769,7 @@ function CatalogGrid({
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-4 md:gap-6 lg:gap-8">
         {products.map((product, idx) => (
-          <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} />
+          <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
         ))}
       </div>
     );
@@ -746,7 +829,7 @@ function CatalogGrid({
               {items.map((product) => {
                 const idx = globalIdx++;
                 return (
-                  <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} />
+                  <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
                 );
               })}
             </div>
@@ -763,7 +846,7 @@ function CatalogGrid({
             {ungrouped.map((product) => {
               const idx = globalIdx++;
               return (
-                <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} />
+                <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
               );
             })}
           </div>
@@ -1218,6 +1301,9 @@ export default function Productos() {
                 getItem={getItem}
                 onAddToCart={handleAddToCart}
                 onRemoveFromCart={handleRemoveFromCart}
+                onIncrease={increaseKg}
+                onDecrease={decreaseKg}
+                onSetKg={setKg}
                 removingProductId={removingProductId}
                 groupBy={shouldGroupBySubcategory ? 'subcategory' : undefined}
               />
