@@ -3,6 +3,8 @@ import NotFound from "../pages/NotFound";
 import Home from "../pages/home/page";
 import Productos from "../pages/productos/page";
 import Admin from "../pages/admin/page";
+import AvisoLegal from "../pages/legal/AvisoLegal";
+import Cookies from "../pages/legal/Cookies";
 
 const routes: RouteObject[] = [
   {
@@ -16,6 +18,14 @@ const routes: RouteObject[] = [
   {
     path: "/admin",
     element: <Admin />,
+  },
+  {
+    path: "/aviso-legal",
+    element: <AvisoLegal />,
+  },
+  {
+    path: "/cookies",
+    element: <Cookies />,
   },
   {
     path: "*",

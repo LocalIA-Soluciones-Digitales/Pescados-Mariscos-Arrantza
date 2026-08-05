@@ -95,10 +95,18 @@ export default function Footer() {
             &copy; {new Date().getFullYear()} Pescados y Mariscos Arrantza. {t('footer.rights')}
           </p>
           <div className="flex items-center gap-4 sm:gap-6">
-            <a href="#" className="text-[11px] sm:text-xs text-white/60 hover:text-white/85 transition-colors duration-300 whitespace-nowrap cursor-pointer">
+            <a
+              href="/aviso-legal"
+              onClick={(e) => handleClick(e, '/aviso-legal')}
+              className="text-[11px] sm:text-xs text-white/60 hover:text-white/85 transition-colors duration-300 whitespace-nowrap cursor-pointer"
+            >
               {t('footer.privacy')}
             </a>
-            <a href="#" className="text-[11px] sm:text-xs text-white/60 hover:text-white/85 transition-colors duration-300 whitespace-nowrap cursor-pointer">
+            <a
+              href="/cookies"
+              onClick={(e) => handleClick(e, '/cookies')}
+              className="text-[11px] sm:text-xs text-white/60 hover:text-white/85 transition-colors duration-300 whitespace-nowrap cursor-pointer"
+            >
               {t('footer.cookies')}
             </a>
           </div>
