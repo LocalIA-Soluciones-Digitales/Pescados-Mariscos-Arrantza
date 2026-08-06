@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
+import LogoMark from '@/components/base/LogoMark';
 
 const navLinks = [
   { key: 'nav.about', href: '#about' },
@@ -85,6 +86,9 @@ export default function Navbar() {
             onClick={(e) => { e.preventDefault(); handleLogoClick(); }}
             className="flex items-center gap-2 group"
           >
+            <LogoMark
+              className={`w-7 h-7 md:w-8 md:h-8 shrink-0 transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)]'}`}
+            />
             <span className={`font-heading text-xl md:text-2xl font-semibold leading-none tracking-tight -translate-y-[3px] transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
               Arrantza
             </span>

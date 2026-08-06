@@ -12,7 +12,7 @@ const common = {
   "nav.language": "Idioma",
 
   // Hero
-  "hero.title": "Frescura del Cantábrico, cada día.",
+  "hero.title": "Del mar a su plantza.",
   "hero.subtitle": "Pescado y marisco del Cantábrico, seleccionado cada mañana en lonja.",
   "hero.cta.catalog": "Hacer pedido",
   "hero.cta.call": "Llamar ahora",

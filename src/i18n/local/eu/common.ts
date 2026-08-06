@@ -12,7 +12,7 @@ const common = {
   "nav.language": "Hizkuntza",
 
   // Hero
-  "hero.title": "Kantauriko freskotasuna, egunero.",
+  "hero.title": "Del mar a su plantza.",
   "hero.subtitle": "Kantauriko arrain eta itsaskia, goizero lonjan aukeratua.",
   "hero.cta.catalog": "Katalogoa ikusi",
   "hero.cta.call": "Deitu orain",
