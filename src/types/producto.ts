@@ -33,3 +33,8 @@ export function pickLang(producto: Producto, campo: ProductoCampoBilingue, lang:
   }
   return esValue;
 }
+
+// Strips accents/diacritics so search matches regardless of tildes (e.g. "salmon" matches "Salmón")
+export function normalizeSearch(text: string): string {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}

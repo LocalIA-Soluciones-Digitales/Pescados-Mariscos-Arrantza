@@ -9,7 +9,7 @@ import CartDrawer from '@/pages/productos/components/CartDrawer';
 import { temporada } from '@/mocks/productos';
 import { useProductos } from '@/hooks/useProductos';
 import { logAddToCart, logCategoryView, logConversion, logProductView } from '@/lib/visitLog';
-import { pickLang } from '@/types/producto';
+import { pickLang, normalizeSearch } from '@/types/producto';
 import type { Producto } from '@/types/producto';
 
 /* ------------------------------------------------------------------ */
@@ -1139,10 +1139,10 @@ export default function Productos() {
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
+      const q = normalizeSearch(searchQuery.trim());
       result = result.filter(p => {
-        const name = pickLang(p, 'nombre', i18n.language).toLowerCase();
-        const origen = pickLang(p, 'origen', i18n.language).toLowerCase();
+        const name = normalizeSearch(pickLang(p, 'nombre', i18n.language));
+        const origen = normalizeSearch(pickLang(p, 'origen', i18n.language));
         return name.includes(q) || origen.includes(q);
       });
     }
