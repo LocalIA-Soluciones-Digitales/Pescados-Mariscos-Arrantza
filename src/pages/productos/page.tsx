@@ -318,7 +318,7 @@ function StickyToolbar({
               placeholder={t('products.search_placeholder')}
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-10 pr-8 py-2 bg-background-100 border border-background-200/70 rounded-full text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-300"
+              className="w-full pl-10 pr-8 py-2 bg-background-100 border border-background-200/70 rounded-full text-base md:text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-300"
             />
             {searchQuery && (
               <button
