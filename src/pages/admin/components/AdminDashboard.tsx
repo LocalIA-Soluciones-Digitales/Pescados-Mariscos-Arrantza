@@ -197,9 +197,9 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
       result = result.filter((p) => p.nombre_es.toLowerCase().includes(q) || p.nombre_eu?.toLowerCase().includes(q));
     }
 
-    // Orden estable por posición — evita que un producto "salte" de sitio al
-    // marcarlo agotado; usa el filtro "Agotados" para verlos todos juntos.
-    return [...result].sort((a, b) => a.orden - b.orden);
+    // Alfabético — no depende de disponible/estado/stock, así que el
+    // producto nunca "salta" de sitio al marcarlo agotado.
+    return [...result].sort((a, b) => a.nombre_es.localeCompare(b.nombre_es, 'es'));
   }, [productos, categoria, soloAgotados, search]);
 
   return (

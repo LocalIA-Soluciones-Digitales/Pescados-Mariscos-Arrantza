@@ -31,6 +31,56 @@ Deno.serve(async (req: Request) => {
 
   const from = Deno.env.get('ALERT_EMAIL_FROM') ?? 'Arrantza Stock <onboarding@resend.dev>';
 
+  const html = `
+<div style="background:#f7f5f2;padding:32px 16px;font-family:Georgia,'Times New Roman',serif;">
+  <table role="presentation" width="100%" style="max-width:480px;margin:0 auto;border-collapse:collapse;">
+    <tr>
+      <td style="background:#16233a;border-radius:10px 10px 0 0;padding:18px 24px;">
+        <span style="color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;">
+          🐟 Pescados y Mariscos Arrantza
+        </span>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#ffffff;border:1px solid #e7e3dc;border-top:none;border-radius:0 0 10px 10px;padding:28px 24px;">
+        <span style="display:inline-block;background:#fee2e2;color:#dc2626;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;letter-spacing:0.5px;text-transform:uppercase;padding:4px 10px;border-radius:999px;">
+          ⚠️ Stock bajo
+        </span>
+        <h1 style="margin:14px 0 20px;font-size:24px;color:#16233a;">${nombre}</h1>
+
+        <table role="presentation" width="100%" style="border-collapse:collapse;margin-bottom:22px;">
+          <tr>
+            <td width="50%" style="background:#fef2f2;border-radius:8px;padding:14px 16px;text-align:center;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#991b1b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Stock actual</div>
+              <div style="font-size:26px;font-weight:bold;color:#dc2626;">${stock_kg} kg</div>
+            </td>
+            <td width="12"></td>
+            <td width="50%" style="background:#f5f3f0;border-radius:8px;padding:14px 16px;text-align:center;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#6b6459;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Aviso mínimo</div>
+              <div style="font-size:26px;font-weight:bold;color:#16233a;">${stock_minimo} kg</div>
+            </td>
+          </tr>
+        </table>
+
+        <p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#44403c;line-height:1.5;margin:0 0 22px;">
+          Repón este producto cuanto antes para no quedarte sin género.
+        </p>
+
+        <a href="https://arrantza.es/admin" style="display:inline-block;background:#16233a;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 22px;border-radius:8px;">
+          Ver panel de stock →
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 8px 0;text-align:center;">
+        <span style="font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#a19a8c;">
+          Aviso automático — se genera solo la primera vez que el stock baja del mínimo.
+        </span>
+      </td>
+    </tr>
+  </table>
+</div>`.trim();
+
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -40,8 +90,8 @@ Deno.serve(async (req: Request) => {
     body: JSON.stringify({
       from,
       to,
-      subject: `Stock bajo: ${nombre}`,
-      html: `<p><strong>${nombre}</strong> tiene <strong>${stock_kg} kg</strong> en stock, por debajo del mínimo definido (${stock_minimo} kg).</p><p>Repón cuanto antes.</p>`,
+      subject: `⚠️ Stock bajo: ${nombre} (${stock_kg} kg)`,
+      html,
     }),
   });
 

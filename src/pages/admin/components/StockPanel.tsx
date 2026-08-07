@@ -1,6 +1,15 @@
 import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import type { Producto } from '@/types/producto';
+import type { Producto, ProductoCategoria } from '@/types/producto';
+
+const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
+  pescado: 'Pescado',
+  especial: 'Especial',
+  raciones: 'Raciones',
+  marisco: 'Marisco',
+};
+
+const CATEGORIA_ORDEN: ProductoCategoria[] = ['pescado', 'especial', 'raciones', 'marisco'];
 
 function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: Partial<Producto>) => void }) {
   const [stockKg, setStockKg] = useState(producto.stock_kg);
@@ -20,7 +29,11 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
   };
 
   return (
-    <div className={`flex flex-wrap items-center gap-3 bg-background-50 border border-background-200/70 rounded-lg px-3 py-2.5 ${saving ? 'opacity-60' : ''}`}>
+    <div
+      className={`flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+        stockBajo ? 'bg-red-50/60 border-red-200 border-l-4 border-l-red-400' : 'bg-background-50 border-background-200/70'
+      } ${saving ? 'opacity-60' : ''}`}
+    >
       <div className="w-10 h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
         {producto.imagen_url && <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" />}
       </div>
@@ -31,7 +44,7 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
       </div>
 
       {stockBajo && (
-        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 flex-shrink-0">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 text-red-700 flex-shrink-0">
           <i className="ri-alert-line"></i> Bajo mínimo
         </span>
       )}
@@ -50,7 +63,9 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
             if (v !== producto.stock_kg) guardar({ stock_kg: v });
           }}
           disabled={saving}
-          className="w-20 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
+          className={`w-20 px-2 py-1.5 border rounded-md text-sm text-right font-medium ${
+            stockBajo ? 'bg-white border-red-300 text-red-700' : 'bg-background-100 border-background-200/70 text-foreground-950'
+          }`}
         />
         <span className="text-xs text-foreground-400">kg</span>
       </div>
@@ -91,7 +106,7 @@ export default function StockPanel({
 
   const bajoCount = useMemo(() => productos.filter((p) => p.stock_kg <= p.stock_minimo).length, [productos]);
 
-  const visibles = useMemo(() => {
+  const grupos = useMemo(() => {
     let result = productos;
     if (soloBajo) {
       result = result.filter((p) => p.stock_kg <= p.stock_minimo);
@@ -100,8 +115,21 @@ export default function StockPanel({
       const q = search.trim().toLowerCase();
       result = result.filter((p) => p.nombre_es.toLowerCase().includes(q) || p.nombre_eu?.toLowerCase().includes(q));
     }
-    return [...result].sort((a, b) => a.orden - b.orden);
+
+    const porCategoria = new Map<ProductoCategoria, Producto[]>();
+    result.forEach((p) => {
+      const grupo = porCategoria.get(p.categoria) ?? [];
+      grupo.push(p);
+      porCategoria.set(p.categoria, grupo);
+    });
+
+    return CATEGORIA_ORDEN.map((categoria) => ({
+      categoria,
+      productos: (porCategoria.get(categoria) ?? []).sort((a, b) => a.nombre_es.localeCompare(b.nombre_es, 'es')),
+    })).filter((g) => g.productos.length > 0);
   }, [productos, soloBajo, search]);
+
+  const totalVisible = useMemo(() => grupos.reduce((n, g) => n + g.productos.length, 0), [grupos]);
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
@@ -139,12 +167,27 @@ export default function StockPanel({
 
       {loading ? (
         <p className="text-sm text-foreground-400">Cargando…</p>
-      ) : visibles.length === 0 ? (
+      ) : totalVisible === 0 ? (
         <p className="text-sm text-foreground-400">No hay productos que coincidan con el filtro.</p>
       ) : (
-        <div className="space-y-2">
-          {visibles.map((producto) => (
-            <StockRow key={producto.id} producto={producto} onPatch={(patch) => onPatch(producto.id, patch)} />
+        <div className="space-y-6">
+          {grupos.map((grupo) => (
+            <div key={grupo.categoria}>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-500">
+                  {CATEGORIA_LABELS[grupo.categoria]}
+                </h3>
+                <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] bg-background-200/60 text-foreground-400">
+                  {grupo.productos.length}
+                </span>
+                <div className="flex-1 h-px bg-background-200/70" />
+              </div>
+              <div className="space-y-2">
+                {grupo.productos.map((producto) => (
+                  <StockRow key={producto.id} producto={producto} onPatch={(patch) => onPatch(producto.id, patch)} />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
