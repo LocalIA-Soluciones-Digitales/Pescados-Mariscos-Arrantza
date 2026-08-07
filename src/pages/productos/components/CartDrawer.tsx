@@ -816,6 +816,14 @@ export default function CartDrawer({
   }, 0);
   const estimatedTotal = subTotalAmount + deliveryCost;
 
+  const ticketDate = new Date().toLocaleString(i18n.language === 'eu' ? 'eu-ES' : 'es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
   const isEmpty = items.length === 0;
 
   return (
@@ -947,39 +955,89 @@ export default function CartDrawer({
                     })}
                   </div>
 
-                  {/* Order summary */}
-                  <div className="mt-4 mb-5 p-4 rounded-lg bg-background-100/50 border border-background-200/50">
-                    <h3 className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-3">
-                      {t('cart.summary_title')}
-                    </h3>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-foreground-500">
-                        {t('cart.summary_products')}
+                  {/* Order summary — ticket style */}
+                  <div className="mt-4 mb-5 rounded-lg bg-background-100/50 border border-background-200/50 overflow-hidden">
+                    {/* Ticket header */}
+                    <div className="flex items-center gap-2.5 px-4 pt-4 pb-3 border-b border-dashed border-background-300/80">
+                      <span className="w-7 h-7 flex items-center justify-center rounded-full bg-primary-100 text-primary-600 flex-shrink-0">
+                        <i className="ri-file-list-3-line text-sm"></i>
                       </span>
-                      <span className="text-sm font-semibold text-foreground-950 tabular-nums transition-all duration-300">
-                        {totalProducts}
-                      </span>
+                      <div className="min-w-0">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground-950">
+                          {t('cart.summary_title')}
+                        </h3>
+                        <p className="text-[10px] text-foreground-400 tabular-nums">
+                          {ticketDate}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-foreground-500">
-                        {t('cart.summary_estimated_weight')}
-                      </span>
-                      <span className="text-sm font-semibold text-foreground-950 tabular-nums transition-all duration-300">
-                        {formatKg(totalWeight)}
-                      </span>
+
+                    {/* Itemized lines */}
+                    <div className="px-4 py-3 border-b border-dashed border-background-300/80 space-y-2.5">
+                      {items.map(item => {
+                        const product = productMap.get(item.productId);
+                        if (!product) return null;
+                        const pricePerKg = extractPricePerKg(product.precio);
+                        const itemSubtotal = pricePerKg * item.kg;
+                        return (
+                          <div key={item.productId} className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-foreground-800 truncate">
+                                {pickLang(product, 'nombre', i18n.language)}
+                              </p>
+                              <p className="text-[10px] text-foreground-400 tabular-nums">
+                                {formatKg(item.kg)} × {pricePerKg} {t('cart.price_label')}
+                              </p>
+                            </div>
+                            <span className="text-xs font-semibold text-foreground-950 tabular-nums whitespace-nowrap flex-shrink-0">
+                              {formatPrice(itemSubtotal)}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
-                    {customer.deliveryMethod === 'home' && (
-                      <div className="flex items-center justify-between mb-2">
+
+                    {/* Totals block */}
+                    <div className="px-4 py-3 space-y-2 border-b border-dashed border-background-300/80">
+                      <div className="flex items-center justify-between">
                         <span className="text-sm text-foreground-500">
-                          {t('cart.summary_delivery_cost')}
+                          {t('cart.summary_products')}
                         </span>
                         <span className="text-sm font-semibold text-foreground-950 tabular-nums transition-all duration-300">
-                          {formatPrice(deliveryCost)}
+                          {totalProducts}
                         </span>
                       </div>
-                    )}
-                    <div className="flex items-center justify-between pt-2 border-t border-background-200/50">
-                      <span className="text-sm font-medium text-foreground-950">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-foreground-500">
+                          {t('cart.summary_estimated_weight')}
+                        </span>
+                        <span className="text-sm font-semibold text-foreground-950 tabular-nums transition-all duration-300">
+                          {formatKg(totalWeight)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-foreground-500">
+                          {t('cart.summary_subtotal')}
+                        </span>
+                        <span className="text-sm font-semibold text-foreground-950 tabular-nums transition-all duration-300">
+                          {formatPrice(subTotalAmount)}
+                        </span>
+                      </div>
+                      {customer.deliveryMethod === 'home' && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-foreground-500">
+                            {t('cart.summary_delivery_cost')}
+                          </span>
+                          <span className="text-sm font-semibold text-foreground-950 tabular-nums transition-all duration-300">
+                            {formatPrice(deliveryCost)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Total */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-background-200/30">
+                      <span className="text-sm font-semibold text-foreground-950">
                         {t('cart.summary_estimated_total')}
                       </span>
                       <span className="text-base font-semibold text-foreground-950 whitespace-nowrap overflow-hidden">

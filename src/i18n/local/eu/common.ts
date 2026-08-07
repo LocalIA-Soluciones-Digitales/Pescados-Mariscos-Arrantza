@@ -521,6 +521,7 @@ const common = {
   "cart.estimated_subtotal": "Gutxi gorabeherako azpitotala",
   "cart.summary_products": "Produktuak",
   "cart.summary_estimated_weight": "Gutxi gorabeherako pisua",
+  "cart.summary_subtotal": "Azpitotala",
   "cart.summary_delivery_cost": "Bidalketa kostua",
   "cart.summary_estimated_total": "Gutxi gorabeherako totala",
   "cart.estimated_note": "Gutxi gorabeherako prezioa. Azken zenbatekoa pixka bat alda daiteke prestatutako pisu zehatzaren arabera. Zerbitzatutako pisua bakarrik kobratuko da.",

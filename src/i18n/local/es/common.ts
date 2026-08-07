@@ -524,6 +524,7 @@ const common = {
   "cart.estimated_subtotal": "Subtotal estimado",
   "cart.summary_products": "Productos",
   "cart.summary_estimated_weight": "Peso estimado",
+  "cart.summary_subtotal": "Subtotal",
   "cart.summary_delivery_cost": "Coste de envío",
   "cart.summary_estimated_total": "Total estimado",
   "cart.estimated_note": "Precio estimado. El importe final puede variar ligeramente según el peso exacto preparado. Solo se cobrará el peso servido.",
