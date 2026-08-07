@@ -6,7 +6,7 @@ import { useLanguage } from '@/hooks/useLanguage';
 const navLinks = [
   { key: 'nav.about', href: '#about' },
   { key: 'nav.products', href: '/productos' },
-  { key: 'nav.restaurants', href: '/productos' },
+  { key: 'nav.restaurants', href: '/profesionales' },
   { key: 'nav.contact', href: '#contact' },
 ];
 

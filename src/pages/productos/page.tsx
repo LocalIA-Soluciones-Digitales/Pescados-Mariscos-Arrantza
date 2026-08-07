@@ -8,6 +8,7 @@ import type { CartItem } from '@/hooks/useCart';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
 import { temporada } from '@/mocks/productos';
 import { useProductos } from '@/hooks/useProductos';
+import { useCartSound } from '@/hooks/useCartSound';
 import { logAddToCart, logCategoryView, logConversion, logProductView } from '@/lib/visitLog';
 import { pickLang, normalizeSearch } from '@/types/producto';
 import type { Producto } from '@/types/producto';
@@ -1167,10 +1168,13 @@ export default function Productos() {
       || activeCategory === 'raciones';
   }, [activeCategory, searchQuery]);
 
+  const { playAddToCartSound, playUndoSound } = useCartSound();
+
   const handleAddToCart = useCallback(
     (product: Producto) => {
       addItem(product.id);
       logAddToCart(product.id);
+      playAddToCartSound();
 
       // Show or update toast — never stack multiple notifications
       if (toastTimerRef.current) {
@@ -1183,13 +1187,14 @@ export default function Productos() {
         toastTimerRef.current = null;
       }, 2500);
     },
-    [addItem],
+    [addItem, playAddToCartSound],
   );
 
   const handleRemoveFromCart = useCallback(
     (productId: string) => {
       // Start card removal pulse animation immediately
       setRemovingProductId(productId);
+      playUndoSound();
 
       // Last item check — trigger special cart animation + card pulse before removing
       if (totalProducts === 1 && !lastItemRemoving) {
@@ -1221,7 +1226,7 @@ export default function Productos() {
         removalTimerRef.current = null;
       }, 300);
     },
-    [totalProducts, lastItemRemoving, removeItem],
+    [totalProducts, lastItemRemoving, removeItem, playUndoSound],
   );
 
   const handleDismissToast = useCallback(() => {

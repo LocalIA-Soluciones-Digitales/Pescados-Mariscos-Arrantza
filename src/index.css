@@ -170,6 +170,24 @@
   .animate-card-remove {
     animation: cardRemove 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
+
+  .animate-text-shine {
+    background: linear-gradient(
+      90deg,
+      #C8A44E 0%,
+      #D4B860 18%,
+      #F4E9B0 40%,
+      #FFF8DC 50%,
+      #F4E9B0 60%,
+      #D4B860 82%,
+      #C8A44E 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: textShine 3.5s ease-in-out infinite;
+  }
 }
 
 @keyframes fadeIn {
@@ -438,5 +456,14 @@
   100% {
     transform: scale(1);
     filter: brightness(1);
+  }
+}
+
+@keyframes textShine {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
   }
 }
