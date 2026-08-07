@@ -147,9 +147,9 @@ function ProductoCard({
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'productos', label: 'Productos' },
+  { value: 'stock', label: 'Stock' },
   { value: 'pedidos', label: 'Pedidos' },
   { value: 'resenas', label: 'Reseñas' },
-  { value: 'stock', label: 'Stock' },
 ];
 
 export default function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
