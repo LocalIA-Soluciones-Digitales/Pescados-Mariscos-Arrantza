@@ -381,3 +381,91 @@ create policy "resenas_delete_admin"
 
 create index if not exists idx_resenas_estado on public.resenas (estado);
 create index if not exists idx_resenas_created_at on public.resenas (created_at desc);
+
+-- ============================================================
+-- Control de stock: kg restantes por producto, descontados solo
+-- con cada pedido de un cliente y repuestos manualmente por el
+-- pescadero. Si el stock cae por debajo del mínimo definido se
+-- envía un aviso por correo (ver triggers más abajo).
+-- ============================================================
+
+alter table public.productos add column if not exists stock_kg numeric not null default 0;
+alter table public.productos add column if not exists stock_minimo numeric not null default 10;
+alter table public.productos add column if not exists stock_alerta_enviada boolean not null default false;
+
+-- Descuenta stock al registrarse un pedido (trigger sobre pedidos,
+-- ver logPedido en src/lib/pedidosLog.ts). security definer porque
+-- el pedido lo inserta un cliente anónimo sin permiso de update
+-- sobre productos.
+create or replace function public.descontar_stock_pedido()
+returns trigger as $$
+declare
+  item jsonb;
+begin
+  for item in select * from jsonb_array_elements(new.items) loop
+    begin
+      update public.productos
+      set stock_kg = greatest(stock_kg - coalesce((item->>'kg')::numeric, 0), 0)
+      where id = (item->>'productoId')::uuid;
+    exception when others then
+      null; -- nunca debe bloquear el insert del pedido
+    end;
+  end loop;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+drop trigger if exists trg_pedidos_descontar_stock on public.pedidos;
+create trigger trg_pedidos_descontar_stock
+  after insert on public.pedidos
+  for each row execute function public.descontar_stock_pedido();
+
+-- Avisa por correo cuando el stock de un producto cae por debajo de
+-- su mínimo (una sola vez por caída; se re-arma solo si vuelve a
+-- subir por encima del mínimo y luego baja de nuevo). Usa la tabla
+-- settings ya existente para guardar la URL de la Edge Function y
+-- un secreto compartido, sin credenciales sueltas en el SQL.
+create extension if not exists pg_net with schema extensions;
+
+create or replace function public.notificar_stock_bajo()
+returns trigger as $$
+declare
+  v_url text;
+  v_secret text;
+begin
+  if new.stock_kg <= new.stock_minimo and coalesce(old.stock_alerta_enviada, false) = false then
+    new.stock_alerta_enviada := true;
+
+    select value #>> '{}' into v_url from public.settings where key = 'stock_alert_url';
+    select value #>> '{}' into v_secret from public.settings where key = 'stock_alert_secret';
+
+    if v_url is not null then
+      perform net.http_post(
+        url := v_url,
+        headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', coalesce(v_secret, '')),
+        body := jsonb_build_object(
+          'producto_id', new.id,
+          'nombre', new.nombre_es,
+          'stock_kg', new.stock_kg,
+          'stock_minimo', new.stock_minimo
+        )
+      );
+    end if;
+  elsif new.stock_kg > new.stock_minimo and coalesce(old.stock_alerta_enviada, false) = true then
+    new.stock_alerta_enviada := false;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public, extensions;
+
+drop trigger if exists trg_productos_stock_bajo on public.productos;
+create trigger trg_productos_stock_bajo
+  before update of stock_kg, stock_minimo on public.productos
+  for each row execute function public.notificar_stock_bajo();
+
+-- Tras desplegar supabase/functions/stock-alert, registra su URL y el
+-- secreto compartido (mismo valor que STOCK_ALERT_SECRET en la function):
+-- insert into public.settings (key, value) values
+--   ('stock_alert_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/stock-alert"'),
+--   ('stock_alert_secret', '"<UN_SECRETO_ALEATORIO>"')
+-- on conflict (key) do update set value = excluded.value;

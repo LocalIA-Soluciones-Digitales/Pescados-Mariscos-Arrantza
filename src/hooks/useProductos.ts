@@ -28,5 +28,17 @@ export function useProductos() {
     fetchProductos();
   }, [fetchProductos]);
 
-  return { productos, loading, error, refetch: fetchProductos };
+  const patchLocal = useCallback((id: string, patch: Partial<Producto>) => {
+    setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }, []);
+
+  const removeLocal = useCallback((id: string) => {
+    setProductos((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  const addLocal = useCallback((producto: Producto) => {
+    setProductos((prev) => [...prev, producto]);
+  }, []);
+
+  return { productos, loading, error, refetch: fetchProductos, patchLocal, removeLocal, addLocal };
 }

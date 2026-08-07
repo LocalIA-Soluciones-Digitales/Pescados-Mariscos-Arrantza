@@ -15,6 +15,9 @@ export interface Producto {
   imagen_url: string | null;
   estado: ProductoEstado;
   disponible: boolean;
+  stock_kg: number;
+  stock_minimo: number;
+  stock_alerta_enviada: boolean;
   orden: number;
   created_at: string;
   updated_at: string;

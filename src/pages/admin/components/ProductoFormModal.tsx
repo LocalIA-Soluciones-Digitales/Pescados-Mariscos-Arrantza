@@ -45,7 +45,16 @@ type FormState = {
   estado: ProductoEstado;
   disponible: boolean;
   imagen_url: string;
+  stock_kg: number;
+  stock_minimo: number;
 };
+
+type FormTab = 'datos' | 'stock';
+
+const FORM_TABS: { value: FormTab; label: string }[] = [
+  { value: 'datos', label: 'Datos' },
+  { value: 'stock', label: 'Stock' },
+];
 
 function toFormState(p: Producto | null): FormState {
   if (!p) {
@@ -53,6 +62,7 @@ function toFormState(p: Producto | null): FormState {
       nombre_es: '', nombre_eu: '', descripcion_es: '', descripcion_eu: '',
       origen_es: '', origen_eu: '', precio: '', categoria: 'pescado', subcategoria: '',
       estado: 'available', disponible: true, imagen_url: '',
+      stock_kg: 0, stock_minimo: 10,
     };
   }
   return {
@@ -61,6 +71,7 @@ function toFormState(p: Producto | null): FormState {
     origen_es: p.origen_es ?? '', origen_eu: p.origen_eu ?? '',
     precio: p.precio, categoria: p.categoria, subcategoria: p.subcategoria ?? '',
     estado: p.estado, disponible: p.disponible, imagen_url: p.imagen_url ?? '',
+    stock_kg: p.stock_kg, stock_minimo: p.stock_minimo,
   };
 }
 
@@ -71,9 +82,10 @@ export default function ProductoFormModal({
 }: {
   producto: Producto | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (producto: Producto) => void;
 }) {
   const [form, setForm] = useState<FormState>(() => toFormState(producto));
+  const [formTab, setFormTab] = useState<FormTab>('datos');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,19 +131,21 @@ export default function ProductoFormModal({
       estado: form.estado,
       disponible: form.disponible,
       imagen_url: form.imagen_url || null,
+      stock_kg: Number.isFinite(form.stock_kg) ? form.stock_kg : 0,
+      stock_minimo: Number.isFinite(form.stock_minimo) ? form.stock_minimo : 10,
     };
 
     const result = producto
-      ? await supabase.from('productos').update(payload).eq('id', producto.id)
-      : await supabase.from('productos').insert(payload);
+      ? await supabase.from('productos').update(payload).eq('id', producto.id).select().single()
+      : await supabase.from('productos').insert(payload).select().single();
 
     setSaving(false);
 
-    if (result.error) {
-      setError(result.error.message);
+    if (result.error || !result.data) {
+      setError(result.error?.message ?? 'No se pudo guardar el producto');
       return;
     }
-    onSaved();
+    onSaved(result.data as Producto);
   };
 
   return (
@@ -150,6 +164,24 @@ export default function ProductoFormModal({
           </button>
         </div>
 
+        {/* Pestañas */}
+        <div className="flex items-center gap-1.5 mb-5">
+          {FORM_TABS.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => setFormTab(t.value)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                formTab === t.value ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {formTab === 'datos' ? (
+          <>
         {/* Imagen */}
         <div className="mb-4">
           <label className="block text-xs font-medium text-foreground-500 mb-2">Foto</label>
@@ -236,12 +268,46 @@ export default function ProductoFormModal({
         </div>
 
         {/* Disponible toggle */}
-        <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
+        <label className="flex items-center gap-2 mb-1 cursor-pointer select-none">
           <input type="checkbox" checked={form.disponible} onChange={(e) => update('disponible', e.target.checked)} className="w-4 h-4" />
           <span className="text-sm text-foreground-700">Disponible (desmarca para poner "Agotado")</span>
         </label>
+          </>
+        ) : (
+          <>
+        {/* Stock */}
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-foreground-500 mb-1">Cantidad en stock (kg)</label>
+          <input
+            type="number"
+            step="0.5"
+            min="0"
+            value={form.stock_kg}
+            onChange={(e) => update('stock_kg', e.target.valueAsNumber)}
+            className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm"
+          />
+        </div>
+        <div className="mb-3">
+          <label className="block text-xs font-medium text-foreground-500 mb-1">Aviso de stock mínimo (kg)</label>
+          <input
+            type="number"
+            step="0.5"
+            min="0"
+            value={form.stock_minimo}
+            onChange={(e) => update('stock_minimo', e.target.valueAsNumber)}
+            className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm"
+          />
+          <p className="text-xs text-foreground-400 mt-1">
+            Si el stock baja de este valor se envía un aviso por correo automáticamente.
+          </p>
+        </div>
+        <p className="text-xs text-foreground-400 mb-1">
+          El stock se descuenta solo con cada pedido de un cliente. Actualiza esta cantidad cuando el pescador reponga género.
+        </p>
+          </>
+        )}
 
-        {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+        {error && <p className="text-xs text-red-600 mt-4 mb-3">{error}</p>}
 
         <div className="flex gap-2">
           <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70">

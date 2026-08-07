@@ -34,29 +34,53 @@ const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categor
   { value: 'gambas_langostinos', label: 'Gambas y Langostinos', tipo: 'subcategoria' },
 ];
 
-function ProductoCard({ producto, onChanged, onEdit }: { producto: Producto; onChanged: () => void; onEdit: () => void }) {
+function ProductoCard({
+  producto,
+  onPatch,
+  onDelete,
+  onEdit,
+}: {
+  producto: Producto;
+  onPatch: (patch: Partial<Producto>) => void;
+  onDelete: () => void;
+  onEdit: () => void;
+}) {
   const [busy, setBusy] = useState(false);
+  const stockBajo = producto.stock_kg <= producto.stock_minimo;
 
   const toggleDisponible = async () => {
     setBusy(true);
-    await supabase.from('productos').update({ disponible: !producto.disponible }).eq('id', producto.id);
+    const disponible = !producto.disponible;
+    const { error } = await supabase.from('productos').update({ disponible }).eq('id', producto.id);
     setBusy(false);
-    onChanged();
+    if (error) {
+      alert('No se pudo actualizar la disponibilidad: ' + error.message);
+      return;
+    }
+    onPatch({ disponible });
   };
 
   const cambiarEstado = async (estado: ProductoEstado) => {
     setBusy(true);
-    await supabase.from('productos').update({ estado }).eq('id', producto.id);
+    const { error } = await supabase.from('productos').update({ estado }).eq('id', producto.id);
     setBusy(false);
-    onChanged();
+    if (error) {
+      alert('No se pudo actualizar la etiqueta: ' + error.message);
+      return;
+    }
+    onPatch({ estado });
   };
 
   const eliminar = async () => {
     if (!confirm(`¿Eliminar "${producto.nombre_es}" del catálogo?`)) return;
     setBusy(true);
-    await supabase.from('productos').delete().eq('id', producto.id);
+    const { error } = await supabase.from('productos').delete().eq('id', producto.id);
     setBusy(false);
-    onChanged();
+    if (error) {
+      alert('No se pudo eliminar: ' + error.message);
+      return;
+    }
+    onDelete();
   };
 
   return (
@@ -68,7 +92,11 @@ function ProductoCard({ producto, onChanged, onEdit }: { producto: Producto; onC
       </div>
       <div className="p-3">
         <p className="text-sm font-semibold text-foreground-950 truncate mb-0.5">{producto.nombre_es}</p>
-        <p className="text-xs text-foreground-400 mb-2">{producto.precio}</p>
+        <p className="text-xs text-foreground-400 mb-0.5">{producto.precio}</p>
+        <p className={`text-xs mb-2 flex items-center gap-1 ${stockBajo ? 'text-red-600 font-medium' : 'text-foreground-400'}`}>
+          {stockBajo && <i className="ri-alert-line"></i>}
+          Stock: {producto.stock_kg} kg
+        </p>
 
         {/* Toggle disponible/agotado */}
         <button
@@ -123,7 +151,7 @@ const TABS: { value: Tab; label: string }[] = [
 ];
 
 export default function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
-  const { productos, loading, refetch } = useProductos();
+  const { productos, loading, patchLocal, removeLocal, addLocal } = useProductos();
   const [editing, setEditing] = useState<Producto | null | 'new'>(null);
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
@@ -166,8 +194,9 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
       result = result.filter((p) => p.nombre_es.toLowerCase().includes(q) || p.nombre_eu?.toLowerCase().includes(q));
     }
 
-    // Agotados primero — así el pescadero ve de un vistazo qué falta reponer
-    return [...result].sort((a, b) => Number(a.disponible) - Number(b.disponible) || a.orden - b.orden);
+    // Orden estable por posición — evita que un producto "salte" de sitio al
+    // marcarlo agotado; usa el filtro "Agotados" para verlos todos juntos.
+    return [...result].sort((a, b) => a.orden - b.orden);
   }, [productos, categoria, soloAgotados, search]);
 
   return (
@@ -280,7 +309,8 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
               <ProductoCard
                 key={producto.id}
                 producto={producto}
-                onChanged={refetch}
+                onPatch={(patch) => patchLocal(producto.id, patch)}
+                onDelete={() => removeLocal(producto.id)}
                 onEdit={() => setEditing(producto)}
               />
             ))}
@@ -302,9 +332,11 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
         <ProductoFormModal
           producto={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
-          onSaved={() => {
+          onSaved={(saved) => {
+            const wasNew = editing === 'new';
             setEditing(null);
-            refetch();
+            if (wasNew) addLocal(saved);
+            else patchLocal(saved.id, saved);
           }}
         />
       )}
