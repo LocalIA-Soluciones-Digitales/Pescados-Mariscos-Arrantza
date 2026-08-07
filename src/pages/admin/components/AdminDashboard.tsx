@@ -202,40 +202,47 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
     return [...result].sort((a, b) => a.nombre_es.localeCompare(b.nombre_es, 'es'));
   }, [productos, categoria, soloAgotados, search]);
 
+  const tabsNav = (
+    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+      {TABS.map((t) => {
+        const badge = t.value === 'pedidos' ? pedidosNuevos : t.value === 'resenas' ? resenasPendientes : t.value === 'stock' ? stockBajoCount : 0;
+        return (
+          <button
+            key={t.value}
+            type="button"
+            onClick={() => setTab(t.value)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+              tab === t.value ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+            }`}
+          >
+            {t.label}
+            {badge > 0 && (
+              <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-none ${tab === t.value ? 'bg-background-50/20' : 'bg-red-100 text-red-600'}`}>
+                {badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background-100">
-      <header className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-base font-heading font-semibold text-foreground-950">Gestión</h1>
-            <p className="text-xs text-foreground-400">Pescados y Mariscos Arrantza</p>
+      <header className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-3 md:py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="flex-shrink-0">
+              <h1 className="text-base font-heading font-semibold text-foreground-950">Gestión</h1>
+              <p className="text-xs text-foreground-400">Pescados y Mariscos Arrantza</p>
+            </div>
+            <div className="hidden md:block">{tabsNav}</div>
           </div>
-          <div className="flex items-center gap-1.5">
-            {TABS.map((t) => {
-              const badge = t.value === 'pedidos' ? pedidosNuevos : t.value === 'resenas' ? resenasPendientes : t.value === 'stock' ? stockBajoCount : 0;
-              return (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => setTab(t.value)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    tab === t.value ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
-                  }`}
-                >
-                  {t.label}
-                  {badge > 0 && (
-                    <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-none ${tab === t.value ? 'bg-background-50/20' : 'bg-red-100 text-red-600'}`}>
-                      {badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 flex-shrink-0">
+            Cerrar sesión
+          </button>
         </div>
-        <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 flex-shrink-0">
-          Cerrar sesión
-        </button>
+        <div className="md:hidden mt-3">{tabsNav}</div>
       </header>
 
       {tab === 'pedidos' ? (
@@ -247,7 +254,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
       ) : (
         <>
       {/* Filtros */}
-      <div className="sticky top-[65px] z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center">
+      <div className="md:sticky md:top-[65px] z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center">
         <div className="relative flex-1 max-w-[280px]">
           <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
           <input
@@ -309,7 +316,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
         ) : visibles.length === 0 ? (
           <p className="text-sm text-foreground-400">No hay productos que coincidan con el filtro.</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
             {visibles.map((producto) => (
               <ProductoCard
                 key={producto.id}

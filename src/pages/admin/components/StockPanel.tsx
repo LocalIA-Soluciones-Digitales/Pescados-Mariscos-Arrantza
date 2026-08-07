@@ -47,68 +47,72 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
 
   return (
     <div
-      className={`flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors ${
+      className={`rounded-lg border px-3 py-2.5 transition-colors ${
         stockBajo ? 'bg-red-50/60 border-red-200 border-l-4 border-l-red-400' : 'bg-background-50 border-background-200/70'
       } ${saving ? 'opacity-60' : ''}`}
     >
-      <div className="w-10 h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
-        {producto.imagen_url && <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" />}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
+          {producto.imagen_url && <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" />}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground-950 truncate">{producto.nombre_es}</p>
+          <p className="text-xs text-foreground-400">{producto.precio}</p>
+        </div>
+
+        {stockBajo && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 text-red-700 flex-shrink-0">
+            <i className="ri-alert-line"></i> Bajo mínimo
+          </span>
+        )}
       </div>
 
-      <div className="flex-1 min-w-[120px]">
-        <p className="text-sm font-medium text-foreground-950 truncate">{producto.nombre_es}</p>
-        <p className="text-xs text-foreground-400">{producto.precio}</p>
-      </div>
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-2.5">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <label className="text-[11px] text-foreground-400">Stock actual</label>
+          <span className={`w-16 text-right text-sm font-medium ${stockBajo ? 'text-red-700' : 'text-foreground-950'}`}>
+            {producto.stock_kg} kg
+          </span>
+        </div>
 
-      {stockBajo && (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 text-red-700 flex-shrink-0">
-          <i className="ri-alert-line"></i> Bajo mínimo
-        </span>
-      )}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <label className="text-[11px] text-foreground-400">Entrada de hoy</label>
+          <input
+            type="number"
+            step="0.5"
+            min="0"
+            placeholder="0"
+            value={entrada}
+            onChange={(e) => setEntrada(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+            onBlur={sumarEntrada}
+            disabled={saving}
+            className="w-16 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
+          />
+          <span className="text-xs text-foreground-400">kg</span>
+        </div>
 
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        <label className="text-[11px] text-foreground-400">Quedan</label>
-        <span className={`w-16 text-right text-sm font-medium ${stockBajo ? 'text-red-700' : 'text-foreground-950'}`}>
-          {producto.stock_kg} kg
-        </span>
-      </div>
-
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        <label className="text-[11px] text-foreground-400">Entra hoy</label>
-        <input
-          type="number"
-          step="0.5"
-          min="0"
-          placeholder="0"
-          value={entrada}
-          onChange={(e) => setEntrada(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur();
-          }}
-          onBlur={sumarEntrada}
-          disabled={saving}
-          className="w-16 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
-        />
-        <span className="text-xs text-foreground-400">kg</span>
-      </div>
-
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        <label className="text-[11px] text-foreground-400">Aviso en</label>
-        <input
-          type="number"
-          step="0.5"
-          min="0"
-          value={stockMinimo}
-          onChange={(e) => setStockMinimo(e.target.valueAsNumber)}
-          onBlur={() => {
-            const v = Number.isFinite(stockMinimo) ? stockMinimo : 10;
-            setStockMinimo(v);
-            if (v !== producto.stock_minimo) guardarMinimo(v);
-          }}
-          disabled={saving}
-          className="w-16 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
-        />
-        <span className="text-xs text-foreground-400">kg</span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <label className="text-[11px] text-foreground-400">Aviso mínimo</label>
+          <input
+            type="number"
+            step="0.5"
+            min="0"
+            value={stockMinimo}
+            onChange={(e) => setStockMinimo(e.target.valueAsNumber)}
+            onBlur={() => {
+              const v = Number.isFinite(stockMinimo) ? stockMinimo : 10;
+              setStockMinimo(v);
+              if (v !== producto.stock_minimo) guardarMinimo(v);
+            }}
+            disabled={saving}
+            className="w-16 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
+          />
+          <span className="text-xs text-foreground-400">kg</span>
+        </div>
       </div>
     </div>
   );
@@ -156,9 +160,9 @@ export default function StockPanel({
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
       <p className="text-xs text-foreground-400 mb-4">
-        Cada mañana, introduce en "Entra hoy" solo los kg que te llegan del mar — se suman solos a lo que queda, sin
-        que tengas que hacer cuentas. El stock se descuenta solo con cada pedido de un cliente; si baja del mínimo, se
-        avisa por correo automáticamente.
+        Cada mañana, indica en "Entrada de hoy" únicamente los kg recibidos: se suman automáticamente al stock
+        actual, sin necesidad de calcular el total. El stock se descuenta solo con cada pedido de un cliente; si baja
+        del mínimo, se envía un aviso por correo automáticamente.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-4">
