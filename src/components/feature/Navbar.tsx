@@ -90,19 +90,22 @@ export default function Navbar() {
               alt="Arrantza"
               className="w-8 h-8 md:w-9 md:h-9 shrink-0 rounded-full object-cover shadow-[0_1px_4px_rgba(0,0,0,0.35)]"
             />
-            <span className="flex items-baseline gap-2 -translate-y-[1.5px]">
-              <span className={`font-heading text-xl md:text-2xl font-semibold leading-none tracking-tight transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
+            <span className="flex items-baseline gap-2">
+              <span className={`font-heading text-xl md:text-2xl font-semibold leading-none tracking-tight -translate-y-[1.5px] transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
                 Arrantza
               </span>
               <span className={`hidden sm:inline-block w-1.5 h-1.5 rounded-full self-center transition-colors duration-500 ${showDark ? 'bg-foreground-400' : 'bg-white/70'}`}></span>
-              <span className={`hidden sm:inline text-xs leading-none tracking-[0.15em] uppercase transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'}`}>
+              <span className={`hidden sm:inline text-xs leading-none tracking-[0.15em] uppercase -translate-y-[1.5px] transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'}`}>
                 {currentLang === 'es' ? 'Pescados y Mariscos' : 'Arrainak eta Itsaskiak'}
               </span>
             </span>
           </a>
 
-          {/* Desktop nav — centered on the row independently of logo/right-side widths */}
-          <div className="hidden lg:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+          {/* Desktop nav — centered on the row independently of logo/right-side widths.
+              inset-y-0 + items-center (not the position:absolute static-position fallback,
+              which browsers resolve inconsistently) is what actually pins this to the same
+              vertical axis as the in-flow logo/right-side items. */}
+          <div className="hidden lg:flex items-center gap-8 absolute inset-y-0 left-1/2 -translate-x-1/2">
             {navLinks.map((link) => (
               <a
                 key={link.key}
