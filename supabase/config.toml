@@ -1,0 +1,2 @@
+[functions.stock-alert]
+verify_jwt = false

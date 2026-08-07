@@ -5,10 +5,11 @@ import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/produc
 import ProductoFormModal from './ProductoFormModal';
 import PedidosPanel from './PedidosPanel';
 import ResenasPanel from './ResenasPanel';
+import StockPanel from './StockPanel';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
 
-type Tab = 'productos' | 'pedidos' | 'resenas';
+type Tab = 'productos' | 'pedidos' | 'resenas' | 'stock';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -148,6 +149,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'productos', label: 'Productos' },
   { value: 'pedidos', label: 'Pedidos' },
   { value: 'resenas', label: 'Reseñas' },
+  { value: 'stock', label: 'Stock' },
 ];
 
 export default function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
@@ -165,6 +167,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
   const resenasPendientes = useMemo(() => resenas.filter((r) => r.estado === 'pendiente').length, [resenas]);
 
   const agotadosCount = useMemo(() => productos.filter((p) => !p.disponible).length, [productos]);
+  const stockBajoCount = useMemo(() => productos.filter((p) => p.stock_kg <= p.stock_minimo).length, [productos]);
 
   const categoriaCounts = useMemo(() => {
     const counts: Record<string, number> = { todos: productos.length };
@@ -209,7 +212,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
           </div>
           <div className="flex items-center gap-1.5">
             {TABS.map((t) => {
-              const badge = t.value === 'pedidos' ? pedidosNuevos : t.value === 'resenas' ? resenasPendientes : 0;
+              const badge = t.value === 'pedidos' ? pedidosNuevos : t.value === 'resenas' ? resenasPendientes : t.value === 'stock' ? stockBajoCount : 0;
               return (
                 <button
                   key={t.value}
@@ -239,6 +242,8 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
         <PedidosPanel />
       ) : tab === 'resenas' ? (
         <ResenasPanel />
+      ) : tab === 'stock' ? (
+        <StockPanel productos={productos} loading={loading} onPatch={patchLocal} />
       ) : (
         <>
       {/* Filtros */}
