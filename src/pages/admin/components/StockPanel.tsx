@@ -12,20 +12,37 @@ const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
 const CATEGORIA_ORDEN: ProductoCategoria[] = ['pescado', 'especial', 'raciones', 'marisco'];
 
 function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: Partial<Producto>) => void }) {
-  const [stockKg, setStockKg] = useState(producto.stock_kg);
+  const [entrada, setEntrada] = useState('');
   const [stockMinimo, setStockMinimo] = useState(producto.stock_minimo);
   const [saving, setSaving] = useState(false);
   const stockBajo = producto.stock_kg <= producto.stock_minimo;
 
-  const guardar = async (patch: { stock_kg?: number; stock_minimo?: number }) => {
-    setSaving(true);
-    const { error } = await supabase.from('productos').update(patch).eq('id', producto.id);
-    setSaving(false);
-    if (error) {
-      alert('No se pudo guardar el stock: ' + error.message);
+  const sumarEntrada = async () => {
+    const kg = Number(entrada);
+    if (!Number.isFinite(kg) || kg <= 0) {
+      setEntrada('');
       return;
     }
-    onPatch(patch);
+    setSaving(true);
+    const { data, error } = await supabase.rpc('sumar_stock', { p_producto_id: producto.id, p_kg: kg });
+    setSaving(false);
+    if (error) {
+      alert('No se pudo sumar el stock: ' + error.message);
+      return;
+    }
+    setEntrada('');
+    onPatch({ stock_kg: data as number });
+  };
+
+  const guardarMinimo = async (v: number) => {
+    setSaving(true);
+    const { error } = await supabase.from('productos').update({ stock_minimo: v }).eq('id', producto.id);
+    setSaving(false);
+    if (error) {
+      alert('No se pudo guardar el mínimo: ' + error.message);
+      return;
+    }
+    onPatch({ stock_minimo: v });
   };
 
   return (
@@ -50,22 +67,27 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
       )}
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <label className="text-[11px] text-foreground-400">Stock</label>
+        <label className="text-[11px] text-foreground-400">Quedan</label>
+        <span className={`w-16 text-right text-sm font-medium ${stockBajo ? 'text-red-700' : 'text-foreground-950'}`}>
+          {producto.stock_kg} kg
+        </span>
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <label className="text-[11px] text-foreground-400">Entra hoy</label>
         <input
           type="number"
           step="0.5"
           min="0"
-          value={stockKg}
-          onChange={(e) => setStockKg(e.target.valueAsNumber)}
-          onBlur={() => {
-            const v = Number.isFinite(stockKg) ? stockKg : 0;
-            setStockKg(v);
-            if (v !== producto.stock_kg) guardar({ stock_kg: v });
+          placeholder="0"
+          value={entrada}
+          onChange={(e) => setEntrada(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
           }}
+          onBlur={sumarEntrada}
           disabled={saving}
-          className={`w-20 px-2 py-1.5 border rounded-md text-sm text-right font-medium ${
-            stockBajo ? 'bg-white border-red-300 text-red-700' : 'bg-background-100 border-background-200/70 text-foreground-950'
-          }`}
+          className="w-16 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
         />
         <span className="text-xs text-foreground-400">kg</span>
       </div>
@@ -81,7 +103,7 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
           onBlur={() => {
             const v = Number.isFinite(stockMinimo) ? stockMinimo : 10;
             setStockMinimo(v);
-            if (v !== producto.stock_minimo) guardar({ stock_minimo: v });
+            if (v !== producto.stock_minimo) guardarMinimo(v);
           }}
           disabled={saving}
           className="w-16 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
@@ -134,8 +156,9 @@ export default function StockPanel({
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
       <p className="text-xs text-foreground-400 mb-4">
-        Actualiza aquí los kg que quedan de cada producto (el pescador, a diario). El stock se descuenta solo con cada
-        pedido de un cliente; si baja del mínimo, se avisa por correo automáticamente. Los cambios se guardan al salir del campo.
+        Cada mañana, introduce en "Entra hoy" solo los kg que te llegan del mar — se suman solos a lo que queda, sin
+        que tengas que hacer cuentas. El stock se descuenta solo con cada pedido de un cliente; si baja del mínimo, se
+        avisa por correo automáticamente.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-4">

@@ -420,6 +420,23 @@ create trigger trg_pedidos_descontar_stock
   after insert on public.pedidos
   for each row execute function public.descontar_stock_pedido();
 
+-- Suma al stock lo que trae el pescadero cada mañana, sin que tenga
+-- que calcular él el total: introduce solo los kg que le llegan del
+-- mar y aquí se suman de forma atómica al stock restante, teniendo en
+-- cuenta también lo que se haya descontado mientras tanto por pedidos
+-- en curso (evita condiciones de carrera frente a un simple "leer y
+-- volver a escribir" desde el cliente).
+create or replace function public.sumar_stock(p_producto_id uuid, p_kg numeric)
+returns numeric as $$
+  update public.productos
+  set stock_kg = stock_kg + p_kg
+  where id = p_producto_id
+  returning stock_kg;
+$$ language sql;
+
+revoke all on function public.sumar_stock(uuid, numeric) from public;
+grant execute on function public.sumar_stock(uuid, numeric) to authenticated;
+
 -- Avisa por correo cuando el stock de un producto cae por debajo de
 -- su mínimo (una sola vez por caída; se re-arma solo si vuelve a
 -- subir por encima del mínimo y luego baja de nuevo). Usa la tabla
