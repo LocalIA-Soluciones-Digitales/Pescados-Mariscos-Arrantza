@@ -23,13 +23,17 @@ export function useResenas() {
   }, [fetchResenas]);
 
   const setEstado = useCallback(async (id: string, estado: ResenaEstado) => {
-    await supabase.from('resenas').update({ estado }).eq('id', id);
+    const { error } = await supabase.from('resenas').update({ estado }).eq('id', id);
+    if (error) return false;
     setResenas((prev) => prev.map((r) => (r.id === id ? { ...r, estado } : r)));
+    return true;
   }, []);
 
   const deleteResena = useCallback(async (id: string) => {
-    await supabase.from('resenas').delete().eq('id', id);
+    const { error } = await supabase.from('resenas').delete().eq('id', id);
+    if (error) return false;
     setResenas((prev) => prev.filter((r) => r.id !== id));
+    return true;
   }, []);
 
   return { resenas, loading, refetch: fetchResenas, setEstado, deleteResena };

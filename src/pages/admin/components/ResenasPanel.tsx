@@ -25,6 +25,17 @@ export default function ResenasPanel() {
   const { resenas, loading, setEstado, deleteResena } = useResenas();
   const [filtro, setFiltro] = useState<'todas' | ResenaEstado>('pendiente');
 
+  const handleSetEstado = async (id: string, estado: ResenaEstado) => {
+    const ok = await setEstado(id, estado);
+    if (!ok) alert('No se pudo actualizar la reseña. Comprueba tu conexión o vuelve a iniciar sesión e inténtalo de nuevo.');
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar esta reseña definitivamente?')) return;
+    const ok = await deleteResena(id);
+    if (!ok) alert('No se pudo eliminar la reseña. Comprueba tu conexión o vuelve a iniciar sesión e inténtalo de nuevo.');
+  };
+
   const counts = useMemo(() => {
     const c: Record<string, number> = { todas: resenas.length };
     (['pendiente', 'aprobada', 'rechazada'] as ResenaEstado[]).forEach((e) => {
@@ -87,7 +98,7 @@ export default function ResenasPanel() {
                 {resena.estado !== 'aprobada' && (
                   <button
                     type="button"
-                    onClick={() => setEstado(resena.id, 'aprobada')}
+                    onClick={() => handleSetEstado(resena.id, 'aprobada')}
                     className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                   >
                     Aprobar
@@ -96,7 +107,7 @@ export default function ResenasPanel() {
                 {resena.estado !== 'rechazada' && (
                   <button
                     type="button"
-                    onClick={() => setEstado(resena.id, 'rechazada')}
+                    onClick={() => handleSetEstado(resena.id, 'rechazada')}
                     className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-background-100 text-foreground-500 hover:bg-background-200/70"
                   >
                     Rechazar
@@ -104,9 +115,7 @@ export default function ResenasPanel() {
                 )}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (confirm('¿Eliminar esta reseña definitivamente?')) deleteResena(resena.id);
-                  }}
+                  onClick={() => handleDelete(resena.id)}
                   className="ml-auto px-2 py-1 rounded-full text-[11px] font-medium text-foreground-400 hover:text-red-600"
                 >
                   <i className="ri-delete-bin-line"></i>
