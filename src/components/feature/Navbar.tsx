@@ -60,125 +60,130 @@ export default function Navbar() {
   };
 
   return (
-    <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        showDark
-          ? 'bg-background-50/95 backdrop-blur-md shadow-[0_1px_0_0_rgba(0,0,0,0.04)]'
-          : 'bg-transparent'
-      }`}
-      data-scrolled={showDark}
-    >
-      {/* Scrim behind the transparent navbar — guarantees contrast for white text
-          regardless of what's in the hero photo directly underneath it */}
-      {!showDark && (
-        <div className="absolute inset-x-0 top-0 h-24 md:h-28 bg-gradient-to-b from-black/70 via-black/35 to-transparent pointer-events-none -z-10" />
-      )}
+    <nav className="fixed top-0 left-0 right-0 z-50" data-scrolled={showDark}>
+      {/* backdrop-blur-md below establishes a containing block for `position: fixed`
+          descendants (same as transform/filter), so it must not wrap the mobile
+          menu overlay — otherwise that overlay positions against this row instead
+          of the viewport and collapses to the navbar's height when scrolled. */}
+      <div
+        className={`relative transition-all duration-500 ${
+          showDark
+            ? 'bg-background-50/95 backdrop-blur-md shadow-[0_1px_0_0_rgba(0,0,0,0.04)]'
+            : 'bg-transparent'
+        }`}
+      >
+        {/* Scrim behind the transparent navbar — guarantees contrast for white text
+            regardless of what's in the hero photo directly underneath it */}
+        {!showDark && (
+          <div className="absolute inset-x-0 top-0 h-24 md:h-28 bg-gradient-to-b from-black/70 via-black/35 to-transparent pointer-events-none -z-10" />
+        )}
 
-      <div className="w-full max-w-[1440px] mx-auto px-4 md:px-6 lg:px-12">
-        {/* Plain flex justify-between so mobile always gets equal, predictable
-            left/right margins. Desktop nav links are pulled out of this flow
-            and centered absolutely, so they can't disturb that spacing. */}
-        <div className="relative flex items-center justify-between h-16 md:h-20">
-          {/* Logo */}
-          <a
-            href="/"
-            onClick={(e) => { e.preventDefault(); handleLogoClick(); }}
-            className="flex items-center gap-2 group"
-          >
-            <img
-              src="/logo.png"
-              alt="Arrantza"
-              className="w-8 h-8 md:w-9 md:h-9 shrink-0 rounded-full object-cover shadow-[0_1px_4px_rgba(0,0,0,0.35)]"
-            />
-            <span className="flex items-baseline gap-2">
-              <span className={`font-heading text-xl md:text-2xl font-semibold leading-none tracking-tight -translate-y-[1.5px] transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
-                Arrantza
-              </span>
-              <span className={`hidden sm:inline-block w-1.5 h-1.5 rounded-full self-center transition-colors duration-500 ${showDark ? 'bg-foreground-400' : 'bg-white/70'}`}></span>
-              <span className={`hidden sm:inline text-xs leading-none tracking-[0.15em] uppercase -translate-y-[1.5px] transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'}`}>
-                {currentLang === 'es' ? 'Pescados y Mariscos' : 'Arrainak eta Itsaskiak'}
-              </span>
-            </span>
-          </a>
-
-          {/* Desktop nav — centered on the row independently of logo/right-side widths.
-              inset-y-0 + items-center (not the position:absolute static-position fallback,
-              which browsers resolve inconsistently) is what actually pins this to the same
-              vertical axis as the in-flow logo/right-side items. */}
-          <div className="hidden lg:flex items-center gap-8 absolute inset-y-0 left-1/2 -translate-x-1/2">
-            {navLinks.map((link) => (
-              <a
-                key={link.key}
-                href={link.href}
-                onClick={(e) => { e.preventDefault(); handleNavClick(link.href); }}
-                className={`text-sm font-medium leading-none transition-colors duration-300 whitespace-nowrap ${
-                  showDark
-                    ? 'text-foreground-500 hover:text-foreground-950'
-                    : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.6)] hover:text-white/80'
-                }`}
-              >
-                {t(link.key)}
-              </a>
-            ))}
-          </div>
-
-          {/* Right side: language + mobile toggle */}
-          <div className="flex items-center gap-4">
-            {/* Admin access — discreet, desktop only */}
+        <div className="w-full max-w-[1440px] mx-auto px-4 md:px-6 lg:px-12">
+          {/* Plain flex justify-between so mobile always gets equal, predictable
+              left/right margins. Desktop nav links are pulled out of this flow
+              and centered absolutely, so they can't disturb that spacing. */}
+          <div className="relative flex items-center justify-between h-16 md:h-20">
+            {/* Logo */}
             <a
-              href="/admin"
-              onClick={(e) => { e.preventDefault(); navigate('/admin'); }}
-              className={`hidden lg:flex w-8 h-8 items-center justify-center rounded-full transition-colors duration-300 ${
-                showDark
-                  ? 'text-foreground-300 hover:text-foreground-600 hover:bg-background-100'
-                  : 'text-white/50 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)] hover:text-white hover:bg-white/10'
-              }`}
-              aria-label="Gestión de productos"
-              title="Gestión de productos"
+              href="/"
+              onClick={(e) => { e.preventDefault(); handleLogoClick(); }}
+              className="flex items-center gap-2 group"
             >
-              <i className="ri-shield-user-line text-base"></i>
+              <img
+                src="/logo.png"
+                alt="Arrantza"
+                className="w-8 h-8 md:w-9 md:h-9 shrink-0 rounded-full object-cover shadow-[0_1px_4px_rgba(0,0,0,0.35)]"
+              />
+              <span className="flex items-baseline gap-2">
+                <span className={`font-heading text-xl md:text-2xl font-semibold leading-none tracking-tight -translate-y-[1.5px] transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
+                  Arrantza
+                </span>
+                <span className={`hidden sm:inline-block w-1.5 h-1.5 rounded-full self-center transition-colors duration-500 ${showDark ? 'bg-foreground-400' : 'bg-white/70'}`}></span>
+                <span className={`hidden sm:inline text-xs leading-none tracking-[0.15em] uppercase -translate-y-[1.5px] transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'}`}>
+                  {currentLang === 'es' ? 'Pescados y Mariscos' : 'Arrainak eta Itsaskiak'}
+                </span>
+              </span>
             </a>
 
-            {/* Language switcher */}
-            <div className={`flex items-center rounded-full border overflow-hidden transition-colors duration-500 ${
-              showDark ? 'border-foreground-200/50' : 'border-white/40 bg-black/10'
-            }`}>
-              <button
-                onClick={() => currentLang !== 'es' && toggleLanguage()}
-                className={`px-2.5 py-1 text-xs font-medium transition-colors duration-300 whitespace-nowrap cursor-pointer ${
-                  currentLang === 'es'
-                    ? 'bg-primary-500 text-background-50'
-                    : showDark ? 'text-foreground-500 hover:text-foreground-950' : 'text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'
-                }`}
-                aria-label="Cambiar a español"
-              >
-                ES
-              </button>
-              <button
-                onClick={() => currentLang !== 'eu' && toggleLanguage()}
-                className={`px-2.5 py-1 text-xs font-medium transition-colors duration-300 whitespace-nowrap cursor-pointer ${
-                  currentLang === 'eu'
-                    ? 'bg-primary-500 text-background-50'
-                    : showDark ? 'text-foreground-500 hover:text-foreground-950' : 'text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'
-                }`}
-                aria-label="Aldatu euskarara"
-              >
-                EU
-              </button>
+            {/* Desktop nav — centered on the row independently of logo/right-side widths.
+                inset-y-0 + items-center (not the position:absolute static-position fallback,
+                which browsers resolve inconsistently) is what actually pins this to the same
+                vertical axis as the in-flow logo/right-side items. */}
+            <div className="hidden lg:flex items-center gap-8 absolute inset-y-0 left-1/2 -translate-x-1/2">
+              {navLinks.map((link) => (
+                <a
+                  key={link.key}
+                  href={link.href}
+                  onClick={(e) => { e.preventDefault(); handleNavClick(link.href); }}
+                  className={`text-sm font-medium leading-none transition-colors duration-300 whitespace-nowrap ${
+                    showDark
+                      ? 'text-foreground-500 hover:text-foreground-950'
+                      : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.6)] hover:text-white/80'
+                  }`}
+                >
+                  {t(link.key)}
+                </a>
+              ))}
             </div>
 
-            {/* Mobile hamburger — larger touch target */}
-            <button
-              onClick={() => setMobileOpen(!mobileOpen)}
-              className="lg:hidden relative w-11 h-11 flex items-center justify-center cursor-pointer -mr-2"
-              aria-label={mobileOpen ? t('common.close') : t('common.open')}
-            >
-              <div className="flex flex-col gap-1.5 w-5 items-center">
-                <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'rotate-45 translate-y-[3.5px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
-                <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'opacity-0 bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
-                <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? '-rotate-45 -translate-y-[3.5px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
+            {/* Right side: language + mobile toggle */}
+            <div className="flex items-center gap-4">
+              {/* Admin access — discreet, desktop only */}
+              <a
+                href="/admin"
+                onClick={(e) => { e.preventDefault(); navigate('/admin'); }}
+                className={`hidden lg:flex w-8 h-8 items-center justify-center rounded-full transition-colors duration-300 ${
+                  showDark
+                    ? 'text-foreground-300 hover:text-foreground-600 hover:bg-background-100'
+                    : 'text-white/50 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)] hover:text-white hover:bg-white/10'
+                }`}
+                aria-label="Gestión de productos"
+                title="Gestión de productos"
+              >
+                <i className="ri-shield-user-line text-base"></i>
+              </a>
+
+              {/* Language switcher */}
+              <div className={`flex items-center rounded-full border overflow-hidden transition-colors duration-500 ${
+                showDark ? 'border-foreground-200/50' : 'border-white/40 bg-black/10'
+              }`}>
+                <button
+                  onClick={() => currentLang !== 'es' && toggleLanguage()}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors duration-300 whitespace-nowrap cursor-pointer ${
+                    currentLang === 'es'
+                      ? 'bg-primary-500 text-background-50'
+                      : showDark ? 'text-foreground-500 hover:text-foreground-950' : 'text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'
+                  }`}
+                  aria-label="Cambiar a español"
+                >
+                  ES
+                </button>
+                <button
+                  onClick={() => currentLang !== 'eu' && toggleLanguage()}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors duration-300 whitespace-nowrap cursor-pointer ${
+                    currentLang === 'eu'
+                      ? 'bg-primary-500 text-background-50'
+                      : showDark ? 'text-foreground-500 hover:text-foreground-950' : 'text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'
+                  }`}
+                  aria-label="Aldatu euskarara"
+                >
+                  EU
+                </button>
               </div>
-            </button>
+
+              {/* Mobile hamburger — larger touch target */}
+              <button
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="lg:hidden relative w-11 h-11 flex items-center justify-center cursor-pointer -mr-2"
+                aria-label={mobileOpen ? t('common.close') : t('common.open')}
+              >
+                <div className="flex flex-col gap-1.5 w-5 items-center">
+                  <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'rotate-45 translate-y-[3.5px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
+                  <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'opacity-0 bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
+                  <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? '-rotate-45 -translate-y-[3.5px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       </div>
