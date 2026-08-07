@@ -90,12 +90,14 @@ export default function Navbar() {
               alt="Arrantza"
               className="w-8 h-8 md:w-9 md:h-9 shrink-0 rounded-full object-cover shadow-[0_1px_4px_rgba(0,0,0,0.35)]"
             />
-            <span className={`font-heading text-xl md:text-2xl font-semibold leading-none tracking-tight -translate-y-[3px] transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
-              Arrantza
-            </span>
-            <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-accent-500"></span>
-            <span className={`hidden sm:inline text-xs leading-none tracking-[0.15em] uppercase transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'}`}>
-              {currentLang === 'es' ? 'Pescados y Mariscos' : 'Arrainak eta Itsaskiak'}
+            <span className="flex items-baseline gap-2">
+              <span className={`font-heading text-xl md:text-2xl font-semibold leading-none tracking-tight transition-colors duration-500 ${showDark ? 'text-foreground-950' : 'text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]'}`}>
+                Arrantza
+              </span>
+              <span className="hidden sm:inline-block w-1.5 h-1.5 rounded-full bg-accent-500 self-center"></span>
+              <span className={`hidden sm:inline text-xs leading-none tracking-[0.15em] uppercase transition-colors duration-500 ${showDark ? 'text-foreground-400' : 'text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]'}`}>
+                {currentLang === 'es' ? 'Pescados y Mariscos' : 'Arrainak eta Itsaskiak'}
+              </span>
             </span>
           </a>
 
