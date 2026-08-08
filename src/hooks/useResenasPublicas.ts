@@ -16,8 +16,11 @@ export function useResenasPublicas() {
       .eq('estado', 'aprobada')
       .order('created_at', { ascending: false })
       .limit(30)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return;
+        if (error) {
+          console.error('Error al cargar reseñas públicas:', error);
+        }
         setResenas(data ?? []);
         setLoading(false);
       });

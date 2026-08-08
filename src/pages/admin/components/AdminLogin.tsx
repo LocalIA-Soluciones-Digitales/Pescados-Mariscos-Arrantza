@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 
 export default function AdminLogin({ signIn, error }: Pick<ReturnType<typeof useAdminAuth>, 'signIn' | 'error'>) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,6 +22,15 @@ export default function AdminLogin({ signIn, error }: Pick<ReturnType<typeof use
         onSubmit={handleSubmit}
         className="w-full max-w-[360px] bg-background-50 border border-background-200/70 rounded-lg p-8 shadow-sm"
       >
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1.5 text-xs font-medium text-foreground-400 hover:text-foreground-950 mb-6 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Atrás
+        </button>
+
         <h1 className="text-lg font-heading font-semibold text-foreground-950 mb-1 text-center">
           Panel de gestión
         </h1>
