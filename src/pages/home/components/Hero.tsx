@@ -187,7 +187,7 @@ export default function Hero() {
               Designed &amp; Developed by
             </span>
             <span className="block text-[11px] text-white font-medium tracking-wide mt-1">
-              WebLocal.
+              local<span className="font-bold text-accent-300">IA</span>.
             </span>
           </div>
         </div>

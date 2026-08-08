@@ -212,7 +212,7 @@ function generateWhatsAppMessage(params: {
   lines.push('');
   lines.push('Pescados y Mariscos Arrantza');
   lines.push('');
-  lines.push('Designed & Developed by WebLocal');
+  lines.push('Designed & Developed by localIA');
 
   return lines.join('\n');
 }
