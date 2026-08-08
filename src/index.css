@@ -30,6 +30,18 @@
   ::selection {
     background-color: oklch(0.48 0.035 175 / 0.25);
   }
+
+  /* iOS Safari auto-zooms the page on focus for any field rendered under 16px.
+     Utility classes like text-sm/text-xs win specificity over a plain element
+     selector, so this needs !important to actually override them everywhere
+     without editing every form field individually. */
+  @media (max-width: 640px) {
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
 }
 
 @layer components {
