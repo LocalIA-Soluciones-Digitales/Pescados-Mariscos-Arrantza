@@ -10,6 +10,7 @@ import CartDrawer from '@/pages/productos/components/CartDrawer';
 import { temporada } from '@/mocks/productos';
 import { useProductos } from '@/hooks/useProductos';
 import { useCartSound } from '@/hooks/useCartSound';
+import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import { logAddToCart, logCategoryView, logConversion, logProductView } from '@/lib/visitLog';
 import { pickLang, normalizeSearch } from '@/types/producto';
 import type { Producto } from '@/types/producto';
@@ -298,6 +299,7 @@ function StickyToolbar({
   filterCounts: Record<CategoryFilter, number>;
 }) {
   const { t } = useTranslation();
+  const categoriesScroll = useHorizontalWheelScroll<HTMLDivElement>();
 
   const hasActiveFilter = activeCategory !== 'todos' || searchQuery.trim().length > 0;
 
@@ -311,7 +313,7 @@ function StickyToolbar({
       <div className="container-wide px-4 md:px-6 lg:px-12">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 py-3 md:py-4">
           {/* Search bar */}
-          <div className="relative flex-1 max-w-[360px]">
+          <div className="relative flex-1 min-w-[220px] max-w-[360px]">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-foreground-400">
               <i className="ri-search-line text-sm"></i>
             </span>
@@ -334,7 +336,7 @@ function StickyToolbar({
           </div>
 
           {/* Category filters + clear-all */}
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          <div ref={categoriesScroll.ref} onWheel={categoriesScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
             {categories.map((cat) => {
               const isActive = activeCategory === cat.key;
               const count = filterCounts[cat.key];

@@ -8,6 +8,7 @@ import ResenasPanel from './ResenasPanel';
 import StockPanel from './StockPanel';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
+import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 
 type Tab = 'productos' | 'pedidos' | 'resenas' | 'stock';
 
@@ -159,6 +160,8 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
   const [soloAgotados, setSoloAgotados] = useState(false);
   const [tab, setTab] = useState<Tab>('productos');
+  const tabsScroll = useHorizontalWheelScroll<HTMLDivElement>();
+  const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
 
   // Solo para el contador de la pestaña — cada panel trae sus propios datos.
   const { pedidos } = usePedidos();
@@ -203,7 +206,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
   }, [productos, categoria, soloAgotados, search]);
 
   const tabsNav = (
-    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+    <div ref={tabsScroll.ref} onWheel={tabsScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
       {TABS.map((t) => {
         const badge = t.value === 'pedidos' ? pedidosNuevos : t.value === 'resenas' ? resenasPendientes : t.value === 'stock' ? stockBajoCount : 0;
         return (
@@ -255,7 +258,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
         <>
       {/* Filtros */}
       <div className="md:sticky md:top-[65px] z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center">
-        <div className="relative flex-1 max-w-[280px]">
+        <div className="relative flex-1 min-w-[200px] max-w-[280px]">
           <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
           <input
             type="text"
@@ -266,7 +269,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+        <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
           {CATEGORIA_FILTROS.map((c) => (
             <button
               key={c.value}
