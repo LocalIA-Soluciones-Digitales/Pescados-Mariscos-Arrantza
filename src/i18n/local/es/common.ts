@@ -692,6 +692,7 @@ const common = {
   "testimonials.form_success": "¡Gracias! Tu opinión está pendiente de revisión.",
   "testimonials.form_required": "Escribe tu nombre y tu opinión.",
   "testimonials.form_error": "No se pudo enviar. Inténtalo de nuevo.",
+  "testimonials.form_cancel": "Cancelar",
 
   // FAQ
   "faq.label": "Preguntas Frecuentes",

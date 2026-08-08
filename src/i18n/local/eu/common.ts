@@ -693,6 +693,7 @@ const common = {
   "testimonials.form_success": "Eskerrik asko! Zure iritzia berrikuspenaren zain dago.",
   "testimonials.form_required": "Idatzi zure izena eta iritzia.",
   "testimonials.form_error": "Ezin izan da bidali. Saiatu berriro.",
+  "testimonials.form_cancel": "Utzi",
 
   // FAQ
   "faq.label": "Ohiko Galderak",
