@@ -3,12 +3,14 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { logConversion } from '@/lib/visitLog';
+import { submitNewsletter } from '@/lib/newsletterLog';
 
 export default function Contact() {
   const { t } = useTranslation();
   const { ref, isVisible } = useScrollAnimation();
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [alreadySubscribed, setAlreadySubscribed] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -26,33 +28,18 @@ export default function Contact() {
     setStatus('idle');
     setErrorMsg('');
 
-    try {
-      const response = await fetch('https://readdy.ai/api/form/d9kb90mc26n1c7c5qfng', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(formData as unknown as Record<string, string>).toString(),
-      });
+    const email = String(formData.get('email') ?? '');
+    const result = await submitNewsletter(email, i18n.language === 'eu' ? 'eu' : 'es');
 
-      const responseText = await response.text();
-      let parsed;
-      try {
-        parsed = JSON.parse(responseText);
-      } catch {
-        parsed = null;
-      }
-
-      const serverMsg = parsed?.meta?.message || parsed?.message || parsed?.meta?.detail || responseText;
-
-      if (response.ok && parsed?.code === 'OK') {
-        setStatus('success');
-        form.reset();
-      } else {
-        setStatus('error');
-        setErrorMsg(serverMsg || 'Hubo un error. Inténtalo de nuevo.');
-      }
-    } catch {
+    if (result.ok) {
+      setAlreadySubscribed(result.alreadySubscribed);
+      setStatus('success');
+      form.reset();
+    } else {
       setStatus('error');
-      setErrorMsg('No se pudo conectar. Inténtalo más tarde.');
+      setErrorMsg(
+        i18n.language === 'eu' ? 'Ezin izan da harpidetza gorde. Saiatu berriro.' : 'No se pudo guardar la suscripción. Inténtalo de nuevo.',
+      );
     }
   };
 
@@ -108,7 +95,7 @@ export default function Contact() {
             {t('contact.newsletter.subtitle')}
           </p>
 
-          <form onSubmit={handleSubmit} data-readdy-form="" className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
             <input
               type="email"
               name="email"
@@ -137,9 +124,13 @@ export default function Contact() {
           {/* Status messages */}
           {status === 'success' && (
             <p className="mt-4 text-sm text-accent-600">
-              {i18n.language === 'eu'
-                ? 'Eskerrik asko! Zure harpidetza berretsi da.'
-                : '¡Gracias! Tu suscripción se ha confirmado.'}
+              {alreadySubscribed
+                ? i18n.language === 'eu'
+                  ? 'Dagoeneko harpidetuta zaude. Eskerrik asko!'
+                  : 'Ya estabas suscrito. ¡Gracias!'
+                : i18n.language === 'eu'
+                  ? 'Eskerrik asko! Zure harpidetza berretsi da.'
+                  : '¡Gracias! Tu suscripción se ha confirmado.'}
             </p>
           )}
           {status === 'error' && (

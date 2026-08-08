@@ -486,3 +486,41 @@ create trigger trg_productos_stock_bajo
 --   ('stock_alert_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/stock-alert"'),
 --   ('stock_alert_secret', '"<UN_SECRETO_ALEATORIO>"')
 -- on conflict (key) do update set value = excluded.value;
+
+-- ============================================================
+-- Suscriptores del newsletter ("Recibe la selección de la semana").
+-- El formulario apuntaba antes a un endpoint de Readdy que ya no
+-- existe fuera de ese entorno; ahora persiste en Supabase igual que
+-- el resto de formularios públicos de la web.
+-- ============================================================
+
+create table if not exists public.newsletter_subscribers (
+  id uuid primary key default gen_random_uuid(),
+  email text not null unique,
+  idioma text not null default 'es' check (idioma in ('es', 'eu')),
+  created_at timestamptz not null default now()
+);
+
+alter table public.newsletter_subscribers enable row level security;
+
+-- Cualquier visitante puede suscribirse desde la web…
+drop policy if exists "newsletter_subscribers_insert_publico" on public.newsletter_subscribers;
+create policy "newsletter_subscribers_insert_publico"
+  on public.newsletter_subscribers for insert
+  to anon, authenticated
+  with check (char_length(email) between 3 and 255);
+
+-- …pero solo el desarrollador autenticado puede ver o borrar la lista.
+drop policy if exists "newsletter_subscribers_select_admin" on public.newsletter_subscribers;
+create policy "newsletter_subscribers_select_admin"
+  on public.newsletter_subscribers for select
+  to authenticated
+  using (public.is_developer());
+
+drop policy if exists "newsletter_subscribers_delete_admin" on public.newsletter_subscribers;
+create policy "newsletter_subscribers_delete_admin"
+  on public.newsletter_subscribers for delete
+  to authenticated
+  using (public.is_developer());
+
+create index if not exists idx_newsletter_subscribers_created_at on public.newsletter_subscribers (created_at desc);

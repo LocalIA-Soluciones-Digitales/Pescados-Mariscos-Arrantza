@@ -2,18 +2,21 @@ import { useState } from 'react';
 import ErrorLogsPanel from './ErrorLogsPanel';
 import ReportsPanel from './ReportsPanel';
 import SummaryPanel from './SummaryPanel';
+import NewsletterPanel from './NewsletterPanel';
 
-type Tab = 'informes' | 'resumen' | 'errores';
+type Tab = 'informes' | 'resumen' | 'errores' | 'newsletter';
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'informes', label: 'Informes' },
   { value: 'resumen', label: 'Resumen' },
+  { value: 'newsletter', label: 'Newsletter' },
   { value: 'errores', label: 'Errores' },
 ];
 
 const TITLES: Record<Tab, string> = {
   informes: 'Informes de visitas',
   resumen: 'Resumen',
+  newsletter: 'Suscriptores del newsletter',
   errores: 'Registro de errores',
 };
 
@@ -48,7 +51,15 @@ export default function DeveloperDashboard({ onSignOut }: { onSignOut: () => voi
         </button>
       </header>
 
-      {tab === 'errores' ? <ErrorLogsPanel /> : tab === 'resumen' ? <SummaryPanel /> : <ReportsPanel />}
+      {tab === 'errores' ? (
+        <ErrorLogsPanel />
+      ) : tab === 'resumen' ? (
+        <SummaryPanel />
+      ) : tab === 'newsletter' ? (
+        <NewsletterPanel />
+      ) : (
+        <ReportsPanel />
+      )}
     </div>
   );
 }
