@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface UseScrollAnimationOptions {
   threshold?: number;
@@ -7,11 +7,18 @@ interface UseScrollAnimationOptions {
 
 export function useScrollAnimation(options: UseScrollAnimationOptions = {}) {
   const { threshold = 0.15, rootMargin = '0px 0px -60px 0px' } = options;
-  const ref = useRef<HTMLDivElement>(null);
+  const [element, setElement] = useState<HTMLDivElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
 
+  // Callback ref en vez de useRef: si el componente monta el nodo más tarde
+  // (p.ej. tras esperar a que carguen datos y renderizar null mientras tanto),
+  // useRef + useEffect con deps fijas nunca vuelve a ejecutarse y el observer
+  // no llega a crearse. Con callback ref, cada cambio de nodo dispara el efecto.
+  const ref = useCallback((node: HTMLDivElement | null) => {
+    setElement(node);
+  }, []);
+
   useEffect(() => {
-    const element = ref.current;
     if (!element) return;
 
     const observer = new IntersectionObserver(
@@ -26,7 +33,7 @@ export function useScrollAnimation(options: UseScrollAnimationOptions = {}) {
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [threshold, rootMargin]);
+  }, [element, threshold, rootMargin]);
 
   return { ref, isVisible };
 }
