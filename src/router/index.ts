@@ -25,6 +25,7 @@ export function AppRoutes() {
     navigateResolver(window.REACT_APP_NAVIGATE);
   });
   useEffect(() => {
+    window.scrollTo(0, 0);
     logPageview(location.pathname);
   }, [location.pathname]);
   return element;

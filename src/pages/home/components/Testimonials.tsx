@@ -58,17 +58,17 @@ function StarPicker({ value, onChange }: { value: number; onChange: (v: number) 
           key={n}
           type="button"
           onClick={() => onChange(n)}
-          className="w-8 h-8 flex items-center justify-center text-xl cursor-pointer"
+          className="w-9 h-9 flex items-center justify-center text-2xl cursor-pointer"
           aria-label={`${n} estrellas`}
         >
-          <i className={n <= value ? 'ri-star-fill text-accent-400' : 'ri-star-line text-foreground-300'}></i>
+          <i className={n <= value ? 'ri-star-fill text-amber-400' : 'ri-star-line text-background-300'}></i>
         </button>
       ))}
     </div>
   );
 }
 
-function ReviewFormModal({ onClose }: { onClose: () => void }) {
+function ReviewForm() {
   const { t } = useTranslation();
   const turnstile = useTurnstile();
   const [nombre, setNombre] = useState('');
@@ -99,72 +99,59 @@ function ReviewFormModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground-950/40 p-4" onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[440px] bg-background-50 rounded-lg border border-background-200/70 shadow-2xl p-6"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-heading font-semibold text-foreground-950">{t('testimonials.form_title')}</h2>
-          <button type="button" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-200/70">
-            <i className="ri-close-line"></i>
-          </button>
+    <div className="max-w-[440px] mx-auto mt-10 md:mt-12 bg-background-50 rounded-lg border border-background-200/70 p-6">
+      <h3 className="text-base font-heading font-semibold text-foreground-950 mb-4 text-center">{t('testimonials.form_title')}</h3>
+
+      {done ? (
+        <div className="text-center py-6">
+          <span className="w-12 h-12 flex items-center justify-center mx-auto mb-3 rounded-full bg-emerald-100 text-emerald-600 text-2xl">
+            <i className="ri-check-line"></i>
+          </span>
+          <p className="text-sm text-foreground-700">{t('testimonials.form_success')}</p>
         </div>
-
-        {done ? (
-          <div className="text-center py-6">
-            <span className="w-12 h-12 flex items-center justify-center mx-auto mb-3 rounded-full bg-emerald-100 text-emerald-600 text-2xl">
-              <i className="ri-check-line"></i>
-            </span>
-            <p className="text-sm text-foreground-700">{t('testimonials.form_success')}</p>
-            <button type="button" onClick={onClose} className="mt-5 px-5 py-2 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600">
-              {t('common.close')}
-            </button>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-foreground-500 mb-1">{t('testimonials.form_name')}</label>
+            <input
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              maxLength={100}
+              className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm focus:outline-none focus:border-foreground-300/60"
+            />
           </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-foreground-500 mb-1">{t('testimonials.form_name')}</label>
-              <input
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                maxLength={100}
-                className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm focus:outline-none focus:border-foreground-300/60"
-              />
-            </div>
 
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-foreground-500 mb-1">{t('testimonials.form_rating')}</label>
-              <StarPicker value={valoracion} onChange={setValoracion} />
-            </div>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-foreground-500 mb-1">{t('testimonials.form_rating')}</label>
+            <StarPicker value={valoracion} onChange={setValoracion} />
+          </div>
 
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-foreground-500 mb-1">{t('testimonials.form_comment')}</label>
-              <textarea
-                value={comentario}
-                onChange={(e) => setComentario(e.target.value)}
-                maxLength={1000}
-                rows={4}
-                className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm focus:outline-none focus:border-foreground-300/60"
-              />
-            </div>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-foreground-500 mb-1">{t('testimonials.form_comment')}</label>
+            <textarea
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              maxLength={1000}
+              rows={4}
+              className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm focus:outline-none focus:border-foreground-300/60"
+            />
+          </div>
 
-            {isTurnstileEnabled() && <TurnstileWidget onTokenReceived={turnstile.onTokenReceived} />}
+          {isTurnstileEnabled() && <TurnstileWidget onTokenReceived={turnstile.onTokenReceived} />}
 
-            {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+          {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
 
-            <p className="text-[11px] text-foreground-400 mb-4">{t('testimonials.form_moderation_note')}</p>
+          <p className="text-[11px] text-foreground-400 mb-4">{t('testimonials.form_moderation_note')}</p>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full px-5 py-2.5 rounded-full text-sm font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-60"
-            >
-              {submitting ? t('testimonials.form_sending') : t('testimonials.form_submit')}
-            </button>
-          </form>
-        )}
-      </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full px-5 py-2.5 rounded-full text-sm font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-60"
+          >
+            {submitting ? t('testimonials.form_sending') : t('testimonials.form_submit')}
+          </button>
+        </form>
+      )}
     </div>
   );
 }
@@ -175,7 +162,6 @@ export default function Testimonials() {
   const { resenas, loading } = useResenasPublicas();
   const [current, setCurrent] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
 
   useReviewsJsonLd(resenas);
 
@@ -219,7 +205,7 @@ export default function Testimonials() {
             <div className="mb-6 sm:mb-8">
               <div className="flex justify-center gap-1 mb-4 sm:mb-6">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <i key={i} className={i <= activeReview.valoracion ? 'ri-star-fill text-accent-400 text-base sm:text-lg' : 'ri-star-line text-foreground-300 text-base sm:text-lg'}></i>
+                  <i key={i} className={i <= activeReview.valoracion ? 'ri-star-fill text-amber-400 text-base sm:text-lg' : 'ri-star-line text-background-300 text-base sm:text-lg'}></i>
                 ))}
               </div>
 
@@ -274,19 +260,8 @@ export default function Testimonials() {
           </div>
         )}
 
-        <div className="text-center mt-10 md:mt-12">
-          <button
-            type="button"
-            onClick={() => setFormOpen(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs md:text-sm font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70 cursor-pointer"
-          >
-            <i className="ri-chat-quote-line"></i>
-            {t('testimonials.cta_review')}
-          </button>
-        </div>
+        <ReviewForm />
       </div>
-
-      {formOpen && <ReviewFormModal onClose={() => setFormOpen(false)} />}
     </section>
   );
 }

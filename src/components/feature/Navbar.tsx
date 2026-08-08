@@ -47,6 +47,7 @@ export default function Navbar() {
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     } else {
       navigate(href);
+      window.scrollTo({ top: 0, behavior: 'auto' });
     }
   };
 
@@ -194,13 +195,25 @@ export default function Navbar() {
           mobileOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
         }`}
       >
-        <div className="flex flex-col items-center justify-center h-full gap-6 pb-20 px-4">
+        {/* Explicit back button — always visible against this overlay's light
+            background, unlike the hamburger/X toggle in the navbar above it,
+            which can lose contrast against a transparent/dark navbar state. */}
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="absolute top-4 left-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-foreground-600 hover:text-foreground-950 hover:bg-background-100 transition-colors duration-300 cursor-pointer"
+          aria-label={t('common.back')}
+        >
+          <i className="ri-arrow-left-line text-xl"></i>
+          <span className="text-sm font-medium">{t('common.back')}</span>
+        </button>
+
+        <div className="flex flex-col items-center justify-center h-full gap-10 pb-20 px-4">
           {navLinks.map((link, i) => (
             <a
               key={link.key}
               href={link.href}
               onClick={(e) => { e.preventDefault(); handleNavClick(link.href); }}
-              className={`text-xl font-heading text-foreground-600 hover:text-foreground-950 transition-all duration-300 whitespace-nowrap cursor-pointer ${
+              className={`text-3xl md:text-4xl font-heading text-foreground-600 hover:text-foreground-950 transition-all duration-300 whitespace-nowrap cursor-pointer ${
                 mobileOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
               }`}
               style={{ transitionDelay: mobileOpen ? `${i * 70}ms` : '0ms' }}
