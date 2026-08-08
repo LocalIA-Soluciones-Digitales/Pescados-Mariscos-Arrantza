@@ -87,7 +87,7 @@ export default function LocationMap() {
           {/* Map */}
           <div className="lg:col-span-3 rounded-lg overflow-hidden h-[350px] sm:h-[400px] lg:h-auto min-h-[300px]">
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2905.123456789!2d-2.9744!3d43.3039!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2sPescados%20y%20Mariscos%20Arrantza%2C%20Jesus%20Aranburu%20Kalea%2C%201%2C%2048950%20Altzaga%2C%20Bizkaia!5e0!3m2!1ses!2ses!4v1620000000000!5m2!1ses!2ses"
+              src="https://www.google.com/maps?q=Pescados+y+Mariscos+Arrantza,+Jesus+Aranburu+Kalea,+1,+48950+Altzaga,+Biscay&ftid=0xd4e5a88380885e5:0x34c6512b6d44913&output=embed"
               width="100%"
               height="100%"
               style={{ border: 0 }}
