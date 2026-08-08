@@ -201,7 +201,7 @@ function AddToCartToast({
 
   return (
     <div
-      className="fixed top-20 md:top-28 left-1/2 -translate-x-1/2 z-40 pointer-events-none"
+      className="fixed top-20 md:top-28 right-4 left-auto translate-x-0 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40 pointer-events-none"
       aria-live="polite"
     >
       <div
@@ -1200,7 +1200,7 @@ export default function Productos() {
       toastTimerRef.current = setTimeout(() => {
         setToastVisible(false);
         toastTimerRef.current = null;
-      }, 2500);
+      }, 3000);
     },
     [addItem, playAddToCartSound],
   );
