@@ -4,7 +4,7 @@ const common = {
   "nav.about": "Guri buruz",
   "nav.products": "Produktuak",
   "nav.seasonal": "Sasoia",
-  "nav.restaurants": "Ostalaritza",
+  "nav.restaurants": "Profesionalak",
   "nav.gallery": "Galeria",
   "nav.testimonials": "Iritziak",
   "nav.faq": "Galderak",
@@ -852,6 +852,7 @@ const common = {
   // Common
   "common.close": "Itxi",
   "common.open": "Ireki",
+  "common.back": "Atzera",
   "common.optional": "Aukerakoa",
   "common.rating": "Google balorazioa",
   "common.based_on": "Oinarrituta",

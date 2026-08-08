@@ -4,7 +4,7 @@ const common = {
   "nav.about": "Conócenos",
   "nav.products": "Productos",
   "nav.seasonal": "Temporada",
-  "nav.restaurants": "Hostelería",
+  "nav.restaurants": "Profesionales",
   "nav.gallery": "Galería",
   "nav.testimonials": "Opiniones",
   "nav.faq": "Preguntas",
@@ -851,6 +851,7 @@ const common = {
   // Common
   "common.close": "Cerrar",
   "common.open": "Abrir",
+  "common.back": "Atrás",
   "common.optional": "Opcional",
   "common.rating": "Valoración Google",
   "common.based_on": "Basado en",

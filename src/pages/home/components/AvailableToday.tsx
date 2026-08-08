@@ -102,9 +102,11 @@ function ProductCard({
     }
   };
 
+  const productName = t(product.nameKey);
+
   return (
     <Link
-      to="/productos"
+      to={`/productos?buscar=${encodeURIComponent(productName)}`}
       onClick={handleClick}
       className="group flex-shrink-0 w-[260px] sm:w-[280px] cursor-pointer select-none rounded-lg overflow-hidden bg-background-50 border border-background-200/70 transition-all duration-500 ease-out hover:-translate-y-1 hover:border-background-300/80 block"
     >
@@ -112,14 +114,14 @@ function ProductCard({
       <div className="relative aspect-[4/5] overflow-hidden bg-background-100">
         <img
           src={product.image}
-          alt={t(product.nameKey)}
+          alt={productName}
           className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
           draggable={false}
         />
 
-        {/* Hover overlay — soft dark gradient + CTA */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/15 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-out flex items-end justify-center pb-8">
-          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 text-foreground-950 text-sm font-medium whitespace-nowrap translate-y-2 group-hover:translate-y-0 transition-transform duration-400 ease-out">
+        {/* Bottom gradient + always-visible CTA */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent flex items-end justify-center pb-4">
+          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 text-foreground-950 text-sm font-medium whitespace-nowrap shadow-sm transition-transform duration-400 ease-out group-hover:-translate-y-1">
             {t('available.hover_cta')}
             <i className="ri-arrow-right-line text-base"></i>
           </span>
@@ -137,7 +139,7 @@ function ProductCard({
       {/* Product name */}
       <div className="px-4 py-4">
         <h3 className="text-base md:text-lg font-heading font-semibold text-foreground-950 leading-tight">
-          {t(product.nameKey)}
+          {productName}
         </h3>
       </div>
     </Link>

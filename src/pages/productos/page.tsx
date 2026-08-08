@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/feature/Navbar';
 import Footer from '@/pages/home/components/Footer';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
@@ -1024,13 +1025,27 @@ function RestaurantSupplySection() {
 export default function Productos() {
   const { t, i18n } = useTranslation();
   const { productos, loading: productosLoading } = useProductos();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('buscar') ?? '');
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('todos');
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Deep link from other pages (e.g. home carousel) — land directly on the product
+  useEffect(() => {
+    if (searchParams.has('buscar')) {
+      setSearchParams((prev) => {
+        prev.delete('buscar');
+        return prev;
+      }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Ref for smooth-scrolling to catalogue grid on filter change
   const catalogSectionRef = useRef<HTMLDivElement>(null);
-  const isFirstFilterChange = useRef(true);
+  // Skip the scroll-on-mount guard when a deep link already prefilled the search,
+  // so the user lands directly on the matching product instead of at the top.
+  const isFirstFilterChange = useRef(!searchQuery);
 
   // Smooth-scroll to catalogue grid when filter or search changes
   useEffect(() => {
