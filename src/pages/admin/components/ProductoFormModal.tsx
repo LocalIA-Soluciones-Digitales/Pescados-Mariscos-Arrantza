@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
+
+const NUEVA_FAMILIA_VALUE = '__nueva_familia__';
 
 const CATEGORIAS: { value: ProductoCategoria; label: string }[] = [
   { value: 'pescado', label: 'Pescado' },
@@ -77,9 +79,50 @@ export default function ProductoFormModal({
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [familiasExtra, setFamiliasExtra] = useState<string[]>([]);
+  const [addingFamilia, setAddingFamilia] = useState(false);
+  const [nuevaFamilia, setNuevaFamilia] = useState('');
+
+  useEffect(() => {
+    supabase
+      .from('productos')
+      .select('subcategoria')
+      .not('subcategoria', 'is', null)
+      .then(({ data }) => {
+        if (!data) return;
+        const known = new Set(SUBCATEGORIAS.map((s) => s.value));
+        const extra = Array.from(
+          new Set(
+            data
+              .map((row) => row.subcategoria as string)
+              .filter((value) => value && !known.has(value))
+          )
+        ).sort((a, b) => a.localeCompare(b));
+        setFamiliasExtra(extra);
+      });
+  }, []);
+
+  const subcategoriaOptions = [
+    ...SUBCATEGORIAS,
+    ...familiasExtra.map((value) => ({ value, label: value })),
+  ];
 
   const update = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const confirmNuevaFamilia = () => {
+    const value = nuevaFamilia.trim();
+    if (!value) {
+      setAddingFamilia(false);
+      return;
+    }
+    if (!subcategoriaOptions.some((o) => o.value === value)) {
+      setFamiliasExtra((prev) => [...prev, value]);
+    }
+    update('subcategoria', value);
+    setNuevaFamilia('');
+    setAddingFamilia(false);
   };
 
   const handleImageUpload = async (file: File) => {
@@ -222,10 +265,40 @@ export default function ProductoFormModal({
 
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Subcategoría</label>
-            <select value={form.subcategoria} onChange={(e) => update('subcategoria', e.target.value)} className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm">
-              {SUBCATEGORIAS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            <label className="block text-xs font-medium text-foreground-500 mb-1">Familia (subcategoría)</label>
+            {addingFamilia ? (
+              <div className="flex gap-1">
+                <input
+                  autoFocus
+                  value={nuevaFamilia}
+                  onChange={(e) => setNuevaFamilia(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); confirmNuevaFamilia(); }
+                    if (e.key === 'Escape') { e.preventDefault(); setAddingFamilia(false); setNuevaFamilia(''); }
+                  }}
+                  placeholder="Nombre de la nueva familia"
+                  className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm"
+                />
+                <button type="button" onClick={confirmNuevaFamilia} className="px-2 rounded-lg bg-primary-500 text-background-50 text-xs">
+                  <i className="ri-check-line"></i>
+                </button>
+                <button type="button" onClick={() => { setAddingFamilia(false); setNuevaFamilia(''); }} className="px-2 rounded-lg bg-background-100 border border-background-200/70 text-xs">
+                  <i className="ri-close-line"></i>
+                </button>
+              </div>
+            ) : (
+              <select
+                value={form.subcategoria}
+                onChange={(e) => {
+                  if (e.target.value === NUEVA_FAMILIA_VALUE) { setAddingFamilia(true); return; }
+                  update('subcategoria', e.target.value);
+                }}
+                className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm"
+              >
+                {subcategoriaOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                <option value={NUEVA_FAMILIA_VALUE}>+ Nueva familia…</option>
+              </select>
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-foreground-500 mb-1">Etiqueta</label>
