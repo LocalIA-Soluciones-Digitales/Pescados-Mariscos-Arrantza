@@ -1244,6 +1244,30 @@ export default function Productos() {
     [totalProducts, lastItemRemoving, removeItem, playUndoSound],
   );
 
+  const handleIncreaseKg = useCallback(
+    (productId: string) => {
+      increaseKg(productId);
+      playUndoSound();
+    },
+    [increaseKg, playUndoSound],
+  );
+
+  const handleDecreaseKg = useCallback(
+    (productId: string) => {
+      decreaseKg(productId);
+      playUndoSound();
+    },
+    [decreaseKg, playUndoSound],
+  );
+
+  const handleRemoveItem = useCallback(
+    (productId: string) => {
+      removeItem(productId);
+      playUndoSound();
+    },
+    [removeItem, playUndoSound],
+  );
+
   const handleDismissToast = useCallback(() => {
     if (toastTimerRef.current) {
       clearTimeout(toastTimerRef.current);
@@ -1321,8 +1345,8 @@ export default function Productos() {
                 getItem={getItem}
                 onAddToCart={handleAddToCart}
                 onRemoveFromCart={handleRemoveFromCart}
-                onIncrease={increaseKg}
-                onDecrease={decreaseKg}
+                onIncrease={handleIncreaseKg}
+                onDecrease={handleDecreaseKg}
                 onSetKg={setKg}
                 removingProductId={removingProductId}
                 groupBy={shouldGroupBySubcategory ? 'subcategory' : undefined}
@@ -1344,10 +1368,10 @@ export default function Productos() {
         productos={productos}
         items={cartItems}
         customer={customer}
-        onIncrease={increaseKg}
-        onDecrease={decreaseKg}
+        onIncrease={handleIncreaseKg}
+        onDecrease={handleDecreaseKg}
         onSetKg={setKg}
-        onRemove={removeItem}
+        onRemove={handleRemoveItem}
         onClearCart={clearCart}
         onCustomerChange={updateCustomer}
         onPreparationChange={setPreparation}
