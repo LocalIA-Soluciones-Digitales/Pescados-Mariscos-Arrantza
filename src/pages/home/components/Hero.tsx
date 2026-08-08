@@ -83,9 +83,14 @@ export default function Hero() {
         <div className="max-w-[800px] w-full flex flex-col items-center text-center">
 
           {/* ── 1. Title ── */}
-          <h1 className="animate-fade-up-1 opacity-0 text-3xl md:text-5xl lg:text-7xl font-heading font-semibold text-background-50 leading-[1.08] md:leading-[1.06] text-balance mb-6 md:mb-8 lg:mb-10 tracking-tight">
+          <h1 className="animate-fade-up-1 opacity-0 text-3xl md:text-5xl lg:text-7xl font-heading font-semibold text-background-50 leading-[1.08] md:leading-[1.06] text-balance mb-4 md:mb-5 tracking-tight">
             {t('hero.title')}
           </h1>
+
+          {/* ── 1.5. Kicker ── */}
+          <span className="animate-fade-up-1 opacity-0 text-xs md:text-sm uppercase tracking-[0.2em] text-white/70 mb-6 md:mb-8 lg:mb-10 inline-block">
+            {t('hero.kicker')}
+          </span>
 
           {/* ── 2. Subtitle ── */}
           <p className="animate-fade-up-2 opacity-0 text-sm md:text-lg lg:text-xl text-white leading-relaxed max-w-lg mx-auto mb-8 md:mb-10 lg:mb-12 text-balance font-light">

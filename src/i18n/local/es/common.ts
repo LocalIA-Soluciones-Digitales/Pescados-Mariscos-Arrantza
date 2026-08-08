@@ -13,6 +13,7 @@ const common = {
 
   // Hero
   "hero.title": "Del mar a su plantza.",
+  "hero.kicker": "En el corazón de Altzaga, Erandio",
   "hero.subtitle": "Pescado y marisco del Cantábrico, seleccionado cada mañana en lonja.",
   "hero.cta.catalog": "Hacer pedido",
   "hero.cta.call": "Llamar ahora",
@@ -739,7 +740,7 @@ const common = {
   "footer.rights": "Todos los derechos reservados.",
   "footer.privacy": "Aviso Legal",
   "footer.cookies": "Cookies",
-  "footer.tagline": "Del Cantábrico a tu mesa. Cada día.",
+  "footer.tagline": "Del mar a su plantza.",
 
   // Legal — Aviso Legal
   "legal.aviso.s1.title": "1. Datos identificativos",

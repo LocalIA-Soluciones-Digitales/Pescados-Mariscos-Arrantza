@@ -13,6 +13,7 @@ const common = {
 
   // Hero
   "hero.title": "Del mar a su plantza.",
+  "hero.kicker": "Altzagako bihotzean, Erandion",
   "hero.subtitle": "Kantauriko arrain eta itsaskia, goizero lonjan aukeratua.",
   "hero.cta.catalog": "Katalogoa ikusi",
   "hero.cta.call": "Deitu orain",
@@ -740,7 +741,7 @@ const common = {
   "footer.rights": "Eskubide guztiak erreserbatuta.",
   "footer.privacy": "Lege Oharra",
   "footer.cookies": "Cookies",
-  "footer.tagline": "Kantauritik zure mahaira. Egunero.",
+  "footer.tagline": "Del mar a su plantza.",
 
   // Legal — Lege Oharra
   "legal.aviso.s1.title": "1. Identifikazio-datuak",
