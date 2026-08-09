@@ -828,6 +828,78 @@ export default function CartDrawer({
 
   const isEmpty = items.length === 0;
 
+  const orderHistorySection = hasLastOrder && (
+    <>
+      {/* ── Buy Again button ── */}
+      <button
+        type="button"
+        onClick={() => setPendingOrderId(orderHistory[0].id)}
+        className="w-full mb-2 mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-xs font-medium bg-background-100 text-foreground-600 border border-background-200/70 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
+      >
+        <span className="w-4 h-4 flex items-center justify-center">
+          <i className="ri-refresh-line text-sm"></i>
+        </span>
+        {t('cart.buy_again')}
+      </button>
+
+      {/* ── Order history (Pedidos anteriores) ── */}
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => setShowOrderHistory(v => !v)}
+          className="w-full flex items-center justify-between px-1 py-1.5 text-xs font-medium text-foreground-400 hover:text-foreground-700 cursor-pointer whitespace-nowrap transition-colors duration-200"
+          aria-expanded={showOrderHistory}
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <i className="ri-history-line text-sm"></i>
+            {t('cart.order_history_title')}
+          </span>
+          <i className={`ri-arrow-down-s-line text-sm transition-transform duration-200 ${showOrderHistory ? 'rotate-180' : ''}`}></i>
+        </button>
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-out ${
+            showOrderHistory ? 'max-h-[600px] opacity-100 mt-1' : 'max-h-0 opacity-0'
+          }`}
+        >
+          <div className="space-y-2 pb-1">
+            {orderHistory.map(order => {
+              const names = order.items.map(i => {
+                const product = productMap.get(i.productId);
+                return product ? pickLang(product, 'nombre', i18n.language) : i.productId;
+              });
+              const summary = names.length > 1
+                ? t('cart.order_history_summary_more', { first: names[0], count: names.length - 1 })
+                : names[0];
+              const orderDate = new Date(order.date).toLocaleDateString(i18n.language === 'eu' ? 'eu-ES' : 'es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+              });
+              return (
+                <div
+                  key={order.id}
+                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-background-100/60 border border-background-200/50"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground-800 truncate">{summary}</p>
+                    <p className="text-[10px] text-foreground-400 tabular-nums">{orderDate}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPendingOrderId(order.id)}
+                    className="flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium bg-background-200/70 text-foreground-700 hover:bg-background-300/60 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200"
+                  >
+                    {t('cart.order_history_reorder')}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <div
       className="fixed inset-0 z-50 flex justify-end"
@@ -900,98 +972,35 @@ export default function CartDrawer({
             <div className="flex-1 overflow-y-auto overscroll-contain">
               {isEmpty ? (
                 /* Empty state */
-                <div className="flex flex-col items-center justify-center h-full px-6 py-16 text-center">
-                  <span className="w-16 h-16 flex items-center justify-center rounded-full bg-background-100 text-foreground-400 mb-5">
-                    <i className="ri-shopping-cart-line text-2xl"></i>
-                  </span>
-                  <p className="text-base font-heading font-semibold text-foreground-600 mb-1.5">
-                    {t('products.cart_empty')}
-                  </p>
-                  <p className="text-sm text-foreground-400 max-w-[240px] leading-relaxed mb-6">
-                    {t('products.cart_empty_hint')}
-                  </p>
-                  <Link
-                    to="/productos"
-                    onClick={handleClose}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium bg-primary-500 text-background-50 hover:bg-primary-600 cursor-pointer whitespace-nowrap transition-all duration-300 active:scale-[0.98]"
-                  >
-                    <i className="ri-arrow-left-line"></i>
-                    {t('products.continue_shopping')}
-                  </Link>
+                <div className="flex flex-col h-full">
+                  {hasLastOrder && (
+                    <div className="px-5 pt-2">
+                      {orderHistorySection}
+                    </div>
+                  )}
+                  <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 text-center">
+                    <span className="w-16 h-16 flex items-center justify-center rounded-full bg-background-100 text-foreground-400 mb-5">
+                      <i className="ri-shopping-cart-line text-2xl"></i>
+                    </span>
+                    <p className="text-base font-heading font-semibold text-foreground-600 mb-1.5">
+                      {t('products.cart_empty')}
+                    </p>
+                    <p className="text-sm text-foreground-400 max-w-[240px] leading-relaxed mb-6">
+                      {t('products.cart_empty_hint')}
+                    </p>
+                    <Link
+                      to="/productos"
+                      onClick={handleClose}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium bg-primary-500 text-background-50 hover:bg-primary-600 cursor-pointer whitespace-nowrap transition-all duration-300 active:scale-[0.98]"
+                    >
+                      <i className="ri-arrow-left-line"></i>
+                      {t('products.continue_shopping')}
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <div className="px-5">
-                  {/* ── Buy Again button ── */}
-                  {hasLastOrder && (
-                    <button
-                      type="button"
-                      onClick={() => setPendingOrderId(orderHistory[0].id)}
-                      className="w-full mb-2 mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-xs font-medium bg-background-100 text-foreground-600 border border-background-200/70 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
-                    >
-                      <span className="w-4 h-4 flex items-center justify-center">
-                        <i className="ri-refresh-line text-sm"></i>
-                      </span>
-                      {t('cart.buy_again')}
-                    </button>
-                  )}
-
-                  {/* ── Order history (Pedidos anteriores) ── */}
-                  {hasLastOrder && (
-                    <div className="mb-4">
-                      <button
-                        type="button"
-                        onClick={() => setShowOrderHistory(v => !v)}
-                        className="w-full flex items-center justify-between px-1 py-1.5 text-xs font-medium text-foreground-400 hover:text-foreground-700 cursor-pointer whitespace-nowrap transition-colors duration-200"
-                        aria-expanded={showOrderHistory}
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          <i className="ri-history-line text-sm"></i>
-                          {t('cart.order_history_title')}
-                        </span>
-                        <i className={`ri-arrow-down-s-line text-sm transition-transform duration-200 ${showOrderHistory ? 'rotate-180' : ''}`}></i>
-                      </button>
-                      <div
-                        className={`overflow-hidden transition-all duration-300 ease-out ${
-                          showOrderHistory ? 'max-h-[600px] opacity-100 mt-1' : 'max-h-0 opacity-0'
-                        }`}
-                      >
-                        <div className="space-y-2 pb-1">
-                          {orderHistory.map(order => {
-                            const names = order.items.map(i => {
-                              const product = productMap.get(i.productId);
-                              return product ? pickLang(product, 'nombre', i18n.language) : i.productId;
-                            });
-                            const summary = names.length > 1
-                              ? t('cart.order_history_summary_more', { first: names[0], count: names.length - 1 })
-                              : names[0];
-                            const orderDate = new Date(order.date).toLocaleDateString(i18n.language === 'eu' ? 'eu-ES' : 'es-ES', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                            });
-                            return (
-                              <div
-                                key={order.id}
-                                className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-background-100/60 border border-background-200/50"
-                              >
-                                <div className="min-w-0">
-                                  <p className="text-xs font-medium text-foreground-800 truncate">{summary}</p>
-                                  <p className="text-[10px] text-foreground-400 tabular-nums">{orderDate}</p>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setPendingOrderId(order.id)}
-                                  className="flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium bg-background-200/70 text-foreground-700 hover:bg-background-300/60 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200"
-                                >
-                                  {t('cart.order_history_reorder')}
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  {hasLastOrder && orderHistorySection}
 
                   {/* Product list */}
                   <div className="py-1">
