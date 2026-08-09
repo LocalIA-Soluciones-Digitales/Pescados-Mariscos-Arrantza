@@ -22,7 +22,7 @@ export default function Navbar() {
   // navbar must render with dark text/solid background from the start,
   // otherwise light text disappears against those pages' light hero.
   const isHome = location.pathname === '/';
-  const showDark = scrolled || !isHome;
+  const showDark = scrolled || !isHome || mobileOpen;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 60);
@@ -180,9 +180,9 @@ export default function Navbar() {
                 aria-label={mobileOpen ? t('common.close') : t('common.open')}
               >
                 <div className="flex flex-col gap-1.5 w-5 items-center">
-                  <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'rotate-45 translate-y-[7px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
-                  <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'opacity-0 bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
-                  <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? '-rotate-45 -translate-y-[7px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
+                  <span className={`block h-px w-5 transition-all duration-300 ${showDark ? 'bg-foreground-950' : 'bg-background-50'} ${mobileOpen ? 'rotate-45 translate-y-[7px]' : ''}`}></span>
+                  <span className={`block h-px w-5 transition-all duration-300 ${showDark ? 'bg-foreground-950' : 'bg-background-50'} ${mobileOpen ? 'opacity-0' : ''}`}></span>
+                  <span className={`block h-px w-5 transition-all duration-300 ${showDark ? 'bg-foreground-950' : 'bg-background-50'} ${mobileOpen ? '-rotate-45 -translate-y-[7px]' : ''}`}></span>
                 </div>
               </button>
             </div>
@@ -196,17 +196,6 @@ export default function Navbar() {
           mobileOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
         }`}
       >
-        {/* Explicit back button — always visible against this overlay's light
-            background, unlike the hamburger/X toggle in the navbar above it,
-            which can lose contrast against a transparent/dark navbar state. */}
-        <button
-          onClick={() => setMobileOpen(false)}
-          className="absolute top-4 left-4 w-10 h-10 flex items-center justify-center rounded-full bg-background-50 border border-background-200/70 text-foreground-500 shadow-sm hover:text-foreground-950 hover:border-foreground-300/60 transition-colors duration-300 cursor-pointer"
-          aria-label={t('common.back')}
-        >
-          <i className="ri-arrow-left-line text-lg"></i>
-        </button>
-
         <div className="flex flex-col items-center justify-center h-full gap-10 pb-20 px-4">
           {navLinks.map((link, i) => (
             <a

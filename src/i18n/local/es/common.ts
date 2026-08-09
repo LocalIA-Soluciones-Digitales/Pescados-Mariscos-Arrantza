@@ -860,6 +860,7 @@ const common = {
   // Common
   "common.close": "Cerrar",
   "common.open": "Abrir",
+  "common.back": "Atrás",
   "common.optional": "Opcional",
   "common.rating": "Valoración Google",
   "common.based_on": "Basado en",

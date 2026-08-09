@@ -614,6 +614,8 @@ export default function CartDrawer({
   const [showPreview, setShowPreview] = useState(false);
   const [showOrderHistory, setShowOrderHistory] = useState(false);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [viewOrderId, setViewOrderId] = useState<string | null>(null);
+  const [orderConfirmed, setOrderConfirmed] = useState(false);
   const hasLastOrder = orderHistory.length > 0;
 
   // ── Turnstile verification (currently always passes) ──
@@ -641,6 +643,7 @@ export default function CartDrawer({
 
   const handleClose = useCallback(() => {
     setAnimating(false);
+    setOrderConfirmed(false);
     setTimeout(onClose, 200);
   }, [onClose]);
 
@@ -806,6 +809,11 @@ export default function CartDrawer({
     });
 
     window.open(whatsappUrl, '_blank');
+
+    // ── Reset the drawer to a clean state and show the thank-you popup ──
+    onClearCart();
+    setValidationErrors({});
+    setOrderConfirmed(true);
   };
 
   if (!open) return null;
@@ -827,6 +835,16 @@ export default function CartDrawer({
   });
 
   const isEmpty = items.length === 0;
+
+  const viewOrder = orderHistory.find(o => o.id === viewOrderId) ?? null;
+  const viewOrderWeight = viewOrder ? viewOrder.items.reduce((sum, i) => sum + i.kg, 0) : 0;
+  const viewOrderDate = viewOrder
+    ? new Date(viewOrder.date).toLocaleDateString(i18n.language === 'eu' ? 'eu-ES' : 'es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      })
+    : '';
 
   const orderHistorySection = hasLastOrder && (
     <>
@@ -878,7 +896,16 @@ export default function CartDrawer({
               return (
                 <div
                   key={order.id}
-                  className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-background-100/60 border border-background-200/50"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setViewOrderId(order.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setViewOrderId(order.id);
+                    }
+                  }}
+                  className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-background-100/60 border border-background-200/50 hover:bg-background-200/50 hover:border-background-300/60 cursor-pointer transition-all duration-200 text-left"
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-foreground-800 truncate">{summary}</p>
@@ -886,7 +913,10 @@ export default function CartDrawer({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setPendingOrderId(order.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPendingOrderId(order.id);
+                    }}
                     className="flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium bg-background-200/70 text-foreground-700 hover:bg-background-300/60 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200"
                   >
                     {t('cart.order_history_reorder')}
@@ -1587,6 +1617,106 @@ export default function CartDrawer({
           </div>
         )}
 
+        {/* === ORDER HISTORY DETAIL MODAL === */}
+        {viewOrder && (
+          <div
+            className="absolute inset-0 z-20 flex flex-col bg-background-50"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('cart.order_history_detail_title')}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-background-200/60 flex-shrink-0">
+              <div className="min-w-0">
+                <h2 className="text-lg font-heading font-semibold text-foreground-950">
+                  {t('cart.order_history_detail_title')}
+                </h2>
+                <p className="text-[11px] text-foreground-400 tabular-nums">{viewOrderDate}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewOrderId(null)}
+                className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-full text-foreground-400 hover:text-foreground-950 hover:bg-background-100 cursor-pointer whitespace-nowrap transition-all duration-200"
+                aria-label={t('common.close')}
+              >
+                <i className="ri-close-line text-lg"></i>
+              </button>
+            </div>
+
+            {/* Modal body - itemized list */}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+              <div className="mb-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background-100 text-foreground-500 text-xs">
+                <i className={viewOrder.deliveryMethod === 'home' ? 'ri-truck-line' : 'ri-store-2-line'}></i>
+                {viewOrder.deliveryMethod === 'home' ? t('checkout.delivery_home') : t('checkout.delivery_pickup')}
+              </div>
+
+              <div className="space-y-2.5">
+                {viewOrder.items.map((item, idx) => {
+                  const product = productMap.get(item.productId);
+                  const prepLabel = PREPARATIONS.find(p => p.key === item.preparation)?.labelKey;
+                  return (
+                    <div
+                      key={`${item.productId}-${idx}`}
+                      className="flex items-start justify-between gap-3 px-3 py-2.5 rounded-lg bg-background-100/60 border border-background-200/50"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground-800 truncate">
+                          {product ? pickLang(product, 'nombre', i18n.language) : item.productId}
+                        </p>
+                        <p className="text-[10px] text-foreground-400">
+                          {prepLabel ? t(prepLabel as any) : ''}
+                        </p>
+                        {item.note && (
+                          <p className="text-[10px] text-foreground-400 italic mt-0.5 truncate">{item.note}</p>
+                        )}
+                      </div>
+                      <span className="text-xs font-semibold text-foreground-950 tabular-nums whitespace-nowrap flex-shrink-0">
+                        {formatKg(item.kg)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between px-3 py-3 mt-4 rounded-lg bg-background-200/30">
+                <span className="text-sm font-semibold text-foreground-950">
+                  {t('cart.order_history_detail_weight')}
+                </span>
+                <span className="text-sm font-semibold text-foreground-950 tabular-nums">
+                  {formatKg(viewOrderWeight)}
+                </span>
+              </div>
+            </div>
+
+            {/* Modal footer */}
+            <div className="px-5 py-4 border-t border-background-200/60 flex-shrink-0 space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const orderId = viewOrder.id;
+                  setViewOrderId(null);
+                  setPendingOrderId(orderId);
+                }}
+                className="w-full py-3 rounded-full text-sm font-semibold bg-primary-500 text-background-50 hover:bg-primary-600 cursor-pointer whitespace-nowrap transition-all duration-300 active:scale-[0.98]"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-4 h-4 flex items-center justify-center">
+                    <i className="ri-refresh-line text-sm"></i>
+                  </span>
+                  {t('cart.order_history_reorder')}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewOrderId(null)}
+                className="w-full py-2 text-xs text-foreground-400 hover:text-foreground-600 cursor-pointer whitespace-nowrap transition-colors duration-200"
+              >
+                {t('common.close')}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* === PREVIEW MODAL === */}
         {showPreview && (
           <div
@@ -1668,6 +1798,33 @@ export default function CartDrawer({
                 {t('cart.preview_back')}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* === ORDER CONFIRMED POPUP === */}
+        {orderConfirmed && (
+          <div
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background-50/95 backdrop-blur-sm px-6 text-center"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('cart.confirmation_title')}
+          >
+            <span className="w-14 h-14 flex items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-5 animate-[scaleIn_0.3s_ease-out]">
+              <i className="ri-checkbox-circle-line text-3xl"></i>
+            </span>
+            <h3 className="text-lg font-heading font-semibold text-foreground-950 mb-2">
+              {t('cart.confirmation_title')}
+            </h3>
+            <p className="text-sm text-foreground-500 mb-8 max-w-[280px] leading-relaxed">
+              {t('cart.confirmation_text')}
+            </p>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-6 py-2.5 rounded-full text-sm font-medium text-background-50 bg-primary-500 hover:bg-primary-600 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
+            >
+              {t('cart.confirmation_close')}
+            </button>
           </div>
         )}
       </div>
