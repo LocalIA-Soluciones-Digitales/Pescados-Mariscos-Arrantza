@@ -193,10 +193,6 @@ create policy "settings_all_admin"
 
 alter table public.visits add column if not exists label text;
 
-alter table public.visits drop constraint if exists visits_event_type_check;
-alter table public.visits add constraint visits_event_type_check
-  check (event_type in ('pageview', 'tel_click', 'whatsapp_click', 'category_view'));
-
 -- ============================================================
 -- Separación de roles: el pescadero solo gestiona productos;
 -- informes/errores/ajustes quedan restringidos a los desarrolladores.
