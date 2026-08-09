@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { optimizeImageFile } from '@/lib/imageOptimize';
 import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
 
-const NUEVA_FAMILIA_VALUE = '__nueva_familia__';
+const FAMILIAS_ELIMINADAS_KEY = 'pm_familias_eliminadas';
 
 const CATEGORIAS: { value: ProductoCategoria; label: string }[] = [
   { value: 'pescado', label: 'Pescado' },
@@ -85,6 +85,15 @@ export default function ProductoFormModal({
   const [familiasExtra, setFamiliasExtra] = useState<string[]>([]);
   const [addingFamilia, setAddingFamilia] = useState(false);
   const [nuevaFamilia, setNuevaFamilia] = useState('');
+  const [managingFamilias, setManagingFamilias] = useState(false);
+  const [familiasEliminadas, setFamiliasEliminadas] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(FAMILIAS_ELIMINADAS_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
@@ -127,7 +136,7 @@ export default function ProductoFormModal({
   const subcategoriaOptions = [
     ...SUBCATEGORIAS,
     ...familiasExtra.map((value) => ({ value, label: value })),
-  ];
+  ].filter((o) => !o.value || o.value === form.subcategoria || !familiasEliminadas.has(o.value));
 
   const update = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -145,6 +154,20 @@ export default function ProductoFormModal({
     update('subcategoria', value);
     setNuevaFamilia('');
     setAddingFamilia(false);
+  };
+
+  const eliminarFamilia = (value: string) => {
+    setFamiliasEliminadas((prev) => {
+      const next = new Set(prev);
+      next.add(value);
+      try {
+        localStorage.setItem(FAMILIAS_ELIMINADAS_KEY, JSON.stringify(Array.from(next)));
+      } catch {
+        /* localStorage no disponible */
+      }
+      return next;
+    });
+    if (form.subcategoria === value) update('subcategoria', '');
   };
 
   const handleImageUpload = async (file: File) => {
@@ -363,7 +386,28 @@ export default function ProductoFormModal({
           {/* Familia + etiqueta */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div>
-              <label className="block text-xs font-medium text-foreground-500 mb-1">Familia (subcategoría)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-foreground-500">Familia (subcategoría)</label>
+                {!addingFamilia && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setAddingFamilia(true); setManagingFamilias(false); setNuevaFamilia(''); }}
+                      className="inline-flex items-center gap-0.5 text-xs font-medium text-primary-600 hover:text-primary-700"
+                    >
+                      <i className="ri-add-line"></i> Añadir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManagingFamilias((v) => !v)}
+                      className="inline-flex items-center gap-0.5 text-xs font-medium text-foreground-400 hover:text-foreground-600"
+                    >
+                      <i className="ri-settings-4-line"></i> Gestionar
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {addingFamilia ? (
                 <div className="flex gap-1">
                   <input
@@ -384,17 +428,41 @@ export default function ProductoFormModal({
                     <i className="ri-close-line"></i>
                   </button>
                 </div>
+              ) : managingFamilias ? (
+                <div className="border border-background-200/70 rounded-lg overflow-hidden">
+                  <div className="divide-y divide-background-200/70 max-h-40 overflow-y-auto">
+                    {subcategoriaOptions.filter((o) => o.value).map((o) => (
+                      <div key={o.value} className="flex items-center justify-between px-3 py-2">
+                        <span className="text-sm text-foreground-700">{o.label}</span>
+                        <button
+                          type="button"
+                          onClick={() => eliminarFamilia(o.value)}
+                          aria-label={`Eliminar familia ${o.label}`}
+                          className="w-6 h-6 flex items-center justify-center rounded-full text-foreground-400 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <i className="ri-delete-bin-line text-xs"></i>
+                        </button>
+                      </div>
+                    ))}
+                    {subcategoriaOptions.filter((o) => o.value).length === 0 && (
+                      <p className="px-3 py-3 text-xs text-foreground-400">No hay familias todavía.</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setManagingFamilias(false)}
+                    className="w-full px-3 py-2 text-xs font-medium text-center text-foreground-500 bg-background-100 hover:bg-background-200/70"
+                  >
+                    Cerrar
+                  </button>
+                </div>
               ) : (
                 <select
                   value={form.subcategoria}
-                  onChange={(e) => {
-                    if (e.target.value === NUEVA_FAMILIA_VALUE) { setAddingFamilia(true); return; }
-                    update('subcategoria', e.target.value);
-                  }}
+                  onChange={(e) => update('subcategoria', e.target.value)}
                   className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm"
                 >
                   {subcategoriaOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  <option value={NUEVA_FAMILIA_VALUE}>+ Nueva familia…</option>
                 </select>
               )}
             </div>
