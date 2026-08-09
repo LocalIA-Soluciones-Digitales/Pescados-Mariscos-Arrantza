@@ -320,6 +320,54 @@ create policy "pedidos_delete_admin"
 create index if not exists idx_pedidos_created_at on public.pedidos (created_at desc);
 create index if not exists idx_pedidos_estado on public.pedidos (estado);
 
+-- Avisa al cliente por correo cuando el pescadero confirma o completa
+-- su pedido, para que sepa que se está preparando (o que ya está
+-- listo) sin tener que preguntar. Usa la tabla settings igual que el
+-- aviso de stock bajo, sin credenciales sueltas en el SQL.
+create or replace function public.notificar_pedido_estado()
+returns trigger as $$
+declare
+  v_url text;
+  v_secret text;
+begin
+  if new.estado in ('confirmado', 'completado')
+     and new.estado is distinct from old.estado
+     and new.cliente_email is not null then
+
+    select value #>> '{}' into v_url from public.settings where key = 'pedido_estado_url';
+    select value #>> '{}' into v_secret from public.settings where key = 'pedido_estado_secret';
+
+    if v_url is not null then
+      perform net.http_post(
+        url := v_url,
+        headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', coalesce(v_secret, '')),
+        body := jsonb_build_object(
+          'estado', new.estado,
+          'cliente_nombre', new.cliente_nombre,
+          'cliente_email', new.cliente_email,
+          'metodo_entrega', new.metodo_entrega,
+          'items', new.items,
+          'importe_estimado', new.importe_estimado
+        )
+      );
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public, extensions;
+
+drop trigger if exists trg_pedidos_estado_notificar on public.pedidos;
+create trigger trg_pedidos_estado_notificar
+  after update of estado on public.pedidos
+  for each row execute function public.notificar_pedido_estado();
+
+-- Tras desplegar supabase/functions/pedido-estado, registra su URL y el
+-- secreto compartido (mismo valor que PEDIDO_ESTADO_SECRET en la function):
+-- insert into public.settings (key, value) values
+--   ('pedido_estado_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/pedido-estado"'),
+--   ('pedido_estado_secret', '"<UN_SECRETO_ALEATORIO>"')
+-- on conflict (key) do update set value = excluded.value;
+
 -- ============================================================
 -- Reseñas de clientes: las rellena el propio cliente después de
 -- usar la web (no contenido inventado). Quedan pendientes de

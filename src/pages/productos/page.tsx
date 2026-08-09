@@ -340,6 +340,52 @@ function StickyToolbar({
 
   const activeCategoryLabel = categories.find((c) => c.key === activeCategory)?.labelKey ?? 'products.filter_all';
 
+  const visibleKeys = useMemo(
+    () => new Set(availableCategories.map((cat) => cat.key)),
+    [availableCategories],
+  );
+
+  const fishSubcats: CategoryFilter[] = ['azul', 'blanco', 'cefalopodos'].filter((k) =>
+    visibleKeys.has(k as CategoryFilter),
+  ) as CategoryFilter[];
+  const seafoodSubcats: CategoryFilter[] = ['bivalvos', 'crustaceos_grandes', 'gambas_langostinos'].filter((k) =>
+    visibleKeys.has(k as CategoryFilter),
+  ) as CategoryFilter[];
+
+  const renderChip = (key: CategoryFilter, small = false) => {
+    const cat = categories.find((c) => c.key === key);
+    if (!cat) return null;
+    const isActive = activeCategory === key;
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={() => {
+          onCategoryChange(key);
+          setFilterOpen(false);
+        }}
+        className={`inline-flex items-center gap-1.5 rounded-full font-medium whitespace-nowrap cursor-pointer transition-all duration-300 ${
+          small ? 'px-2.5 py-1.5 text-[11px] md:text-xs' : 'px-3 py-2 text-xs md:text-sm'
+        } ${
+          isActive
+            ? 'bg-primary-500 text-background-50'
+            : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
+        }`}
+      >
+        {t(cat.labelKey)}
+        <span
+          className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+            isActive
+              ? 'bg-background-50/20 text-background-50'
+              : 'bg-background-200/60 text-foreground-400'
+          }`}
+        >
+          {filterCounts[key]}
+        </span>
+      </button>
+    );
+  };
+
   useEffect(() => {
     if (!filterOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -426,40 +472,42 @@ function StickyToolbar({
                   )}
                 </div>
 
-                {/* Families — wraps into a grid, never needs horizontal scroll */}
+                {/* Top-level families — Todos + families without subtypes */}
                 <div className="flex flex-wrap gap-1.5">
-                  {availableCategories
-                    .filter((cat) => cat.key !== 'agotado')
-                    .map((cat) => {
-                      const isActive = activeCategory === cat.key;
-                      return (
-                        <button
-                          key={cat.key}
-                          type="button"
-                          onClick={() => {
-                            onCategoryChange(cat.key);
-                            setFilterOpen(false);
-                          }}
-                          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer transition-all duration-300 ${
-                            isActive
-                              ? 'bg-primary-500 text-background-50'
-                              : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
-                          }`}
-                        >
-                          {t(cat.labelKey)}
-                          <span
-                            className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
-                              isActive
-                                ? 'bg-background-50/20 text-background-50'
-                                : 'bg-background-200/60 text-foreground-400'
-                            }`}
-                          >
-                            {filterCounts[cat.key]}
-                          </span>
-                        </button>
-                      );
-                    })}
+                  {renderChip('todos')}
+                  {visibleKeys.has('especial') && renderChip('especial')}
+                  {visibleKeys.has('raciones') && renderChip('raciones')}
                 </div>
+
+                {/* Pescado — main chip plus its subtypes, nested so it's clear
+                    "Azul"/"Blanco"/"Cefalópodos" are kinds of pescado, not
+                    separate families sitting next to it. */}
+                {(visibleKeys.has('pescado') || fishSubcats.length > 0) && (
+                  <div className="mt-2.5 pl-0.5 border-l-2 border-background-200/70">
+                    <div className="pl-2.5 flex flex-wrap gap-1.5">
+                      {visibleKeys.has('pescado') && renderChip('pescado')}
+                    </div>
+                    {fishSubcats.length > 0 && (
+                      <div className="pl-6 mt-1.5 flex flex-wrap gap-1.5">
+                        {fishSubcats.map((key) => renderChip(key, true))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Marisco — same nesting for its subtypes */}
+                {(visibleKeys.has('marisco') || seafoodSubcats.length > 0) && (
+                  <div className="mt-2.5 pl-0.5 border-l-2 border-background-200/70">
+                    <div className="pl-2.5 flex flex-wrap gap-1.5">
+                      {visibleKeys.has('marisco') && renderChip('marisco')}
+                    </div>
+                    {seafoodSubcats.length > 0 && (
+                      <div className="pl-6 mt-1.5 flex flex-wrap gap-1.5">
+                        {seafoodSubcats.map((key) => renderChip(key, true))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Out of stock — a status rather than a family, kept apart and always visible */}
                 <div className="mt-2 pt-2 border-t border-background-200/60">

@@ -45,7 +45,7 @@ npm install
 npm run dev
 ```
 
-Las credenciales de Supabase nunca se escriben en el código: se leen de variables de entorno con prefijo `VITE_` (ver `.env.example`). Los secretos de la Edge Function (`RESEND_API_KEY`, `STOCK_ALERT_SECRET`, etc.) se configuran aparte con `supabase secrets set` — ver `supabase/functions/stock-alert/.env.example`.
+Las credenciales de Supabase nunca se escriben en el código: se leen de variables de entorno con prefijo `VITE_` (ver `.env.example`). Los secretos de las Edge Functions (`RESEND_API_KEY`, `STOCK_ALERT_SECRET`, `PEDIDO_ESTADO_SECRET`, etc.) se configuran aparte con `supabase secrets set` — ver `supabase/functions/stock-alert/.env.example` y `supabase/functions/pedido-estado/.env.example`.
 
 ## Scripts
 
