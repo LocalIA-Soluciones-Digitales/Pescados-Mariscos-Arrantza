@@ -738,6 +738,7 @@ const common = {
   "contact.newsletter.subtitle": "Te avisamos de lo mejor que entra cada semana. Sin spam, solo pescado.",
   "contact.newsletter.placeholder": "Tu correo electrónico",
   "contact.newsletter.button": "Suscribirme",
+  "contact.newsletter.sending": "Enviando...",
 
   // Footer
   "footer.rights": "Todos los derechos reservados.",

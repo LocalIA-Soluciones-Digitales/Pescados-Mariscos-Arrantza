@@ -739,6 +739,7 @@ const common = {
   "contact.newsletter.subtitle": "Astero sartzen den onenaren berri ematen dizugu. Spamik gabe, arraina bakarrik.",
   "contact.newsletter.placeholder": "Zure posta elektronikoa",
   "contact.newsletter.button": "Harpidetu",
+  "contact.newsletter.sending": "Bidaltzen...",
 
   // Footer
   "footer.rights": "Eskubide guztiak erreserbatuta.",

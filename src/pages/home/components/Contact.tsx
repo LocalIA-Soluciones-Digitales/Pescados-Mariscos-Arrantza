@@ -11,6 +11,7 @@ export default function Contact() {
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [alreadySubscribed, setAlreadySubscribed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -27,9 +28,12 @@ export default function Contact() {
 
     setStatus('idle');
     setErrorMsg('');
+    setIsSubmitting(true);
 
     const email = String(formData.get('email') ?? '');
     const result = await submitNewsletter(email, i18n.language === 'eu' ? 'eu' : 'es');
+
+    setIsSubmitting(false);
 
     if (result.ok) {
       setAlreadySubscribed(result.alreadySubscribed);
@@ -115,15 +119,17 @@ export default function Contact() {
             />
             <button
               type="submit"
-              className="px-6 sm:px-7 py-3 rounded-full bg-primary-500 text-background-50 font-medium text-sm hover:bg-primary-600 transition-colors duration-300 whitespace-nowrap cursor-pointer flex-shrink-0"
+              disabled={isSubmitting}
+              className="px-6 sm:px-7 py-3 rounded-full bg-primary-500 text-background-50 font-medium text-sm hover:bg-primary-600 transition-colors duration-300 whitespace-nowrap cursor-pointer flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {t('contact.newsletter.button')}
+              {isSubmitting ? t('contact.newsletter.sending') : t('contact.newsletter.button')}
             </button>
           </form>
 
           {/* Status messages */}
           {status === 'success' && (
-            <p className="mt-4 text-sm text-accent-600">
+            <p className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-accent-600">
+              <i className="ri-checkbox-circle-fill text-base"></i>
               {alreadySubscribed
                 ? i18n.language === 'eu'
                   ? 'Dagoeneko harpidetuta zaude. Eskerrik asko!'
@@ -134,7 +140,10 @@ export default function Contact() {
             </p>
           )}
           {status === 'error' && (
-            <p className="mt-4 text-sm text-red-500">{errorMsg}</p>
+            <p className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-red-500">
+              <i className="ri-error-warning-fill text-base"></i>
+              {errorMsg}
+            </p>
           )}
         </div>
       </div>
