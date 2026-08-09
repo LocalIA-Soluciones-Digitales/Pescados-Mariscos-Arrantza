@@ -206,7 +206,7 @@ export function useCart() {
   const setKg = useCallback((productId: string, kg: number) => {
     setItems(prev =>
       prev.map(item =>
-        item.productId === productId ? { ...item, kg: Math.max(0.5, Math.round(kg * 2) / 2) } : item,
+        item.productId === productId ? { ...item, kg: Math.max(0.5, Math.round(kg * 100) / 100) } : item,
       ),
     );
   }, []);

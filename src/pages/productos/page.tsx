@@ -279,15 +279,15 @@ function CompactHero() {
   const { t } = useTranslation();
 
   return (
-    <section className="relative pt-28 md:pt-32 pb-8 md:pb-10 bg-background-50 overflow-hidden">
+    <section className="relative pt-20 md:pt-24 pb-4 md:pb-5 bg-background-50 overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-48 bg-gradient-to-b from-background-100/40 to-transparent pointer-events-none" />
       <div className="relative container-wide px-4 md:px-6 lg:px-12">
         <div className="max-w-2xl mx-auto text-center">
           <span className="section-label animate-fade-in">{t('products.catalog_label')}</span>
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-heading font-semibold text-foreground-950 leading-[1.15] mb-2 animate-fade-up-1 opacity-0">
+          <h1 className="text-xl md:text-2xl lg:text-3xl font-heading font-semibold text-foreground-950 leading-[1.15] mb-1.5 animate-fade-up-1 opacity-0">
             {t('products.catalog_title')}
           </h1>
-          <p className="text-sm md:text-base text-foreground-400 leading-relaxed animate-fade-up-2 opacity-0">
+          <p className="text-xs md:text-sm text-foreground-400 leading-relaxed animate-fade-up-2 opacity-0">
             {t('products.catalog_subtitle')}
           </p>
         </div>
@@ -663,7 +663,7 @@ function ProductCard({
   const handleConfirmEditWeight = () => {
     const parsed = parseFloat(editWeightValue);
     if (!isNaN(parsed) && parsed >= 0.5) {
-      const rounded = Math.max(0.5, Math.round(parsed * 2) / 2);
+      const rounded = Math.max(0.5, Math.round(parsed * 100) / 100);
       onSetKg(product.id, rounded);
     }
     setIsEditingWeight(false);
@@ -780,7 +780,7 @@ function ProductCard({
                   onChange={(e) => setEditWeightValue(e.target.value)}
                   onBlur={handleConfirmEditWeight}
                   onKeyDown={handleWeightKeyDown}
-                  step="0.5"
+                  step="0.1"
                   min="0.5"
                   autoFocus
                   inputMode="decimal"

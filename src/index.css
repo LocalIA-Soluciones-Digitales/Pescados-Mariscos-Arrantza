@@ -42,6 +42,12 @@
       font-size: 16px !important;
     }
   }
+
+  /* iOS Safari centers the closed value of input[type="date"] by default,
+     which misaligns it against the left-padded text in every other field. */
+  input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+  }
 }
 
 @layer components {

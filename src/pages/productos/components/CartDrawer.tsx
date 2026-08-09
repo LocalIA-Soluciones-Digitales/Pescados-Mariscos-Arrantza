@@ -330,7 +330,7 @@ function CartLineItem({
   const handleConfirmEditWeight = () => {
     const parsed = parseFloat(editWeightValue);
     if (!isNaN(parsed) && parsed >= 0.5) {
-      const rounded = Math.max(0.5, Math.round(parsed * 2) / 2);
+      const rounded = Math.max(0.5, Math.round(parsed * 100) / 100);
       onSetKg(rounded);
       if (!weightHintDismissed) {
         handleDismissWeightHint();
@@ -436,7 +436,7 @@ function CartLineItem({
                   onBlur={handleConfirmEditWeight}
                   onKeyDown={handleWeightKeyDown}
                   className="w-[56px] text-center text-sm font-semibold text-foreground-950 bg-transparent border-0 outline-none appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none tabular-nums"
-                  step="0.5"
+                  step="0.1"
                   min="0.5"
                   autoFocus
                   inputMode="decimal"
