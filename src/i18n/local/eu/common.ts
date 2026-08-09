@@ -802,7 +802,7 @@ const common = {
   "pro.business.card4.title": "Profesionalak",
   "pro.business.card4.desc": "Kontatu zer behar duzun eta zure negoziorako irtenbiderik onena bilatuko dugu.",
 
-  "pro.daily.title": "Eguneroko aukeraketa",
+  "pro.daily.title": "Eguneko aukeraketa",
   "pro.daily.subtitle": "Gure katalogoa produktuaren etorreraren arabera aldatzen da. Kontsultatu egunero gure erabilgarritasuna eta deskubritu lonjatik iritsi den onena.",
   "pro.daily.cta": "Katalogo osoa ikusi",
 

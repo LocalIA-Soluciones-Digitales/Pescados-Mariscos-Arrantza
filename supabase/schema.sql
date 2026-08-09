@@ -522,11 +522,13 @@ create policy "newsletter_subscribers_delete_admin"
 create index if not exists idx_newsletter_subscribers_created_at on public.newsletter_subscribers (created_at desc);
 
 -- ============================================================
--- Selección del día: qué productos se destacan en la portada
--- ("Selección del día") y en la página de profesionales
--- ("Selección diaria"). Antes era una lista fija en el código;
--- ahora la marca el pescadero desde el panel (checkbox "Destacado"
--- en cada producto), y ambas páginas la leen en vivo desde aquí.
+-- Selección del día: qué productos se destacan en la portada y
+-- en la página de profesionales. Un único tag ("destacado") en
+-- productos alimenta ambas secciones, que muestran el mismo
+-- texto ("Selección del día"). Antes era una lista fija en el
+-- código; ahora la marca el pescadero desde el panel (checkbox
+-- "Destacado" en cada producto), y ambas páginas la leen en vivo
+-- desde aquí.
 -- ============================================================
 
 alter table public.productos add column if not exists destacado boolean not null default false;

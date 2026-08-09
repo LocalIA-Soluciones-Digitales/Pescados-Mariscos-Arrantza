@@ -801,7 +801,7 @@ const common = {
   "pro.business.card4.title": "Profesionales",
   "pro.business.card4.desc": "Cuéntanos qué necesitas y buscamos la mejor solución para tu negocio.",
 
-  "pro.daily.title": "Selección diaria",
+  "pro.daily.title": "Selección del día",
   "pro.daily.subtitle": "Nuestro catálogo cambia según la llegada de producto. Consulta cada día nuestra disponibilidad y descubre lo mejor que ha llegado de la lonja.",
   "pro.daily.cta": "Ver catálogo completo",
 
