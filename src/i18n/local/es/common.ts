@@ -12,7 +12,7 @@ const common = {
   "nav.language": "Idioma",
 
   // Hero
-  "hero.title": "Del mar a su plantza.",
+  "hero.title": "Arrantza. Del mar a su plantza.",
   "hero.kicker": "En el corazón de Altzaga, Erandio",
   "hero.subtitle": "Pescado y marisco del Cantábrico, seleccionado cada mañana en lonja.",
   "hero.cta.catalog": "Hacer pedido",

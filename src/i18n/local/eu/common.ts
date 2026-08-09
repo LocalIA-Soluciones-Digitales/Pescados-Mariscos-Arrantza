@@ -12,7 +12,7 @@ const common = {
   "nav.language": "Hizkuntza",
 
   // Hero
-  "hero.title": "Del mar a su plantza.",
+  "hero.title": "Arrantza. Del mar a su plantza.",
   "hero.kicker": "Altzagako bihotzean, Erandion",
   "hero.subtitle": "Kantauriko arrain eta itsaskia, goizero lonjan aukeratua.",
   "hero.cta.catalog": "Katalogoa ikusi",
