@@ -900,7 +900,7 @@ export default function CartDrawer({
                 /* Empty state */
                 <div className="flex flex-col items-center justify-center h-full px-6 py-16 text-center">
                   <span className="w-16 h-16 flex items-center justify-center rounded-full bg-background-100 text-foreground-400 mb-5">
-                    <i className="ri-shopping-bag-line text-2xl"></i>
+                    <i className="ri-shopping-cart-line text-2xl"></i>
                   </span>
                   <p className="text-base font-heading font-semibold text-foreground-600 mb-1.5">
                     {t('products.cart_empty')}

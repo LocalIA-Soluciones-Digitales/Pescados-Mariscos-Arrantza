@@ -405,7 +405,7 @@ function StickyToolbar({
                 }`}
                 aria-label={t('products.cart_label')}
               >
-                <i className={`ri-shopping-bag-line transition-all duration-500 group-hover/cart:scale-110 group-hover/cart:rotate-[-4deg] ${
+                <i className={`ri-shopping-cart-line transition-all duration-500 group-hover/cart:scale-110 group-hover/cart:rotate-[-4deg] ${
                   cartCount > 0 ? 'text-xl' : 'text-lg'
                 }`}></i>
                 <span
@@ -1408,7 +1408,7 @@ export default function Productos() {
           className="relative w-14 h-14 flex items-center justify-center rounded-full bg-primary-500 text-background-50 shadow-[0_4px_20px_rgba(0,0,0,0.15)] hover:bg-primary-600 hover:shadow-[0_6px_24px_rgba(0,0,0,0.2)] active:scale-95 cursor-pointer whitespace-nowrap transition-all duration-300"
           aria-label={t('products.cart_label')}
         >
-          <i className="ri-shopping-bag-line text-xl"></i>
+          <i className="ri-shopping-cart-line text-xl"></i>
           {totalProducts > 0 && (
             <span
               key={totalProducts}
