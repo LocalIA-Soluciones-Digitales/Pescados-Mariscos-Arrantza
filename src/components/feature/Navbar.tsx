@@ -180,9 +180,9 @@ export default function Navbar() {
                 aria-label={mobileOpen ? t('common.close') : t('common.open')}
               >
                 <div className="flex flex-col gap-1.5 w-5 items-center">
-                  <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'rotate-45 translate-y-[3.5px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
+                  <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'rotate-45 translate-y-[7px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
                   <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? 'opacity-0 bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
-                  <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? '-rotate-45 -translate-y-[3.5px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
+                  <span className={`block h-px w-5 transition-all duration-300 ${mobileOpen ? '-rotate-45 -translate-y-[7px] bg-foreground-950' : showDark ? 'bg-foreground-950' : 'bg-background-50'}`}></span>
                 </div>
               </button>
             </div>
