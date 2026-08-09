@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { optimizeImageFile } from '@/lib/imageOptimize';
 import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
 
 const NUEVA_FAMILIA_VALUE = '__nueva_familia__';
@@ -76,13 +77,33 @@ export default function ProductoFormModal({
   onClose: () => void;
   onSaved: (producto: Producto) => void;
 }) {
-  const [form, setForm] = useState<FormState>(() => toFormState(producto));
+  const [initialForm] = useState<FormState>(() => toFormState(producto));
+  const [form, setForm] = useState<FormState>(initialForm);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [familiasExtra, setFamiliasExtra] = useState<string[]>([]);
   const [addingFamilia, setAddingFamilia] = useState(false);
   const [nuevaFamilia, setNuevaFamilia] = useState('');
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(initialForm);
+
+  const requestClose = () => {
+    if (isDirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onClose();
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') requestClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
 
   useEffect(() => {
     supabase
@@ -129,16 +150,24 @@ export default function ProductoFormModal({
   const handleImageUpload = async (file: File) => {
     setUploading(true);
     setError(null);
-    const path = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    const { error: uploadError } = await supabase.storage.from('productos').upload(path, file);
-    if (uploadError) {
-      setError('No se pudo subir la foto: ' + uploadError.message);
+    try {
+      const optimized = await optimizeImageFile(file);
+      const path = `${Date.now()}-${optimized.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const { error: uploadError } = await supabase.storage.from('productos').upload(path, optimized, {
+        cacheControl: '31536000',
+        contentType: optimized.type || file.type,
+      });
+      if (uploadError) {
+        setError('No se pudo subir la foto: ' + uploadError.message);
+        return;
+      }
+      const { data } = supabase.storage.from('productos').getPublicUrl(path);
+      update('imagen_url', data.publicUrl);
+    } catch {
+      setError('No se pudo procesar la imagen. Prueba con otra foto.');
+    } finally {
       setUploading(false);
-      return;
     }
-    const { data } = supabase.storage.from('productos').getPublicUrl(path);
-    update('imagen_url', data.publicUrl);
-    setUploading(false);
   };
 
   const handleImageRemove = () => {
@@ -184,20 +213,48 @@ export default function ProductoFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-foreground-950/40 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-foreground-950/40 sm:p-4" onClick={requestClose}>
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="flex flex-col w-full sm:max-w-[560px] max-h-[92vh] sm:max-h-[90vh] bg-background-50 rounded-t-2xl sm:rounded-lg border border-background-200/70 shadow-2xl"
+        className="relative flex flex-col w-full sm:max-w-[560px] max-h-[92vh] sm:max-h-[90vh] bg-background-50 rounded-t-2xl sm:rounded-lg border border-background-200/70 shadow-2xl"
       >
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-background-200/70 flex-shrink-0">
           <h2 className="text-base font-heading font-semibold text-foreground-950">
             {producto ? 'Editar producto' : 'Nuevo producto'}
           </h2>
-          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-200/70">
+          <button type="button" onClick={requestClose} className="w-8 h-8 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-200/70">
             <i className="ri-close-line text-lg"></i>
           </button>
         </div>
+
+        {confirmDiscard && (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center bg-foreground-950/50 rounded-t-2xl sm:rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-[85%] max-w-[320px] bg-background-50 border border-background-200/70 rounded-lg shadow-xl p-5">
+              <p className="text-sm font-medium text-foreground-950 mb-1">¿Descartar cambios?</p>
+              <p className="text-xs text-foreground-500 mb-4">Los datos que has rellenado se perderán.</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDiscard(false)}
+                  className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70"
+                >
+                  Seguir editando
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 px-3 py-2 rounded-lg text-xs font-medium bg-red-600 text-background-50 hover:bg-red-700"
+                >
+                  Descartar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="overflow-y-auto px-5 sm:px-6 py-5">
           {/* Imagen */}
@@ -365,7 +422,7 @@ export default function ProductoFormModal({
         </div>
 
         <div className="flex gap-2 px-5 sm:px-6 py-4 border-t border-background-200/70 flex-shrink-0">
-          <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70">
+          <button type="button" onClick={requestClose} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70">
             Cancelar
           </button>
           <button type="submit" disabled={saving || uploading} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50">
