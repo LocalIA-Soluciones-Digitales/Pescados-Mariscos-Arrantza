@@ -129,19 +129,20 @@ export default function Navbar() {
 
             {/* Right side: language + mobile toggle */}
             <div className="flex items-center gap-4">
-              {/* Admin access — discreet, desktop only */}
+              {/* Admin access — desktop only, styled as a discreet but polished badge */}
               <a
                 href="/admin"
                 onClick={(e) => { e.preventDefault(); navigate('/admin'); }}
-                className={`hidden lg:flex w-8 h-8 items-center justify-center rounded-full transition-colors duration-300 ${
+                className={`hidden lg:inline-flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full border text-xs font-medium transition-colors duration-300 ${
                   showDark
-                    ? 'text-foreground-300 hover:text-foreground-600 hover:bg-background-100'
-                    : 'text-white/50 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)] hover:text-white hover:bg-white/10'
+                    ? 'border-background-200/70 text-foreground-400 hover:text-foreground-700 hover:border-foreground-300/60 hover:bg-background-100'
+                    : 'border-white/30 text-white/70 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)] hover:text-white hover:border-white/50 hover:bg-white/10'
                 }`}
-                aria-label="Gestión de productos"
-                title="Gestión de productos"
+                aria-label="Panel de gestión"
+                title="Panel de gestión"
               >
-                <i className="ri-shield-user-line text-base"></i>
+                <i className="ri-shield-user-line text-sm"></i>
+                Panel
               </a>
 
               {/* Language switcher */}
@@ -232,7 +233,7 @@ export default function Navbar() {
           style={{ transitionDelay: mobileOpen ? `${navLinks.length * 70}ms` : '0ms' }}
         >
           <i className="ri-shield-user-line text-sm"></i>
-          Gestión de productos
+          Panel de gestión
         </a>
       </div>
     </nav>
