@@ -990,6 +990,9 @@ function SeasonalSection() {
   const month = now.getMonth();
   const currentSeasonId = month >= 2 && month <= 4 ? 'primavera' : month >= 5 && month <= 7 ? 'verano' : month >= 8 && month <= 10 ? 'otono' : 'invierno';
 
+  const currentSeasonIdx = temporada.findIndex((season) => season.id === currentSeasonId);
+  const orderedTemporada = [...temporada.slice(currentSeasonIdx), ...temporada.slice(0, currentSeasonIdx)];
+
   return (
     <section id="temporada" className="bg-background-100/50">
       <div ref={ref} className="container-wide section-padding">
@@ -1000,7 +1003,7 @@ function SeasonalSection() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-[1100px] mx-auto">
-          {temporada.map((season, idx) => (
+          {orderedTemporada.map((season, idx) => (
             <div
               key={season.id}
               className={`relative bg-background-50 rounded-lg border p-6 md:p-8 text-center transition-all duration-500 ease-out hover:-translate-y-1 ${

@@ -748,7 +748,7 @@ const common = {
   "footer.rights": "Eskubide guztiak erreserbatuta.",
   "footer.privacy": "Lege Oharra",
   "footer.cookies": "Cookies",
-  "footer.tagline": "Del mar a su plantza.",
+  "footer.tagline": "Arrantza. Del mar a su plantza.",
 
   // Legal — Lege Oharra
   "legal.aviso.s1.title": "1. Identifikazio-datuak",

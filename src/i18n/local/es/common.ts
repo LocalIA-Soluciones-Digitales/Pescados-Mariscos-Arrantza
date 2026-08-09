@@ -747,7 +747,7 @@ const common = {
   "footer.rights": "Todos los derechos reservados.",
   "footer.privacy": "Aviso Legal",
   "footer.cookies": "Cookies",
-  "footer.tagline": "Del mar a su plantza.",
+  "footer.tagline": "Arrantza. Del mar a su plantza.",
 
   // Legal — Aviso Legal
   "legal.aviso.s1.title": "1. Datos identificativos",

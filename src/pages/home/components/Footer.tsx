@@ -72,8 +72,11 @@ export default function Footer() {
           {/* Tagline */}
           <div className="flex flex-col justify-between">
             <div>
-              <p className="font-heading text-base sm:text-lg md:text-xl text-background-50 italic leading-relaxed">
-                &ldquo;{t('footer.tagline')}&rdquo;
+              <p className="font-heading text-base sm:text-lg md:text-xl text-background-50 leading-relaxed">
+                &ldquo;
+                <span className="not-italic font-semibold">{t('footer.tagline').split('. ')[0]}.</span>{' '}
+                <span className="italic">{t('footer.tagline').split('. ')[1]}</span>
+                &rdquo;
               </p>
             </div>
             {/* Google rating */}
