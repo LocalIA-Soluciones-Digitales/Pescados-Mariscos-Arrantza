@@ -18,19 +18,19 @@ export default function AdminLogin({ signIn, error }: Pick<ReturnType<typeof use
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background-100 px-4">
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        aria-label="Volver"
+        className="fixed top-6 left-6 w-10 h-10 flex items-center justify-center rounded-full bg-background-50 border border-background-200/70 text-foreground-500 shadow-sm hover:text-foreground-950 hover:border-foreground-300/60 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+      </button>
+
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-[360px] bg-background-50 border border-background-200/70 rounded-lg p-8 shadow-sm"
       >
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1.5 text-xs font-medium text-foreground-400 hover:text-foreground-950 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Atrás
-        </button>
-
         <h1 className="text-lg font-heading font-semibold text-foreground-950 mb-1 text-center">
           Panel de gestión
         </h1>
