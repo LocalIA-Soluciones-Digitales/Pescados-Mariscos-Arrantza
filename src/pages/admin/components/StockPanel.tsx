@@ -158,14 +158,19 @@ export default function StockPanel({
   const totalVisible = useMemo(() => grupos.reduce((n, g) => n + g.productos.length, 0), [grupos]);
 
   return (
-    <div className="px-4 md:px-8 py-6 pb-28">
-      <p className="text-xs text-foreground-400 mb-4">
-        Cada mañana, indica en "Entrada de hoy" únicamente los kg recibidos: se suman automáticamente al stock
-        actual, sin necesidad de calcular el total. El stock se descuenta solo con cada pedido de un cliente; si baja
-        del mínimo, se envía un aviso por correo automáticamente.
-      </p>
+    <>
+      <div className="px-4 md:px-8 pt-6">
+        <p className="text-xs text-foreground-400 mb-4">
+          Cada mañana, indica en "Entrada de hoy" únicamente los kg recibidos: se suman automáticamente al stock
+          actual, sin necesidad de calcular el total. El stock se descuenta solo con cada pedido de un cliente; si
+          baja del mínimo, se envía un aviso por correo automáticamente.
+        </p>
+      </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-4">
+      <div
+        className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center"
+        style={{ top: 'var(--admin-header-height, 0px)' }}
+      >
         <div className="relative flex-1 min-w-[200px] max-w-[280px]">
           <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
           <input
@@ -192,6 +197,7 @@ export default function StockPanel({
         </button>
       </div>
 
+      <div className="px-4 md:px-8 py-6 pb-28">
       {loading ? (
         <p className="text-sm text-foreground-400">Cargando…</p>
       ) : totalVisible === 0 ? (
@@ -218,6 +224,7 @@ export default function StockPanel({
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

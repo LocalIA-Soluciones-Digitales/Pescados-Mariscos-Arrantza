@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useProductos } from '@/hooks/useProductos';
 import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
@@ -162,6 +162,16 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
   const [tab, setTab] = useState<Tab>('productos');
   const tabsScroll = useHorizontalWheelScroll<HTMLDivElement>();
   const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setHeaderHeight(entry.contentRect.height));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Solo para el contador de la pestaña — cada panel trae sus propios datos.
   const { pedidos } = usePedidos();
@@ -231,8 +241,8 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
   );
 
   return (
-    <div className="min-h-screen bg-background-100">
-      <header className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-3 md:py-4">
+    <div className="min-h-screen bg-background-100" style={{ '--admin-header-height': `${headerHeight}px` } as CSSProperties}>
+      <header ref={headerRef} className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-3 md:py-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <div className="flex-shrink-0">
