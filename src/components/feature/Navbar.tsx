@@ -200,11 +200,10 @@ export default function Navbar() {
             which can lose contrast against a transparent/dark navbar state. */}
         <button
           onClick={() => setMobileOpen(false)}
-          className="absolute top-4 left-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-foreground-600 hover:text-foreground-950 hover:bg-background-100 transition-colors duration-300 cursor-pointer"
+          className="absolute top-4 left-4 w-10 h-10 flex items-center justify-center rounded-full bg-background-50 border border-background-200/70 text-foreground-500 shadow-sm hover:text-foreground-950 hover:border-foreground-300/60 transition-colors duration-300 cursor-pointer"
           aria-label={t('common.back')}
         >
-          <i className="ri-arrow-left-line text-xl"></i>
-          <span className="text-sm font-medium">{t('common.back')}</span>
+          <i className="ri-arrow-left-line text-lg"></i>
         </button>
 
         <div className="flex flex-col items-center justify-center h-full gap-10 pb-20 px-4">
