@@ -119,14 +119,6 @@ function ProductCard({
           draggable={false}
         />
 
-        {/* Bottom gradient + always-visible CTA */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent flex items-end justify-center pb-4">
-          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 text-foreground-950 text-sm font-medium whitespace-nowrap shadow-sm transition-transform duration-400 ease-out group-hover:-translate-y-1">
-            {t('available.hover_cta')}
-            <i className="ri-arrow-right-line text-base"></i>
-          </span>
-        </div>
-
         {/* Premium badge */}
         <div className="absolute top-3 left-3">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm text-[11px] font-medium text-foreground-950 whitespace-nowrap shadow-sm">
