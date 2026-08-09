@@ -206,11 +206,11 @@ function AddToCartToast({
 
   return (
     <div
-      className="fixed top-20 md:top-28 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40 pointer-events-none flex justify-center"
+      className="fixed top-20 md:top-28 left-4 right-4 md:left-4 md:right-16 lg:right-24 z-40 pointer-events-none flex justify-center md:justify-end"
       aria-live="polite"
     >
       <div
-        className={`pointer-events-auto w-full max-w-[480px] md:w-auto md:min-w-[320px] md:max-w-[380px] bg-background-50 border border-background-200/70 rounded-xl px-4 py-3.5 shadow-[0_4px_24px_rgba(0,0,0,0.08)] transition-all duration-[250ms] ease-out ${
+        className={`pointer-events-auto w-full max-w-[480px] md:w-auto md:min-w-[360px] md:max-w-[460px] bg-background-50 border border-background-200/70 rounded-xl px-5 py-4 shadow-[0_4px_24px_rgba(0,0,0,0.08)] transition-all duration-[250ms] ease-out ${
           visible && !dismissing
             ? 'opacity-100 translate-y-0'
             : 'opacity-0 -translate-y-2'
@@ -529,6 +529,7 @@ function ProductCard({
   isInCart,
   cartItem,
   isRemoving,
+  isHighlighted,
   onAddToCart,
   onRemoveFromCart,
   onIncrease,
@@ -540,6 +541,7 @@ function ProductCard({
   isInCart: boolean;
   cartItem: CartItem | undefined;
   isRemoving: boolean;
+  isHighlighted?: boolean;
   onAddToCart: (p: Producto) => void;
   onRemoveFromCart: (productId: string) => void;
   onIncrease: (productId: string) => void;
@@ -585,11 +587,14 @@ function ProductCard({
 
   return (
     <div
+      id={`product-${product.id}`}
       ref={ref}
-      className={`group bg-background-50 rounded-lg border border-background-200/70 overflow-hidden transition-all duration-500 ease-out hover:-translate-y-1 hover:border-background-300/80 ${
+      className={`group bg-background-50 rounded-lg border border-background-200/70 overflow-hidden transition-all duration-700 ease-out hover:-translate-y-1 hover:border-background-300/80 ${
         isRemoving ? 'animate-card-remove' : ''
       } ${
         isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+      } ${
+        isHighlighted ? 'ring-2 ring-primary-400 ring-offset-2 ring-offset-background-50' : ''
       }`}
       style={{ transitionDelay: `${index * 60}ms` }}
     >
@@ -751,6 +756,7 @@ function CatalogGrid({
   onDecrease,
   onSetKg,
   removingProductId,
+  highlightedProductId,
   groupBy,
 }: {
   products: Producto[];
@@ -762,6 +768,7 @@ function CatalogGrid({
   onDecrease: (productId: string) => void;
   onSetKg: (productId: string, kg: number) => void;
   removingProductId: string | null;
+  highlightedProductId?: string | null;
   groupBy?: 'subcategory';
 }) {
   const { t } = useTranslation();
@@ -787,7 +794,7 @@ function CatalogGrid({
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-4 md:gap-6 lg:gap-8">
         {products.map((product, idx) => (
-          <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
+          <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
         ))}
       </div>
     );
@@ -847,7 +854,7 @@ function CatalogGrid({
               {items.map((product) => {
                 const idx = globalIdx++;
                 return (
-                  <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
+                  <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
                 );
               })}
             </div>
@@ -864,7 +871,7 @@ function CatalogGrid({
             {ungrouped.map((product) => {
               const idx = globalIdx++;
               return (
-                <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
+                <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
               );
             })}
           </div>
@@ -1042,26 +1049,43 @@ export default function Productos() {
   const { t, i18n } = useTranslation();
   const { productos, loading: productosLoading } = useProductos();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('buscar') ?? '');
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('todos');
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Deep link from other pages (e.g. home carousel) — land directly on the product
+  // Deep link from other pages (e.g. home carousel) — land directly on the
+  // product's card in the catalog, without applying any name filter.
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(
+    () => searchParams.get('producto'),
+  );
+
   useEffect(() => {
-    if (searchParams.has('buscar')) {
+    if (searchParams.has('producto')) {
       setSearchParams((prev) => {
-        prev.delete('buscar');
+        prev.delete('producto');
         return prev;
       }, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!highlightedCardId || productosLoading) return;
+    const el = document.getElementById(`product-${highlightedCardId}`);
+    if (!el) return;
+
+    const headerOffset = 140; // navbar (64) + toolbar (~56) + padding
+    const elementTop = el.getBoundingClientRect().top;
+    const targetY = window.scrollY + elementTop - headerOffset;
+    window.scrollTo({ top: targetY, behavior: 'smooth' });
+
+    const timer = setTimeout(() => setHighlightedCardId(null), 1800);
+    return () => clearTimeout(timer);
+  }, [highlightedCardId, productosLoading]);
+
   // Ref for smooth-scrolling to catalogue grid on filter change
   const catalogSectionRef = useRef<HTMLDivElement>(null);
-  // Skip the scroll-on-mount guard when a deep link already prefilled the search,
-  // so the user lands directly on the matching product instead of at the top.
-  const isFirstFilterChange = useRef(!searchQuery);
+  const isFirstFilterChange = useRef(true);
 
   // Smooth-scroll to catalogue grid when filter or search changes
   useEffect(() => {
@@ -1378,6 +1402,7 @@ export default function Productos() {
                 onDecrease={handleDecreaseKg}
                 onSetKg={setKg}
                 removingProductId={removingProductId}
+                highlightedProductId={highlightedCardId}
                 groupBy={shouldGroupBySubcategory ? 'subcategory' : undefined}
               />
             )}

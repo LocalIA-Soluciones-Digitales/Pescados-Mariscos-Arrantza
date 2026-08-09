@@ -53,7 +53,7 @@ function ProductCard({
 
   return (
     <Link
-      to={`/productos?buscar=${encodeURIComponent(productName)}`}
+      to={`/productos?producto=${encodeURIComponent(producto.id)}`}
       onClick={handleClick}
       className="group flex-shrink-0 w-[260px] sm:w-[280px] cursor-pointer select-none rounded-lg overflow-hidden bg-background-50 border border-background-200/70 transition-all duration-500 ease-out hover:-translate-y-1 hover:border-background-300/80 block"
     >
@@ -67,14 +67,6 @@ function ProductCard({
             draggable={false}
           />
         )}
-
-        {/* Bottom gradient + always-visible CTA */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent flex items-end justify-center pb-4">
-          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 text-foreground-950 text-sm font-medium whitespace-nowrap shadow-sm transition-transform duration-400 ease-out group-hover:-translate-y-1">
-            {t('available.hover_cta')}
-            <i className="ri-arrow-right-line text-base"></i>
-          </span>
-        </div>
 
         {/* Premium badge */}
         <div className="absolute top-3 left-3">
