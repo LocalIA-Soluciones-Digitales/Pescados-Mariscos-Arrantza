@@ -28,7 +28,7 @@ begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
+$$ language plpgsql set search_path = public;
 
 drop trigger if exists trg_productos_updated_at on public.productos;
 create trigger trg_productos_updated_at
@@ -207,7 +207,7 @@ alter table public.visits add constraint visits_event_type_check
 create or replace function public.is_developer()
 returns boolean as $$
   select (auth.jwt() ->> 'email') = any (array['edortadossantos@gmail.com', 'admin@developers.local']);
-$$ language sql stable;
+$$ language sql stable set search_path = public;
 
 drop policy if exists "error_logs_select_admin" on public.error_logs;
 create policy "error_logs_select_admin"
@@ -432,7 +432,7 @@ returns numeric as $$
   set stock_kg = stock_kg + p_kg
   where id = p_producto_id
   returning stock_kg;
-$$ language sql;
+$$ language sql set search_path = public;
 
 revoke all on function public.sumar_stock(uuid, numeric) from public;
 grant execute on function public.sumar_stock(uuid, numeric) to authenticated;
@@ -524,3 +524,15 @@ create policy "newsletter_subscribers_delete_admin"
   using (public.is_developer());
 
 create index if not exists idx_newsletter_subscribers_created_at on public.newsletter_subscribers (created_at desc);
+
+-- ============================================================
+-- Selección del día: qué productos se destacan en la portada
+-- ("Selección del día") y en la página de profesionales
+-- ("Selección diaria"). Antes era una lista fija en el código;
+-- ahora la marca el pescadero desde el panel (checkbox "Destacado"
+-- en cada producto), y ambas páginas la leen en vivo desde aquí.
+-- ============================================================
+
+alter table public.productos add column if not exists destacado boolean not null default false;
+
+create index if not exists idx_productos_destacado on public.productos (destacado);

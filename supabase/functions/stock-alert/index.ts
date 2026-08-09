@@ -7,15 +7,30 @@
 //   ALERT_EMAIL_TO     — destinatario(s), separados por coma
 //   STOCK_ALERT_SECRET — mismo valor guardado en public.settings ('stock_alert_secret')
 //   ALERT_EMAIL_FROM   — opcional, remitente verificado en Resend
+//   ALLOWED_ORIGIN      — opcional, origen permitido para llamadas desde el navegador
+//                         (por defecto https://arrantza.es); el trigger de Postgres
+//                         que la invoca normalmente no envía Origin.
+
+const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://arrantza.es';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+  'Access-Control-Allow-Headers': 'content-type, x-webhook-secret',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return new Response('Method not allowed', { status: 405, headers: corsHeaders });
   }
 
   const secret = req.headers.get('x-webhook-secret');
   if (!secret || secret !== Deno.env.get('STOCK_ALERT_SECRET')) {
-    return new Response('Unauthorized', { status: 401 });
+    return new Response('Unauthorized', { status: 401, headers: corsHeaders });
   }
 
   const { nombre, stock_kg, stock_minimo } = await req.json();
@@ -26,7 +41,7 @@ Deno.serve(async (req: Request) => {
     .filter(Boolean);
 
   if (to.length === 0) {
-    return new Response('ALERT_EMAIL_TO no configurado', { status: 500 });
+    return new Response('ALERT_EMAIL_TO no configurado', { status: 500, headers: corsHeaders });
   }
 
   const from = Deno.env.get('ALERT_EMAIL_FROM') ?? 'Arrantza Stock <onboarding@resend.dev>';
@@ -97,8 +112,8 @@ Deno.serve(async (req: Request) => {
 
   if (!res.ok) {
     const detail = await res.text();
-    return new Response(detail, { status: 502 });
+    return new Response(detail, { status: 502, headers: corsHeaders });
   }
 
-  return new Response('ok', { status: 200 });
+  return new Response('ok', { status: 200, headers: corsHeaders });
 });
