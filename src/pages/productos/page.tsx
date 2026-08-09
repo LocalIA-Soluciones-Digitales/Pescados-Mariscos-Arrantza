@@ -10,7 +10,6 @@ import CartDrawer from '@/pages/productos/components/CartDrawer';
 import { temporada } from '@/mocks/productos';
 import { useProductos } from '@/hooks/useProductos';
 import { useCartSound } from '@/hooks/useCartSound';
-import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import { logAddToCart, logCategoryView, logConversion, logProductView } from '@/lib/visitLog';
 import { pickLang, normalizeSearch } from '@/types/producto';
 import type { Producto } from '@/types/producto';
@@ -29,8 +28,12 @@ type CategoryFilter =
   | 'cefalopodos'
   | 'bivalvos'
   | 'crustaceos_grandes'
-  | 'gambas_langostinos';
+  | 'gambas_langostinos'
+  | 'agotado';
 
+/** All possible filter chips. The toolbar only renders the ones that currently
+ *  have matching products (see `filterCounts`) — except `todos` and `agotado`,
+ *  which are always shown regardless of count. */
 const categories: { key: CategoryFilter; labelKey: string }[] = [
   { key: 'todos', labelKey: 'products.filter_all' },
   { key: 'pescado', labelKey: 'products.filter_fish' },
@@ -43,7 +46,11 @@ const categories: { key: CategoryFilter; labelKey: string }[] = [
   { key: 'bivalvos', labelKey: 'products.filter_shellfish' },
   { key: 'crustaceos_grandes', labelKey: 'products.filter_large_crustaceans' },
   { key: 'gambas_langostinos', labelKey: 'products.filter_prawns_shrimp' },
+  { key: 'agotado', labelKey: 'products.filter_agotado' },
 ];
+
+/** Chips that must always stay visible, even with zero matching products. */
+const alwaysVisibleFilters: CategoryFilter[] = ['todos', 'agotado'];
 
 /* ------------------------------------------------------------------ */
 /*  Product counts per filter — computed from live Supabase data      */
@@ -53,6 +60,7 @@ function computeCategoryCounts(productos: Producto[]): Record<CategoryFilter, nu
   const mainCats = ['pescado', 'especial', 'raciones', 'marisco'] as CategoryFilter[];
 
   counts.todos = productos.length;
+  counts.agotado = productos.filter((p) => !p.disponible).length;
 
   mainCats.forEach((cat) => {
     counts[cat] = productos.filter((p) => p.categoria === cat).length;
@@ -313,7 +321,8 @@ function StickyToolbar({
   filterCounts: Record<CategoryFilter, number>;
 }) {
   const { t } = useTranslation();
-  const categoriesScroll = useHorizontalWheelScroll<HTMLDivElement>();
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   const hasActiveFilter = activeCategory !== 'todos' || searchQuery.trim().length > 0;
 
@@ -321,6 +330,26 @@ function StickyToolbar({
     onCategoryChange('todos');
     onSearchChange('');
   };
+
+  // Only show chips for families that currently have matching products —
+  // "todos" and "agotado" stay visible regardless of their count.
+  const availableCategories = useMemo(
+    () => categories.filter((cat) => alwaysVisibleFilters.includes(cat.key) || filterCounts[cat.key] > 0),
+    [filterCounts],
+  );
+
+  const activeCategoryLabel = categories.find((c) => c.key === activeCategory)?.labelKey ?? 'products.filter_all';
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [filterOpen]);
 
   return (
     <div className="sticky top-16 md:top-20 z-30 bg-background-50/95 backdrop-blur-md border-b border-background-200/60">
@@ -349,48 +378,117 @@ function StickyToolbar({
             )}
           </div>
 
-          {/* Category filters + clear-all */}
-          <div ref={categoriesScroll.ref} onWheel={categoriesScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-            {categories.map((cat) => {
-              const isActive = activeCategory === cat.key;
-              const count = filterCounts[cat.key];
-              return (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => onCategoryChange(cat.key)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer flex-shrink-0 transition-all duration-300 ${
-                    isActive
-                      ? 'bg-primary-500 text-background-50'
-                      : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
-                  }`}
-                >
-                  {t(cat.labelKey)}
-                  <span
-                    className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
-                      isActive
-                        ? 'bg-background-50/20 text-background-50'
-                        : 'bg-background-200/60 text-foreground-400'
+          {/* Filter button — opens a dropdown panel with every family at a glance,
+              no horizontal scrolling required */}
+          <div ref={filterRef} className="relative flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setFilterOpen((v) => !v)}
+              aria-haspopup="true"
+              aria-expanded={filterOpen}
+              className={`inline-flex items-center gap-1.5 pl-3 pr-2.5 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer transition-all duration-300 ${
+                activeCategory !== 'todos'
+                  ? 'bg-primary-500 text-background-50'
+                  : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
+              }`}
+            >
+              <i className="ri-filter-3-line text-sm"></i>
+              {t(activeCategory === 'todos' ? 'products.filter_button' : activeCategoryLabel)}
+              <span
+                className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+                  activeCategory !== 'todos'
+                    ? 'bg-background-50/20 text-background-50'
+                    : 'bg-background-200/60 text-foreground-400'
+                }`}
+              >
+                {filterCounts[activeCategory]}
+              </span>
+              <i className={`ri-arrow-down-s-line text-sm transition-transform duration-200 ${filterOpen ? 'rotate-180' : ''}`}></i>
+            </button>
+
+            {filterOpen && (
+              <div className="absolute top-full left-0 mt-2 z-40 w-[min(88vw,380px)] max-h-[70vh] overflow-y-auto bg-background-50 border border-background-200/70 rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.14)] p-3 animate-fade-in">
+                <div className="flex items-center justify-between mb-2 px-0.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-400">
+                    {t('products.filter_panel_title')}
+                  </span>
+                  {hasActiveFilter && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleClearAll();
+                        setFilterOpen(false);
+                      }}
+                      className="text-[11px] font-medium text-accent-600 hover:text-accent-700 cursor-pointer whitespace-nowrap"
+                    >
+                      {t('products.clear_filters')}
+                    </button>
+                  )}
+                </div>
+
+                {/* Families — wraps into a grid, never needs horizontal scroll */}
+                <div className="flex flex-wrap gap-1.5">
+                  {availableCategories
+                    .filter((cat) => cat.key !== 'agotado')
+                    .map((cat) => {
+                      const isActive = activeCategory === cat.key;
+                      return (
+                        <button
+                          key={cat.key}
+                          type="button"
+                          onClick={() => {
+                            onCategoryChange(cat.key);
+                            setFilterOpen(false);
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer transition-all duration-300 ${
+                            isActive
+                              ? 'bg-primary-500 text-background-50'
+                              : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
+                          }`}
+                        >
+                          {t(cat.labelKey)}
+                          <span
+                            className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+                              isActive
+                                ? 'bg-background-50/20 text-background-50'
+                                : 'bg-background-200/60 text-foreground-400'
+                            }`}
+                          >
+                            {filterCounts[cat.key]}
+                          </span>
+                        </button>
+                      );
+                    })}
+                </div>
+
+                {/* Out of stock — a status rather than a family, kept apart and always visible */}
+                <div className="mt-2 pt-2 border-t border-background-200/60">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onCategoryChange('agotado');
+                      setFilterOpen(false);
+                    }}
+                    className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer transition-all duration-300 w-full ${
+                      activeCategory === 'agotado'
+                        ? 'bg-foreground-700 text-background-50'
+                        : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
                     }`}
                   >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-
-            {/* Clear-all chip — appears when any filter/search is active */}
-            {hasActiveFilter && (
-              <button
-                type="button"
-                onClick={handleClearAll}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer flex-shrink-0 bg-accent-100 text-accent-700 hover:bg-accent-200/70 transition-all duration-300 animate-fade-in"
-              >
-                <span className="w-3.5 h-3.5 flex items-center justify-center">
-                  <i className="ri-close-line text-xs"></i>
-                </span>
-                {t('products.clear_filters')}
-              </button>
+                    <i className="ri-forbid-line text-sm"></i>
+                    {t('products.filter_agotado')}
+                    <span
+                      className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+                        activeCategory === 'agotado'
+                          ? 'bg-background-50/20 text-background-50'
+                          : 'bg-background-200/60 text-foreground-400'
+                      }`}
+                    >
+                      {filterCounts.agotado}
+                    </span>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
@@ -1185,7 +1283,9 @@ export default function Productos() {
   const filteredProducts = useMemo(() => {
     let result = productos;
 
-    if (activeCategory !== 'todos') {
+    if (activeCategory === 'agotado') {
+      result = result.filter(p => !p.disponible);
+    } else if (activeCategory !== 'todos') {
       const mainCategories = ['pescado', 'especial', 'raciones', 'marisco'];
       if (mainCategories.includes(activeCategory)) {
         result = result.filter(p => p.categoria === activeCategory);
