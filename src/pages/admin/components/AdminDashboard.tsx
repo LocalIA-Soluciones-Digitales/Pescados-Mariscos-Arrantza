@@ -137,23 +137,23 @@ function ProductoCard({
           {producto.disponible ? 'Disponible' : 'Agotado'}
         </button>
 
-        {/* Estado chips */}
-        <div className="flex flex-wrap gap-1 mb-3">
-          {(Object.keys(ESTADO_LABELS) as ProductoEstado[]).map((estado) => (
-            <button
-              key={estado}
-              type="button"
-              onClick={() => cambiarEstado(estado)}
-              disabled={busy}
-              className={`px-2 py-1 rounded-full text-[10px] font-medium ${
-                producto.estado === estado
-                  ? 'bg-primary-500 text-background-50'
-                  : 'bg-background-100 text-foreground-400 hover:bg-background-200/70'
-              }`}
-            >
-              {ESTADO_LABELS[estado]}
-            </button>
-          ))}
+        {/* Etiqueta */}
+        <div className="relative mb-3">
+          <select
+            value={producto.estado}
+            onChange={(e) => cambiarEstado(e.target.value as ProductoEstado)}
+            disabled={busy}
+            className="w-full appearance-none bg-background-100 border border-background-200/70 rounded-full pl-3 pr-8 py-1.5 text-xs font-medium text-foreground-700 cursor-pointer hover:bg-background-200/70 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-200"
+          >
+            {(Object.keys(ESTADO_LABELS) as ProductoEstado[]).map((estado) => (
+              <option key={estado} value={estado}>
+                {ESTADO_LABELS[estado]}
+              </option>
+            ))}
+          </select>
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 flex items-center justify-center text-foreground-400 pointer-events-none">
+            <i className="ri-arrow-down-s-line text-xs"></i>
+          </span>
         </div>
 
         <div className="flex gap-2">
