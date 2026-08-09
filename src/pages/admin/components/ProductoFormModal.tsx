@@ -29,7 +29,7 @@ const SUBCATEGORIAS: { value: string; label: string }[] = [
 ];
 
 const ESTADOS: { value: ProductoEstado; label: string }[] = [
-  { value: 'available', label: 'Disponible hoy' },
+  { value: 'available', label: 'Normal' },
   { value: 'new', label: 'Novedad' },
   { value: 'premium', label: 'Especialidad' },
   { value: 'seasonal', label: 'De temporada' },
