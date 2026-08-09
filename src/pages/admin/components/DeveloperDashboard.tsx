@@ -20,7 +20,9 @@ const TITLES: Record<Tab, string> = {
   errores: 'Registro de errores',
 };
 
-export default function DeveloperDashboard({ onSignOut }: { onSignOut: () => void }) {
+type ViewSwitch = { label: string; onClick: () => void };
+
+export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOut: () => void; viewSwitch?: ViewSwitch }) {
   const [tab, setTab] = useState<Tab>('informes');
 
   return (
@@ -46,9 +48,20 @@ export default function DeveloperDashboard({ onSignOut }: { onSignOut: () => voi
             ))}
           </div>
         </div>
-        <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 flex-shrink-0">
-          Cerrar sesión
-        </button>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {viewSwitch && (
+            <button
+              type="button"
+              onClick={viewSwitch.onClick}
+              className="text-xs font-medium text-foreground-400 hover:text-foreground-700 transition-colors"
+            >
+              {viewSwitch.label}
+            </button>
+          )}
+          <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950">
+            Cerrar sesión
+          </button>
+        </div>
       </header>
 
       {tab === 'errores' ? (

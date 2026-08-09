@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import AdminLogin from './components/AdminLogin';
@@ -5,8 +6,9 @@ import AdminDashboard from './components/AdminDashboard';
 import DeveloperDashboard from './components/DeveloperDashboard';
 
 export default function Admin() {
-  const { session, loading, error, signIn, signOut, isDeveloper } = useAdminAuth();
+  const { session, loading, error, signIn, signOut, resetPassword, isDeveloper } = useAdminAuth();
   const navigate = useNavigate();
+  const [view, setView] = useState<'desarrollo' | 'gestion'>('desarrollo');
 
   const handleSignOut = async () => {
     await signOut();
@@ -18,8 +20,22 @@ export default function Admin() {
   }
 
   if (!session) {
-    return <AdminLogin signIn={signIn} error={error} />;
+    return <AdminLogin signIn={signIn} error={error} resetPassword={resetPassword} />;
   }
 
-  return isDeveloper ? <DeveloperDashboard onSignOut={handleSignOut} /> : <AdminDashboard onSignOut={handleSignOut} />;
+  if (!isDeveloper) {
+    return <AdminDashboard onSignOut={handleSignOut} />;
+  }
+
+  return view === 'gestion' ? (
+    <AdminDashboard
+      onSignOut={handleSignOut}
+      viewSwitch={{ label: 'Panel de desarrollo', onClick: () => setView('desarrollo') }}
+    />
+  ) : (
+    <DeveloperDashboard
+      onSignOut={handleSignOut}
+      viewSwitch={{ label: 'Panel de gestión', onClick: () => setView('gestion') }}
+    />
+  );
 }

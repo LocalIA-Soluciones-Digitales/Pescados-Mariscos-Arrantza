@@ -39,5 +39,12 @@ export function useAdminAuth() {
     await supabase.auth.signOut();
   }, []);
 
-  return { session, loading, error, signIn, signOut, isDeveloper };
+  const resetPassword = useCallback(async (email: string) => {
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/admin/restablecer-password`,
+    });
+    return !resetError;
+  }, []);
+
+  return { session, loading, error, signIn, signOut, resetPassword, isDeveloper };
 }

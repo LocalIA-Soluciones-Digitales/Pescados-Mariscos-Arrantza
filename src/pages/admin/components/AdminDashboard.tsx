@@ -176,7 +176,9 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'resenas', label: 'Reseñas' },
 ];
 
-export default function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
+type ViewSwitch = { label: string; onClick: () => void };
+
+export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: () => void; viewSwitch?: ViewSwitch }) {
   const { productos, loading, patchLocal, removeLocal, addLocal } = useProductos();
   const [editing, setEditing] = useState<Producto | null | 'new'>(null);
   const [search, setSearch] = useState('');
@@ -279,9 +281,20 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
             </div>
             <div className="hidden md:block">{tabsNav}</div>
           </div>
-          <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 flex-shrink-0">
-            Cerrar sesión
-          </button>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {viewSwitch && (
+              <button
+                type="button"
+                onClick={viewSwitch.onClick}
+                className="text-xs font-medium text-foreground-400 hover:text-foreground-700 transition-colors"
+              >
+                {viewSwitch.label}
+              </button>
+            )}
+            <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950">
+              Cerrar sesión
+            </button>
+          </div>
         </div>
         <div className="md:hidden mt-3">{tabsNav}</div>
       </header>
