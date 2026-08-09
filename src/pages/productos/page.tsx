@@ -139,11 +139,15 @@ function AddToCartToast({
   product,
   visible,
   onDismiss,
+  onViewOrder,
+  onUndo,
   drawerOpen,
 }: {
   product: Producto | null;
   visible: boolean;
   onDismiss: () => void;
+  onViewOrder: () => void;
+  onUndo: (productId: string) => void;
   drawerOpen: boolean;
 }) {
   const { t, i18n } = useTranslation();
@@ -202,49 +206,59 @@ function AddToCartToast({
 
   return (
     <div
-      className="fixed top-20 md:top-28 right-4 left-auto translate-x-0 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40 pointer-events-none"
+      className="fixed top-20 md:top-28 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 z-40 pointer-events-none flex justify-center"
       aria-live="polite"
     >
       <div
-        className={`pointer-events-auto flex items-center gap-3 bg-background-50 border border-background-200/70 rounded-lg px-4 py-3 shadow-[0_4px_24px_rgba(0,0,0,0.06)] min-w-[260px] max-w-[340px] transition-all duration-[250ms] ease-out ${
+        className={`pointer-events-auto w-full max-w-[480px] md:w-auto md:min-w-[320px] md:max-w-[380px] bg-background-50 border border-background-200/70 rounded-xl px-4 py-3.5 shadow-[0_4px_24px_rgba(0,0,0,0.08)] transition-all duration-[250ms] ease-out ${
           visible && !dismissing
             ? 'opacity-100 translate-y-0'
             : 'opacity-0 -translate-y-2'
         }`}
       >
-        {/* Product thumbnail */}
-        <div className="w-10 h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
-          <img
-            src={product.imagen_url ?? ''}
-            alt={pickLang(product, 'nombre', i18n.language)}
-            className="w-full h-full object-cover object-top"
-          />
+        <div className="flex items-center gap-3">
+          {/* Product thumbnail */}
+          <div className="w-12 h-12 md:w-10 md:h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
+            <img
+              src={product.imagen_url ?? ''}
+              alt={pickLang(product, 'nombre', i18n.language)}
+              className="w-full h-full object-cover object-top"
+            />
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <p className="text-base md:text-sm font-semibold text-foreground-950 truncate">
+              {pickLang(product, 'nombre', i18n.language)}
+            </p>
+            <p className="text-sm md:text-xs text-foreground-400">
+              {t('products.toast_added')}
+            </p>
+          </div>
+
+          {/* Check circle */}
+          <span className="w-7 h-7 md:w-6 md:h-6 flex items-center justify-center rounded-full bg-emerald-100 text-emerald-600 flex-shrink-0">
+            <i className="ri-check-line text-base md:text-sm"></i>
+          </span>
         </div>
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground-950 truncate">
-            {pickLang(product, 'nombre', i18n.language)}
-          </p>
-          <p className="text-xs text-foreground-400">
-            {t('products.toast_added')}
-          </p>
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-5 mt-2.5 pt-2.5 border-t border-background-200/60">
+          <button
+            type="button"
+            onClick={() => onUndo(product.id)}
+            className="text-sm md:text-xs font-semibold text-foreground-500 hover:text-foreground-800 cursor-pointer whitespace-nowrap transition-colors"
+          >
+            {t('products.toast_undo')}
+          </button>
+          <button
+            type="button"
+            onClick={onViewOrder}
+            className="text-sm md:text-xs font-semibold text-primary-600 hover:text-primary-700 cursor-pointer whitespace-nowrap transition-colors"
+          >
+            {t('products.toast_view_cart')}
+          </button>
         </div>
-
-        {/* Check circle */}
-        <span className="w-6 h-6 flex items-center justify-center rounded-full bg-emerald-100 text-emerald-600 flex-shrink-0">
-          <i className="ri-check-line text-sm"></i>
-        </span>
-
-        {/* Dismiss button */}
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-background-200/80 text-foreground-400 hover:text-foreground-600 hover:bg-background-300/80 cursor-pointer whitespace-nowrap transition-colors"
-          aria-label={t('common.close')}
-        >
-          <i className="ri-close-line text-[10px]"></i>
-        </button>
       </div>
     </div>
   );
@@ -1278,6 +1292,19 @@ export default function Productos() {
     setToastVisible(false);
   }, []);
 
+  const handleToastViewOrder = useCallback(() => {
+    handleDismissToast();
+    setDrawerOpen(true);
+  }, [handleDismissToast]);
+
+  const handleToastUndo = useCallback(
+    (productId: string) => {
+      handleDismissToast();
+      handleRemoveItem(productId);
+    },
+    [handleDismissToast, handleRemoveItem],
+  );
+
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
@@ -1391,6 +1418,8 @@ export default function Productos() {
         product={toastProduct}
         visible={toastVisible}
         onDismiss={handleDismissToast}
+        onViewOrder={handleToastViewOrder}
+        onUndo={handleToastUndo}
         drawerOpen={drawerOpen}
       />
 
