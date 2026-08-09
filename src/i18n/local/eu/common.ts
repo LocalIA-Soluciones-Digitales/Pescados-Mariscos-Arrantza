@@ -592,6 +592,11 @@ const common = {
   "cart.order_history_title": "Aurreko eskaerak",
   "cart.order_history_reorder": "Berriz eskatu",
   "cart.order_history_summary_more": "{{first}} +{{count}} gehiago",
+  "cart.order_history_detail_title": "Eskaeraren xehetasuna",
+  "cart.order_history_detail_weight": "Pisu osoa",
+  "cart.confirmation_title": "Eskerrik asko zure eskaeragatik!",
+  "cart.confirmation_text": "WhatsApp zabaldu dugu zure eskaeraren datuekin. Bidali mezua berresteko eta laster zurekin harremanetan jarriko gara.",
+  "cart.confirmation_close": "Erosten jarraitu",
 
   // Checkout redesign
   "checkout.delivery_method": "Entregatzeko modua",

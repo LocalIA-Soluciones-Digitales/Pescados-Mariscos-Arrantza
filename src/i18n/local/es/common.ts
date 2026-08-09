@@ -595,6 +595,11 @@ const common = {
   "cart.order_history_title": "Pedidos anteriores",
   "cart.order_history_reorder": "Pedir de nuevo",
   "cart.order_history_summary_more": "{{first}} +{{count}} más",
+  "cart.order_history_detail_title": "Detalle del pedido",
+  "cart.order_history_detail_weight": "Peso total",
+  "cart.confirmation_title": "¡Gracias por tu pedido!",
+  "cart.confirmation_text": "Hemos abierto WhatsApp con los datos de tu pedido. Envía el mensaje para confirmarlo y en breve nos pondremos en contacto contigo.",
+  "cart.confirmation_close": "Seguir comprando",
 
   // Checkout redesign
   "checkout.delivery_method": "Método de entrega",
