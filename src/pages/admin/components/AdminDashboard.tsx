@@ -194,7 +194,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   useLayoutEffect(() => {
     const el = headerRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(([entry]) => setHeaderHeight(entry.contentRect.height));
+    const observer = new ResizeObserver(() => setHeaderHeight(el.getBoundingClientRect().height));
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
@@ -272,7 +272,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
 
   return (
     <div className="min-h-screen bg-background-100" style={{ '--admin-header-height': `${headerHeight}px` } as CSSProperties}>
-      <header ref={headerRef} className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-3 md:py-4">
+      <header ref={headerRef} className="sticky top-0 z-20 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-3 md:py-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <div className="flex-shrink-0">
@@ -308,7 +308,10 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
       ) : (
         <>
       {/* Filtros */}
-      <div className="md:sticky md:top-[65px] z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center">
+      <div
+        className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center"
+        style={{ top: 'var(--admin-header-height, 0px)' }}
+      >
         <div className="relative flex-1 min-w-[200px] max-w-[280px]">
           <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
           <input
