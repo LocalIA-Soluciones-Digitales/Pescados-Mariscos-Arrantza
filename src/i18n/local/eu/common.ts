@@ -582,10 +582,13 @@ const common = {
   "cart.weight_hint": "Egin klik pisuaren gainean zuzenean editatzeko",
   "cart.weight_hint_short": "Egin klik pisua editatzeko",
   "cart.buy_again": "Berriz erosi",
-  "cart.buy_again_dialog_title": "Aurreko eskaera kargatu?",
+  "cart.buy_again_dialog_title": "Eskaera hau kargatu?",
   "cart.buy_again_dialog_text": "Honek zure uneko saskia ordezkatuko du.",
   "cart.buy_again_cancel": "Utzi",
   "cart.buy_again_load": "Eskaera kargatu",
+  "cart.order_history_title": "Aurreko eskaerak",
+  "cart.order_history_reorder": "Berriz eskatu",
+  "cart.order_history_summary_more": "{{first}} +{{count}} gehiago",
 
   // Checkout redesign
   "checkout.delivery_method": "Entregatzeko modua",

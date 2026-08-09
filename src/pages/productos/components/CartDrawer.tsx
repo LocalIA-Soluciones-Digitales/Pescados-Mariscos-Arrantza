@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import type { CartItem, CartCustomerInfo } from '@/hooks/useCart';
+import type { CartItem, CartCustomerInfo, OrderHistoryEntry } from '@/hooks/useCart';
 import type { Producto } from '@/types/producto';
 import { pickLang } from '@/types/producto';
 import RollingNumber from '@/components/base/RollingNumber';
@@ -580,9 +580,9 @@ interface CartDrawerProps {
   totalProducts: number;
   totalWeight: number;
   justAddedId: string | null;
-  hasLastOrder: boolean;
+  orderHistory: OrderHistoryEntry[];
   onSaveLastOrder: () => void;
-  onLoadLastOrder: () => void;
+  onLoadOrder: (orderId: string) => void;
 }
 
 export default function CartDrawer({
@@ -602,9 +602,9 @@ export default function CartDrawer({
   totalProducts,
   totalWeight,
   justAddedId,
-  hasLastOrder,
+  orderHistory,
   onSaveLastOrder,
-  onLoadLastOrder,
+  onLoadOrder,
 }: CartDrawerProps) {
   const { t, i18n } = useTranslation();
   const productMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
@@ -612,7 +612,9 @@ export default function CartDrawer({
   const [animating, setAnimating] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showPreview, setShowPreview] = useState(false);
-  const [showBuyAgainDialog, setShowBuyAgainDialog] = useState(false);
+  const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const hasLastOrder = orderHistory.length > 0;
 
   // ── Turnstile verification (currently always passes) ──
   const turnstile = useTurnstile();
@@ -919,7 +921,7 @@ export default function CartDrawer({
                   {hasLastOrder && (
                     <button
                       type="button"
-                      onClick={() => setShowBuyAgainDialog(true)}
+                      onClick={() => setPendingOrderId(orderHistory[0].id)}
                       className="mt-3 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium bg-background-100 text-foreground-600 border border-background-200/70 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
                     >
                       <span className="w-4 h-4 flex items-center justify-center">
@@ -935,14 +937,72 @@ export default function CartDrawer({
                   {hasLastOrder && (
                     <button
                       type="button"
-                      onClick={() => setShowBuyAgainDialog(true)}
-                      className="w-full mb-4 mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-xs font-medium bg-background-100 text-foreground-600 border border-background-200/70 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
+                      onClick={() => setPendingOrderId(orderHistory[0].id)}
+                      className="w-full mb-2 mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-xs font-medium bg-background-100 text-foreground-600 border border-background-200/70 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
                     >
                       <span className="w-4 h-4 flex items-center justify-center">
                         <i className="ri-refresh-line text-sm"></i>
                       </span>
                       {t('cart.buy_again')}
                     </button>
+                  )}
+
+                  {/* ── Order history (Pedidos anteriores) ── */}
+                  {hasLastOrder && (
+                    <div className="mb-4">
+                      <button
+                        type="button"
+                        onClick={() => setShowOrderHistory(v => !v)}
+                        className="w-full flex items-center justify-between px-1 py-1.5 text-xs font-medium text-foreground-400 hover:text-foreground-700 cursor-pointer whitespace-nowrap transition-colors duration-200"
+                        aria-expanded={showOrderHistory}
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          <i className="ri-history-line text-sm"></i>
+                          {t('cart.order_history_title')}
+                        </span>
+                        <i className={`ri-arrow-down-s-line text-sm transition-transform duration-200 ${showOrderHistory ? 'rotate-180' : ''}`}></i>
+                      </button>
+                      <div
+                        className={`overflow-hidden transition-all duration-300 ease-out ${
+                          showOrderHistory ? 'max-h-[600px] opacity-100 mt-1' : 'max-h-0 opacity-0'
+                        }`}
+                      >
+                        <div className="space-y-2 pb-1">
+                          {orderHistory.map(order => {
+                            const names = order.items.map(i => {
+                              const product = productMap.get(i.productId);
+                              return product ? pickLang(product, 'nombre', i18n.language) : i.productId;
+                            });
+                            const summary = names.length > 1
+                              ? t('cart.order_history_summary_more', { first: names[0], count: names.length - 1 })
+                              : names[0];
+                            const orderDate = new Date(order.date).toLocaleDateString(i18n.language === 'eu' ? 'eu-ES' : 'es-ES', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            });
+                            return (
+                              <div
+                                key={order.id}
+                                className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-background-100/60 border border-background-200/50"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium text-foreground-800 truncate">{summary}</p>
+                                  <p className="text-[10px] text-foreground-400 tabular-nums">{orderDate}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingOrderId(order.id)}
+                                  className="flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-medium bg-background-200/70 text-foreground-700 hover:bg-background-300/60 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200"
+                                >
+                                  {t('cart.order_history_reorder')}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
                   )}
 
                   {/* Product list */}
@@ -1491,8 +1551,8 @@ export default function CartDrawer({
           </>
         )}
 
-        {/* === BUY AGAIN CONFIRMATION DIALOG === */}
-        {showBuyAgainDialog && (
+        {/* === LOAD ORDER CONFIRMATION DIALOG === */}
+        {pendingOrderId !== null && (
           <div
             className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background-50/95 backdrop-blur-sm px-6 text-center"
             role="dialog"
@@ -1511,7 +1571,7 @@ export default function CartDrawer({
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setShowBuyAgainDialog(false)}
+                onClick={() => setPendingOrderId(null)}
                 className="px-5 py-2.5 rounded-full text-sm font-medium text-foreground-600 bg-background-100 hover:bg-background-200/70 cursor-pointer whitespace-nowrap transition-all duration-200"
               >
                 {t('cart.buy_again_cancel')}
@@ -1519,8 +1579,8 @@ export default function CartDrawer({
               <button
                 type="button"
                 onClick={() => {
-                  setShowBuyAgainDialog(false);
-                  onLoadLastOrder();
+                  onLoadOrder(pendingOrderId);
+                  setPendingOrderId(null);
                 }}
                 className="px-5 py-2.5 rounded-full text-sm font-medium text-background-50 bg-primary-500 hover:bg-primary-600 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
               >

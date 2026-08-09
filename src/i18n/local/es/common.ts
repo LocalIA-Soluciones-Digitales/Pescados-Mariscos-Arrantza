@@ -585,10 +585,13 @@ const common = {
   "cart.weight_hint": "Haz clic sobre el peso para editarlo directamente",
   "cart.weight_hint_short": "Haz clic para editar el peso",
   "cart.buy_again": "Comprar otra vez",
-  "cart.buy_again_dialog_title": "¿Cargar tu pedido anterior?",
+  "cart.buy_again_dialog_title": "¿Cargar este pedido?",
   "cart.buy_again_dialog_text": "Esto reemplazará tu carrito actual.",
   "cart.buy_again_cancel": "Cancelar",
   "cart.buy_again_load": "Cargar pedido",
+  "cart.order_history_title": "Pedidos anteriores",
+  "cart.order_history_reorder": "Pedir de nuevo",
+  "cart.order_history_summary_more": "{{first}} +{{count}} más",
 
   // Checkout redesign
   "checkout.delivery_method": "Método de entrega",

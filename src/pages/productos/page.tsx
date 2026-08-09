@@ -1121,9 +1121,9 @@ export default function Productos() {
     setPreparation,
     setItemNote,
     justAddedId,
-    hasLastOrder,
+    orderHistory,
     saveLastOrder,
-    loadLastOrder,
+    loadOrder,
     getItem,
   } = useCart();
 
@@ -1408,9 +1408,9 @@ export default function Productos() {
         totalProducts={totalProducts}
         totalWeight={totalWeight}
         justAddedId={justAddedId}
-        hasLastOrder={hasLastOrder}
+        orderHistory={orderHistory}
         onSaveLastOrder={saveLastOrder}
-        onLoadLastOrder={loadLastOrder}
+        onLoadOrder={loadOrder}
       />
 
       {/* Toast notification */}

@@ -33,8 +33,17 @@ interface LastOrderData {
   deliveryMethod: 'home' | 'pickup';
 }
 
+export interface OrderHistoryEntry {
+  id: string;
+  date: string;
+  items: CartItem[];
+  deliveryMethod: 'home' | 'pickup';
+}
+
 const STORAGE_KEY = 'arrantza_cart';
 const LAST_ORDER_KEY = 'arrantza_last_order';
+const ORDER_HISTORY_KEY = 'arrantza_order_history';
+const MAX_ORDER_HISTORY = 5;
 
 function loadCart(): CartState {
   try {
@@ -102,10 +111,53 @@ function readLastOrder(): LastOrderData | null {
   return null;
 }
 
-function saveLastOrderToStorage(data: LastOrderData) {
+function sanitizeOrderItems(items: unknown): CartItem[] {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((i: CartItem) => i && typeof i.productId === 'string' && typeof i.kg === 'number')
+    .map((i: CartItem) => ({
+      ...i,
+      preparation: typeof i.preparation === 'string' ? i.preparation : 'whole',
+      note: typeof i.note === 'string' ? i.note : '',
+    }));
+}
+
+function readOrderHistory(): OrderHistoryEntry[] {
   try {
-    localStorage.setItem(LAST_ORDER_KEY, JSON.stringify(data));
+    const raw = localStorage.getItem(ORDER_HISTORY_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((o: OrderHistoryEntry) => o && typeof o.id === 'string' && typeof o.date === 'string')
+          .map((o: OrderHistoryEntry) => ({
+            id: o.id,
+            date: o.date,
+            deliveryMethod: o.deliveryMethod === 'home' ? 'home' as const : 'pickup' as const,
+            items: sanitizeOrderItems(o.items),
+          }))
+          .filter(o => o.items.length > 0)
+          .slice(0, MAX_ORDER_HISTORY);
+      }
+    }
   } catch { /* noop */ }
+  return [];
+}
+
+function saveOrderHistoryToStorage(history: OrderHistoryEntry[]) {
+  try {
+    localStorage.setItem(ORDER_HISTORY_KEY, JSON.stringify(history));
+  } catch { /* noop */ }
+}
+
+// Migra el antiguo "último pedido" (una sola ranura) al nuevo historial
+// la primera vez que se carga, para no perder el pedido ya guardado.
+function loadInitialOrderHistory(): OrderHistoryEntry[] {
+  const history = readOrderHistory();
+  if (history.length > 0) return history;
+  const legacy = readLastOrder();
+  if (!legacy) return [];
+  return [{ id: 'legacy', date: new Date().toISOString(), items: legacy.items, deliveryMethod: legacy.deliveryMethod }];
 }
 
 export function useCart() {
@@ -115,7 +167,7 @@ export function useCart() {
   const [cartVersion, setCartVersion] = useState(0);
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
   const clearJustAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [hasLastOrder, setHasLastOrder] = useState<boolean>(() => readLastOrder() !== null);
+  const [orderHistory, setOrderHistory] = useState<OrderHistoryEntry[]>(loadInitialOrderHistory);
 
   // Mark as loaded after first render to prevent hydration mismatches
   useEffect(() => {
@@ -202,23 +254,29 @@ export function useCart() {
 
   const saveLastOrder = useCallback(() => {
     if (items.length === 0) return;
-    saveLastOrderToStorage({
+    const entry: OrderHistoryEntry = {
+      id: `${Date.now()}`,
+      date: new Date().toISOString(),
       items: items.map(i => ({ ...i })),
       deliveryMethod: customer.deliveryMethod,
+    };
+    setOrderHistory(prev => {
+      const next = [entry, ...prev].slice(0, MAX_ORDER_HISTORY);
+      saveOrderHistoryToStorage(next);
+      return next;
     });
-    setHasLastOrder(true);
   }, [items, customer.deliveryMethod]);
 
-  const loadLastOrder = useCallback(() => {
-    const lastOrder = readLastOrder();
-    if (!lastOrder) return;
-    setItems(lastOrder.items);
+  const loadOrder = useCallback((orderId: string) => {
+    const order = orderHistory.find(o => o.id === orderId);
+    if (!order) return;
+    setItems(order.items.map(i => ({ ...i })));
     setCustomer(prev => ({
       ...prev,
-      deliveryMethod: lastOrder.deliveryMethod,
+      deliveryMethod: order.deliveryMethod,
     }));
     setCartVersion(v => v + 1);
-  }, []);
+  }, [orderHistory]);
 
   const updateCustomer = useCallback(<K extends keyof CartCustomerInfo>(field: K, value: CartCustomerInfo[K]) => {
     setCustomer(prev => ({ ...prev, [field]: value }));
@@ -256,8 +314,8 @@ export function useCart() {
     setItemNote,
     cartVersion,
     justAddedId,
-    hasLastOrder,
+    orderHistory,
     saveLastOrder,
-    loadLastOrder,
+    loadOrder,
   } as const;
 }
