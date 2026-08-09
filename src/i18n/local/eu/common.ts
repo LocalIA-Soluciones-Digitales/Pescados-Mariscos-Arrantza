@@ -861,7 +861,6 @@ const common = {
   // Common
   "common.close": "Itxi",
   "common.open": "Ireki",
-  "common.back": "Atzera",
   "common.optional": "Aukerakoa",
   "common.rating": "Google balorazioa",
   "common.based_on": "Oinarrituta",
