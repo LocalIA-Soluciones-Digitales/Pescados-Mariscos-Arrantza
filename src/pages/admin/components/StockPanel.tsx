@@ -19,7 +19,7 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
 
   const sumarEntrada = async () => {
     const kg = Number(entrada);
-    if (!Number.isFinite(kg) || kg <= 0) {
+    if (!Number.isFinite(kg) || kg === 0) {
       setEntrada('');
       return;
     }
@@ -81,7 +81,6 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
           <input
             type="number"
             step="0.5"
-            min="0"
             placeholder="0"
             value={entrada}
             onChange={(e) => setEntrada(e.target.value)}
@@ -162,8 +161,9 @@ export default function StockPanel({
       <div className="px-4 md:px-8 pt-6">
         <p className="text-xs text-foreground-400 mb-4">
           Cada mañana, indica en "Entrada de hoy" únicamente los kg recibidos: se suman automáticamente al stock
-          actual, sin necesidad de calcular el total. El stock se descuenta solo con cada pedido de un cliente; si
-          baja del mínimo, se envía un aviso por correo automáticamente.
+          actual, sin necesidad de calcular el total. Usa un valor negativo para descontar kg (por ejemplo, si ha
+          llegado producto en mal estado). El stock también se descuenta con cada pedido de un cliente; si baja del
+          mínimo, se envía un aviso por correo automáticamente.
         </p>
       </div>
 
