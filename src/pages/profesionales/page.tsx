@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/feature/Navbar';
 import Footer from '@/pages/home/components/Footer';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { logConversion } from '@/lib/visitLog';
-import { todosLosProductos } from '@/mocks/productos';
-import type { ProductoItem } from '@/mocks/productos';
+import { useProductos } from '@/hooks/useProductos';
+import { pickLang } from '@/types/producto';
 
-/* ── Featured products for daily selection ── */
-const featuredProductIds = ['rodaballo', 'merluza_pintxo', 'besugo', 'lubina'];
+/* ── Daily selection shows whatever the fishmonger marks as        ── */
+/* ── "Destacado" in the admin panel (shared with the home carousel). ── */
+const MAX_DAILY = 4;
 
 /* ── Hero section ── */
 function HeroSection() {
@@ -127,13 +128,18 @@ function BusinessCards() {
 
 /* ── Daily selection section ── */
 function DailySelection() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  const { productos } = useProductos();
 
-  const featuredProducts: ProductoItem[] = featuredProductIds
-    .map((id) => todosLosProductos.find((p) => p.id === id))
-    .filter((p): p is ProductoItem => p !== undefined);
+  const featuredProducts = useMemo(() => {
+    const destacados = productos.filter((p) => p.destacado && p.disponible);
+    const source = destacados.length > 0 ? destacados : productos.filter((p) => p.disponible);
+    return source.slice(0, MAX_DAILY);
+  }, [productos]);
+
+  if (featuredProducts.length === 0) return null;
 
   return (
     <section className="bg-background-100/50">
@@ -148,36 +154,44 @@ function DailySelection() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-10 md:mb-12">
-          {featuredProducts.map((product, idx) => (
-            <button
-              key={product.id}
-              type="button"
-              onClick={() => navigate('/productos')}
-              className={`group bg-background-50 rounded-lg border border-background-200/70 overflow-hidden text-left cursor-pointer transition-all duration-500 ease-out hover:-translate-y-1 hover:border-background-300/80 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
-              style={{ transitionDelay: `${idx * 100}ms` }}
-            >
-              <div className="relative aspect-[4/3] overflow-hidden bg-background-100">
-                <img
-                  src={product.image}
-                  alt={t(product.nameKey)}
-                  className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03]"
-                  loading="lazy"
-                />
-              </div>
-              <div className="p-4 md:p-5">
-                <h3 className="font-heading text-sm md:text-base font-semibold text-foreground-950 mb-1">
-                  {t(product.nameKey)}
-                </h3>
-                <p className="text-xs text-foreground-400 mb-2">
-                  <span className="inline-flex items-center gap-1">
-                    <i className="ri-map-pin-line text-[10px]"></i>
-                    {t(product.originKey)}
-                  </span>
-                </p>
-                <span className="text-sm md:text-base font-semibold text-foreground-950">{product.price}</span>
-              </div>
-            </button>
-          ))}
+          {featuredProducts.map((producto, idx) => {
+            const nombre = pickLang(producto, 'nombre', i18n.language);
+            const origen = pickLang(producto, 'origen', i18n.language);
+            return (
+              <button
+                key={producto.id}
+                type="button"
+                onClick={() => navigate('/productos')}
+                className={`group bg-background-50 rounded-lg border border-background-200/70 overflow-hidden text-left cursor-pointer transition-all duration-500 ease-out hover:-translate-y-1 hover:border-background-300/80 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+                style={{ transitionDelay: `${idx * 100}ms` }}
+              >
+                <div className="relative aspect-[4/3] overflow-hidden bg-background-100">
+                  {producto.imagen_url && (
+                    <img
+                      src={producto.imagen_url}
+                      alt={nombre}
+                      className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                      loading="lazy"
+                    />
+                  )}
+                </div>
+                <div className="p-4 md:p-5">
+                  <h3 className="font-heading text-sm md:text-base font-semibold text-foreground-950 mb-1">
+                    {nombre}
+                  </h3>
+                  {origen && (
+                    <p className="text-xs text-foreground-400 mb-2">
+                      <span className="inline-flex items-center gap-1">
+                        <i className="ri-map-pin-line text-[10px]"></i>
+                        {origen}
+                      </span>
+                    </p>
+                  )}
+                  <span className="text-sm md:text-base font-semibold text-foreground-950">{producto.precio}</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         <div className="text-center">

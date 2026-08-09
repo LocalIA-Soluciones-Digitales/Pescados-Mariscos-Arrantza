@@ -46,6 +46,7 @@ type FormState = {
   subcategoria: string;
   estado: ProductoEstado;
   disponible: boolean;
+  destacado: boolean;
   imagen_url: string;
 };
 
@@ -54,7 +55,7 @@ function toFormState(p: Producto | null): FormState {
     return {
       nombre_es: '', nombre_eu: '', descripcion_es: '', descripcion_eu: '',
       origen_es: '', origen_eu: '', precio: '', categoria: 'pescado', subcategoria: '',
-      estado: 'available', disponible: true, imagen_url: '',
+      estado: 'available', disponible: true, destacado: false, imagen_url: '',
     };
   }
   return {
@@ -62,7 +63,7 @@ function toFormState(p: Producto | null): FormState {
     descripcion_es: p.descripcion_es ?? '', descripcion_eu: p.descripcion_eu ?? '',
     origen_es: p.origen_es ?? '', origen_eu: p.origen_eu ?? '',
     precio: p.precio, categoria: p.categoria, subcategoria: p.subcategoria ?? '',
-    estado: p.estado, disponible: p.disponible, imagen_url: p.imagen_url ?? '',
+    estado: p.estado, disponible: p.disponible, destacado: p.destacado, imagen_url: p.imagen_url ?? '',
   };
 }
 
@@ -161,6 +162,7 @@ export default function ProductoFormModal({
       subcategoria: form.subcategoria || null,
       estado: form.estado,
       disponible: form.disponible,
+      destacado: form.destacado,
       imagen_url: form.imagen_url || null,
     };
 
@@ -309,9 +311,15 @@ export default function ProductoFormModal({
         </div>
 
         {/* Disponible toggle */}
-        <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
+        <label className="flex items-center gap-2 mb-3 cursor-pointer select-none">
           <input type="checkbox" checked={form.disponible} onChange={(e) => update('disponible', e.target.checked)} className="w-4 h-4" />
           <span className="text-sm text-foreground-700">Disponible (desmarca para poner "Agotado")</span>
+        </label>
+
+        {/* Destacado toggle */}
+        <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
+          <input type="checkbox" checked={form.destacado} onChange={(e) => update('destacado', e.target.checked)} className="w-4 h-4" />
+          <span className="text-sm text-foreground-700">Destacado (aparece en la "Selección del día" de portada y profesionales)</span>
         </label>
 
         {error && <p className="text-xs text-red-600 mb-3">{error}</p>}

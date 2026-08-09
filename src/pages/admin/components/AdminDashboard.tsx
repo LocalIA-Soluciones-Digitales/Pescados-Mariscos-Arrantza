@@ -62,6 +62,18 @@ function ProductoCard({
     onPatch({ disponible });
   };
 
+  const toggleDestacado = async () => {
+    setBusy(true);
+    const destacado = !producto.destacado;
+    const { error } = await supabase.from('productos').update({ destacado }).eq('id', producto.id);
+    setBusy(false);
+    if (error) {
+      alert('No se pudo actualizar el destacado: ' + error.message);
+      return;
+    }
+    onPatch({ destacado });
+  };
+
   const cambiarEstado = async (estado: ProductoEstado) => {
     setBusy(true);
     const { error } = await supabase.from('productos').update({ estado }).eq('id', producto.id);
@@ -87,10 +99,21 @@ function ProductoCard({
 
   return (
     <div className={`bg-background-50 border border-background-200/70 rounded-lg overflow-hidden ${busy ? 'opacity-60' : ''}`}>
-      <div className="aspect-[5/4] bg-background-100">
+      <div className="relative aspect-[5/4] bg-background-100">
         {producto.imagen_url && (
           <img src={producto.imagen_url} alt={producto.nombre_es} className={`w-full h-full object-cover ${!producto.disponible ? 'grayscale opacity-60' : ''}`} />
         )}
+        <button
+          type="button"
+          onClick={toggleDestacado}
+          disabled={busy}
+          title={producto.destacado ? 'Quitar de la selección del día' : 'Añadir a la selección del día'}
+          className={`absolute top-1.5 right-1.5 w-7 h-7 flex items-center justify-center rounded-full text-sm shadow-sm transition-colors ${
+            producto.destacado ? 'bg-amber-400 text-white' : 'bg-white/85 text-foreground-400 hover:text-amber-500'
+          }`}
+        >
+          <i className={producto.destacado ? 'ri-star-fill' : 'ri-star-line'}></i>
+        </button>
       </div>
       <div className="p-3">
         <p className="text-sm font-semibold text-foreground-950 truncate mb-0.5">{producto.nombre_es}</p>
@@ -159,6 +182,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
   const [soloAgotados, setSoloAgotados] = useState(false);
+  const [soloDestacados, setSoloDestacados] = useState(false);
   const [tab, setTab] = useState<Tab>('productos');
   const tabsScroll = useHorizontalWheelScroll<HTMLDivElement>();
   const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
@@ -180,6 +204,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
   const resenasPendientes = useMemo(() => resenas.filter((r) => r.estado === 'pendiente').length, [resenas]);
 
   const agotadosCount = useMemo(() => productos.filter((p) => !p.disponible).length, [productos]);
+  const destacadosCount = useMemo(() => productos.filter((p) => p.destacado).length, [productos]);
   const stockBajoCount = useMemo(() => productos.filter((p) => p.stock_kg <= p.stock_minimo).length, [productos]);
 
   const categoriaCounts = useMemo(() => {
@@ -205,6 +230,9 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
     if (soloAgotados) {
       result = result.filter((p) => !p.disponible);
     }
+    if (soloDestacados) {
+      result = result.filter((p) => p.destacado);
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter((p) => p.nombre_es.toLowerCase().includes(q) || p.nombre_eu?.toLowerCase().includes(q));
@@ -213,7 +241,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
     // Alfabético — no depende de disponible/estado/stock, así que el
     // producto nunca "salta" de sitio al marcarlo agotado.
     return [...result].sort((a, b) => a.nombre_es.localeCompare(b.nombre_es, 'es'));
-  }, [productos, categoria, soloAgotados, search]);
+  }, [productos, categoria, soloAgotados, soloDestacados, search]);
 
   const tabsNav = (
     <div ref={tabsScroll.ref} onWheel={tabsScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
@@ -287,6 +315,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
               onClick={() => {
                 setCategoria(c.value);
                 setSoloAgotados(false);
+                setSoloDestacados(false);
               }}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
                 categoria === c.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
@@ -307,6 +336,7 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
             type="button"
             onClick={() => {
               setSoloAgotados((v) => !v);
+              setSoloDestacados(false);
               setCategoria('todos');
             }}
             className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors flex items-center gap-1 ${
@@ -317,6 +347,26 @@ export default function AdminDashboard({ onSignOut }: { onSignOut: () => void })
             {agotadosCount > 0 && (
               <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${soloAgotados ? 'bg-background-50/25' : 'bg-red-100 text-red-600'}`}>
                 {agotadosCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSoloDestacados((v) => !v);
+              setSoloAgotados(false);
+              setCategoria('todos');
+            }}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors flex items-center gap-1 ${
+              soloDestacados ? 'bg-amber-400 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+            }`}
+          >
+            <i className="ri-star-line"></i>
+            Selección del día
+            {destacadosCount > 0 && (
+              <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${soloDestacados ? 'bg-background-50/25' : 'bg-amber-100 text-amber-700'}`}>
+                {destacadosCount}
               </span>
             )}
           </button>

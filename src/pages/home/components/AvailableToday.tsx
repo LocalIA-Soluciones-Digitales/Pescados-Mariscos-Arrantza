@@ -1,100 +1,47 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
+import { useProductos } from '@/hooks/useProductos';
+import { pickLang } from '@/types/producto';
+import type { Producto, ProductoEstado } from '@/types/producto';
 
 /* ------------------------------------------------------------------ */
-/*  Data interface — designed so a non-technical owner can later       */
-/*  update this from Google Sheets or any simple backend without      */
-/*  touching the website code.                                        */
+/*  The carousel shows whatever the fishmonger marks as "Destacado"   */
+/*  in the admin panel (live from Supabase). If nothing is marked yet */
+/*  it falls back to the most recently added available products, so   */
+/*  the section never renders empty.                                  */
 /* ------------------------------------------------------------------ */
-
-type BadgeType = 'new' | 'available' | 'recommended' | 'seasonal';
-
-interface FeaturedProduct {
-  id: string;
-  nameKey: string;
-  image: string;
-  badgeKey: BadgeType;
-}
-
-const featuredProducts: FeaturedProduct[] = [
-  {
-    id: 'lubina',
-    nameKey: 'available.product1.name',
-    image: 'https://readdy.ai/api/search-image?query=Whole%20fresh%20wild%20sea%20bass%20displayed%20on%20crushed%20ice%20at%20a%20traditional%20fish%20market%20counter%2C%20soft%20natural%20morning%20light%20from%20window%2C%20silver%20scales%20glistening%20with%20water%20droplets%2C%20shallow%20depth%20of%20field%2C%20editorial%20seafood%20photography%2C%20clean%20white%20marble%20surface%2C%20premium%20culinary%20aesthetic%2C%20minimal%20composition%20with%20neutral%20grey%20background&width=900&height=720&seq=available-lubina-v2&orientation=landscape',
-    badgeKey: 'new',
-  },
-  {
-    id: 'merluza',
-    nameKey: 'available.product2.name',
-    image: 'https://readdy.ai/api/search-image?query=Whole%20fresh%20hake%20fish%20from%20Cantabrian%20sea%20displayed%20on%20clean%20white%20marble%20counter%20with%20crushed%20ice%2C%20soft%20diffused%20natural%20daylight%2C%20white%20flesh%20visible%20through%20clean%20cut%2C%20editorial%20food%20photography%2C%20simple%20elegant%20composition%2C%20neutral%20tones%2C%20premium%20fishmonger%20display&width=900&height=720&seq=available-merluza-v2&orientation=landscape',
-    badgeKey: 'recommended',
-  },
-  {
-    id: 'rodaballo',
-    nameKey: 'available.product3.name',
-    image: 'https://readdy.ai/api/search-image?query=Whole%20fresh%20turbot%20with%20distinctive%20spotted%20dark%20skin%20laid%20on%20a%20clean%20light%20marble%20surface%2C%20natural%20window%20light%20from%20the%20side%20casting%20soft%20shadows%2C%20editorial%20seafood%20photography%2C%20premium%20fishmonger%20presentation%2C%20simple%20elegant%20composition%2C%20neutral%20grey-white%20tones%2C%20high%20detail%20on%20fish%20texture&width=900&height=720&seq=available-rodaballo-v2&orientation=landscape',
-    badgeKey: 'seasonal',
-  },
-  {
-    id: 'bonito',
-    nameKey: 'available.product4.name',
-    image: 'https://readdy.ai/api/search-image?query=Fresh%20northern%20bonito%20tuna%20steaks%20with%20rich%20red%20flesh%20displayed%20on%20clean%20white%20surface%20at%20traditional%20market%2C%20natural%20daylight%2C%20clean%20precise%20cuts%2C%20editorial%20food%20photography%2C%20minimal%20styling%2C%20simple%20background%2C%20water%20droplets%20on%20surface%2C%20premium%20quality%20seafood&width=900&height=720&seq=available-bonito-v2&orientation=landscape',
-    badgeKey: 'new',
-  },
-  {
-    id: 'besugo',
-    nameKey: 'available.product5.name',
-    image: 'https://readdy.ai/api/search-image?query=Whole%20fresh%20sea%20bream%20with%20pinkish%20silver%20skin%20displayed%20on%20crushed%20ice%20at%20fishmonger%20counter%2C%20soft%20morning%20natural%20light%2C%20editorial%20food%20photography%2C%20subtle%20ice%20crystal%20reflections%2C%20clean%20neutral%20background%2C%20elegant%20minimal%20seafood%20presentation%2C%20high%20detail%20on%20fish%20scales%20and%20eye%20clarity&width=900&height=720&seq=available-besugo-v2&orientation=landscape',
-    badgeKey: 'available',
-  },
-  {
-    id: 'rape',
-    nameKey: 'available.product6.name',
-    image: 'https://readdy.ai/api/search-image?query=Fresh%20monkfish%20tail%20fillets%20with%20white%20firm%20flesh%20displayed%20on%20clean%20marble%20surface%2C%20soft%20natural%20daylight%2C%20editorial%20seafood%20photography%2C%20simple%20elegant%20composition%2C%20neutral%20grey-white%20background%2C%20professional%20culinary%20presentation%2C%20clean%20cuts%20showing%20meat%20texture&width=900&height=720&seq=available-rape-v2&orientation=landscape',
-    badgeKey: 'recommended',
-  },
-];
+const MAX_FEATURED = 6;
 
 /* ------------------------------------------------------------------ */
-/*  Badge style map — each type gets a subtle distinct accent         */
+/*  Badge style map — each estado gets a subtle distinct accent       */
 /* ------------------------------------------------------------------ */
-const badgeStyles: Record<BadgeType, { dot: string; text: string; bg: string }> = {
-  new: {
-    dot: 'bg-accent-500',
-    text: 'text-foreground-950',
-    bg: 'bg-white/90',
-  },
-  available: {
-    dot: 'bg-secondary-500',
-    text: 'text-foreground-950',
-    bg: 'bg-white/90',
-  },
-  recommended: {
-    dot: 'bg-primary-500',
-    text: 'text-foreground-950',
-    bg: 'bg-white/90',
-  },
-  seasonal: {
-    dot: 'bg-foreground-700',
-    text: 'text-foreground-950',
-    bg: 'bg-white/90',
-  },
+const badgeStyles: Record<ProductoEstado, { dot: string }> = {
+  new: { dot: 'bg-accent-500' },
+  available: { dot: 'bg-secondary-500' },
+  premium: { dot: 'bg-primary-500' },
+  seasonal: { dot: 'bg-foreground-700' },
+};
+
+const badgeLabelKeys: Record<ProductoEstado, string> = {
+  available: 'products.badge_available',
+  seasonal: 'products.badge_seasonal',
+  premium: 'products.badge_premium',
+  new: 'products.badge_new',
 };
 
 /* ------------------------------------------------------------------ */
 /*  Carousel card component                                           */
 /* ------------------------------------------------------------------ */
 function ProductCard({
-  product,
+  producto,
   didDragRef,
 }: {
-  product: FeaturedProduct;
+  producto: Producto;
   didDragRef: React.RefObject<boolean>;
 }) {
-  const { t } = useTranslation();
-  const badgeKey = `available.badge.${product.badgeKey}`;
+  const { t, i18n } = useTranslation();
 
   const handleClick = (e: React.MouseEvent) => {
     if (didDragRef.current) {
@@ -102,7 +49,7 @@ function ProductCard({
     }
   };
 
-  const productName = t(product.nameKey);
+  const productName = pickLang(producto, 'nombre', i18n.language);
 
   return (
     <Link
@@ -112,18 +59,28 @@ function ProductCard({
     >
       {/* Image container */}
       <div className="relative aspect-[4/5] overflow-hidden bg-background-100">
-        <img
-          src={product.image}
-          alt={productName}
-          className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
-          draggable={false}
-        />
+        {producto.imagen_url && (
+          <img
+            src={producto.imagen_url}
+            alt={productName}
+            className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
+            draggable={false}
+          />
+        )}
+
+        {/* Bottom gradient + always-visible CTA */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent flex items-end justify-center pb-4">
+          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/90 text-foreground-950 text-sm font-medium whitespace-nowrap shadow-sm transition-transform duration-400 ease-out group-hover:-translate-y-1">
+            {t('available.hover_cta')}
+            <i className="ri-arrow-right-line text-base"></i>
+          </span>
+        </div>
 
         {/* Premium badge */}
         <div className="absolute top-3 left-3">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 backdrop-blur-sm text-[11px] font-medium text-foreground-950 whitespace-nowrap shadow-sm">
-            <span className={`w-1.5 h-1.5 rounded-full ${badgeStyles[product.badgeKey].dot}`}></span>
-            {t(badgeKey)}
+            <span className={`w-1.5 h-1.5 rounded-full ${badgeStyles[producto.estado].dot}`}></span>
+            {t(badgeLabelKeys[producto.estado])}
           </span>
         </div>
       </div>
@@ -144,6 +101,13 @@ function ProductCard({
 export default function AvailableToday() {
   const { t } = useTranslation();
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.05, rootMargin: '0px 0px -80px 0px' });
+  const { productos, loading } = useProductos();
+
+  const featuredProducts = useMemo(() => {
+    const destacados = productos.filter((p) => p.destacado && p.disponible);
+    const source = destacados.length > 0 ? destacados : productos.filter((p) => p.disponible);
+    return source.slice(0, MAX_FEATURED);
+  }, [productos]);
 
   /* ---- Carousel state ---- */
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -168,7 +132,7 @@ export default function AvailableToday() {
     checkScrollLimits();
     el.addEventListener('scroll', checkScrollLimits, { passive: true });
     return () => el.removeEventListener('scroll', checkScrollLimits);
-  }, [checkScrollLimits]);
+  }, [checkScrollLimits, featuredProducts.length]);
 
   /* ---- Scroll by one card ---- */
   const scrollBy = useCallback((direction: 'left' | 'right') => {
@@ -214,6 +178,8 @@ export default function AvailableToday() {
     el.style.scrollBehavior = '';
   }, []);
 
+  if (!loading && featuredProducts.length === 0) return null;
+
   return (
     <section id="available" className="relative bg-background-50 overflow-hidden">
       <div ref={ref} className="container-wide section-padding">
@@ -256,9 +222,9 @@ export default function AvailableToday() {
             onScroll={checkScrollLimits}
             className="flex gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory px-2 -mx-2 py-2"
           >
-            {featuredProducts.map((product) => (
-              <div key={product.id} className="snap-start">
-                <ProductCard product={product} didDragRef={didDragRef} />
+            {featuredProducts.map((producto) => (
+              <div key={producto.id} className="snap-start">
+                <ProductCard producto={producto} didDragRef={didDragRef} />
               </div>
             ))}
           </div>
