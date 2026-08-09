@@ -141,6 +141,10 @@ export default function ProductoFormModal({
     setUploading(false);
   };
 
+  const handleImageRemove = () => {
+    update('imagen_url', '');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nombre_es.trim() || !form.precio.trim()) {
@@ -180,151 +184,187 @@ export default function ProductoFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground-950/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-foreground-950/40 sm:p-4" onClick={onClose}>
       <form
         onSubmit={handleSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[560px] max-h-[90vh] overflow-y-auto bg-background-50 rounded-lg border border-background-200/70 shadow-2xl p-6"
+        className="flex flex-col w-full sm:max-w-[560px] max-h-[92vh] sm:max-h-[90vh] bg-background-50 rounded-t-2xl sm:rounded-lg border border-background-200/70 shadow-2xl"
       >
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-background-200/70 flex-shrink-0">
           <h2 className="text-base font-heading font-semibold text-foreground-950">
             {producto ? 'Editar producto' : 'Nuevo producto'}
           </h2>
-          <button type="button" onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-200/70">
-            <i className="ri-close-line"></i>
+          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-200/70">
+            <i className="ri-close-line text-lg"></i>
           </button>
         </div>
 
-        {/* Imagen */}
-        <div className="mb-4">
-          <label className="block text-xs font-medium text-foreground-500 mb-2">Foto</label>
-          <div className="flex items-center gap-3">
-            <div className="w-16 h-16 rounded-md overflow-hidden bg-background-100 border border-background-200/70 flex-shrink-0">
-              {form.imagen_url && <img src={form.imagen_url} alt="" className="w-full h-full object-cover" />}
-            </div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImageUpload(file);
-              }}
-              className="text-xs text-foreground-500"
-            />
-            {uploading && <span className="text-xs text-foreground-400">Subiendo…</span>}
-          </div>
-        </div>
-
-        {/* Nombre ES/EU */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Nombre (castellano) *</label>
-            <input value={form.nombre_es} onChange={(e) => update('nombre_es', e.target.value)} className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Izena (euskera)</label>
-            <input value={form.nombre_eu} onChange={(e) => update('nombre_eu', e.target.value)} className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm" />
-          </div>
-        </div>
-
-        {/* Descripcion ES/EU */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Descripción (castellano)</label>
-            <textarea value={form.descripcion_es} onChange={(e) => update('descripcion_es', e.target.value)} rows={2} className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Deskribapena (euskera)</label>
-            <textarea value={form.descripcion_eu} onChange={(e) => update('descripcion_eu', e.target.value)} rows={2} className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm" />
-          </div>
-        </div>
-
-        {/* Origen ES/EU */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Origen (castellano)</label>
-            <input value={form.origen_es} onChange={(e) => update('origen_es', e.target.value)} className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Jatorria (euskera)</label>
-            <input value={form.origen_eu} onChange={(e) => update('origen_eu', e.target.value)} className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm" />
-          </div>
-        </div>
-
-        {/* Precio + categoria + subcategoria */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Precio *</label>
-            <input value={form.precio} onChange={(e) => update('precio', e.target.value)} placeholder="Desde 10€/kg" className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Categoría</label>
-            <select value={form.categoria} onChange={(e) => update('categoria', e.target.value as ProductoCategoria)} className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm">
-              {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Familia (subcategoría)</label>
-            {addingFamilia ? (
-              <div className="flex gap-1">
-                <input
-                  autoFocus
-                  value={nuevaFamilia}
-                  onChange={(e) => setNuevaFamilia(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); confirmNuevaFamilia(); }
-                    if (e.key === 'Escape') { e.preventDefault(); setAddingFamilia(false); setNuevaFamilia(''); }
-                  }}
-                  placeholder="Nombre de la nueva familia"
-                  className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm"
-                />
-                <button type="button" onClick={confirmNuevaFamilia} className="px-2 rounded-lg bg-primary-500 text-background-50 text-xs">
-                  <i className="ri-check-line"></i>
-                </button>
-                <button type="button" onClick={() => { setAddingFamilia(false); setNuevaFamilia(''); }} className="px-2 rounded-lg bg-background-100 border border-background-200/70 text-xs">
-                  <i className="ri-close-line"></i>
-                </button>
+        <div className="overflow-y-auto px-5 sm:px-6 py-5">
+          {/* Imagen */}
+          <div className="mb-5">
+            <label className="block text-xs font-medium text-foreground-500 mb-2">Foto</label>
+            <div className="flex items-center gap-4">
+              <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-background-100 border border-background-200/70 flex-shrink-0">
+                {form.imagen_url ? (
+                  <>
+                    <img src={form.imagen_url} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={handleImageRemove}
+                      aria-label="Eliminar foto"
+                      className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded-full bg-foreground-950/70 text-background-50 hover:bg-red-600"
+                    >
+                      <i className="ri-delete-bin-line text-xs"></i>
+                    </button>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-foreground-300">
+                    <i className="ri-image-line text-2xl"></i>
+                  </div>
+                )}
               </div>
-            ) : (
-              <select
-                value={form.subcategoria}
-                onChange={(e) => {
-                  if (e.target.value === NUEVA_FAMILIA_VALUE) { setAddingFamilia(true); return; }
-                  update('subcategoria', e.target.value);
-                }}
-                className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm"
-              >
-                {subcategoriaOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                <option value={NUEVA_FAMILIA_VALUE}>+ Nueva familia…</option>
+              <div className="flex flex-col items-start gap-2">
+                <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-background-100 border border-background-200/70 text-xs font-medium text-foreground-600 cursor-pointer hover:bg-background-200/70">
+                  <i className="ri-upload-2-line"></i>
+                  {form.imagen_url ? 'Cambiar foto' : 'Seleccionar archivo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file);
+                      e.target.value = '';
+                    }}
+                    className="hidden"
+                  />
+                </label>
+                {form.imagen_url && (
+                  <button
+                    type="button"
+                    onClick={handleImageRemove}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+                  >
+                    <i className="ri-close-circle-line"></i>
+                    Eliminar foto
+                  </button>
+                )}
+                {uploading && <span className="text-xs text-foreground-400">Subiendo…</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* Nombre ES/EU */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-xs font-medium text-foreground-500 mb-1">Nombre (castellano) *</label>
+              <input value={form.nombre_es} onChange={(e) => update('nombre_es', e.target.value)} className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-500 mb-1">Izena (euskera)</label>
+              <input value={form.nombre_eu} onChange={(e) => update('nombre_eu', e.target.value)} className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm" />
+            </div>
+          </div>
+
+          {/* Descripcion ES/EU */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-xs font-medium text-foreground-500 mb-1">Descripción (castellano)</label>
+              <textarea value={form.descripcion_es} onChange={(e) => update('descripcion_es', e.target.value)} rows={2} className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-500 mb-1">Deskribapena (euskera)</label>
+              <textarea value={form.descripcion_eu} onChange={(e) => update('descripcion_eu', e.target.value)} rows={2} className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm" />
+            </div>
+          </div>
+
+          {/* Origen ES/EU */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-xs font-medium text-foreground-500 mb-1">Origen (castellano)</label>
+              <input value={form.origen_es} onChange={(e) => update('origen_es', e.target.value)} className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-500 mb-1">Jatorria (euskera)</label>
+              <input value={form.origen_eu} onChange={(e) => update('origen_eu', e.target.value)} className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm" />
+            </div>
+          </div>
+
+          {/* Precio + categoria */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-xs font-medium text-foreground-500 mb-1">Precio *</label>
+              <input value={form.precio} onChange={(e) => update('precio', e.target.value)} placeholder="Desde 10€/kg" className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-500 mb-1">Categoría</label>
+              <select value={form.categoria} onChange={(e) => update('categoria', e.target.value as ProductoCategoria)} className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm">
+                {CATEGORIAS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
-            )}
+            </div>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-foreground-500 mb-1">Etiqueta</label>
-            <select value={form.estado} onChange={(e) => update('estado', e.target.value as ProductoEstado)} className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm">
-              {ESTADOS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+
+          {/* Familia + etiqueta */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="block text-xs font-medium text-foreground-500 mb-1">Familia (subcategoría)</label>
+              {addingFamilia ? (
+                <div className="flex gap-1">
+                  <input
+                    autoFocus
+                    value={nuevaFamilia}
+                    onChange={(e) => setNuevaFamilia(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); confirmNuevaFamilia(); }
+                      if (e.key === 'Escape') { e.preventDefault(); setAddingFamilia(false); setNuevaFamilia(''); }
+                    }}
+                    placeholder="Nombre de la nueva familia"
+                    className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm"
+                  />
+                  <button type="button" onClick={confirmNuevaFamilia} className="px-2 rounded-lg bg-primary-500 text-background-50 text-xs">
+                    <i className="ri-check-line"></i>
+                  </button>
+                  <button type="button" onClick={() => { setAddingFamilia(false); setNuevaFamilia(''); }} className="px-2 rounded-lg bg-background-100 border border-background-200/70 text-xs">
+                    <i className="ri-close-line"></i>
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={form.subcategoria}
+                  onChange={(e) => {
+                    if (e.target.value === NUEVA_FAMILIA_VALUE) { setAddingFamilia(true); return; }
+                    update('subcategoria', e.target.value);
+                  }}
+                  className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm"
+                >
+                  {subcategoriaOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  <option value={NUEVA_FAMILIA_VALUE}>+ Nueva familia…</option>
+                </select>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground-500 mb-1">Etiqueta</label>
+              <select value={form.estado} onChange={(e) => update('estado', e.target.value as ProductoEstado)} className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm">
+                {ESTADOS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
           </div>
+
+          {/* Disponible toggle */}
+          <label className="flex items-center gap-2 mb-3 cursor-pointer select-none">
+            <input type="checkbox" checked={form.disponible} onChange={(e) => update('disponible', e.target.checked)} className="w-4 h-4" />
+            <span className="text-sm text-foreground-700">Disponible (desmarca para poner "Agotado")</span>
+          </label>
+
+          {/* Destacado toggle */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={form.destacado} onChange={(e) => update('destacado', e.target.checked)} className="w-4 h-4" />
+            <span className="text-sm text-foreground-700">Destacado (aparece en la "Selección del día" de portada y profesionales)</span>
+          </label>
+
+          {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
         </div>
 
-        {/* Disponible toggle */}
-        <label className="flex items-center gap-2 mb-3 cursor-pointer select-none">
-          <input type="checkbox" checked={form.disponible} onChange={(e) => update('disponible', e.target.checked)} className="w-4 h-4" />
-          <span className="text-sm text-foreground-700">Disponible (desmarca para poner "Agotado")</span>
-        </label>
-
-        {/* Destacado toggle */}
-        <label className="flex items-center gap-2 mb-5 cursor-pointer select-none">
-          <input type="checkbox" checked={form.destacado} onChange={(e) => update('destacado', e.target.checked)} className="w-4 h-4" />
-          <span className="text-sm text-foreground-700">Destacado (aparece en la "Selección del día" de portada y profesionales)</span>
-        </label>
-
-        {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
-
-        <div className="flex gap-2">
+        <div className="flex gap-2 px-5 sm:px-6 py-4 border-t border-background-200/70 flex-shrink-0">
           <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70">
             Cancelar
           </button>
