@@ -918,18 +918,6 @@ export default function CartDrawer({
                     <i className="ri-arrow-left-line"></i>
                     {t('products.continue_shopping')}
                   </Link>
-                  {hasLastOrder && (
-                    <button
-                      type="button"
-                      onClick={() => setPendingOrderId(orderHistory[0].id)}
-                      className="mt-3 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium bg-background-100 text-foreground-600 border border-background-200/70 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
-                    >
-                      <span className="w-4 h-4 flex items-center justify-center">
-                        <i className="ri-refresh-line text-sm"></i>
-                      </span>
-                      {t('cart.buy_again')}
-                    </button>
-                  )}
                 </div>
               ) : (
                 <div className="px-5">
