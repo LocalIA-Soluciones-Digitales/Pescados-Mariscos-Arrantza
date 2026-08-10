@@ -486,7 +486,7 @@ function CartLineItem({
         </div>
 
         {/* Preparation selector */}
-        <div className="flex items-center gap-1 mb-2 pr-8">
+        <div className="flex items-center gap-1 mb-2 pr-4">
           <span className="text-[10px] uppercase tracking-wider text-foreground-400 mr-1.5">
             {t('cart.preparation_label')}
           </span>
@@ -519,7 +519,7 @@ function CartLineItem({
         </div>
 
         {/* Per-item note */}
-        <div className="flex items-center gap-1 mb-2 pr-8">
+        <div className="flex items-center gap-1 mb-2 pr-4">
           <div className="relative flex items-center gap-1 mr-1.5 flex-shrink-0">
             <span className="text-[10px] uppercase tracking-wider text-foreground-400">
               {t('cart.item_note_label')}
@@ -550,7 +550,7 @@ function CartLineItem({
         </div>
 
         {/* Estimated subtotal */}
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end pr-4">
           <span className="text-xs text-foreground-400 mr-2">{t('cart.estimated_subtotal')}</span>
           <span className="text-sm font-semibold text-foreground-950 whitespace-nowrap overflow-hidden">
             <RollingNumber value={formatPrice(subtotal)} />
