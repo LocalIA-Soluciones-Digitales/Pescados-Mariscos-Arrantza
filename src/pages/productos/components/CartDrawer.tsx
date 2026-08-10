@@ -532,7 +532,7 @@ function CartLineItem({
               </span>
             </span>
           </div>
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <input
               type="text"
               value={cartItem.note || ''}
