@@ -1158,7 +1158,7 @@ function RestaurantSupplySection() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 md:gap-16 lg:gap-20 items-center max-w-[1200px] mx-auto">
           <div className={`rounded-lg overflow-hidden border border-background-200/70 aspect-[4/3] transition-all duration-800 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <img
-              src="https://readdy.ai/api/search-image?query=Professional%20chef%20in%20white%20uniform%20inspecting%20fresh%20whole%20fish%20at%20a%20traditional%20fish%20market%20counter%20early%20morning%2C%20natural%20daylight%20from%20window%2C%20editorial%20documentary%20photography%2C%20candid%20moment%2C%20shallow%20depth%20of%20field%2C%20warm%20tones%2C%20premium%20culinary%20aesthetic%2C%20fishmonger%20working%20in%20background%2C%20clean%20marble%20surface%20with%20ice&width=1200&height=900&seq=cat-restaurant-supply-01&orientation=landscape"
+              src="https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/cat-restaurant-supply-01.jpg"
               alt={t('products.restaurant.section_title')}
               className="w-full h-full object-cover"
             />

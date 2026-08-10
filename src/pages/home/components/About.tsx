@@ -23,7 +23,7 @@ export default function About() {
             {/* Main image */}
             <div className="absolute inset-0 lg:inset-4 xl:inset-8">
               <img
-                src="https://readdy.ai/api/search-image?query=Fishmonger%20hands%20carefully%20arranging%20fresh%20whole%20fish%20on%20crushed%20ice%20at%20a%20traditional%20Spanish%20fish%20market%20counter%2C%20soft%20natural%20window%20light%20streaming%20from%20left%2C%20close-up%20editorial%20photography%2C%20weathered%20wooden%20surface%2C%20muted%20teal%20and%20warm%20cream%20tones%2C%20authentic%20artisan%20craftsmanship%2C%20shallow%20depth%20of%20field%2C%20cinematic%20mood%2C%20fine%20art%20food%20photography&width=800&height=1000&seq=arrantza-story-02&orientation=portrait"
+                src="https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/arrantza-story-02.jpg"
                 alt="Manos de pescadero seleccionando pescado fresco en el mostrador"
                 className="w-full h-full object-cover object-top"
               />

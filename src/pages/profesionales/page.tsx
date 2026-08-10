@@ -26,7 +26,7 @@ function HeroSection() {
       {/* Background image */}
       <div className="absolute inset-0">
         <img
-          src="https://readdy.ai/api/search-image?query=Freshly%20caught%20whole%20fish%20arranged%20on%20crushed%20ice%20at%20traditional%20Basque%20fish%20market%20counter%2C%20early%20morning%20natural%20light%20streaming%20through%20window%2C%20glistening%20silver%20scales%20with%20water%20droplets%2C%20editorial%20documentary%20seafood%20photography%2C%20professional%20fishmonger%20display%2C%20shallow%20depth%20of%20field%20focusing%20on%20pristine%20whole%20sea%20bass%20and%20turbot%2C%20clean%20marble%20surface%2C%20warm%20soft%20tones%2C%20premium%20culinary%20aesthetic%2C%20minimal%20composition&width=1800&height=1200&seq=pro-hero-bg&orientation=landscape"
+          src="https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/pro-hero-bg.jpg"
           alt=""
           className="w-full h-full object-cover object-center"
         />

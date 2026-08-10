@@ -70,7 +70,7 @@ export default function Hero() {
         ref={bgRef}
         className="absolute inset-0 bg-cover bg-center md:will-change-transform"
         style={{
-          backgroundImage: `url('https://readdy.ai/api/search-image?query=Fresh%20whole%20fish%20and%20seafood%20displayed%20on%20a%20wet%20marble%20counter%20with%20crushed%20ice%20under%20soft%20morning%20natural%20light%2C%20editorial%20food%20photography%20with%20shallow%20depth%20of%20field%2C%20muted%20dark%20moody%20tones%2C%20professional%20culinary%20aesthetic%2C%20texture%20of%20fish%20scales%20and%20ice%20crystals%20in%20sharp%20focus&width=1800&height=1200&seq=arrantza-hero-01&orientation=landscape')`,
+          backgroundImage: `url('https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/arrantza-hero-01.jpg')`,
           transform: 'scale(1) translateY(0)',
         }}
       />

@@ -4,27 +4,27 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 
 const galleryImages = [
   {
-    src: 'https://readdy.ai/api/search-image?query=Fresh%20whole%20fish%20displayed%20on%20crushed%20ice%20at%20traditional%20fish%20market%20counter%2C%20morning%20natural%20light%20from%20window%2C%20editorial%20still%20life%20photography%2C%20muted%20cool%20tones%2C%20texture%20of%20fish%20scales%20and%20melting%20ice%2C%20authentic%20market%20atmosphere%2C%20shallow%20depth%20of%20field&width=800&height=600&seq=arrantza-gallery-01&orientation=landscape',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/arrantza-gallery-01.jpg',
     alt: 'Pescado fresco sobre hielo en el mostrador',
   },
   {
-    src: 'https://readdy.ai/api/search-image?query=Fishmonger%20hands%20skillfully%20filleting%20a%20large%20fish%20with%20a%20sharp%20knife%20on%20wooden%20cutting%20board%2C%20close-up%20editorial%20shot%2C%20warm%20overhead%20light%2C%20artisan%20craftsmanship%2C%20motion%20blur%20on%20hands%2C%20professional%20kitchen%20aesthetic&width=800&height=600&seq=arrantza-gallery-02&orientation=landscape',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/arrantza-gallery-02.jpg',
     alt: 'Manos de pescadero fileteando pescado',
   },
   {
-    src: 'https://readdy.ai/api/search-image?query=Beautiful%20arrangement%20of%20fresh%20seafood%20including%20lobster%20prawns%20and%20shellfish%20on%20marble%20surface%20with%20ice%2C%20overhead%20editorial%20food%20photography%2C%20soft%20natural%20lighting%2C%20luxury%20culinary%20aesthetic%2C%20cool%20blue%20and%20white%20tones&width=800&height=600&seq=arrantza-gallery-03&orientation=landscape',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/arrantza-gallery-03.jpg',
     alt: 'Marisco fresco sobre hielo',
   },
   {
-    src: 'https://readdy.ai/api/search-image?query=Traditional%20Basque%20fish%20market%20storefront%20with%20wooden%20signage%20and%20fresh%20fish%20visible%20through%20glass%2C%20morning%20street%20scene%20in%20coastal%20town%2C%20warm%20golden%20light%2C%20authentic%20local%20business%20atmosphere%2C%20architectural%20photography&width=800&height=600&seq=arrantza-gallery-04&orientation=landscape',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/arrantza-gallery-04.jpg',
     alt: 'Fachada de la pescadería Arrantza',
   },
   {
-    src: 'https://readdy.ai/api/search-image?query=Close-up%20of%20fresh%20anchovies%20glistening%20on%20bed%20of%20crushed%20ice%20with%20sea%20salt%20crystals%2C%20editorial%20macro%20photography%2C%20silver%20blue%20fish%20texture%2C%20soft%20diffused%20lighting%2C%20minimalist%20composition%2C%20high%20contrast%20detail&width=800&height=600&seq=arrantza-gallery-05&orientation=landscape',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/arrantza-gallery-05.jpg',
     alt: 'Anchoas frescas del Cantábrico',
   },
   {
-    src: 'https://readdy.ai/api/search-image?query=Friendly%20experienced%20fishmonger%20smiling%20behind%20counter%20of%20traditional%20fish%20market%2C%20surrounded%20by%20fresh%20seafood%20display%2C%20warm%20interior%20lighting%2C%20authentic%20portrait%20photography%2C%20family%20business%20atmosphere%2C%20natural%20expression&width=800&height=600&seq=arrantza-gallery-06&orientation=landscape',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/arrantza-gallery-06.jpg',
     alt: 'Pescadero de Arrantza en el mostrador',
   },
 ];
