@@ -196,31 +196,59 @@ export function useCart() {
   // Recupera el historial real desde Supabase (por device_id, sin login) para
   // que sobreviva más allá del array local de MAX_ORDER_HISTORY entradas. Si
   // falla (sin red, RPC aún no desplegada) se mantiene el historial local.
+  const syncOrderHistoryFromServer = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_pedidos_by_device', {
+        p_device_id: getDeviceId(),
+      });
+      if (error || !data) return;
+      const fromServer = (data as Pedido[])
+        .map(mapPedidoToHistoryEntry)
+        .filter((o) => o.items.length > 0)
+        .slice(0, MAX_ORDER_HISTORY);
+      if (fromServer.length > 0) {
+        setOrderHistory(fromServer);
+        saveOrderHistoryToStorage(fromServer);
+      }
+    } catch {
+      // sin red o RPC no disponible: nos quedamos con el historial local
+    }
+  }, []);
+
   useEffect(() => {
     if (!isLoaded) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data, error } = await supabase.rpc('get_pedidos_by_device', {
-          p_device_id: getDeviceId(),
-        });
-        if (error || cancelled || !data) return;
-        const fromServer = (data as Pedido[])
-          .map(mapPedidoToHistoryEntry)
-          .filter((o) => o.items.length > 0)
-          .slice(0, MAX_ORDER_HISTORY);
-        if (fromServer.length > 0) {
-          setOrderHistory(fromServer);
-          saveOrderHistoryToStorage(fromServer);
-        }
-      } catch {
-        // sin red o RPC no disponible: nos quedamos con el historial local
-      }
-    })();
-    return () => {
-      cancelled = true;
+    void syncOrderHistoryFromServer();
+  }, [isLoaded, syncOrderHistoryFromServer]);
+
+  // Si esta pestaña llevaba un rato abierta (o Safari la restauró desde su
+  // caché de pestañas, bfcache) puede haberse quedado con el historial
+  // congelado en memoria desde antes de hacer un pedido en otra pestaña.
+  // Al volver a primer plano, releemos localStorage y refrescamos desde el
+  // servidor. El evento "storage" además sincroniza en vivo entre pestañas
+  // del mismo navegador abiertas a la vez.
+  useEffect(() => {
+    const resync = () => {
+      setOrderHistory(readOrderHistory());
+      void syncOrderHistoryFromServer();
     };
-  }, [isLoaded]);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') resync();
+    };
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) resync();
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === ORDER_HISTORY_KEY) setOrderHistory(readOrderHistory());
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [syncOrderHistoryFromServer]);
 
   // Persist to localStorage whenever state changes
   useEffect(() => {
