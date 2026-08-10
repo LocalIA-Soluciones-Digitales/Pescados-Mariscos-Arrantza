@@ -143,7 +143,7 @@ function ProductoCard({
             value={producto.estado}
             onChange={(e) => cambiarEstado(e.target.value as ProductoEstado)}
             disabled={busy}
-            className="w-full appearance-none bg-background-100 border border-background-200/70 rounded-full pl-3 pr-8 py-1.5 text-xs font-medium text-foreground-700 cursor-pointer hover:bg-background-200/70 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-200"
+            className="w-full appearance-none bg-background-100 border border-background-200/70 rounded-full px-8 py-1.5 !text-[11px] font-medium text-foreground-700 text-center cursor-pointer hover:bg-background-200/70 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-200"
           >
             {(Object.keys(ESTADO_LABELS) as ProductoEstado[]).map((estado) => (
               <option key={estado} value={estado}>
