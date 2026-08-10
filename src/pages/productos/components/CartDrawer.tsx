@@ -1872,7 +1872,7 @@ export default function CartDrawer({
         {/* === ORDER CONFIRMED POPUP === */}
         {orderConfirmed && (
           <div
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background-50/95 backdrop-blur-sm px-6 text-center"
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background-50 px-6 text-center"
             role="dialog"
             aria-modal="true"
             aria-label={t('cart.confirmation_title')}

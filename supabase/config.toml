@@ -1,2 +1,5 @@
 [functions.stock-alert]
 verify_jwt = false
+
+[functions.pedido-estado]
+verify_jwt = false
