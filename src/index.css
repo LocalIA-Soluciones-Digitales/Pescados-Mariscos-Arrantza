@@ -47,10 +47,15 @@
      which misaligns it against the left-padded text in every other field.
      ::-webkit-date-and-time-value alone doesn't override this on iOS —
      appearance: none is also needed to drop the native centered layout. */
+  /* appearance: none drops the reserved height iOS gives an empty date
+     field's placeholder segments, so it collapses thinner than sibling
+     inputs sharing the same px-3.5 py-2.5 text-sm classes — pin it back
+     to match: 1.25rem line-height + 2 * 0.625rem padding + 2px border. */
   input[type="date"] {
     -webkit-appearance: none;
     appearance: none;
     text-align: left;
+    min-height: calc(1.25rem + 2 * 0.625rem + 2px);
   }
   input[type="date"]::-webkit-date-and-time-value {
     text-align: left;
