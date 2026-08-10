@@ -10,6 +10,7 @@ import TurnstileWidget from '@/components/feature/TurnstileWidget';
 import { isTurnstileEnabled } from '@/config/turnstile';
 import { logConversion } from '@/lib/visitLog';
 import { logPedido } from '@/lib/pedidosLog';
+import { getDeviceId } from '@/lib/deviceId';
 
 /* ------------------------------------------------------------------ */
 /*  Badge style — same muted palette as catalogue                     */
@@ -806,6 +807,7 @@ export default function CartDrawer({
       fechaPreferida: customer.preferredDate,
       horaPreferida: customer.preferredTime,
       notas: customer.notes,
+      deviceId: getDeviceId(),
     });
 
     window.open(whatsappUrl, '_blank');

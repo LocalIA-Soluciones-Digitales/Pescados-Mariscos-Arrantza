@@ -28,5 +28,6 @@ export interface Pedido {
   hora_preferida: string | null;
   notas: string | null;
   estado: PedidoEstado;
+  device_id: string | null;
   created_at: string;
 }

@@ -17,6 +17,7 @@ export interface NewPedidoInput {
   fechaPreferida: string;
   horaPreferida: string;
   notas: string;
+  deviceId: string;
 }
 
 // Persiste el detalle del pedido antes de abrir WhatsApp. Nunca debe
@@ -40,6 +41,7 @@ export async function logPedido(input: NewPedidoInput): Promise<void> {
       fecha_preferida: input.fechaPreferida || null,
       hora_preferida: input.horaPreferida || null,
       notas: input.notas || null,
+      device_id: input.deviceId,
     });
   } catch {
     // El registro de pedidos nunca debe bloquear el envío por WhatsApp.

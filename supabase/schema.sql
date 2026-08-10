@@ -581,4 +581,34 @@ create index if not exists idx_newsletter_subscribers_created_at on public.newsl
 
 alter table public.productos add column if not exists destacado boolean not null default false;
 
+-- ============================================================
+-- Historial de pedidos por dispositivo, sin login. device_id es
+-- un UUID aleatorio generado en el navegador (localStorage) que
+-- viaja con cada pedido; al ser impredecible funciona como un
+-- token de acceso. get_pedidos_by_device es security definer para
+-- poder filtrar sin darle a "anon" un select abierto sobre toda la
+-- tabla (que solo tiene policy de select para "authenticated").
+-- ============================================================
+
+alter table public.pedidos add column if not exists device_id uuid;
+
+create index if not exists idx_pedidos_device_id on public.pedidos (device_id);
+
+create or replace function public.get_pedidos_by_device(p_device_id uuid)
+returns setof public.pedidos
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select *
+  from public.pedidos
+  where device_id = p_device_id
+  order by created_at desc
+  limit 20;
+$$;
+
+revoke all on function public.get_pedidos_by_device(uuid) from public;
+grant execute on function public.get_pedidos_by_device(uuid) to anon, authenticated;
+
 create index if not exists idx_productos_destacado on public.productos (destacado);

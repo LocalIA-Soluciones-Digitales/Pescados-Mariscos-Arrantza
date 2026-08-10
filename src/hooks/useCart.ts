@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { getDeviceId } from '@/lib/deviceId';
+import type { Pedido } from '@/types/pedido';
 
 export interface CartItem {
   productId: string;
@@ -160,6 +163,22 @@ function loadInitialOrderHistory(): OrderHistoryEntry[] {
   return [{ id: 'legacy', date: new Date().toISOString(), items: legacy.items, deliveryMethod: legacy.deliveryMethod }];
 }
 
+function mapPedidoToHistoryEntry(pedido: Pedido): OrderHistoryEntry {
+  return {
+    id: pedido.id,
+    date: pedido.created_at,
+    deliveryMethod: pedido.metodo_entrega,
+    items: sanitizeOrderItems(
+      (pedido.items ?? []).map((i) => ({
+        productId: i.productoId,
+        kg: i.kg,
+        preparation: i.preparacion,
+        note: i.nota,
+      })),
+    ),
+  };
+}
+
 export function useCart() {
   const [items, setItems] = useState<CartItem[]>(() => loadCart().items);
   const [customer, setCustomer] = useState<CartCustomerInfo>(() => loadCart().customer);
@@ -173,6 +192,35 @@ export function useCart() {
   useEffect(() => {
     setIsLoaded(true);
   }, []);
+
+  // Recupera el historial real desde Supabase (por device_id, sin login) para
+  // que sobreviva más allá del array local de MAX_ORDER_HISTORY entradas. Si
+  // falla (sin red, RPC aún no desplegada) se mantiene el historial local.
+  useEffect(() => {
+    if (!isLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_pedidos_by_device', {
+          p_device_id: getDeviceId(),
+        });
+        if (error || cancelled || !data) return;
+        const fromServer = (data as Pedido[])
+          .map(mapPedidoToHistoryEntry)
+          .filter((o) => o.items.length > 0)
+          .slice(0, MAX_ORDER_HISTORY);
+        if (fromServer.length > 0) {
+          setOrderHistory(fromServer);
+          saveOrderHistoryToStorage(fromServer);
+        }
+      } catch {
+        // sin red o RPC no disponible: nos quedamos con el historial local
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded]);
 
   // Persist to localStorage whenever state changes
   useEffect(() => {
