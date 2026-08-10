@@ -9,6 +9,7 @@ import StockPanel from './StockPanel';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
+import ViewSwitcher from './ViewSwitcher';
 
 type Tab = 'productos' | 'pedidos' | 'resenas' | 'stock';
 
@@ -282,24 +283,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
             <div className="hidden md:block">{tabsNav}</div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            {viewSwitch && (
-              <div className="relative flex-shrink-0">
-                <select
-                  value="gestion"
-                  onChange={(e) => {
-                    if (e.target.value !== 'gestion') viewSwitch.onClick();
-                  }}
-                  aria-label="Cambiar de panel"
-                  className="appearance-none bg-background-100 border border-background-200/70 rounded-full pl-3 pr-7 py-1.5 text-xs font-medium text-foreground-600 cursor-pointer hover:bg-background-200/70 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-colors"
-                >
-                  <option value="gestion">Panel de gestión</option>
-                  <option value="desarrollo">{viewSwitch.label}</option>
-                </select>
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 flex items-center justify-center text-foreground-400 pointer-events-none">
-                  <i className="ri-arrow-down-s-line text-xs"></i>
-                </span>
-              </div>
-            )}
+            {viewSwitch && <ViewSwitcher current="Panel de gestión" viewSwitch={viewSwitch} />}
             <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950">
               Cerrar sesión
             </button>
