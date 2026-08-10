@@ -55,13 +55,22 @@ export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOu
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             {viewSwitch && (
-              <button
-                type="button"
-                onClick={viewSwitch.onClick}
-                className="text-xs font-medium text-foreground-400 hover:text-foreground-700 transition-colors whitespace-nowrap"
-              >
-                {viewSwitch.label}
-              </button>
+              <div className="relative flex-shrink-0">
+                <select
+                  value="desarrollo"
+                  onChange={(e) => {
+                    if (e.target.value !== 'desarrollo') viewSwitch.onClick();
+                  }}
+                  aria-label="Cambiar de panel"
+                  className="appearance-none bg-background-100 border border-background-200/70 rounded-full pl-3 pr-7 py-1.5 text-xs font-medium text-foreground-600 cursor-pointer hover:bg-background-200/70 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-colors"
+                >
+                  <option value="desarrollo">Panel de desarrollo</option>
+                  <option value="gestion">{viewSwitch.label}</option>
+                </select>
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 flex items-center justify-center text-foreground-400 pointer-events-none">
+                  <i className="ri-arrow-down-s-line text-xs"></i>
+                </span>
+              </div>
             )}
             <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 whitespace-nowrap">
               Cerrar sesión
