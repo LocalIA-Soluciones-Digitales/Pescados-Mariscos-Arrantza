@@ -44,9 +44,17 @@
   }
 
   /* iOS Safari centers the closed value of input[type="date"] by default,
-     which misaligns it against the left-padded text in every other field. */
+     which misaligns it against the left-padded text in every other field.
+     ::-webkit-date-and-time-value alone doesn't override this on iOS —
+     appearance: none is also needed to drop the native centered layout. */
+  input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    text-align: left;
+  }
   input[type="date"]::-webkit-date-and-time-value {
     text-align: left;
+    margin-left: 0;
   }
 }
 
