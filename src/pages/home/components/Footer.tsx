@@ -74,8 +74,8 @@ export default function Footer() {
             <div>
               <p className="font-heading text-base sm:text-lg md:text-xl text-background-50 leading-relaxed">
                 &ldquo;
-                <span className="not-italic font-semibold">{t('footer.tagline').split('. ')[0]}.</span>{' '}
-                <span className="italic">{t('footer.tagline').split('. ')[1]}</span>
+                <span className="not-italic font-semibold">{t('footer.tagline').split(', ')[0]},</span>{' '}
+                <span className="italic">{t('footer.tagline').split(', ')[1]}</span>
                 &rdquo;
               </p>
             </div>

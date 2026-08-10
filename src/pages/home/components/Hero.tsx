@@ -84,7 +84,16 @@ export default function Hero() {
 
           {/* ── 1. Title ── */}
           <h1 className="animate-fade-up-1 opacity-0 text-3xl md:text-5xl lg:text-7xl font-heading font-semibold text-background-50 leading-[1.08] md:leading-[1.06] text-balance mb-4 md:mb-5 tracking-tight">
-            {t('hero.title')}
+            {(() => {
+              const [first, ...rest] = t('hero.title').split(', ');
+              return (
+                <>
+                  {first},
+                  <br />
+                  {rest.join(', ')}
+                </>
+              );
+            })()}
           </h1>
 
           {/* ── 1.5. Kicker ── */}
