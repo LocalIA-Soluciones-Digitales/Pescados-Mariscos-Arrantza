@@ -26,6 +26,7 @@ const SUBCATEGORIAS: { value: string; label: string }[] = [
   { value: 'gambas_langostinos', label: 'Gambas / langostinos' },
   { value: 'raciones_porcion', label: 'Raciones (porción)' },
   { value: 'raciones_entero', label: 'Raciones (entero)' },
+  { value: 'suministro', label: 'Suministro' },
 ];
 
 const ESTADOS: { value: ProductoEstado; label: string }[] = [
@@ -473,12 +474,6 @@ export default function ProductoFormModal({
               </select>
             </div>
           </div>
-
-          {/* Disponible toggle */}
-          <label className="flex items-center gap-2 mb-3 cursor-pointer select-none">
-            <input type="checkbox" checked={form.disponible} onChange={(e) => update('disponible', e.target.checked)} className="w-4 h-4" />
-            <span className="text-sm text-foreground-700">Disponible (desmarca para poner "Agotado")</span>
-          </label>
 
           {/* Destacado toggle */}
           <label className="flex items-center gap-2 cursor-pointer select-none">
