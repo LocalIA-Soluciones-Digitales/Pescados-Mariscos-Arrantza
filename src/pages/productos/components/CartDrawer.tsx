@@ -505,17 +505,17 @@ function CartLineItem({
             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 flex items-center justify-center text-foreground-400 pointer-events-none">
               <i className="ri-arrow-down-s-line text-xs"></i>
             </span>
+            {/* Saved indicator — tiny checkmark when preparation differs from default */}
+            <span
+              className={`absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-emerald-100/80 text-emerald-600 ring-2 ring-background-50 transition-all duration-300 ${
+                (cartItem.preparation || 'whole') !== 'whole'
+                  ? 'opacity-100 scale-100'
+                  : 'opacity-0 scale-75'
+              }`}
+            >
+              <i className="ri-check-line text-[11px]"></i>
+            </span>
           </div>
-          {/* Saved indicator — tiny checkmark when preparation differs from default */}
-          <span
-            className={`w-4 h-4 flex items-center justify-center rounded-full bg-emerald-100/80 text-emerald-600 transition-all duration-300 ${
-              (cartItem.preparation || 'whole') !== 'whole'
-                ? 'opacity-100 scale-100'
-                : 'opacity-0 scale-75'
-            }`}
-          >
-            <i className="ri-check-line text-[11px]"></i>
-          </span>
         </div>
 
         {/* Per-item note */}
