@@ -21,8 +21,12 @@ export default function Navbar() {
   // Only the home hero is a dark full-bleed photo — everywhere else the
   // navbar must render with dark text/solid background from the start,
   // otherwise light text disappears against those pages' light hero.
+  // Opening the mobile menu must NOT force this on its own: at the top of
+  // the home page the navbar row is still transparent over the dark hero,
+  // so the logo/close icon need to stay white there too — switching them
+  // to dark text at that point makes both unreadable against the photo.
   const isHome = location.pathname === '/';
-  const showDark = scrolled || !isHome || mobileOpen;
+  const showDark = scrolled || !isHome;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 60);
