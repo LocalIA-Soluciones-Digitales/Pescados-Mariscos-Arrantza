@@ -12,7 +12,7 @@ const common = {
   "nav.language": "Idioma",
 
   // Hero
-  "hero.title": "Arrantza. Del mar a su plantza.",
+  "hero.title": "Arrantza, del mar a su plantza.",
   "hero.kicker": "En el corazón de Altzaga, Erandio",
   "hero.subtitle": "Pescado y marisco del Cantábrico, seleccionado cada mañana en lonja.",
   "hero.cta.catalog": "Hacer pedido",
@@ -752,7 +752,7 @@ const common = {
   "footer.rights": "Todos los derechos reservados.",
   "footer.privacy": "Aviso Legal",
   "footer.cookies": "Cookies",
-  "footer.tagline": "Arrantza. Del mar a su plantza.",
+  "footer.tagline": "Arrantza, del mar a su plantza.",
 
   // Legal — Aviso Legal
   "legal.aviso.s1.title": "1. Datos identificativos",

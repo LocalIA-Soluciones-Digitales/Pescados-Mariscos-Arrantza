@@ -12,7 +12,7 @@ const common = {
   "nav.language": "Hizkuntza",
 
   // Hero
-  "hero.title": "Arrantza. Del mar a su plantza.",
+  "hero.title": "Arrantza, del mar a su plantza.",
   "hero.kicker": "Altzagako bihotzean, Erandion",
   "hero.subtitle": "Kantauriko arrain eta itsaskia, goizero lonjan aukeratua.",
   "hero.cta.catalog": "Katalogoa ikusi",
@@ -753,7 +753,7 @@ const common = {
   "footer.rights": "Eskubide guztiak erreserbatuta.",
   "footer.privacy": "Lege Oharra",
   "footer.cookies": "Cookies",
-  "footer.tagline": "Arrantza. Del mar a su plantza.",
+  "footer.tagline": "Arrantza, del mar a su plantza.",
 
   // Legal — Lege Oharra
   "legal.aviso.s1.title": "1. Identifikazio-datuak",
