@@ -839,12 +839,23 @@ export default function CartDrawer({
   const viewOrder = orderHistory.find(o => o.id === viewOrderId) ?? null;
   const viewOrderWeight = viewOrder ? viewOrder.items.reduce((sum, i) => sum + i.kg, 0) : 0;
   const viewOrderDate = viewOrder
-    ? new Date(viewOrder.date).toLocaleDateString(i18n.language === 'eu' ? 'eu-ES' : 'es-ES', {
+    ? new Date(viewOrder.date).toLocaleString(i18n.language === 'eu' ? 'eu-ES' : 'es-ES', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       })
     : '';
+  const viewOrderSubtotal = viewOrder
+    ? viewOrder.items.reduce((sum, item) => {
+        const product = productMap.get(item.productId);
+        if (!product) return sum;
+        return sum + extractPricePerKg(product.precio) * item.kg;
+      }, 0)
+    : 0;
+  const viewOrderDeliveryCost = viewOrder && viewOrder.deliveryMethod === 'home' ? DELIVERY_COST : 0;
+  const viewOrderTotal = viewOrderSubtotal + viewOrderDeliveryCost;
 
   const orderHistorySection = hasLastOrder && (
     <>
@@ -1627,12 +1638,9 @@ export default function CartDrawer({
           >
             {/* Modal header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-background-200/60 flex-shrink-0">
-              <div className="min-w-0">
-                <h2 className="text-lg font-heading font-semibold text-foreground-950">
-                  {t('cart.order_history_detail_title')}
-                </h2>
-                <p className="text-[11px] text-foreground-400 tabular-nums">{viewOrderDate}</p>
-              </div>
+              <h2 className="text-lg font-heading font-semibold text-foreground-950">
+                {t('cart.order_history_detail_title')}
+              </h2>
               <button
                 type="button"
                 onClick={() => setViewOrderId(null)}
@@ -1643,48 +1651,108 @@ export default function CartDrawer({
               </button>
             </div>
 
-            {/* Modal body - itemized list */}
+            {/* Modal body - itemized ticket */}
             <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
-              <div className="mb-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background-100 text-foreground-500 text-xs">
-                <i className={viewOrder.deliveryMethod === 'home' ? 'ri-truck-line' : 'ri-store-2-line'}></i>
-                {viewOrder.deliveryMethod === 'home' ? t('checkout.delivery_home') : t('checkout.delivery_pickup')}
-              </div>
+              <div className="rounded-lg bg-background-100/50 border border-background-200/50 overflow-hidden">
+                {/* Ticket header */}
+                <div className="flex items-center gap-2.5 px-4 pt-4 pb-3 border-b border-dashed border-background-300/80">
+                  <span className="w-7 h-7 flex items-center justify-center rounded-full bg-primary-100 text-primary-600 flex-shrink-0">
+                    <i className="ri-file-list-3-line text-sm"></i>
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground-950">
+                      {t('cart.summary_title')}
+                    </h3>
+                    <p className="text-[10px] text-foreground-400 tabular-nums">{viewOrderDate}</p>
+                  </div>
+                </div>
 
-              <div className="space-y-2.5">
-                {viewOrder.items.map((item, idx) => {
-                  const product = productMap.get(item.productId);
-                  const prepLabel = PREPARATIONS.find(p => p.key === item.preparation)?.labelKey;
-                  return (
-                    <div
-                      key={`${item.productId}-${idx}`}
-                      className="flex items-start justify-between gap-3 px-3 py-2.5 rounded-lg bg-background-100/60 border border-background-200/50"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-foreground-800 truncate">
-                          {product ? pickLang(product, 'nombre', i18n.language) : item.productId}
-                        </p>
-                        <p className="text-[10px] text-foreground-400">
-                          {prepLabel ? t(prepLabel as any) : ''}
-                        </p>
-                        {item.note && (
-                          <p className="text-[10px] text-foreground-400 italic mt-0.5 truncate">{item.note}</p>
-                        )}
+                {/* Itemized lines */}
+                <div className="px-4 py-3 border-b border-dashed border-background-300/80 space-y-2.5">
+                  {viewOrder.items.map((item, idx) => {
+                    const product = productMap.get(item.productId);
+                    const prepLabel = PREPARATIONS.find(p => p.key === item.preparation)?.labelKey;
+                    const pricePerKg = product ? extractPricePerKg(product.precio) : null;
+                    const itemSubtotal = pricePerKg !== null ? pricePerKg * item.kg : null;
+                    return (
+                      <div key={`${item.productId}-${idx}`} className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground-800 truncate">
+                            {product ? pickLang(product, 'nombre', i18n.language) : item.productId}
+                          </p>
+                          <p className="text-[10px] text-foreground-400 tabular-nums">
+                            {formatKg(item.kg)}
+                            {pricePerKg !== null && ` × ${pricePerKg} ${t('cart.price_label')}`}
+                            {prepLabel && ` · ${t(prepLabel as any)}`}
+                          </p>
+                          {item.note && (
+                            <p className="text-[10px] text-foreground-400 italic mt-0.5 truncate">{item.note}</p>
+                          )}
+                        </div>
+                        <span className="text-xs font-semibold text-foreground-950 tabular-nums whitespace-nowrap flex-shrink-0">
+                          {itemSubtotal !== null ? formatPrice(itemSubtotal) : '—'}
+                        </span>
                       </div>
-                      <span className="text-xs font-semibold text-foreground-950 tabular-nums whitespace-nowrap flex-shrink-0">
-                        {formatKg(item.kg)}
+                    );
+                  })}
+                </div>
+
+                {/* Totals block */}
+                <div className="px-4 py-3 space-y-2 border-b border-dashed border-background-300/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground-500">
+                      {t('checkout.delivery_method')}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground-950 inline-flex items-center gap-1.5">
+                      <i className={viewOrder.deliveryMethod === 'home' ? 'ri-truck-line' : 'ri-store-2-line'}></i>
+                      {viewOrder.deliveryMethod === 'home' ? t('checkout.delivery_home') : t('checkout.delivery_pickup')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground-500">
+                      {t('cart.summary_products')}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground-950 tabular-nums">
+                      {viewOrder.items.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground-500">
+                      {t('cart.order_history_detail_weight')}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground-950 tabular-nums">
+                      {formatKg(viewOrderWeight)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground-500">
+                      {t('cart.summary_subtotal')}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground-950 tabular-nums">
+                      {formatPrice(viewOrderSubtotal)}
+                    </span>
+                  </div>
+                  {viewOrder.deliveryMethod === 'home' && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-foreground-500">
+                        {t('cart.summary_delivery_cost')}
+                      </span>
+                      <span className="text-sm font-semibold text-foreground-950 tabular-nums">
+                        {formatPrice(viewOrderDeliveryCost)}
                       </span>
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+                </div>
 
-              <div className="flex items-center justify-between px-3 py-3 mt-4 rounded-lg bg-background-200/30">
-                <span className="text-sm font-semibold text-foreground-950">
-                  {t('cart.order_history_detail_weight')}
-                </span>
-                <span className="text-sm font-semibold text-foreground-950 tabular-nums">
-                  {formatKg(viewOrderWeight)}
-                </span>
+                {/* Total */}
+                <div className="flex items-center justify-between px-4 py-3 bg-background-200/30">
+                  <span className="text-sm font-semibold text-foreground-950">
+                    {t('cart.summary_estimated_total')}
+                  </span>
+                  <span className="text-base font-semibold text-foreground-950 whitespace-nowrap">
+                    {formatPrice(viewOrderTotal)}
+                  </span>
+                </div>
               </div>
             </div>
 
