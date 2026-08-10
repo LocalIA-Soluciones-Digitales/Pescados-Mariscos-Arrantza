@@ -276,18 +276,24 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
       <header ref={headerRef} className="sticky top-0 z-20 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-3 md:py-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="flex-shrink-0">
-              <h1 className="text-base font-heading font-semibold text-foreground-950">Gestión</h1>
-              <p className="text-xs text-foreground-400">Pescados y Mariscos Arrantza</p>
+            <div className="min-w-0">
+              <h1 className="text-base font-heading font-semibold text-foreground-950 truncate">Gestión</h1>
+              <p className="text-xs text-foreground-400 truncate">Pescados y Mariscos Arrantza</p>
             </div>
             <div className="hidden md:block">{tabsNav}</div>
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="hidden md:flex items-center gap-3 flex-shrink-0">
             {viewSwitch && <ViewSwitcher current="Panel de gestión" viewSwitch={viewSwitch} />}
             <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950">
               Cerrar sesión
             </button>
           </div>
+        </div>
+        <div className="flex items-center justify-between gap-3 mt-3 md:hidden">
+          {viewSwitch && <ViewSwitcher current="Panel de gestión" viewSwitch={viewSwitch} />}
+          <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950">
+            Cerrar sesión
+          </button>
         </div>
         <div className="md:hidden mt-3">{tabsNav}</div>
       </header>
