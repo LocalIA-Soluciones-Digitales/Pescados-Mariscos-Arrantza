@@ -486,7 +486,7 @@ function CartLineItem({
         </div>
 
         {/* Preparation selector */}
-        <div className="flex items-center gap-1 mb-2">
+        <div className="flex items-center gap-1 mb-2 pr-8">
           <span className="text-[10px] uppercase tracking-wider text-foreground-400 mr-1.5">
             {t('cart.preparation_label')}
           </span>
@@ -519,7 +519,7 @@ function CartLineItem({
         </div>
 
         {/* Per-item note */}
-        <div className="flex items-center gap-1 mb-2">
+        <div className="flex items-center gap-1 mb-2 pr-8">
           <div className="relative flex items-center gap-1 mr-1.5 flex-shrink-0">
             <span className="text-[10px] uppercase tracking-wider text-foreground-400">
               {t('cart.item_note_label')}
