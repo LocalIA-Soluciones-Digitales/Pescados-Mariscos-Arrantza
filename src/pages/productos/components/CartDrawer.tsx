@@ -490,11 +490,11 @@ function CartLineItem({
           <span className="text-[10px] uppercase tracking-wider text-foreground-400 mr-1.5">
             {t('cart.preparation_label')}
           </span>
-          <div className="relative">
+          <div className="relative flex-1 min-w-0">
             <select
               value={cartItem.preparation || 'whole'}
               onChange={(e) => onPreparationChange(e.target.value)}
-              className="appearance-none bg-background-100 border border-background-200/70 rounded-full pl-3.5 pr-8 py-1.5 text-xs font-medium text-foreground-950 cursor-pointer focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-200"
+              className="w-full truncate appearance-none bg-background-100 border border-background-200/70 rounded-full pl-3.5 pr-8 py-1.5 text-xs font-medium text-foreground-950 cursor-pointer focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-200"
             >
               {PREPARATIONS.map((p) => (
                 <option key={p.key} value={p.key}>
