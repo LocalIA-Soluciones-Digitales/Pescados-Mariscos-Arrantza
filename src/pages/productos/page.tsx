@@ -23,6 +23,7 @@ type CategoryFilter =
   | 'especial'
   | 'raciones'
   | 'marisco'
+  | 'suministro'
   | 'azul'
   | 'blanco'
   | 'cefalopodos'
@@ -40,6 +41,7 @@ const categories: { key: CategoryFilter; labelKey: string }[] = [
   { key: 'especial', labelKey: 'products.filter_special' },
   { key: 'raciones', labelKey: 'products.filter_portions' },
   { key: 'marisco', labelKey: 'products.filter_seafood' },
+  { key: 'suministro', labelKey: 'products.filter_suministro' },
   { key: 'azul', labelKey: 'products.filter_blue_fish' },
   { key: 'blanco', labelKey: 'products.filter_white_fish' },
   { key: 'cefalopodos', labelKey: 'products.filter_cephalopods' },
@@ -73,6 +75,7 @@ function computeCategoryCounts(productos: Producto[]): Record<CategoryFilter, nu
     'bivalvos',
     'crustaceos_grandes',
     'gambas_langostinos',
+    'suministro',
   ];
 
   subCats.forEach((sub) => {
@@ -424,161 +427,164 @@ function StickyToolbar({
             )}
           </div>
 
-          {/* Filter button — opens a dropdown panel with every family at a glance,
-              no horizontal scrolling required */}
-          <div ref={filterRef} className="relative flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => setFilterOpen((v) => !v)}
-              aria-haspopup="true"
-              aria-expanded={filterOpen}
-              className={`inline-flex items-center gap-1.5 pl-3 pr-2.5 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer transition-all duration-300 ${
-                activeCategory !== 'todos'
-                  ? 'bg-primary-500 text-background-50'
-                  : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
-              }`}
-            >
-              <i className="ri-filter-3-line text-sm"></i>
-              {t(activeCategory === 'todos' ? 'products.filter_button' : activeCategoryLabel)}
-              <span
-                className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+          {/* Filter + cart — always share one row, even on mobile, instead of
+              each stacking on its own line under the search bar */}
+          <div className="flex items-center justify-between sm:justify-start gap-3 sm:ml-auto">
+            <div ref={filterRef} className="relative flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setFilterOpen((v) => !v)}
+                aria-haspopup="true"
+                aria-expanded={filterOpen}
+                className={`inline-flex items-center gap-1.5 pl-3 pr-2.5 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer transition-all duration-300 ${
                   activeCategory !== 'todos'
-                    ? 'bg-background-50/20 text-background-50'
-                    : 'bg-background-200/60 text-foreground-400'
+                    ? 'bg-primary-500 text-background-50'
+                    : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
                 }`}
               >
-                {filterCounts[activeCategory]}
-              </span>
-              <i className={`ri-arrow-down-s-line text-sm transition-transform duration-200 ${filterOpen ? 'rotate-180' : ''}`}></i>
-            </button>
+                <i className="ri-filter-3-line text-sm"></i>
+                {t(activeCategory === 'todos' ? 'products.filter_button' : activeCategoryLabel)}
+                <span
+                  className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+                    activeCategory !== 'todos'
+                      ? 'bg-background-50/20 text-background-50'
+                      : 'bg-background-200/60 text-foreground-400'
+                  }`}
+                >
+                  {filterCounts[activeCategory]}
+                </span>
+                <i className={`ri-arrow-down-s-line text-sm transition-transform duration-200 ${filterOpen ? 'rotate-180' : ''}`}></i>
+              </button>
 
-            {filterOpen && (
-              <div className="absolute top-full left-0 mt-2 z-40 w-[min(88vw,380px)] max-h-[70vh] overflow-y-auto bg-background-50 border border-background-200/70 rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.14)] p-3 animate-fade-in">
-                <div className="flex items-center justify-between mb-2 px-0.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-400">
-                    {t('products.filter_panel_title')}
-                  </span>
-                  {hasActiveFilter && (
+              {filterOpen && (
+                <div className="absolute top-full left-0 mt-2 z-40 w-[min(88vw,380px)] max-h-[70vh] overflow-y-auto bg-background-50 border border-background-200/70 rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.14)] p-3 animate-fade-in">
+                  <div className="flex items-center justify-between mb-2 px-0.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground-400">
+                      {t('products.filter_panel_title')}
+                    </span>
+                    {hasActiveFilter && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleClearAll();
+                          setFilterOpen(false);
+                        }}
+                        className="text-[11px] font-medium text-accent-600 hover:text-accent-700 cursor-pointer whitespace-nowrap"
+                      >
+                        {t('products.clear_filters')}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Top-level families — Todos + families without subtypes */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {renderChip('todos')}
+                    {visibleKeys.has('especial') && renderChip('especial')}
+                    {visibleKeys.has('raciones') && renderChip('raciones')}
+                    {visibleKeys.has('suministro') && renderChip('suministro')}
+                  </div>
+
+                  {/* Pescado — main chip plus its subtypes, nested so it's clear
+                      "Azul"/"Blanco"/"Cefalópodos" are kinds of pescado, not
+                      separate families sitting next to it. */}
+                  {(visibleKeys.has('pescado') || fishSubcats.length > 0) && (
+                    <div className="mt-2.5 pl-0.5 border-l-2 border-background-200/70">
+                      <div className="pl-2.5 flex flex-wrap gap-1.5">
+                        {visibleKeys.has('pescado') && renderChip('pescado')}
+                      </div>
+                      {fishSubcats.length > 0 && (
+                        <div className="pl-6 mt-1.5 flex flex-wrap gap-1.5">
+                          {fishSubcats.map((key) => renderChip(key, true))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Marisco — same nesting for its subtypes */}
+                  {(visibleKeys.has('marisco') || seafoodSubcats.length > 0) && (
+                    <div className="mt-2.5 pl-0.5 border-l-2 border-background-200/70">
+                      <div className="pl-2.5 flex flex-wrap gap-1.5">
+                        {visibleKeys.has('marisco') && renderChip('marisco')}
+                      </div>
+                      {seafoodSubcats.length > 0 && (
+                        <div className="pl-6 mt-1.5 flex flex-wrap gap-1.5">
+                          {seafoodSubcats.map((key) => renderChip(key, true))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Out of stock — a status rather than a family, kept apart and always visible */}
+                  <div className="mt-2 pt-2 border-t border-background-200/60">
                     <button
                       type="button"
                       onClick={() => {
-                        handleClearAll();
+                        onCategoryChange('agotado');
                         setFilterOpen(false);
                       }}
-                      className="text-[11px] font-medium text-accent-600 hover:text-accent-700 cursor-pointer whitespace-nowrap"
-                    >
-                      {t('products.clear_filters')}
-                    </button>
-                  )}
-                </div>
-
-                {/* Top-level families — Todos + families without subtypes */}
-                <div className="flex flex-wrap gap-1.5">
-                  {renderChip('todos')}
-                  {visibleKeys.has('especial') && renderChip('especial')}
-                  {visibleKeys.has('raciones') && renderChip('raciones')}
-                </div>
-
-                {/* Pescado — main chip plus its subtypes, nested so it's clear
-                    "Azul"/"Blanco"/"Cefalópodos" are kinds of pescado, not
-                    separate families sitting next to it. */}
-                {(visibleKeys.has('pescado') || fishSubcats.length > 0) && (
-                  <div className="mt-2.5 pl-0.5 border-l-2 border-background-200/70">
-                    <div className="pl-2.5 flex flex-wrap gap-1.5">
-                      {visibleKeys.has('pescado') && renderChip('pescado')}
-                    </div>
-                    {fishSubcats.length > 0 && (
-                      <div className="pl-6 mt-1.5 flex flex-wrap gap-1.5">
-                        {fishSubcats.map((key) => renderChip(key, true))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Marisco — same nesting for its subtypes */}
-                {(visibleKeys.has('marisco') || seafoodSubcats.length > 0) && (
-                  <div className="mt-2.5 pl-0.5 border-l-2 border-background-200/70">
-                    <div className="pl-2.5 flex flex-wrap gap-1.5">
-                      {visibleKeys.has('marisco') && renderChip('marisco')}
-                    </div>
-                    {seafoodSubcats.length > 0 && (
-                      <div className="pl-6 mt-1.5 flex flex-wrap gap-1.5">
-                        {seafoodSubcats.map((key) => renderChip(key, true))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Out of stock — a status rather than a family, kept apart and always visible */}
-                <div className="mt-2 pt-2 border-t border-background-200/60">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onCategoryChange('agotado');
-                      setFilterOpen(false);
-                    }}
-                    className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer transition-all duration-300 w-full ${
-                      activeCategory === 'agotado'
-                        ? 'bg-foreground-700 text-background-50'
-                        : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
-                    }`}
-                  >
-                    <i className="ri-forbid-line text-sm"></i>
-                    {t('products.filter_agotado')}
-                    <span
-                      className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+                      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer transition-all duration-300 w-full ${
                         activeCategory === 'agotado'
-                          ? 'bg-background-50/20 text-background-50'
-                          : 'bg-background-200/60 text-foreground-400'
+                          ? 'bg-foreground-700 text-background-50'
+                          : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
                       }`}
                     >
-                      {filterCounts.agotado}
-                    </span>
-                  </button>
+                      <i className="ri-forbid-line text-sm"></i>
+                      {t('products.filter_agotado')}
+                      <span
+                        className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+                          activeCategory === 'agotado'
+                            ? 'bg-background-50/20 text-background-50'
+                            : 'bg-background-200/60 text-foreground-400'
+                        }`}
+                      >
+                        {filterCounts.agotado}
+                      </span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Cart icon */}
-          <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
-            <div className="relative flex items-center justify-center">
-              {/* Pulsing glow ring — only when cart has items */}
-              {cartCount > 0 && (
-                <span
-                  className="absolute rounded-full bg-primary-500/10 animate-cart-glow-pulse pointer-events-none"
-                  style={{ width: '44px', height: '44px' }}
-                  aria-hidden="true"
-                />
               )}
-              <button
-                key={cartBounceKey}
-                type="button"
-                onClick={onCartClick}
-                className={`group/cart relative w-9 h-9 flex items-center justify-center rounded-full cursor-pointer whitespace-nowrap transition-all duration-500 ${
-                  cartCount > 0
-                    ? 'bg-primary-100/70 text-primary-600 scale-110'
-                    : 'bg-background-100 text-foreground-500 hover:bg-background-200/70 hover:text-foreground-950 hover:shadow-[0_0_0_4px_rgba(var(--primary-500),0.06)]'
-                } ${
-                  cartAnimStyle === 'lastItem' ? 'animate-cart-last-item' :
-                  cartAnimStyle === 'bounce' ? 'animate-cart-bounce' : 'animate-cart-shake'
-                }`}
-                aria-label={t('products.cart_label')}
-              >
-                <i className={`ri-shopping-cart-line transition-all duration-500 group-hover/cart:scale-110 group-hover/cart:rotate-[-4deg] ${
-                  cartCount > 0 ? 'text-xl' : 'text-lg'
-                }`}></i>
-                <span
-                  key={cartCount}
-                  className={`absolute -top-0.5 -right-0.5 min-w-[20px] h-5 flex items-center justify-center rounded-full text-background-50 text-[10px] font-semibold leading-none px-1 transition-all duration-300 group-hover/cart:scale-110 group-hover/cart:-translate-y-0.5 group-hover/cart:shadow-md animate-counter-pop ${
-                    cartAnimStyle === 'lastItem'
-                      ? 'bg-red-500'
-                      : 'bg-primary-500'
+            </div>
+
+            {/* Cart icon */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="relative flex items-center justify-center">
+                {/* Pulsing glow ring — only when cart has items */}
+                {cartCount > 0 && (
+                  <span
+                    className="absolute rounded-full bg-primary-500/10 animate-cart-glow-pulse pointer-events-none"
+                    style={{ width: '44px', height: '44px' }}
+                    aria-hidden="true"
+                  />
+                )}
+                <button
+                  key={cartBounceKey}
+                  type="button"
+                  onClick={onCartClick}
+                  className={`group/cart relative w-9 h-9 flex items-center justify-center rounded-full cursor-pointer whitespace-nowrap transition-all duration-500 ${
+                    cartCount > 0
+                      ? 'bg-primary-100/70 text-primary-600 scale-110'
+                      : 'bg-background-100 text-foreground-500 hover:bg-background-200/70 hover:text-foreground-950 hover:shadow-[0_0_0_4px_rgba(var(--primary-500),0.06)]'
+                  } ${
+                    cartAnimStyle === 'lastItem' ? 'animate-cart-last-item' :
+                    cartAnimStyle === 'bounce' ? 'animate-cart-bounce' : 'animate-cart-shake'
                   }`}
+                  aria-label={t('products.cart_label')}
                 >
-                  {cartCount}
-                </span>
-              </button>
+                  <i className={`ri-shopping-cart-line transition-all duration-500 group-hover/cart:scale-110 group-hover/cart:rotate-[-4deg] ${
+                    cartCount > 0 ? 'text-xl' : 'text-lg'
+                  }`}></i>
+                  <span
+                    key={cartCount}
+                    className={`absolute -top-0.5 -right-0.5 min-w-[20px] h-5 flex items-center justify-center rounded-full text-background-50 text-[10px] font-semibold leading-none px-1 transition-all duration-300 group-hover/cart:scale-110 group-hover/cart:-translate-y-0.5 group-hover/cart:shadow-md animate-counter-pop ${
+                      cartAnimStyle === 'lastItem'
+                        ? 'bg-red-500'
+                        : 'bg-primary-500'
+                    }`}
+                  >
+                    {cartCount}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
