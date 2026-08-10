@@ -550,7 +550,7 @@ function CartLineItem({
         </div>
 
         {/* Estimated subtotal */}
-        <div className="flex items-center justify-end pr-2">
+        <div className="flex items-center justify-end pr-6">
           <span className="text-xs text-foreground-400 mr-2">{t('cart.estimated_subtotal')}</span>
           <span className="text-sm font-semibold text-foreground-950 whitespace-nowrap overflow-hidden">
             <RollingNumber value={formatPrice(subtotal)} />
