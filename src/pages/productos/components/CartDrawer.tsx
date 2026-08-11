@@ -982,17 +982,26 @@ export default function CartDrawer({
 
         {/* DEBUG TEMPORAL — quitar tras diagnosticar el historial por pestaña */}
         {(() => {
-          let raw: string;
+          let lsRaw: string;
           try {
-            raw = localStorage.getItem('arrantza_device_id') ?? 'null';
+            lsRaw = localStorage.getItem('arrantza_device_id') ?? 'null';
           } catch (e) {
-            raw = `ERR:${(e as Error).message}`;
+            lsRaw = `ERR:${(e as Error).message}`;
+          }
+          let cookieRaw: string;
+          try {
+            const match = document.cookie.match(/(?:^|; )arrantza_device_id=([^;]*)/);
+            cookieRaw = match ? decodeURIComponent(match[1]) : 'null';
+          } catch (e) {
+            cookieRaw = `ERR:${(e as Error).message}`;
           }
           return (
             <div className="px-5 py-1 text-[9px] text-foreground-300 font-mono border-b border-background-200/40 select-all break-all leading-tight">
-              device={getDeviceId()} · raw={raw} · hist={orderHistory.length}
+              device={getDeviceId()} · hist={orderHistory.length}
               <br />
-              ua={typeof navigator !== 'undefined' ? navigator.userAgent : 'n/a'}
+              ls={lsRaw}
+              <br />
+              cookie={cookieRaw}
             </div>
           );
         })()}
