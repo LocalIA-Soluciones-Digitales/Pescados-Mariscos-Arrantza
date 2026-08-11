@@ -980,6 +980,11 @@ export default function CartDrawer({
           </button>
         </div>
 
+        {/* DEBUG TEMPORAL — quitar tras diagnosticar el historial por pestaña */}
+        <div className="px-5 py-1 text-[10px] text-foreground-300 font-mono border-b border-background-200/40 select-all">
+          debug: device={getDeviceId()} · local_history={orderHistory.length}
+        </div>
+
         {/* Clear confirmation overlay */}
         {showClearConfirm ? (
           <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
