@@ -65,7 +65,7 @@ export default function LocationMap() {
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-center justify-center">
               <a
-                href="tel:+34608240759"
+                href="tel:+34619609888"
                 onClick={() => logConversion('tel_click')}
                 className="flex items-center justify-center gap-2 w-full sm:w-auto sm:min-w-[140px] bg-primary-500 text-background-50 px-3 py-2 rounded-full font-medium text-sm hover:bg-primary-600 transition-colors duration-300 whitespace-nowrap cursor-pointer"
               >

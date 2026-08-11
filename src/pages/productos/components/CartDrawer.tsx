@@ -773,7 +773,7 @@ export default function CartDrawer({
     });
 
     const encoded = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/34608240759?text=${encoded}`;
+    const whatsappUrl = `https://wa.me/34619609888?text=${encoded}`;
 
     // ── Save as last order for Buy Again ──
     onSaveLastOrder();

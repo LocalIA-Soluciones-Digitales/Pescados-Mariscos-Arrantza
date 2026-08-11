@@ -23,8 +23,8 @@ export default function AvisoLegal() {
               <ul className="mt-2 space-y-1">
                 <li><strong>{t('legal.aviso.owner_label')}:</strong> Pescados y Mariscos Arrantza</li>
                 <li><strong>{t('legal.aviso.address_label')}:</strong> Calle Jesús Aramburu, 1, 48950 Erandio, Bizkaia, España</li>
-                <li><strong>{t('legal.aviso.phone_label')}:</strong> +34 608 240 759</li>
-                <li><strong>{t('legal.aviso.email_label')}:</strong> jonmendiola98@gmail.com</li>
+                <li><strong>{t('legal.aviso.phone_label')}:</strong> +34 619 60 98 88</li>
+                <li><strong>{t('legal.aviso.email_label')}:</strong> d-tamayo@hotmail.com</li>
               </ul>
             </section>
 

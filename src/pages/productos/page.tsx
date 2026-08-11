@@ -1124,7 +1124,7 @@ function SpecialOrdersSection() {
             {t('products.special.section_subtitle')}
           </p>
           <a
-            href="tel:+34608240759"
+            href="tel:+34619609888"
             onClick={() => logConversion('tel_click')}
             className="inline-flex items-center gap-3 px-8 py-4 bg-accent-500 text-background-50 rounded-full text-sm md:text-base font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-accent-600 hover:scale-[1.03] active:scale-95 group"
           >
@@ -1183,7 +1183,7 @@ function RestaurantSupplySection() {
             </div>
 
             <a
-              href="tel:+34608240759"
+              href="tel:+34619609888"
               onClick={() => logConversion('tel_click')}
               className="inline-flex items-center gap-3 px-6 py-4 bg-primary-500 text-background-50 rounded-full text-sm font-medium cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-primary-600 group"
             >

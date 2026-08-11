@@ -10,7 +10,7 @@ export default function Contact() {
   const { ref, isVisible } = useScrollAnimation();
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  const [alreadySubscribed, setAlreadySubscribed] = useState(false);
+  const [subscribeStatus, setSubscribeStatus] = useState<'nuevo' | 'reenviado' | 'confirmado'>('nuevo');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -36,7 +36,7 @@ export default function Contact() {
     setIsSubmitting(false);
 
     if (result.ok) {
-      setAlreadySubscribed(result.alreadySubscribed);
+      setSubscribeStatus(result.status);
       setStatus('success');
       form.reset();
     } else {
@@ -59,7 +59,7 @@ export default function Contact() {
         <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8 mb-12 md:mb-16 transition-all duration-800 ease-out ${isVisible ? 'animate-fade-up' : 'opacity-0'}`}>
           {/* Phone */}
           <a
-            href="tel:+34608240759"
+            href="tel:+34619609888"
             onClick={() => logConversion('tel_click')}
             className="group bg-background-50 rounded-lg p-6 sm:p-8 text-center hover:-translate-y-1 transition-all duration-500 cursor-pointer"
           >
@@ -69,12 +69,12 @@ export default function Contact() {
             <h4 className="font-heading text-base sm:text-lg font-semibold text-foreground-950 mb-2">
               {t('contact.phone.label')}
             </h4>
-            <p className="text-lg sm:text-xl font-medium text-foreground-700">+34 608 240 759</p>
+            <p className="text-lg sm:text-xl font-medium text-foreground-700">+34 619 60 98 88</p>
           </a>
 
           {/* Email */}
           <a
-            href="mailto:jonmendiola98@gmail.com"
+            href="mailto:d-tamayo@hotmail.com"
             className="group bg-background-50 rounded-lg p-6 sm:p-8 text-center hover:-translate-y-1 transition-all duration-500 cursor-pointer"
           >
             <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-4 sm:mb-5 flex items-center justify-center rounded-full bg-accent-100 text-accent-600 transition-colors duration-300 group-hover:bg-accent-200">
@@ -83,7 +83,7 @@ export default function Contact() {
             <h4 className="font-heading text-base sm:text-lg font-semibold text-foreground-950 mb-2">
               {t('contact.email.label')}
             </h4>
-            <p className="text-base sm:text-lg font-medium text-foreground-700">jonmendiola98@gmail.com</p>
+            <p className="text-base sm:text-lg font-medium text-foreground-700">d-tamayo@hotmail.com</p>
           </a>
         </div>
 
@@ -130,13 +130,13 @@ export default function Contact() {
           {status === 'success' && (
             <p className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-accent-600">
               <i className="ri-checkbox-circle-fill text-base"></i>
-              {alreadySubscribed
+              {subscribeStatus === 'confirmado'
                 ? i18n.language === 'eu'
-                  ? 'Dagoeneko harpidetuta zaude. Eskerrik asko!'
-                  : 'Ya estabas suscrito. ¡Gracias!'
+                  ? 'Dagoeneko harpidetuta eta berretsita zaude. Eskerrik asko!'
+                  : 'Ya estabas suscrito y confirmado. ¡Gracias!'
                 : i18n.language === 'eu'
-                  ? 'Eskerrik asko! Zure harpidetza berretsi da.'
-                  : '¡Gracias! Tu suscripción se ha confirmado.'}
+                  ? 'Ia listo! Begiratu zure postontzia eta sakatu berresteko esteka harpidetza aktibatzeko.'
+                  : '¡Ya casi! Revisa tu correo y pulsa el enlace de confirmación para activar tu suscripción.'}
             </p>
           )}
           {status === 'error' && (

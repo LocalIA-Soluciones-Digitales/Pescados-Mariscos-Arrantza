@@ -59,10 +59,10 @@ export default function Cookies() {
               </h2>
               <p>
                 {t('legal.cookies.s4.p1')}{' '}
-                <a href="mailto:jonmendiola98@gmail.com" className="text-primary-600 hover:underline">
-                  jonmendiola98@gmail.com
+                <a href="mailto:d-tamayo@hotmail.com" className="text-primary-600 hover:underline">
+                  d-tamayo@hotmail.com
                 </a>{' '}
-                {t('legal.cookies.s4.p2')} +34 608 240 759.
+                {t('legal.cookies.s4.p2')} +34 619 60 98 88.
               </p>
             </section>
           </div>

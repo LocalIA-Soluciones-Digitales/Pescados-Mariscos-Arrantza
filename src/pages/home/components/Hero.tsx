@@ -127,7 +127,7 @@ export default function Hero() {
 
             {/* Secondary: Llamar ahora */}
             <a
-              href="tel:+34608240759"
+              href="tel:+34619609888"
               onClick={() => logConversion('tel_click')}
               className="group inline-flex items-center gap-2.5 border border-background-50/20 hover:border-background-50/40 text-background-50 px-8 md:px-9 py-4 md:py-5 rounded-full font-medium text-sm md:text-base hover:bg-background-50/6 transition-all duration-300 whitespace-nowrap cursor-pointer hover:scale-[1.03] active:scale-95 w-full sm:w-auto justify-center"
             >

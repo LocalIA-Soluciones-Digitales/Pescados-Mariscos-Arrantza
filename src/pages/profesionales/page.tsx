@@ -278,7 +278,7 @@ function RecurringOrders() {
             {t('pro.recurring.subtitle')}
           </p>
           <a
-            href="https://wa.me/34608240759"
+            href="https://wa.me/34619609888"
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => logConversion('whatsapp_click')}
@@ -592,7 +592,7 @@ function WhatsAppSection() {
             {t('pro.whatsapp.subtitle')}
           </p>
           <a
-            href="https://wa.me/34608240759"
+            href="https://wa.me/34619609888"
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => logConversion('whatsapp_click')}

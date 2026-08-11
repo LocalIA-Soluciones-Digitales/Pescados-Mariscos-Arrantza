@@ -41,11 +41,11 @@ export default function Footer() {
             </p>
             <div className="flex items-center gap-3 mt-3 sm:mt-4">
               <a
-                href="tel:+34608240759"
+                href="tel:+34619609888"
                 onClick={() => logConversion('tel_click')}
                 className="text-sm text-white/70 hover:text-white transition-colors duration-300 whitespace-nowrap cursor-pointer"
               >
-                +34 608 240 759
+                +34 619 60 98 88
               </a>
             </div>
           </div>
