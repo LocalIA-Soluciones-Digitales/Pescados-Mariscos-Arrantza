@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase, SITE_KEY } from './supabaseClient';
 
 export type EventType = 'pageview' | 'tel_click' | 'whatsapp_click' | 'category_view' | 'product_view' | 'add_to_cart';
 export type SourceCategory = 'google_ads' | 'google_organic' | 'social' | 'referral' | 'direct' | 'other';
@@ -110,18 +110,19 @@ function getAttribution(): Attribution {
 async function insertEvent(eventType: EventType, path: string, label?: string) {
   const attribution = getAttribution();
   try {
-    await supabase.from('visits').insert({
-      session_id: getSessionId(),
-      event_type: eventType,
-      path,
-      label: label ?? null,
-      referrer: attribution.referrer,
-      source_category: attribution.source_category,
-      utm_source: attribution.utm_source,
-      utm_medium: attribution.utm_medium,
-      utm_campaign: attribution.utm_campaign,
-      device_type: detectDeviceType(),
-      is_returning: isReturningVisitor(),
+    await supabase.rpc('registrar_visita', {
+      p_site_key: SITE_KEY,
+      p_session_id: getSessionId(),
+      p_event_type: eventType,
+      p_path: path,
+      p_label: label ?? null,
+      p_referrer: attribution.referrer,
+      p_source_category: attribution.source_category,
+      p_utm_source: attribution.utm_source,
+      p_utm_medium: attribution.utm_medium,
+      p_utm_campaign: attribution.utm_campaign,
+      p_device_type: detectDeviceType(),
+      p_is_returning: isReturningVisitor(),
     });
   } catch {
     // El registro de visitas nunca debe interrumpir la navegación del usuario.

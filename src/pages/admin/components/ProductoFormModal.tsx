@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { getMiClienteId } from '@/lib/clienteContext';
 import { optimizeImageFile } from '@/lib/imageOptimize';
 import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
 
@@ -223,9 +224,19 @@ export default function ProductoFormModal({
       imagen_url: form.imagen_url || null,
     };
 
-    const result = producto
-      ? await supabase.from('productos').update(payload).eq('id', producto.id).select().single()
-      : await supabase.from('productos').insert(payload).select().single();
+    let result;
+    if (producto) {
+      result = await supabase.from('productos').update(payload).eq('id', producto.id).select().single();
+    } else {
+      try {
+        const cliente_id = await getMiClienteId();
+        result = await supabase.from('productos').insert({ ...payload, cliente_id }).select().single();
+      } catch (err) {
+        setSaving(false);
+        setError(err instanceof Error ? err.message : 'No se pudo guardar el producto');
+        return;
+      }
+    }
 
     setSaving(false);
 

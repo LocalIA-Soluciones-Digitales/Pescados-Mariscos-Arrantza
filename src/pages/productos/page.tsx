@@ -8,7 +8,7 @@ import { useCart } from '@/hooks/useCart';
 import type { CartItem } from '@/hooks/useCart';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
 import { temporada } from '@/mocks/productos';
-import { useProductos } from '@/hooks/useProductos';
+import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { useCartSound } from '@/hooks/useCartSound';
 import { logAddToCart, logCategoryView, logConversion, logProductView } from '@/lib/visitLog';
 import { pickLang, normalizeSearch } from '@/types/producto';
@@ -1202,7 +1202,7 @@ function RestaurantSupplySection() {
 /* ------------------------------------------------------------------ */
 export default function Productos() {
   const { t, i18n } = useTranslation();
-  const { productos, loading: productosLoading } = useProductos();
+  const { productos, loading: productosLoading } = useProductosPublicos();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('todos');

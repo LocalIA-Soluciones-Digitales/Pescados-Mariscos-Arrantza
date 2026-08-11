@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase, SITE_KEY } from './supabaseClient';
 import type { PedidoItem, PedidoMetodoEntrega } from '@/types/pedido';
 
 export interface NewPedidoInput {
@@ -25,23 +25,24 @@ export interface NewPedidoInput {
 // siendo la vía real de contacto con el cliente.
 export async function logPedido(input: NewPedidoInput): Promise<void> {
   try {
-    await supabase.from('pedidos').insert({
-      items: input.items,
-      total_productos: input.totalProductos,
-      peso_total: input.pesoTotal,
-      importe_estimado: input.importeEstimado,
-      metodo_entrega: input.metodoEntrega,
-      cliente_nombre: input.clienteNombre || null,
-      cliente_negocio: input.clienteNegocio || null,
-      cliente_telefono: input.clienteTelefono || null,
-      cliente_email: input.clienteEmail || null,
-      cliente_direccion: input.clienteDireccion || null,
-      cliente_ciudad: input.clienteCiudad || null,
-      cliente_cp: input.clienteCp || null,
-      fecha_preferida: input.fechaPreferida || null,
-      hora_preferida: input.horaPreferida || null,
-      notas: input.notas || null,
-      device_id: input.deviceId,
+    await supabase.rpc('crear_pedido', {
+      p_site_key: SITE_KEY,
+      p_items: input.items,
+      p_total_productos: input.totalProductos,
+      p_peso_total: input.pesoTotal,
+      p_importe_estimado: input.importeEstimado,
+      p_metodo_entrega: input.metodoEntrega,
+      p_cliente_nombre: input.clienteNombre || null,
+      p_cliente_negocio: input.clienteNegocio || null,
+      p_cliente_telefono: input.clienteTelefono || null,
+      p_cliente_email: input.clienteEmail || null,
+      p_cliente_direccion: input.clienteDireccion || null,
+      p_cliente_ciudad: input.clienteCiudad || null,
+      p_cliente_cp: input.clienteCp || null,
+      p_fecha_preferida: input.fechaPreferida || null,
+      p_hora_preferida: input.horaPreferida || null,
+      p_notas: input.notas || null,
+      p_device_id: input.deviceId,
     });
   } catch {
     // El registro de pedidos nunca debe bloquear el envío por WhatsApp.

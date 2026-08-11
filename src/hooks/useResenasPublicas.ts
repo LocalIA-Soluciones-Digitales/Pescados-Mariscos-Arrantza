@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, SITE_KEY } from '@/lib/supabaseClient';
 import type { Resena } from '@/types/resena';
 
-// Solo trae reseñas aprobadas — es lo único que la política RLS deja ver
-// a un visitante anónimo, pero filtramos también aquí por claridad.
+// Pasa por get_resenas_aprobadas (en vez de leer la tabla directamente) para
+// que un visitante nunca pueda ver reseñas de otro cliente.
 export function useResenasPublicas() {
   const [resenas, setResenas] = useState<Resena[]>([]);
   const [loading, setLoading] = useState(true);
@@ -11,17 +11,16 @@ export function useResenasPublicas() {
   useEffect(() => {
     let cancelled = false;
     supabase
-      .from('resenas')
-      .select('*')
-      .eq('estado', 'aprobada')
-      .order('created_at', { ascending: false })
-      .limit(30)
+      .rpc('get_resenas_aprobadas', { p_site_key: SITE_KEY })
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) {
           console.error('Error al cargar reseñas públicas:', error);
         }
-        setResenas(data ?? []);
+        const ordenadas = (data ?? [])
+          .sort((a: Resena, b: Resena) => b.created_at.localeCompare(a.created_at))
+          .slice(0, 30);
+        setResenas(ordenadas);
         setLoading(false);
       });
     return () => {

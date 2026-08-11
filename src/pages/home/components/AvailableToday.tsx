@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
-import { useProductos } from '@/hooks/useProductos';
+import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { pickLang } from '@/types/producto';
 import type { Producto, ProductoEstado } from '@/types/producto';
 
@@ -93,7 +93,7 @@ function ProductCard({
 export default function AvailableToday() {
   const { t } = useTranslation();
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.05, rootMargin: '0px 0px -80px 0px' });
-  const { productos, loading } = useProductos();
+  const { productos, loading } = useProductosPublicos();
 
   const featuredProducts = useMemo(() => {
     const destacados = productos.filter((p) => p.destacado && p.disponible);

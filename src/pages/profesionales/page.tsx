@@ -5,7 +5,7 @@ import Navbar from '@/components/feature/Navbar';
 import Footer from '@/pages/home/components/Footer';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { logConversion } from '@/lib/visitLog';
-import { useProductos } from '@/hooks/useProductos';
+import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { pickLang } from '@/types/producto';
 
 /* ── Daily selection shows whatever the fishmonger marks as        ── */
@@ -131,7 +131,7 @@ function DailySelection() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-  const { productos } = useProductos();
+  const { productos } = useProductosPublicos();
 
   const featuredProducts = useMemo(() => {
     const destacados = productos.filter((p) => p.destacado && p.disponible);
