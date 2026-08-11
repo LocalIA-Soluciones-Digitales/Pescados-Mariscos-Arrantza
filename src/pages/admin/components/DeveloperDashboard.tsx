@@ -54,19 +54,25 @@ export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOu
             </div>
             <div className="hidden md:block">{tabsNav}</div>
           </div>
-          <div className="hidden md:flex items-center gap-3 flex-shrink-0">
-            {viewSwitch && <ViewSwitcher current="Panel de desarrollo" viewSwitch={viewSwitch} />}
-            <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 whitespace-nowrap">
-              Cerrar sesión
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="hidden md:flex items-center gap-3">
+              {viewSwitch && <ViewSwitcher current="Panel de desarrollo" viewSwitch={viewSwitch} />}
+              <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 whitespace-nowrap">
+                Cerrar sesión
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={onSignOut}
+              aria-label="Cerrar sesión"
+              title="Cerrar sesión"
+              className="md:hidden w-9 h-9 flex items-center justify-center rounded-full bg-background-100 border border-background-200/70 text-foreground-500 hover:text-foreground-950 hover:border-foreground-300/60 transition-colors flex-shrink-0"
+            >
+              <i className="ri-logout-box-r-line text-base"></i>
             </button>
           </div>
         </div>
-        <div className="flex items-center justify-between gap-3 mt-3 md:hidden">
-          {viewSwitch && <ViewSwitcher current="Panel de desarrollo" viewSwitch={viewSwitch} />}
-          <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950 whitespace-nowrap">
-            Cerrar sesión
-          </button>
-        </div>
+        {viewSwitch && <div className="mt-3 md:hidden"><ViewSwitcher current="Panel de desarrollo" viewSwitch={viewSwitch} /></div>}
         <div className="md:hidden mt-3">{tabsNav}</div>
       </header>
 

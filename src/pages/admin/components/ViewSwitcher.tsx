@@ -26,7 +26,7 @@ export default function ViewSwitcher({ current, viewSwitch }: { current: string;
         <i className={`ri-arrow-down-s-line text-sm transition-transform ${open ? 'rotate-180' : ''}`}></i>
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-48 bg-background-50 border border-background-200/70 rounded-lg shadow-lg py-1 z-30">
+        <div className="absolute left-0 top-full mt-1.5 w-48 bg-background-50 border border-background-200/70 rounded-lg shadow-lg py-1 z-30">
           <div className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-foreground-950">
             <i className="ri-check-line text-primary-500 text-sm"></i>
             {current}
