@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 
 type Props = Pick<ReturnType<typeof useAdminAuth>, 'signIn' | 'error' | 'resetPassword'>;
@@ -9,6 +9,7 @@ export default function AdminLogin({ signIn, error, resetPassword }: Props) {
   const [mode, setMode] = useState<'login' | 'recover'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [recoverSent, setRecoverSent] = useState(false);
   const navigate = useNavigate();
@@ -73,13 +74,23 @@ export default function AdminLogin({ signIn, error, resetPassword }: Props) {
           <label htmlFor="admin-password" className="block text-xs font-medium text-foreground-500 mb-2">
             Contraseña
           </label>
-          <input
-            id="admin-password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all"
-          />
+          <div className="relative">
+            <input
+              id="admin-password"
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 pr-11 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-foreground-400 hover:text-foreground-700 transition-colors"
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
 
           <div className="mt-2 text-right">
             <button
