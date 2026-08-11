@@ -981,9 +981,21 @@ export default function CartDrawer({
         </div>
 
         {/* DEBUG TEMPORAL — quitar tras diagnosticar el historial por pestaña */}
-        <div className="px-5 py-1 text-[10px] text-foreground-300 font-mono border-b border-background-200/40 select-all">
-          debug: device={getDeviceId()} · local_history={orderHistory.length}
-        </div>
+        {(() => {
+          let raw: string;
+          try {
+            raw = localStorage.getItem('arrantza_device_id') ?? 'null';
+          } catch (e) {
+            raw = `ERR:${(e as Error).message}`;
+          }
+          return (
+            <div className="px-5 py-1 text-[9px] text-foreground-300 font-mono border-b border-background-200/40 select-all break-all leading-tight">
+              device={getDeviceId()} · raw={raw} · hist={orderHistory.length}
+              <br />
+              ua={typeof navigator !== 'undefined' ? navigator.userAgent : 'n/a'}
+            </div>
+          );
+        })()}
 
         {/* Clear confirmation overlay */}
         {showClearConfirm ? (
