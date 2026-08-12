@@ -55,7 +55,7 @@ function ProductCard({
     <Link
       to={`/productos?producto=${encodeURIComponent(producto.id)}`}
       onClick={handleClick}
-      className="group flex-shrink-0 w-[260px] sm:w-[280px] cursor-pointer select-none rounded-lg overflow-hidden bg-background-50 border border-background-200/70 transition-all duration-500 ease-out hover:-translate-y-1 hover:border-background-300/80 block"
+      className="group flex-shrink-0 w-[76vw] sm:w-[280px] cursor-pointer select-none rounded-lg overflow-hidden bg-background-50 border border-background-200/70 transition-all duration-500 ease-out hover:-translate-y-1 hover:border-background-300/80 block"
     >
       {/* Image container */}
       <div className="relative aspect-[4/5] overflow-hidden bg-background-100">
@@ -132,7 +132,7 @@ export default function AvailableToday() {
     if (!el) return;
     const firstCard = el.firstElementChild;
     const cardWidth = firstCard ? firstCard.clientWidth : 280;
-    const gap = 24;
+    const gap = parseFloat(getComputedStyle(el).columnGap || '24') || 24;
     const amount = cardWidth + gap;
     el.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' });
   }, []);
@@ -212,10 +212,10 @@ export default function AvailableToday() {
             onPointerUp={handlePointerUp}
             onPointerLeave={handlePointerUp}
             onScroll={checkScrollLimits}
-            className="flex gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory px-2 -mx-2 py-2"
+            className="flex gap-3 sm:gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory px-[12vw] sm:px-2 sm:-mx-2 py-2"
           >
             {featuredProducts.map((producto) => (
-              <div key={producto.id} className="snap-start">
+              <div key={producto.id} className="snap-center sm:snap-start">
                 <ProductCard producto={producto} didDragRef={didDragRef} />
               </div>
             ))}
