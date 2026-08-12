@@ -12,29 +12,36 @@ Multilingüe: Español (por defecto) y Euskera, con arquitectura preparada para 
 - [i18next](https://www.i18next.com/) / [react-i18next](https://react.i18next.com/) — traducciones ES/EU
 - [Recharts](https://recharts.org/) — visualización de datos
 - [Lucide](https://lucide.dev/) — iconos
-- Firebase, Supabase, Stripe, Cloudflare Turnstile — integraciones preparadas para fases futuras (pedidos, pagos, verificación de formularios)
+- [Supabase](https://supabase.com/) — base de datos, auth y Edge Functions
+- Stripe, Cloudflare Turnstile — integraciones preparadas para fases futuras (pagos, verificación de formularios)
 
 ## Estructura
 
 ```
 src/
 ├── components/
-│   ├── base/          # Componentes genéricos (RollingNumber...)
+│   ├── base/          # Componentes genéricos (RollingNumber, ErrorBoundary...)
 │   └── feature/        # Componentes de feature (Navbar, TurnstileWidget)
-├── config/            # Configuración (Turnstile)
-├── hooks/             # useAdminAuth, useCart, useLanguage, useProductos, useScrollAnimation, useTurnstile
+├── config/            # Configuración (Turnstile, emails de desarrollo)
+├── hooks/             # useAdminAuth, useCart, useLanguage, useProductos, useNewsletter, usePedidos, useResenas...
 ├── i18n/              # Configuración y traducciones (es, eu)
-├── lib/               # Clientes de servicios externos (Supabase)
+├── lib/               # Clientes de servicios externos y logs (Supabase, newsletter, pedidos, reseñas, visitas)
 ├── mocks/             # Datos de ejemplo de productos
 ├── pages/
-│   ├── admin/          # Panel de administración (login, dashboard, alta/edición de productos)
+│   ├── admin/          # Panel de administración (login, dashboard, pedidos, reseñas, newsletter, stock, informes)
 │   ├── home/           # Página principal (Hero, About, Gallery, FAQ, Contact...)
+│   ├── legal/           # Aviso legal y política de cookies
+│   ├── newsletter/       # Confirmación y baja de suscripción por token
 │   ├── productos/       # Catálogo de productos + carrito
+│   ├── profesionales/    # Página para clientes profesionales (suministro al por mayor)
 │   └── NotFound.tsx
 ├── router/            # Configuración de rutas
-└── types/             # Tipos compartidos (Producto...)
+└── types/             # Tipos compartidos (Producto, Pedido, Reseña...)
 
-supabase/              # Esquema y datos de siembra (schema.sql, seed.sql)
+supabase/
+├── functions/          # Edge Functions (newsletter-confirm, pedido-estado, stock-alert)
+├── schema.sql          # Esquema de la base de datos
+└── seed.sql            # Datos de siembra
 ```
 
 ## Desarrollo
@@ -45,7 +52,7 @@ npm install
 npm run dev
 ```
 
-Las credenciales de Supabase nunca se escriben en el código: se leen de variables de entorno con prefijo `VITE_` (ver `.env.example`). Los secretos de las Edge Functions (`RESEND_API_KEY`, `STOCK_ALERT_SECRET`, `PEDIDO_ESTADO_SECRET`, etc.) se configuran aparte con `supabase secrets set` — ver `supabase/functions/stock-alert/.env.example` y `supabase/functions/pedido-estado/.env.example`.
+Las credenciales de Supabase nunca se escriben en el código: se leen de variables de entorno con prefijo `VITE_` (ver `.env.example`). Los secretos de las Edge Functions (`RESEND_API_KEY`, `STOCK_ALERT_SECRET`, `PEDIDO_ESTADO_SECRET`, etc.) se configuran aparte con `supabase secrets set` — ver los `.env.example` de cada función en `supabase/functions/{newsletter-confirm,pedido-estado,stock-alert}/`.
 
 ## Scripts
 
@@ -56,6 +63,7 @@ Las credenciales de Supabase nunca se escriben en el código: se leen de variabl
 | `npm run preview`     | Sirve el build de producción localmente |
 | `npm run lint`        | Linter (ESLint)                       |
 | `npm run type-check`  | Comprobación de tipos (TypeScript)    |
+| `npm run test`        | Tests unitarios (Vitest)              |
 
 ## Despliegue
 

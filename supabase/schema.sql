@@ -536,13 +536,21 @@ create trigger trg_productos_stock_bajo
 -- El formulario apuntaba antes a un endpoint de Readdy que ya no
 -- existe fuera de ese entorno; ahora persiste en Supabase igual que
 -- el resto de formularios públicos de la web.
+--
+-- NOTA: en producción esta tabla (y crear_newsletter_subscriber) se
+-- migraron después a un modelo multitenant con cliente_id / site_key,
+-- resuelto vía la función public.cliente_id_from_site_key(p_site_key)
+-- (definida directamente en el proyecto Supabase, fuera de este
+-- archivo). Las definiciones de abajo ya reflejan esa realidad.
 -- ============================================================
 
 create table if not exists public.newsletter_subscribers (
   id uuid primary key default gen_random_uuid(),
-  email text not null unique,
+  cliente_id uuid not null references public.clientes (id),
+  email text not null,
   idioma text not null default 'es' check (idioma in ('es', 'eu')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (cliente_id, email)
 );
 
 alter table public.newsletter_subscribers enable row level security;
@@ -568,6 +576,158 @@ create policy "newsletter_subscribers_delete_admin"
   using (public.is_developer());
 
 create index if not exists idx_newsletter_subscribers_created_at on public.newsletter_subscribers (created_at desc);
+
+-- ============================================================
+-- Newsletter: doble confirmación (double opt-in) y baja.
+-- Un suscriptor nuevo queda "pendiente" hasta que confirma por
+-- correo; solo entonces se considera suscrito de verdad. También
+-- se le da un enlace de baja único para darse de baja sin login.
+-- ============================================================
+
+alter table public.newsletter_subscribers add column if not exists confirmado boolean not null default false;
+alter table public.newsletter_subscribers add column if not exists confirmado_en timestamptz;
+alter table public.newsletter_subscribers add column if not exists confirm_token uuid not null default gen_random_uuid();
+alter table public.newsletter_subscribers add column if not exists baja_token uuid not null default gen_random_uuid();
+
+create unique index if not exists idx_newsletter_subscribers_confirm_token on public.newsletter_subscribers (confirm_token);
+create unique index if not exists idx_newsletter_subscribers_baja_token on public.newsletter_subscribers (baja_token);
+
+-- Devuelve 'nuevo' (alta nueva, pendiente de confirmar),
+-- 'reenviado' (ya existía sin confirmar, se reenvía el correo) o
+-- 'confirmado' (ya estaba confirmado, no se hace nada más).
+drop function if exists public.crear_newsletter_subscriber(uuid, text, text);
+create or replace function public.crear_newsletter_subscriber(p_site_key uuid, p_email text, p_idioma text)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_cliente_id uuid;
+  v_id uuid;
+  v_confirmado boolean;
+begin
+  v_cliente_id := public.cliente_id_from_site_key(p_site_key);
+  if v_cliente_id is null then
+    raise exception 'site_key inválida';
+  end if;
+  if char_length(p_email) < 3 or char_length(p_email) > 255 then
+    raise exception 'email inválido';
+  end if;
+
+  select id, confirmado into v_id, v_confirmado
+  from public.newsletter_subscribers
+  where cliente_id = v_cliente_id and email = p_email;
+
+  if v_id is null then
+    insert into public.newsletter_subscribers (cliente_id, email, idioma)
+    values (v_cliente_id, p_email, p_idioma);
+    return 'nuevo';
+  elsif v_confirmado then
+    return 'confirmado';
+  else
+    update public.newsletter_subscribers
+    set confirm_token = gen_random_uuid(), idioma = p_idioma
+    where id = v_id;
+    return 'reenviado';
+  end if;
+end;
+$$;
+
+-- Marca como confirmado el suscriptor dueño de ese token.
+-- 'confirmado' | 'ya_confirmado' | 'invalido'.
+create or replace function public.confirmar_newsletter_subscriber(p_token uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_confirmado boolean;
+begin
+  select id, confirmado into v_id, v_confirmado
+  from public.newsletter_subscribers
+  where confirm_token = p_token;
+
+  if v_id is null then
+    return 'invalido';
+  elsif v_confirmado then
+    return 'ya_confirmado';
+  end if;
+
+  update public.newsletter_subscribers
+  set confirmado = true, confirmado_en = now()
+  where id = v_id;
+
+  return 'confirmado';
+end;
+$$;
+
+-- Da de baja (borra) al suscriptor dueño de ese token. 'baja' | 'invalido'.
+create or replace function public.baja_newsletter_subscriber(p_token uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  select id into v_id from public.newsletter_subscribers where baja_token = p_token;
+  if v_id is null then
+    return 'invalido';
+  end if;
+
+  delete from public.newsletter_subscribers where id = v_id;
+  return 'baja';
+end;
+$$;
+
+-- Envía el correo de confirmación (vía la Edge Function
+-- newsletter-confirm) cada vez que se crea un suscriptor pendiente
+-- o se reenvía su token, igual que notificar_pedido_estado /
+-- notificar_stock_bajo usan la tabla settings para no dejar
+-- credenciales sueltas en el SQL.
+create or replace function public.notificar_newsletter_confirmacion()
+returns trigger as $$
+declare
+  v_url text;
+  v_secret text;
+begin
+  if new.confirmado = false then
+    select value #>> '{}' into v_url from public.settings where key = 'newsletter_confirm_url';
+    select value #>> '{}' into v_secret from public.settings where key = 'newsletter_confirm_secret';
+
+    if v_url is not null then
+      perform net.http_post(
+        url := v_url,
+        headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', coalesce(v_secret, '')),
+        body := jsonb_build_object(
+          'email', new.email,
+          'idioma', new.idioma,
+          'confirm_token', new.confirm_token,
+          'baja_token', new.baja_token
+        )
+      );
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public, extensions;
+
+drop trigger if exists trg_newsletter_confirmacion on public.newsletter_subscribers;
+create trigger trg_newsletter_confirmacion
+  after insert or update of confirm_token on public.newsletter_subscribers
+  for each row execute function public.notificar_newsletter_confirmacion();
+
+-- Tras desplegar supabase/functions/newsletter-confirm, registra su URL
+-- y el secreto compartido (mismo valor que NEWSLETTER_CONFIRM_SECRET en
+-- la function, configurado con `supabase secrets set`):
+-- insert into public.settings (cliente_id, key, value) values
+--   ('<CLIENTE_ID>', 'newsletter_confirm_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/newsletter-confirm"'),
+--   ('<CLIENTE_ID>', 'newsletter_confirm_secret', '"<UN_SECRETO_ALEATORIO>"')
+-- on conflict (cliente_id, key) do update set value = excluded.value;
 
 -- ============================================================
 -- Selección del día: qué productos se destacan en la portada y

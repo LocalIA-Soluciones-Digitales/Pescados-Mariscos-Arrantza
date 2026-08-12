@@ -7,6 +7,7 @@ import Admin from "../pages/admin/page";
 import AdminResetPassword from "../pages/admin/components/AdminResetPassword";
 import AvisoLegal from "../pages/legal/AvisoLegal";
 import Cookies from "../pages/legal/Cookies";
+import NewsletterAction from "../pages/newsletter/NewsletterAction";
 
 const routes: RouteObject[] = [
   {
@@ -36,6 +37,14 @@ const routes: RouteObject[] = [
   {
     path: "/cookies",
     element: <Cookies />,
+  },
+  {
+    path: "/newsletter/confirmar",
+    element: <NewsletterAction mode="confirmar" />,
+  },
+  {
+    path: "/newsletter/baja",
+    element: <NewsletterAction mode="baja" />,
   },
   {
     path: "*",

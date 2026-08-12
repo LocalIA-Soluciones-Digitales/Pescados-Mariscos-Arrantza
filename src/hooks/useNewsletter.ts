@@ -6,6 +6,8 @@ export interface NewsletterSubscriber {
   email: string;
   idioma: 'es' | 'eu';
   created_at: string;
+  confirmado: boolean;
+  confirmado_en: string | null;
 }
 
 export function useNewsletter() {

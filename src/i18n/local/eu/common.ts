@@ -749,6 +749,20 @@ const common = {
   "contact.newsletter.button": "Harpidetu",
   "contact.newsletter.sending": "Bidaltzen...",
 
+  "newsletter.confirm.checking": "Zure harpidetza berresten…",
+  "newsletter.confirm.success.title": "Harpidetza berretsita!",
+  "newsletter.confirm.success.body": "Dagoeneko zerrendan zaude. Astero sartzen den onenaren berri emango dizugu.",
+  "newsletter.confirm.already.title": "Dagoeneko berretsita zeunden",
+  "newsletter.confirm.already.body": "Zure harpidetza dagoeneko aktibo zegoen. Eskerrik asko!",
+  "newsletter.confirm.invalid.title": "Esteka ez da baliozkoa",
+  "newsletter.confirm.invalid.body": "Berresteko esteka hau ez da baliozkoa edo dagoeneko erabili da.",
+  "newsletter.baja.checking": "Zure baja prozesatzen…",
+  "newsletter.baja.success.title": "Baja berretsita",
+  "newsletter.baja.success.body": "Newsletterretik baja eman dizugu. Iritziz aldatzen bazara, nahi duzunean berriro harpidetu zaitezke.",
+  "newsletter.baja.invalid.title": "Esteka ez da baliozkoa",
+  "newsletter.baja.invalid.body": "Baja emateko esteka hau ez da baliozkoa edo dagoeneko erabili da.",
+  "newsletter.back": "Webgunera itzuli",
+
   // Footer
   "footer.rights": "Eskubide guztiak erreserbatuta.",
   "footer.privacy": "Lege Oharra",

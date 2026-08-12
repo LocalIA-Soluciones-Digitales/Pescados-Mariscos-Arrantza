@@ -5,8 +5,11 @@ export default function NewsletterPanel() {
   const { subscribers, loading, remove } = useNewsletter();
   const [copied, setCopied] = useState(false);
 
+  const confirmados = subscribers.filter((s) => s.confirmado);
+
   const copyEmails = async () => {
-    await navigator.clipboard.writeText(subscribers.map((s) => s.email).join(', '));
+    // Solo los confirmados: son los únicos que han aceptado recibir correos de verdad.
+    await navigator.clipboard.writeText(confirmados.map((s) => s.email).join(', '));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -15,15 +18,16 @@ export default function NewsletterPanel() {
     <div className="px-4 md:px-8 py-6 pb-28">
       <div className="flex items-center justify-between mb-4">
         <p className="text-xs text-foreground-400">
-          {subscribers.length} suscriptor{subscribers.length === 1 ? '' : 'es'} al newsletter
+          {confirmados.length} confirmado{confirmados.length === 1 ? '' : 's'} · {subscribers.length - confirmados.length} pendiente
+          {subscribers.length - confirmados.length === 1 ? '' : 's'}
         </p>
-        {subscribers.length > 0 && (
+        {confirmados.length > 0 && (
           <button
             type="button"
             onClick={copyEmails}
             className="px-3 py-1.5 rounded-full text-xs font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70"
           >
-            {copied ? 'Copiado' : 'Copiar todos los correos'}
+            {copied ? 'Copiado' : 'Copiar confirmados'}
           </button>
         )}
       </div>
@@ -37,7 +41,16 @@ export default function NewsletterPanel() {
           {subscribers.map((sub) => (
             <div key={sub.id} className="bg-background-50 border border-background-200/70 rounded-lg p-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm text-foreground-950 truncate">{sub.email}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-foreground-950 truncate">{sub.email}</p>
+                  <span
+                    className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                      sub.confirmado ? 'bg-accent-100 text-accent-700' : 'bg-background-200/70 text-foreground-400'
+                    }`}
+                  >
+                    {sub.confirmado ? 'Confirmado' : 'Pendiente'}
+                  </span>
+                </div>
                 <p className="text-[10px] text-foreground-400 mt-0.5">
                   {sub.idioma.toUpperCase()} · {new Date(sub.created_at).toLocaleString('es-ES')}
                 </p>

@@ -748,6 +748,20 @@ const common = {
   "contact.newsletter.button": "Suscribirme",
   "contact.newsletter.sending": "Enviando...",
 
+  "newsletter.confirm.checking": "Confirmando tu suscripción…",
+  "newsletter.confirm.success.title": "¡Suscripción confirmada!",
+  "newsletter.confirm.success.body": "Ya formas parte de la lista. Te avisaremos de lo mejor que entra cada semana.",
+  "newsletter.confirm.already.title": "Ya estabas confirmado",
+  "newsletter.confirm.already.body": "Tu suscripción ya estaba activa. ¡Gracias!",
+  "newsletter.confirm.invalid.title": "Enlace no válido",
+  "newsletter.confirm.invalid.body": "Este enlace de confirmación no es válido o ya se ha usado.",
+  "newsletter.baja.checking": "Procesando tu baja…",
+  "newsletter.baja.success.title": "Baja confirmada",
+  "newsletter.baja.success.body": "Te hemos dado de baja del newsletter. Si cambias de opinión, puedes volver a suscribirte cuando quieras.",
+  "newsletter.baja.invalid.title": "Enlace no válido",
+  "newsletter.baja.invalid.body": "Este enlace de baja no es válido o ya se ha usado.",
+  "newsletter.back": "Volver a la web",
+
   // Footer
   "footer.rights": "Todos los derechos reservados.",
   "footer.privacy": "Aviso Legal",
