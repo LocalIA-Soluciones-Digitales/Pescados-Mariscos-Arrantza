@@ -15,6 +15,13 @@ import type { Producto, ProductoEstado } from '@/types/producto';
 const MAX_FEATURED = 6;
 
 /* ------------------------------------------------------------------ */
+/*  The track is rendered as 3 back-to-back copies of the product      */
+/*  list; once the user scrolls past the middle copy's bounds we jump  */
+/*  silently by one copy-width so it feels like it never ends.         */
+/* ------------------------------------------------------------------ */
+const LOOP_COPIES = 3;
+
+/* ------------------------------------------------------------------ */
 /*  Badge style map — each estado gets a subtle distinct accent       */
 /* ------------------------------------------------------------------ */
 const badgeStyles: Record<ProductoEstado, { dot: string }> = {
@@ -101,30 +108,71 @@ export default function AvailableToday() {
     return source.slice(0, MAX_FEATURED);
   }, [productos]);
 
+  const canLoop = featuredProducts.length > 1;
+
+  /* Render N back-to-back copies so the track can scroll endlessly */
+  const loopedProducts = useMemo(() => {
+    if (!canLoop) return featuredProducts;
+    return Array.from({ length: LOOP_COPIES }, () => featuredProducts).flat();
+  }, [featuredProducts, canLoop]);
+
   /* ---- Carousel state ---- */
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const dragStartX = useRef(0);
   const scrollStartX = useRef(0);
   const didDragRef = useRef(false);
 
-  /* Check scroll limits to toggle arrow visibility */
-  const checkScrollLimits = useCallback(() => {
+  /* Exact pixel width of one copy of the list, measured from the DOM   */
+  /* (matching the offset between a card and its clone one copy over)   */
+  /* rather than estimated, so it stays correct across breakpoints.     */
+  const getSetWidth = useCallback(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 4);
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+    const n = featuredProducts.length;
+    if (!el || n === 0 || el.children.length < n + 1) return 0;
+    const a = (el.children[0] as HTMLElement).offsetLeft;
+    const b = (el.children[n] as HTMLElement).offsetLeft;
+    return b - a;
+  }, [featuredProducts.length]);
+
+  /* Jump by one copy-width, silently, once we drift past the middle   */
+  /* copy's bounds, so the track appears to scroll forever both ways.  */
+  /* Debounced until scrolling settles — reassigning scrollLeft while a */
+  /* smooth scrollBy() animation is still in flight cancels it outright, */
+  /* which is what made repeated arrow clicks near a wrap point stick.  */
+  const recenterTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const scheduleRecenter = useCallback(() => {
+    if (recenterTimeout.current) clearTimeout(recenterTimeout.current);
+    recenterTimeout.current = setTimeout(() => {
+      const el = scrollRef.current;
+      if (!el || !canLoop) return;
+      const setWidth = getSetWidth();
+      if (setWidth <= 0) return;
+      if (el.scrollLeft < setWidth * 0.5) {
+        el.scrollLeft += setWidth;
+        scrollStartX.current += setWidth;
+      } else if (el.scrollLeft > setWidth * 1.5) {
+        el.scrollLeft -= setWidth;
+        scrollStartX.current -= setWidth;
+      }
+    }, 120);
+  }, [canLoop, getSetWidth]);
+
+  useEffect(() => () => {
+    if (recenterTimeout.current) clearTimeout(recenterTimeout.current);
   }, []);
 
+  /* Start the user in the middle copy so both directions can loop */
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    checkScrollLimits();
-    el.addEventListener('scroll', checkScrollLimits, { passive: true });
-    return () => el.removeEventListener('scroll', checkScrollLimits);
-  }, [checkScrollLimits, featuredProducts.length]);
+    if (!el || !canLoop) return;
+    const id = requestAnimationFrame(() => {
+      const setWidth = getSetWidth();
+      if (setWidth > 0) el.scrollLeft = setWidth;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [canLoop, getSetWidth, loopedProducts.length]);
 
   /* ---- Scroll by one card ---- */
   const scrollBy = useCallback((direction: 'left' | 'right') => {
@@ -197,7 +245,7 @@ export default function AvailableToday() {
             type="button"
             onClick={() => scrollBy('left')}
             className={`absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full bg-white/90 border border-background-200/70 text-foreground-700 cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-white hover:text-foreground-950 hover:border-background-300/80 -translate-x-3 md:-translate-x-5 ${
-              canScrollLeft ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+              canLoop ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
             }`}
             aria-label={t('available.carousel.prev')}
           >
@@ -211,11 +259,11 @@ export default function AvailableToday() {
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerLeave={handlePointerUp}
-            onScroll={checkScrollLimits}
+            onScroll={scheduleRecenter}
             className="flex gap-3 sm:gap-6 overflow-x-auto scrollbar-hide snap-x snap-mandatory px-[12vw] sm:px-2 sm:-mx-2 py-2"
           >
-            {featuredProducts.map((producto) => (
-              <div key={producto.id} className="snap-center sm:snap-start">
+            {loopedProducts.map((producto, index) => (
+              <div key={`${producto.id}-${index}`} className="snap-center sm:snap-start">
                 <ProductCard producto={producto} didDragRef={didDragRef} />
               </div>
             ))}
@@ -226,7 +274,7 @@ export default function AvailableToday() {
             type="button"
             onClick={() => scrollBy('right')}
             className={`absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full bg-white/90 border border-background-200/70 text-foreground-700 cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-white hover:text-foreground-950 hover:border-background-300/80 translate-x-3 md:translate-x-5 ${
-              canScrollRight ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+              canLoop ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
             }`}
             aria-label={t('available.carousel.next')}
           >
