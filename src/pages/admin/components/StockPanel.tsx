@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Producto, ProductoCategoria } from '@/types/producto';
+import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 
 const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
   pescado: 'Pescado',
@@ -10,6 +11,23 @@ const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
 };
 
 const CATEGORIA_ORDEN: ProductoCategoria[] = ['pescado', 'especial', 'raciones', 'marisco'];
+
+type CategoriaFiltro = 'todos' | ProductoCategoria | string;
+
+// Mismo listado y orden que el filtro de la pestaña Productos
+const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categoria' | 'subcategoria' }[] = [
+  { value: 'todos', label: 'Todos', tipo: 'categoria' },
+  { value: 'pescado', label: 'Pescado', tipo: 'categoria' },
+  { value: 'especial', label: 'Especial', tipo: 'categoria' },
+  { value: 'raciones', label: 'Raciones', tipo: 'categoria' },
+  { value: 'marisco', label: 'Marisco', tipo: 'categoria' },
+  { value: 'azul', label: 'Pescado Azul', tipo: 'subcategoria' },
+  { value: 'blanco', label: 'Pescado Blanco', tipo: 'subcategoria' },
+  { value: 'cefalopodos', label: 'Cefalópodos', tipo: 'subcategoria' },
+  { value: 'bivalvos', label: 'Bivalvos / Moluscos', tipo: 'subcategoria' },
+  { value: 'crustaceos_grandes', label: 'Crustáceos Grandes', tipo: 'subcategoria' },
+  { value: 'gambas_langostinos', label: 'Gambas y Langostinos', tipo: 'subcategoria' },
+];
 
 function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: Partial<Producto>) => void }) {
   const [entrada, setEntrada] = useState('');
@@ -128,11 +146,30 @@ export default function StockPanel({
 }) {
   const [search, setSearch] = useState('');
   const [soloBajo, setSoloBajo] = useState(false);
+  const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
+  const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
 
   const bajoCount = useMemo(() => productos.filter((p) => p.stock_kg <= p.stock_minimo).length, [productos]);
 
+  const categoriaCounts = useMemo(() => {
+    const counts: Record<string, number> = { todos: productos.length };
+    CATEGORIA_FILTROS.forEach((c) => {
+      if (c.value === 'todos') return;
+      counts[c.value] = productos.filter((p) =>
+        c.tipo === 'categoria' ? p.categoria === c.value : p.subcategoria === c.value,
+      ).length;
+    });
+    return counts;
+  }, [productos]);
+
   const grupos = useMemo(() => {
     let result = productos;
+    if (categoria !== 'todos') {
+      const filtro = CATEGORIA_FILTROS.find((c) => c.value === categoria);
+      result = result.filter((p) =>
+        filtro?.tipo === 'subcategoria' ? p.subcategoria === categoria : p.categoria === categoria,
+      );
+    }
     if (soloBajo) {
       result = result.filter((p) => p.stock_kg <= p.stock_minimo);
     }
@@ -152,7 +189,7 @@ export default function StockPanel({
       categoria,
       productos: (porCategoria.get(categoria) ?? []).sort((a, b) => a.nombre_es.localeCompare(b.nombre_es, 'es')),
     })).filter((g) => g.productos.length > 0);
-  }, [productos, soloBajo, search]);
+  }, [productos, categoria, soloBajo, search]);
 
   const totalVisible = useMemo(() => grupos.reduce((n, g) => n + g.productos.length, 0), [grupos]);
 
@@ -181,20 +218,42 @@ export default function StockPanel({
             className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setSoloBajo((v) => !v)}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors flex items-center gap-1 w-fit ${
-            soloBajo ? 'bg-red-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
-          }`}
-        >
-          Stock bajo
-          {bajoCount > 0 && (
-            <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${soloBajo ? 'bg-background-50/25' : 'bg-red-100 text-red-600'}`}>
-              {bajoCount}
-            </span>
-          )}
-        </button>
+        <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          {CATEGORIA_FILTROS.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setCategoria(c.value)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+                categoria === c.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              {c.label}
+              <span
+                className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-none ${
+                  categoria === c.value ? 'bg-background-50/20 text-background-50' : 'bg-background-200/60 text-foreground-400'
+                }`}
+              >
+                {categoriaCounts[c.value] ?? 0}
+              </span>
+            </button>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => setSoloBajo((v) => !v)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors flex items-center gap-1 ${
+              soloBajo ? 'bg-red-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+            }`}
+          >
+            Stock bajo
+            {bajoCount > 0 && (
+              <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${soloBajo ? 'bg-background-50/25' : 'bg-red-100 text-red-600'}`}>
+                {bajoCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="px-4 md:px-8 py-6 pb-28">
