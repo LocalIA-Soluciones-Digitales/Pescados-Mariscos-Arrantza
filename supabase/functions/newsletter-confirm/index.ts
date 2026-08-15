@@ -11,6 +11,17 @@
 
 const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://arrantza.es';
 
+// Comparación en tiempo constante: evita filtrar por temporización cuántos
+// caracteres iniciales del secreto coinciden (timing side-channel).
+function safeEqual(a: string, b: string): boolean {
+  const bufA = new TextEncoder().encode(a);
+  const bufB = new TextEncoder().encode(b);
+  if (bufA.length !== bufB.length) return false;
+  let diff = 0;
+  for (let i = 0; i < bufA.length; i++) diff |= bufA[i] ^ bufB[i];
+  return diff === 0;
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': SITE_URL,
   'Access-Control-Allow-Headers': 'content-type, x-webhook-secret',
@@ -103,8 +114,9 @@ Deno.serve(async (req: Request) => {
     return new Response('Method not allowed', { status: 405, headers: corsHeaders });
   }
 
-  const secret = req.headers.get('x-webhook-secret');
-  if (!secret || secret !== Deno.env.get('NEWSLETTER_CONFIRM_SECRET')) {
+  const secret = req.headers.get('x-webhook-secret') ?? '';
+  const expected = Deno.env.get('NEWSLETTER_CONFIRM_SECRET') ?? '';
+  if (!secret || !expected || !safeEqual(secret, expected)) {
     return new Response('Unauthorized', { status: 401, headers: corsHeaders });
   }
 
