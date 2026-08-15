@@ -177,8 +177,8 @@ export default function ProductoFormModal({
     setError(null);
     try {
       const optimized = await optimizeImageFile(file);
-      const path = `arrantza/catalogo/${Date.now()}-${optimized.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const { error: uploadError } = await supabase.storage.from('productos').upload(path, optimized, {
+      const path = `catalogo/${Date.now()}-${optimized.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const { error: uploadError } = await supabase.storage.from('pescados-mariscos-arrantza').upload(path, optimized, {
         cacheControl: '31536000',
         contentType: optimized.type || file.type,
       });
@@ -186,7 +186,7 @@ export default function ProductoFormModal({
         setError('No se pudo subir la foto: ' + uploadError.message);
         return;
       }
-      const { data } = supabase.storage.from('productos').getPublicUrl(path);
+      const { data } = supabase.storage.from('pescados-mariscos-arrantza').getPublicUrl(path);
       update('imagen_url', data.publicUrl);
     } catch {
       setError('No se pudo procesar la imagen. Prueba con otra foto.');

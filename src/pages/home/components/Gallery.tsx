@@ -4,27 +4,27 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 
 const galleryImages = [
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/arrantza-gallery-01.jpg',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-01.jpg',
     alt: 'Pescado fresco sobre hielo en el mostrador',
   },
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/arrantza-gallery-02.jpg',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-02.jpg',
     alt: 'Manos de pescadero fileteando pescado',
   },
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/arrantza-gallery-03.jpg',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-03.jpg',
     alt: 'Marisco fresco sobre hielo',
   },
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/arrantza-gallery-04.jpg',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-04.jpg',
     alt: 'Fachada de la pescadería Arrantza',
   },
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/arrantza-gallery-05.jpg',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-05.jpg',
     alt: 'Anchoas frescas del Cantábrico',
   },
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/arrantza-gallery-06.jpg',
+    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-06.jpg',
     alt: 'Pescadero de Arrantza en el mostrador',
   },
 ];

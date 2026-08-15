@@ -1158,7 +1158,7 @@ function RestaurantSupplySection() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 md:gap-16 lg:gap-20 items-center max-w-[1200px] mx-auto">
           <div className={`rounded-lg overflow-hidden border border-background-200/70 aspect-[4/3] transition-all duration-800 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <img
-              src="https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/cat-restaurant-supply-01.jpg"
+              src="https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/cat-restaurant-supply-01.jpg"
               alt={t('products.restaurant.section_title')}
               className="w-full h-full object-cover"
             />

@@ -57,7 +57,7 @@ const LOCAL_BUSINESS_BASE = {
   description:
     'Pescadería familiar en Erandio, Bizkaia. Pescado y marisco fresco del Cantábrico seleccionado cada mañana en lonja.',
   image:
-    'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/arrantza-hero-01.jpg',
+    'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-hero-01.jpg',
   telephone: '+34619609888',
   address: {
     '@type': 'PostalAddress',

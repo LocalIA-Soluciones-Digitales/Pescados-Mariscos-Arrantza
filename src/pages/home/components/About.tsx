@@ -23,7 +23,7 @@ export default function About() {
             {/* Main image */}
             <div className="absolute inset-0 lg:inset-4 xl:inset-8">
               <img
-                src="https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/arrantza-story-02.jpg"
+                src="https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-story-02.jpg"
                 alt="Manos de pescadero seleccionando pescado fresco en el mostrador"
                 className="w-full h-full object-cover object-top"
               />
