@@ -177,7 +177,7 @@ export default function ProductoFormModal({
     setError(null);
     try {
       const optimized = await optimizeImageFile(file);
-      const path = `${Date.now()}-${optimized.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const path = `arrantza/catalogo/${Date.now()}-${optimized.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
       const { error: uploadError } = await supabase.storage.from('productos').upload(path, optimized, {
         cacheControl: '31536000',
         contentType: optimized.type || file.type,

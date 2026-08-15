@@ -26,7 +26,7 @@ function HeroSection() {
       {/* Background image */}
       <div className="absolute inset-0">
         <img
-          src="https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/pro-hero-bg.jpg"
+          src="https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/pro-hero-bg.jpg"
           alt=""
           className="w-full h-full object-cover object-center"
         />

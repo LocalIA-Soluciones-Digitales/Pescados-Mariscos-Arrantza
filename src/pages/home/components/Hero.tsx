@@ -70,7 +70,7 @@ export default function Hero() {
         ref={bgRef}
         className="absolute inset-0 bg-cover bg-center md:will-change-transform"
         style={{
-          backgroundImage: `url('https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/marketing/arrantza-hero-01.jpg')`,
+          backgroundImage: `url('https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/productos/arrantza/marketing/arrantza-hero-01.jpg')`,
           transform: 'scale(1) translateY(0)',
         }}
       />
