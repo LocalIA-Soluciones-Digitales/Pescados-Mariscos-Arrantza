@@ -5,6 +5,11 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { logConversion } from '@/lib/visitLog';
 import { submitNewsletter } from '@/lib/newsletterLog';
 
+// Oculto hasta que se implemente el contenido real de la newsletter
+// (ver conversación con el pescadero sobre quién escribe cada envío).
+// El backend (Supabase, edge function, panel admin) sigue activo.
+const NEWSLETTER_ENABLED = false;
+
 export default function Contact() {
   const { t } = useTranslation();
   const { ref, isVisible } = useScrollAnimation();
@@ -87,65 +92,67 @@ export default function Contact() {
           </a>
         </div>
 
-        {/* Newsletter */}
-        <div className={`bg-background-50 rounded-lg p-6 sm:p-8 md:p-12 text-center max-w-xl mx-auto transition-all duration-800 ease-out ${isVisible ? 'animate-fade-up' : 'opacity-0'}`}>
-          <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 sm:mb-5 flex items-center justify-center rounded-full bg-secondary-100 text-secondary-600">
-            <i className="ri-newspaper-line text-lg sm:text-xl"></i>
+        {/* Newsletter (oculta temporalmente, ver NEWSLETTER_ENABLED) */}
+        {NEWSLETTER_ENABLED && (
+          <div className={`bg-background-50 rounded-lg p-6 sm:p-8 md:p-12 text-center max-w-xl mx-auto transition-all duration-800 ease-out ${isVisible ? 'animate-fade-up' : 'opacity-0'}`}>
+            <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-4 sm:mb-5 flex items-center justify-center rounded-full bg-secondary-100 text-secondary-600">
+              <i className="ri-newspaper-line text-lg sm:text-xl"></i>
+            </div>
+            <h3 className="font-heading text-lg sm:text-xl md:text-2xl font-semibold text-foreground-950 mb-2">
+              {t('contact.newsletter.title')}
+            </h3>
+            <p className="text-xs sm:text-sm text-foreground-400 mb-5 sm:mb-7">
+              {t('contact.newsletter.subtitle')}
+            </p>
+
+            <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
+              <input
+                type="email"
+                name="email"
+                required
+                placeholder={t('contact.newsletter.placeholder')}
+                className="flex-1 min-w-0 px-4 sm:px-5 py-3 rounded-full border border-foreground-200 bg-transparent text-sm text-foreground-950 placeholder:text-foreground-300 focus:outline-none focus:border-accent-400 transition-colors duration-300"
+              />
+              {/* Honeypot */}
+              <input
+                type="text"
+                name="company_alt"
+                className="field-company_alt"
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                readOnly
+              />
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 sm:px-7 py-3 rounded-full bg-primary-500 text-background-50 font-medium text-sm hover:bg-primary-600 transition-colors duration-300 whitespace-nowrap cursor-pointer flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? t('contact.newsletter.sending') : t('contact.newsletter.button')}
+              </button>
+            </form>
+
+            {/* Status messages */}
+            {status === 'success' && (
+              <p className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-accent-600">
+                <i className="ri-checkbox-circle-fill text-base"></i>
+                {subscribeStatus === 'confirmado'
+                  ? i18n.language === 'eu'
+                    ? 'Dagoeneko harpidetuta eta berretsita zaude. Eskerrik asko!'
+                    : 'Ya estabas suscrito y confirmado. ¡Gracias!'
+                  : i18n.language === 'eu'
+                    ? 'Ia listo! Begiratu zure postontzia eta sakatu berresteko esteka harpidetza aktibatzeko.'
+                    : '¡Ya casi! Revisa tu correo y pulsa el enlace de confirmación para activar tu suscripción.'}
+              </p>
+            )}
+            {status === 'error' && (
+              <p className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-red-500">
+                <i className="ri-error-warning-fill text-base"></i>
+                {errorMsg}
+              </p>
+            )}
           </div>
-          <h3 className="font-heading text-lg sm:text-xl md:text-2xl font-semibold text-foreground-950 mb-2">
-            {t('contact.newsletter.title')}
-          </h3>
-          <p className="text-xs sm:text-sm text-foreground-400 mb-5 sm:mb-7">
-            {t('contact.newsletter.subtitle')}
-          </p>
-
-          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
-            <input
-              type="email"
-              name="email"
-              required
-              placeholder={t('contact.newsletter.placeholder')}
-              className="flex-1 min-w-0 px-4 sm:px-5 py-3 rounded-full border border-foreground-200 bg-transparent text-sm text-foreground-950 placeholder:text-foreground-300 focus:outline-none focus:border-accent-400 transition-colors duration-300"
-            />
-            {/* Honeypot */}
-            <input
-              type="text"
-              name="company_alt"
-              className="field-company_alt"
-              tabIndex={-1}
-              autoComplete="off"
-              aria-hidden="true"
-              readOnly
-            />
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-6 sm:px-7 py-3 rounded-full bg-primary-500 text-background-50 font-medium text-sm hover:bg-primary-600 transition-colors duration-300 whitespace-nowrap cursor-pointer flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? t('contact.newsletter.sending') : t('contact.newsletter.button')}
-            </button>
-          </form>
-
-          {/* Status messages */}
-          {status === 'success' && (
-            <p className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-accent-600">
-              <i className="ri-checkbox-circle-fill text-base"></i>
-              {subscribeStatus === 'confirmado'
-                ? i18n.language === 'eu'
-                  ? 'Dagoeneko harpidetuta eta berretsita zaude. Eskerrik asko!'
-                  : 'Ya estabas suscrito y confirmado. ¡Gracias!'
-                : i18n.language === 'eu'
-                  ? 'Ia listo! Begiratu zure postontzia eta sakatu berresteko esteka harpidetza aktibatzeko.'
-                  : '¡Ya casi! Revisa tu correo y pulsa el enlace de confirmación para activar tu suscripción.'}
-            </p>
-          )}
-          {status === 'error' && (
-            <p className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-red-500">
-              <i className="ri-error-warning-fill text-base"></i>
-              {errorMsg}
-            </p>
-          )}
-        </div>
+        )}
       </div>
     </section>
   );
