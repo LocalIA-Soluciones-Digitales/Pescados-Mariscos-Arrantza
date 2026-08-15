@@ -3,6 +3,7 @@ import Hero from './components/Hero';
 import AvailableToday from './components/AvailableToday';
 import About from './components/About';
 import Process from './components/Process';
+import Fleet from './components/Fleet';
 import WhyChooseUs from './components/WhyChooseUs';
 import Gallery from './components/Gallery';
 import Testimonials from './components/Testimonials';
@@ -21,6 +22,7 @@ export default function Home() {
         <AvailableToday />
         <About />
         <Process />
+        <Fleet />
         <WhyChooseUs />
         <Gallery />
         <Testimonials />

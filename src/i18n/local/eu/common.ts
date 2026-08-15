@@ -631,6 +631,10 @@ const common = {
   "products.cart_empty_hint": "Gehitu produktuak katalogotik zure eskaera hasteko.",
   "products.continue_shopping": "Erosten jarraitu",
 
+  // Fleet banner (entre Process y Why Choose Us)
+  "fleet.label": "Gure flota",
+  "fleet.title": "Pieza bakoitza ezagutzen dugun itsasontzi batekin hasten da",
+
   // Why Choose Us
   "why.label": "Zergatik Arrantza",
   "why.title": "Mostradore guztiak ez dira berdinak",

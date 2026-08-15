@@ -630,6 +630,10 @@ const common = {
   "checkout.customer_email": "Correo electrónico",
   "checkout.customer_email_placeholder": "tu@email.com",
 
+  // Fleet banner (entre Process y Why Choose Us)
+  "fleet.label": "Nuestra flota",
+  "fleet.title": "Cada pieza empieza con un barco que conocemos por su nombre",
+
   // Why Choose Us
   "why.label": "Por qué Arrantza",
   "why.title": "No todos los mostradores son iguales",
