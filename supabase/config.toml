@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.pedido-estado]
 verify_jwt = false
+
+[functions.newsletter-confirm]
+verify_jwt = false

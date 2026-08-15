@@ -1,10 +1,81 @@
 -- ============================================================
--- Pescados y Mariscos Arrantza — catálogo de productos (v2, bilingüe)
--- Ejecutar en: Supabase Dashboard > SQL Editor > New query
+-- Pescados y Mariscos Arrantza — esquema de referencia (Postgres/Supabase)
+--
+-- Este fichero documenta el esquema tal y como está desplegado en el
+-- proyecto Supabase real (multi-tenant, compartido con otros clientes
+-- de LocalIA Soluciones Digitales), reconstruido a partir de la base
+-- de producción el 2026-08-15. NO es un script idempotente de
+-- instalación limpia: varias tablas/funciones ya asumen la existencia
+-- de `public.clientes` y `public.usuarios_negocio`, definidas fuera de
+-- este fichero (son compartidas por todos los proyectos del mismo
+-- Supabase). Úsalo como referencia para entender el modelo de datos y
+-- las políticas RLS reales, no lo ejecutes tal cual sobre un proyecto
+-- nuevo sin adaptar esa parte multi-tenant primero.
+-- ============================================================
+
+-- ============================================================
+-- Multi-tenant: cada fila de negocio "cuelga" de public.clientes.
+-- Definida fuera de este proyecto (compartida por todos los clientes
+-- de LocalIA); se documenta aquí solo para contexto de las FKs.
+--
+--   public.clientes (id uuid pk, nombre_negocio, slug, tipo_proyecto,
+--                     contacto_*, estado, site_key uuid unique, ...)
+--
+-- Cada usuario de Supabase Auth con acceso a un panel de gestión tiene
+-- una fila en usuarios_negocio que lo vincula a su cliente:
+--
+--   public.usuarios_negocio (user_id uuid pk references auth.users,
+--                             cliente_id uuid references clientes,
+--                             rol text check (rol in ('gestion')))
+--
+-- RLS de usuarios_negocio: cada usuario solo puede ver su propia fila
+-- (`user_id = auth.uid()`); solo is_developer() tiene acceso total.
+-- ============================================================
+
+-- Devuelve el cliente_id del usuario autenticado actual (null si no
+-- tiene fila en usuarios_negocio, p.ej. mientras no se le ha dado de
+-- alta o si es un desarrollador que gestiona todo vía is_developer()).
+create or replace function public.mi_cliente_id()
+returns uuid
+language sql stable security definer set search_path = public
+as $$
+  select cliente_id from public.usuarios_negocio where user_id = auth.uid();
+$$;
+
+-- Lista de emails con acceso total (todos los clientes, todas las
+-- tablas). Mantener en sync con DEVELOPER_EMAILS en
+-- src/config/devEmails.ts.
+create or replace function public.is_developer()
+returns boolean as $$
+  select (auth.jwt() ->> 'email') = any (array['edortadossantos@gmail.com', 'admin@developers.local']);
+$$ language sql stable set search_path = public;
+
+-- Resuelve el cliente_id a partir del site_key público (VITE_SITE_KEY),
+-- usado por todas las funciones RPC que el frontend llama sin sesión
+-- (formularios públicos: pedidos, reseñas, newsletter, analítica...).
+-- Solo devuelve clientes en estado 'activo'.
+create or replace function public.cliente_id_from_site_key(p_site_key uuid)
+returns uuid
+language sql stable security definer set search_path = public
+as $$
+  select id from public.clientes where site_key = p_site_key and estado = 'activo';
+$$;
+
+create or replace function public.set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql set search_path = public;
+
+-- ============================================================
+-- Catálogo de productos
 -- ============================================================
 
 create table if not exists public.productos (
   id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
   nombre_es text not null,
   nombre_eu text,
   descripcion_es text,
@@ -18,17 +89,13 @@ create table if not exists public.productos (
   estado text not null default 'available' check (estado in ('available', 'new', 'premium', 'seasonal')),
   disponible boolean not null default true,
   orden integer not null default 0,
+  destacado boolean not null default false,
+  stock_kg numeric not null default 0,
+  stock_minimo numeric not null default 10,
+  stock_alerta_enviada boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-
-create or replace function public.set_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language plpgsql set search_path = public;
 
 drop trigger if exists trg_productos_updated_at on public.productos;
 create trigger trg_productos_updated_at
@@ -37,36 +104,61 @@ create trigger trg_productos_updated_at
 
 alter table public.productos enable row level security;
 
--- Catálogo completo visible para todos (agotados incluidos, se marcan en la UI)
-drop policy if exists "productos_select_publico" on public.productos;
-create policy "productos_select_publico"
+-- Gestión (alta/edición/borrado): el pescadero del cliente dueño de la
+-- fila, o cualquier desarrollador. Ya NO es "cualquier authenticated"
+-- (así estaba en una versión anterior de este fichero, desactualizada
+-- respecto a producción) — el aislamiento entre clientes del mismo
+-- proyecto Supabase depende de esta condición.
+drop policy if exists "productos_select_admin" on public.productos;
+create policy "productos_select_admin"
   on public.productos for select
-  to anon, authenticated
-  using (true);
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
 
 drop policy if exists "productos_insert_admin" on public.productos;
 create policy "productos_insert_admin"
   on public.productos for insert
   to authenticated
-  with check (true);
+  with check (is_developer() or cliente_id = mi_cliente_id());
 
 drop policy if exists "productos_update_admin" on public.productos;
 create policy "productos_update_admin"
   on public.productos for update
   to authenticated
-  using (true)
-  with check (true);
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
 
 drop policy if exists "productos_delete_admin" on public.productos;
 create policy "productos_delete_admin"
   on public.productos for delete
   to authenticated
-  using (true);
+  using (is_developer() or cliente_id = mi_cliente_id());
 
 create index if not exists idx_productos_categoria on public.productos (categoria);
 create index if not exists idx_productos_disponible on public.productos (disponible);
+create index if not exists idx_productos_destacado on public.productos (destacado);
 
--- Bucket de Storage para las fotos que suba el pescadero
+-- Lectura pública del catálogo: siempre vía la función RPC
+-- get_productos_publico(site_key), nunca por select directo — así el
+-- frontend anónimo nunca necesita (ni tiene) una policy de select
+-- abierta sobre la tabla.
+create or replace function public.get_productos_publico(p_site_key uuid)
+returns setof productos
+language sql stable security definer set search_path = public
+as $$
+  select p.* from public.productos p
+  where p.cliente_id = public.cliente_id_from_site_key(p_site_key)
+  order by p.orden asc, p.created_at asc;
+$$;
+
+-- Bucket de Storage para las fotos que suba el pescadero. Compartido
+-- por todos los clientes del proyecto (no hay una carpeta por
+-- cliente_id en las rutas que genera ProductoFormModal.tsx), así que
+-- la policy de escritura solo exige tener alguna cuenta de gestión
+-- (is_developer() o mi_cliente_id() no nulo) — no aísla un cliente de
+-- otro dentro del mismo bucket. Ver auditoría de seguridad: aislar por
+-- carpeta (como ya hace el bucket 'restaurant-media') es una mejora
+-- pendiente si el volumen de clientes lo justifica.
 insert into storage.buckets (id, name, public)
 values ('productos', 'productos', true)
 on conflict (id) do nothing;
@@ -77,12 +169,33 @@ create policy "productos_storage_lectura_publica"
   to anon, authenticated
   using (bucket_id = 'productos');
 
+-- Escritura restringida a imágenes de hasta 5 MB (antes no había
+-- ninguna restricción de tipo/tamaño — ver auditoría de seguridad,
+-- hallazgo F-05).
 drop policy if exists "productos_storage_escritura_admin" on storage.objects;
 create policy "productos_storage_escritura_admin"
-  on storage.objects for all
+  on storage.objects for insert
+  to authenticated
+  with check (
+    bucket_id = 'productos'
+    and (metadata->>'size')::bigint < 5242880
+    and (metadata->>'mimetype') in ('image/jpeg', 'image/png', 'image/webp')
+  );
+
+create policy "productos_storage_actualizacion_admin"
+  on storage.objects for update
   to authenticated
   using (bucket_id = 'productos')
-  with check (bucket_id = 'productos');
+  with check (
+    bucket_id = 'productos'
+    and (metadata->>'size')::bigint < 5242880
+    and (metadata->>'mimetype') in ('image/jpeg', 'image/png', 'image/webp')
+  );
+
+create policy "productos_storage_borrado_admin"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'productos');
 
 -- ============================================================
 -- Registro de errores del frontend (solo lectura para desarrolladores)
@@ -90,6 +203,7 @@ create policy "productos_storage_escritura_admin"
 
 create table if not exists public.error_logs (
   id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
   message text not null,
   stack text,
   source text not null default 'unknown' check (source in ('window_error', 'unhandled_rejection', 'react_boundary', 'api')),
@@ -100,27 +214,43 @@ create table if not exists public.error_logs (
 
 alter table public.error_logs enable row level security;
 
--- Cualquier visitante puede reportar un error (es lo que ocurre cuando falla la página)…
-drop policy if exists "error_logs_insert_publico" on public.error_logs;
-create policy "error_logs_insert_publico"
-  on public.error_logs for insert
-  to anon, authenticated
-  with check (true);
-
--- …pero solo el desarrollador autenticado puede leerlos o borrarlos
+-- Solo el desarrollador puede leerlos/borrarlos (a diferencia de
+-- productos/pedidos/reseñas, esto no se delega al pescadero: es
+-- diagnóstico técnico interno, no gestión del negocio).
 drop policy if exists "error_logs_select_admin" on public.error_logs;
 create policy "error_logs_select_admin"
   on public.error_logs for select
   to authenticated
-  using (true);
+  using (is_developer());
 
 drop policy if exists "error_logs_delete_admin" on public.error_logs;
 create policy "error_logs_delete_admin"
   on public.error_logs for delete
   to authenticated
-  using (true);
+  using (is_developer());
 
 create index if not exists idx_error_logs_created_at on public.error_logs (created_at desc);
+
+-- El frontend nunca inserta directamente: siempre vía esta función,
+-- que resuelve el cliente_id a partir del site_key público.
+create or replace function public.crear_error_log(
+  p_site_key uuid, p_message text, p_stack text, p_source text, p_url text, p_user_agent text
+)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_cliente_id uuid;
+begin
+  v_cliente_id := public.cliente_id_from_site_key(p_site_key);
+  if v_cliente_id is null then
+    raise exception 'site_key inválida';
+  end if;
+
+  insert into public.error_logs (cliente_id, message, stack, source, url, user_agent)
+  values (v_cliente_id, p_message, p_stack, p_source, p_url, p_user_agent);
+end;
+$$;
 
 -- ============================================================
 -- Visitas y conversiones (para comparar tráfico antes/después de Google Ads)
@@ -128,49 +258,80 @@ create index if not exists idx_error_logs_created_at on public.error_logs (creat
 
 create table if not exists public.visits (
   id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
   session_id uuid not null,
-  event_type text not null default 'pageview' check (event_type in ('pageview', 'tel_click', 'whatsapp_click')),
+  event_type text not null default 'pageview' check (event_type in ('pageview', 'tel_click', 'whatsapp_click', 'category_view', 'product_view', 'add_to_cart')),
   path text not null,
   referrer text,
   source_category text not null default 'direct' check (source_category in ('google_ads', 'google_organic', 'social', 'referral', 'direct', 'other')),
   utm_source text,
   utm_medium text,
   utm_campaign text,
+  label text,
+  device_type text check (device_type is null or device_type in ('mobile', 'tablet', 'desktop')),
+  is_returning boolean not null default false,
   created_at timestamptz not null default now()
 );
 
 alter table public.visits enable row level security;
 
--- Cualquier visitante genera eventos de navegación…
-drop policy if exists "visits_insert_publico" on public.visits;
-create policy "visits_insert_publico"
-  on public.visits for insert
-  to anon, authenticated
-  with check (true);
-
--- …pero solo el desarrollador autenticado puede leerlos o borrarlos
 drop policy if exists "visits_select_admin" on public.visits;
 create policy "visits_select_admin"
   on public.visits for select
   to authenticated
-  using (true);
+  using (is_developer());
 
 drop policy if exists "visits_delete_admin" on public.visits;
 create policy "visits_delete_admin"
   on public.visits for delete
   to authenticated
-  using (true);
+  using (is_developer());
 
 create index if not exists idx_visits_created_at on public.visits (created_at desc);
 create index if not exists idx_visits_event_type on public.visits (event_type);
 create index if not exists idx_visits_session_id on public.visits (session_id);
+create index if not exists idx_visits_path on public.visits (path);
 
--- Ajustes internos del panel (p.ej. fecha de lanzamiento de Google Ads),
--- solo para el desarrollador autenticado.
+-- El frontend nunca inserta directamente: siempre vía esta función.
+create or replace function public.registrar_visita(
+  p_site_key uuid, p_session_id uuid, p_event_type text, p_path text, p_label text,
+  p_referrer text, p_source_category text, p_utm_source text, p_utm_medium text,
+  p_utm_campaign text, p_device_type text, p_is_returning boolean
+)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_cliente_id uuid;
+begin
+  v_cliente_id := public.cliente_id_from_site_key(p_site_key);
+  if v_cliente_id is null then
+    raise exception 'site_key inválida';
+  end if;
+
+  insert into public.visits (
+    cliente_id, session_id, event_type, path, label, referrer, source_category,
+    utm_source, utm_medium, utm_campaign, device_type, is_returning
+  ) values (
+    v_cliente_id, p_session_id, p_event_type, p_path, p_label, p_referrer, p_source_category,
+    p_utm_source, p_utm_medium, p_utm_campaign, p_device_type, p_is_returning
+  );
+end;
+$$;
+
+-- ============================================================
+-- Ajustes internos por cliente (URLs y secretos compartidos de las
+-- Edge Functions de notificación, fecha de lanzamiento de Google
+-- Ads...). Clave compuesta (key, cliente_id): cada cliente tiene su
+-- propia fila para la misma key.
+-- ============================================================
+
 create table if not exists public.settings (
-  key text primary key,
+  key text not null,
+  cliente_id uuid not null references public.clientes (id),
   value jsonb not null,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  primary key (key, cliente_id)
 );
 
 drop trigger if exists trg_settings_updated_at on public.settings;
@@ -184,91 +345,16 @@ drop policy if exists "settings_all_admin" on public.settings;
 create policy "settings_all_admin"
   on public.settings for all
   to authenticated
-  using (true)
-  with check (true);
+  using (is_developer())
+  with check (is_developer());
 
 -- ============================================================
--- Interés por categoría (qué buscan más los visitantes en /productos)
--- ============================================================
-
-alter table public.visits add column if not exists label text;
-
--- ============================================================
--- Separación de roles: el pescadero solo gestiona productos;
--- informes/errores/ajustes quedan restringidos a los desarrolladores.
--- Mantener esta lista sincronizada con DEVELOPER_EMAILS en
--- src/config/devEmails.ts.
--- ============================================================
-
-create or replace function public.is_developer()
-returns boolean as $$
-  select (auth.jwt() ->> 'email') = any (array['edortadossantos@gmail.com', 'admin@developers.local']);
-$$ language sql stable set search_path = public;
-
-drop policy if exists "error_logs_select_admin" on public.error_logs;
-create policy "error_logs_select_admin"
-  on public.error_logs for select
-  to authenticated
-  using (public.is_developer());
-
-drop policy if exists "error_logs_delete_admin" on public.error_logs;
-create policy "error_logs_delete_admin"
-  on public.error_logs for delete
-  to authenticated
-  using (public.is_developer());
-
-drop policy if exists "visits_select_admin" on public.visits;
-create policy "visits_select_admin"
-  on public.visits for select
-  to authenticated
-  using (public.is_developer());
-
-drop policy if exists "visits_delete_admin" on public.visits;
-create policy "visits_delete_admin"
-  on public.visits for delete
-  to authenticated
-  using (public.is_developer());
-
-drop policy if exists "settings_all_admin" on public.settings;
-create policy "settings_all_admin"
-  on public.settings for all
-  to authenticated
-  using (public.is_developer())
-  with check (public.is_developer());
-
--- ============================================================
--- Más señal para analizar la web: tipo de dispositivo y si el
--- visitante ya había estado antes (nuevo vs. recurrente).
--- ============================================================
-
-alter table public.visits add column if not exists device_type text;
-alter table public.visits drop constraint if exists visits_device_type_check;
-alter table public.visits add constraint visits_device_type_check
-  check (device_type is null or device_type in ('mobile', 'tablet', 'desktop'));
-
-alter table public.visits add column if not exists is_returning boolean not null default false;
-
-create index if not exists idx_visits_path on public.visits (path);
-
--- ============================================================
--- Tracking a nivel de producto: qué se mira vs. qué se añade al
--- pedido. Reutiliza la tabla visits — label guarda el id del
--- producto (igual que category_view guarda la categoría).
--- ============================================================
-
-alter table public.visits drop constraint if exists visits_event_type_check;
-alter table public.visits add constraint visits_event_type_check
-  check (event_type in ('pageview', 'tel_click', 'whatsapp_click', 'category_view', 'product_view', 'add_to_cart'));
-
--- ============================================================
--- Pedidos: persiste el contenido de cada pedido enviado por
--- WhatsApp (antes solo se registraba el clic, no qué se pedía).
--- Da al pescadero un historial real de demanda para comprar en
--- lonja y calcular ticket medio.
+-- Pedidos: persiste el contenido de cada pedido enviado por WhatsApp.
 -- ============================================================
 
 create table if not exists public.pedidos (
   id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
   items jsonb not null,
   total_productos integer not null default 0,
   peso_total numeric not null default 0,
@@ -285,45 +371,109 @@ create table if not exists public.pedidos (
   hora_preferida text,
   notas text,
   estado text not null default 'nuevo' check (estado in ('nuevo', 'confirmado', 'completado', 'cancelado')),
+  device_id uuid,
   created_at timestamptz not null default now()
 );
 
 alter table public.pedidos enable row level security;
 
--- El cliente envía el pedido desde la web (sin sesión)…
-drop policy if exists "pedidos_insert_publico" on public.pedidos;
-create policy "pedidos_insert_publico"
-  on public.pedidos for insert
-  to anon, authenticated
-  with check (true);
-
--- …pero solo el pescadero (autenticado) puede verlos y gestionarlos.
+-- Gestión: el pescadero del cliente dueño del pedido, o desarrollador.
 drop policy if exists "pedidos_select_admin" on public.pedidos;
 create policy "pedidos_select_admin"
   on public.pedidos for select
   to authenticated
-  using (true);
+  using (is_developer() or cliente_id = mi_cliente_id());
 
 drop policy if exists "pedidos_update_admin" on public.pedidos;
 create policy "pedidos_update_admin"
   on public.pedidos for update
   to authenticated
-  using (true)
-  with check (true);
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
 
 drop policy if exists "pedidos_delete_admin" on public.pedidos;
 create policy "pedidos_delete_admin"
   on public.pedidos for delete
   to authenticated
-  using (true);
+  using (is_developer() or cliente_id = mi_cliente_id());
 
 create index if not exists idx_pedidos_created_at on public.pedidos (created_at desc);
 create index if not exists idx_pedidos_estado on public.pedidos (estado);
+create index if not exists idx_pedidos_device_id on public.pedidos (device_id);
+
+-- El cliente envía el pedido desde la web (sin sesión) siempre vía
+-- esta función, nunca por insert directo — no hay policy de insert
+-- para anon sobre la tabla.
+create or replace function public.crear_pedido(
+  p_site_key uuid, p_items jsonb, p_total_productos integer, p_peso_total numeric,
+  p_importe_estimado numeric, p_metodo_entrega text, p_cliente_nombre text,
+  p_cliente_negocio text, p_cliente_telefono text, p_cliente_email text,
+  p_cliente_direccion text, p_cliente_ciudad text, p_cliente_cp text,
+  p_fecha_preferida text, p_hora_preferida text, p_notas text, p_device_id uuid
+)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_cliente_id uuid;
+  v_id uuid;
+begin
+  v_cliente_id := public.cliente_id_from_site_key(p_site_key);
+  if v_cliente_id is null then
+    raise exception 'site_key inválida';
+  end if;
+
+  insert into public.pedidos (
+    cliente_id, items, total_productos, peso_total, importe_estimado, metodo_entrega,
+    cliente_nombre, cliente_negocio, cliente_telefono, cliente_email,
+    cliente_direccion, cliente_ciudad, cliente_cp, fecha_preferida, hora_preferida, notas, device_id
+  ) values (
+    v_cliente_id, p_items, p_total_productos, p_peso_total, p_importe_estimado, p_metodo_entrega,
+    p_cliente_nombre, p_cliente_negocio, p_cliente_telefono, p_cliente_email,
+    p_cliente_direccion, p_cliente_ciudad, p_cliente_cp, p_fecha_preferida, p_hora_preferida, p_notas, p_device_id
+  ) returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+-- Historial de pedidos por dispositivo, sin login. device_id es un
+-- UUID aleatorio generado en el navegador (localStorage + cookie) que
+-- viaja con cada pedido; al ser impredecible funciona como un token
+-- de acceso. security definer para poder filtrar sin darle a "anon"
+-- un select abierto sobre toda la tabla.
+create or replace function public.get_pedidos_by_device(p_device_id uuid)
+returns setof pedidos
+language sql stable security definer set search_path = public
+as $$
+  select *
+  from public.pedidos
+  where device_id = p_device_id
+  order by created_at desc
+  limit 20;
+$$;
+
+revoke all on function public.get_pedidos_by_device(uuid) from public;
+grant execute on function public.get_pedidos_by_device(uuid) to anon, authenticated;
 
 -- Avisa al cliente por correo cuando el pescadero confirma o completa
--- su pedido, para que sepa que se está preparando (o que ya está
--- listo) sin tener que preguntar. Usa la tabla settings igual que el
--- aviso de stock bajo, sin credenciales sueltas en el SQL.
+-- su pedido. Usa la tabla settings para no dejar credenciales sueltas
+-- en el SQL.
+--
+-- ⚠️ Pendiente de revisar (detectado en auditoría de seguridad,
+-- 2026-08-15): esta consulta NO filtra por cliente_id, aunque
+-- `settings` ya soporta una fila por (key, cliente_id) desde que el
+-- proyecto es multi-tenant. Hoy solo un cliente tiene configuradas
+-- estas claves, así que no falla — pero en cuanto un segundo cliente
+-- configure 'pedido_estado_url'/'pedido_estado_secret', el `select
+-- ... into` de abajo puede devolver más de una fila y abortar la
+-- transacción (rollback silencioso del update de estado, ya que
+-- usePedidos.setEstado en el frontend no comprueba el error), o en el
+-- peor caso enviar los datos de un pedido al webhook/secreto de OTRO
+-- cliente si Postgres decide una fila arbitraria. Corrección: añadir
+-- `and cliente_id = new.cliente_id` a las tres consultas de esta
+-- función (y a las equivalentes en notificar_stock_bajo y
+-- notificar_newsletter_confirmacion).
 create or replace function public.notificar_pedido_estado()
 returns trigger as $$
 declare
@@ -361,22 +511,14 @@ create trigger trg_pedidos_estado_notificar
   after update of estado on public.pedidos
   for each row execute function public.notificar_pedido_estado();
 
--- Tras desplegar supabase/functions/pedido-estado, registra su URL y el
--- secreto compartido (mismo valor que PEDIDO_ESTADO_SECRET en la function):
--- insert into public.settings (key, value) values
---   ('pedido_estado_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/pedido-estado"'),
---   ('pedido_estado_secret', '"<UN_SECRETO_ALEATORIO>"')
--- on conflict (key) do update set value = excluded.value;
-
 -- ============================================================
--- Reseñas de clientes: las rellena el propio cliente después de
--- usar la web (no contenido inventado). Quedan pendientes de
--- aprobación del pescadero antes de mostrarse en público, para
--- evitar spam o abuso.
+-- Reseñas de clientes: quedan pendientes de aprobación del pescadero
+-- antes de mostrarse en público.
 -- ============================================================
 
 create table if not exists public.resenas (
   id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
   nombre text not null,
   valoracion integer not null check (valoracion between 1 and 5),
   comentario text not null,
@@ -386,61 +528,70 @@ create table if not exists public.resenas (
 
 alter table public.resenas enable row level security;
 
--- Cualquier visitante puede dejar su opinión…
-drop policy if exists "resenas_insert_publico" on public.resenas;
-create policy "resenas_insert_publico"
-  on public.resenas for insert
-  to anon, authenticated
-  with check (
-    char_length(nombre) between 1 and 100
-    and char_length(comentario) between 1 and 1000
-  );
-
--- …el público solo ve las aprobadas…
 drop policy if exists "resenas_select_publico" on public.resenas;
 create policy "resenas_select_publico"
   on public.resenas for select
   to anon, authenticated
   using (estado = 'aprobada');
 
--- …y el pescadero (autenticado) las ve todas y las modera.
 drop policy if exists "resenas_select_admin" on public.resenas;
 create policy "resenas_select_admin"
   on public.resenas for select
   to authenticated
-  using (true);
+  using (is_developer() or cliente_id = mi_cliente_id());
 
 drop policy if exists "resenas_update_admin" on public.resenas;
 create policy "resenas_update_admin"
   on public.resenas for update
   to authenticated
-  using (true)
-  with check (true);
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
 
 drop policy if exists "resenas_delete_admin" on public.resenas;
 create policy "resenas_delete_admin"
   on public.resenas for delete
   to authenticated
-  using (true);
+  using (is_developer() or cliente_id = mi_cliente_id());
 
 create index if not exists idx_resenas_estado on public.resenas (estado);
 create index if not exists idx_resenas_created_at on public.resenas (created_at desc);
 
+-- El visitante deja su opinión siempre vía esta función, nunca por
+-- insert directo.
+create or replace function public.crear_resena(p_site_key uuid, p_nombre text, p_valoracion integer, p_comentario text)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_cliente_id uuid;
+  v_id uuid;
+begin
+  v_cliente_id := public.cliente_id_from_site_key(p_site_key);
+  if v_cliente_id is null then
+    raise exception 'site_key inválida';
+  end if;
+  if char_length(p_nombre) < 1 or char_length(p_nombre) > 100 then
+    raise exception 'nombre inválido';
+  end if;
+  if char_length(p_comentario) < 1 or char_length(p_comentario) > 1000 then
+    raise exception 'comentario inválido';
+  end if;
+
+  insert into public.resenas (cliente_id, nombre, valoracion, comentario)
+  values (v_cliente_id, p_nombre, p_valoracion, p_comentario)
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
 -- ============================================================
--- Control de stock: kg restantes por producto, descontados solo
--- con cada pedido de un cliente y repuestos manualmente por el
--- pescadero. Si el stock cae por debajo del mínimo definido se
--- envía un aviso por correo (ver triggers más abajo).
+-- Control de stock: kg restantes por producto.
 -- ============================================================
 
-alter table public.productos add column if not exists stock_kg numeric not null default 0;
-alter table public.productos add column if not exists stock_minimo numeric not null default 10;
-alter table public.productos add column if not exists stock_alerta_enviada boolean not null default false;
-
--- Descuenta stock al registrarse un pedido (trigger sobre pedidos,
--- ver logPedido en src/lib/pedidosLog.ts). security definer porque
--- el pedido lo inserta un cliente anónimo sin permiso de update
--- sobre productos.
+-- Descuenta stock al registrarse un pedido. security definer porque
+-- el pedido lo inserta un cliente anónimo sin permiso de update sobre
+-- productos.
 create or replace function public.descontar_stock_pedido()
 returns trigger as $$
 declare
@@ -464,12 +615,9 @@ create trigger trg_pedidos_descontar_stock
   after insert on public.pedidos
   for each row execute function public.descontar_stock_pedido();
 
--- Suma al stock lo que trae el pescadero cada mañana, sin que tenga
--- que calcular él el total: introduce solo los kg que le llegan del
--- mar y aquí se suman de forma atómica al stock restante, teniendo en
--- cuenta también lo que se haya descontado mientras tanto por pedidos
--- en curso (evita condiciones de carrera frente a un simple "leer y
--- volver a escribir" desde el cliente).
+-- Suma al stock lo que trae el pescadero cada mañana, de forma atómica
+-- (evita condiciones de carrera frente a un simple "leer y volver a
+-- escribir" desde el cliente).
 create or replace function public.sumar_stock(p_producto_id uuid, p_kg numeric)
 returns numeric as $$
   update public.productos
@@ -481,11 +629,9 @@ $$ language sql set search_path = public;
 revoke all on function public.sumar_stock(uuid, numeric) from public;
 grant execute on function public.sumar_stock(uuid, numeric) to authenticated;
 
--- Avisa por correo cuando el stock de un producto cae por debajo de
--- su mínimo (una sola vez por caída; se re-arma solo si vuelve a
--- subir por encima del mínimo y luego baja de nuevo). Usa la tabla
--- settings ya existente para guardar la URL de la Edge Function y
--- un secreto compartido, sin credenciales sueltas en el SQL.
+-- Avisa por correo cuando el stock de un producto cae por debajo de su
+-- mínimo (una sola vez por caída). Mismo aviso sobre tenant-scoping
+-- pendiente que notificar_pedido_estado (ver comentario allí).
 create extension if not exists pg_net with schema extensions;
 
 create or replace function public.notificar_stock_bajo()
@@ -524,24 +670,9 @@ create trigger trg_productos_stock_bajo
   before update of stock_kg, stock_minimo on public.productos
   for each row execute function public.notificar_stock_bajo();
 
--- Tras desplegar supabase/functions/stock-alert, registra su URL y el
--- secreto compartido (mismo valor que STOCK_ALERT_SECRET en la function):
--- insert into public.settings (key, value) values
---   ('stock_alert_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/stock-alert"'),
---   ('stock_alert_secret', '"<UN_SECRETO_ALEATORIO>"')
--- on conflict (key) do update set value = excluded.value;
-
 -- ============================================================
--- Suscriptores del newsletter ("Recibe la selección de la semana").
--- El formulario apuntaba antes a un endpoint de Readdy que ya no
--- existe fuera de ese entorno; ahora persiste en Supabase igual que
--- el resto de formularios públicos de la web.
---
--- NOTA: en producción esta tabla (y crear_newsletter_subscriber) se
--- migraron después a un modelo multitenant con cliente_id / site_key,
--- resuelto vía la función public.cliente_id_from_site_key(p_site_key)
--- (definida directamente en el proyecto Supabase, fuera de este
--- archivo). Las definiciones de abajo ya reflejan esa realidad.
+-- Suscriptores del newsletter, con doble confirmación (double opt-in)
+-- y baja sin login vía token.
 -- ============================================================
 
 create table if not exists public.newsletter_subscribers (
@@ -549,58 +680,36 @@ create table if not exists public.newsletter_subscribers (
   cliente_id uuid not null references public.clientes (id),
   email text not null,
   idioma text not null default 'es' check (idioma in ('es', 'eu')),
+  confirmado boolean not null default false,
+  confirmado_en timestamptz,
+  confirm_token uuid not null default gen_random_uuid(),
+  baja_token uuid not null default gen_random_uuid(),
   created_at timestamptz not null default now(),
   unique (cliente_id, email)
 );
 
 alter table public.newsletter_subscribers enable row level security;
 
--- Cualquier visitante puede suscribirse desde la web…
-drop policy if exists "newsletter_subscribers_insert_publico" on public.newsletter_subscribers;
-create policy "newsletter_subscribers_insert_publico"
-  on public.newsletter_subscribers for insert
-  to anon, authenticated
-  with check (char_length(email) between 3 and 255);
-
--- …pero solo el desarrollador autenticado puede ver o borrar la lista.
 drop policy if exists "newsletter_subscribers_select_admin" on public.newsletter_subscribers;
 create policy "newsletter_subscribers_select_admin"
   on public.newsletter_subscribers for select
   to authenticated
-  using (public.is_developer());
+  using (is_developer());
 
 drop policy if exists "newsletter_subscribers_delete_admin" on public.newsletter_subscribers;
 create policy "newsletter_subscribers_delete_admin"
   on public.newsletter_subscribers for delete
   to authenticated
-  using (public.is_developer());
-
-create index if not exists idx_newsletter_subscribers_created_at on public.newsletter_subscribers (created_at desc);
-
--- ============================================================
--- Newsletter: doble confirmación (double opt-in) y baja.
--- Un suscriptor nuevo queda "pendiente" hasta que confirma por
--- correo; solo entonces se considera suscrito de verdad. También
--- se le da un enlace de baja único para darse de baja sin login.
--- ============================================================
-
-alter table public.newsletter_subscribers add column if not exists confirmado boolean not null default false;
-alter table public.newsletter_subscribers add column if not exists confirmado_en timestamptz;
-alter table public.newsletter_subscribers add column if not exists confirm_token uuid not null default gen_random_uuid();
-alter table public.newsletter_subscribers add column if not exists baja_token uuid not null default gen_random_uuid();
+  using (is_developer());
 
 create unique index if not exists idx_newsletter_subscribers_confirm_token on public.newsletter_subscribers (confirm_token);
 create unique index if not exists idx_newsletter_subscribers_baja_token on public.newsletter_subscribers (baja_token);
+create index if not exists idx_newsletter_subscribers_created_at on public.newsletter_subscribers (created_at desc);
 
--- Devuelve 'nuevo' (alta nueva, pendiente de confirmar),
--- 'reenviado' (ya existía sin confirmar, se reenvía el correo) o
--- 'confirmado' (ya estaba confirmado, no se hace nada más).
-drop function if exists public.crear_newsletter_subscriber(uuid, text, text);
+-- Alta/reenvío de confirmación. Devuelve 'nuevo' | 'reenviado' | 'confirmado'.
 create or replace function public.crear_newsletter_subscriber(p_site_key uuid, p_email text, p_idioma text)
 returns text
-language plpgsql
-security definer
-set search_path = public
+language plpgsql security definer set search_path = public
 as $$
 declare
   v_cliente_id uuid;
@@ -638,9 +747,7 @@ $$;
 -- 'confirmado' | 'ya_confirmado' | 'invalido'.
 create or replace function public.confirmar_newsletter_subscriber(p_token uuid)
 returns text
-language plpgsql
-security definer
-set search_path = public
+language plpgsql security definer set search_path = public
 as $$
 declare
   v_id uuid;
@@ -667,9 +774,7 @@ $$;
 -- Da de baja (borra) al suscriptor dueño de ese token. 'baja' | 'invalido'.
 create or replace function public.baja_newsletter_subscriber(p_token uuid)
 returns text
-language plpgsql
-security definer
-set search_path = public
+language plpgsql security definer set search_path = public
 as $$
 declare
   v_id uuid;
@@ -685,10 +790,8 @@ end;
 $$;
 
 -- Envía el correo de confirmación (vía la Edge Function
--- newsletter-confirm) cada vez que se crea un suscriptor pendiente
--- o se reenvía su token, igual que notificar_pedido_estado /
--- notificar_stock_bajo usan la tabla settings para no dejar
--- credenciales sueltas en el SQL.
+-- newsletter-confirm). Mismo aviso sobre tenant-scoping pendiente que
+-- notificar_pedido_estado (ver comentario allí).
 create or replace function public.notificar_newsletter_confirmacion()
 returns trigger as $$
 declare
@@ -721,54 +824,15 @@ create trigger trg_newsletter_confirmacion
   after insert or update of confirm_token on public.newsletter_subscribers
   for each row execute function public.notificar_newsletter_confirmacion();
 
--- Tras desplegar supabase/functions/newsletter-confirm, registra su URL
--- y el secreto compartido (mismo valor que NEWSLETTER_CONFIRM_SECRET en
--- la function, configurado con `supabase secrets set`):
+-- Tras desplegar cada Edge Function de notificación, registra su URL y
+-- el secreto compartido (mismo valor que el `*_SECRET` de la function,
+-- configurado con `supabase secrets set`) en `settings`, para el
+-- cliente correspondiente:
 -- insert into public.settings (cliente_id, key, value) values
+--   ('<CLIENTE_ID>', 'pedido_estado_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/pedido-estado"'),
+--   ('<CLIENTE_ID>', 'pedido_estado_secret', '"<UN_SECRETO_ALEATORIO>"'),
+--   ('<CLIENTE_ID>', 'stock_alert_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/stock-alert"'),
+--   ('<CLIENTE_ID>', 'stock_alert_secret', '"<UN_SECRETO_ALEATORIO>"'),
 --   ('<CLIENTE_ID>', 'newsletter_confirm_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/newsletter-confirm"'),
 --   ('<CLIENTE_ID>', 'newsletter_confirm_secret', '"<UN_SECRETO_ALEATORIO>"')
--- on conflict (cliente_id, key) do update set value = excluded.value;
-
--- ============================================================
--- Selección del día: qué productos se destacan en la portada y
--- en la página de profesionales. Un único tag ("destacado") en
--- productos alimenta ambas secciones, que muestran el mismo
--- texto ("Selección del día"). Antes era una lista fija en el
--- código; ahora la marca el pescadero desde el panel (checkbox
--- "Destacado" en cada producto), y ambas páginas la leen en vivo
--- desde aquí.
--- ============================================================
-
-alter table public.productos add column if not exists destacado boolean not null default false;
-
--- ============================================================
--- Historial de pedidos por dispositivo, sin login. device_id es
--- un UUID aleatorio generado en el navegador (localStorage) que
--- viaja con cada pedido; al ser impredecible funciona como un
--- token de acceso. get_pedidos_by_device es security definer para
--- poder filtrar sin darle a "anon" un select abierto sobre toda la
--- tabla (que solo tiene policy de select para "authenticated").
--- ============================================================
-
-alter table public.pedidos add column if not exists device_id uuid;
-
-create index if not exists idx_pedidos_device_id on public.pedidos (device_id);
-
-create or replace function public.get_pedidos_by_device(p_device_id uuid)
-returns setof public.pedidos
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select *
-  from public.pedidos
-  where device_id = p_device_id
-  order by created_at desc
-  limit 20;
-$$;
-
-revoke all on function public.get_pedidos_by_device(uuid) from public;
-grant execute on function public.get_pedidos_by_device(uuid) to anon, authenticated;
-
-create index if not exists idx_productos_destacado on public.productos (destacado);
+-- on conflict (key, cliente_id) do update set value = excluded.value;
