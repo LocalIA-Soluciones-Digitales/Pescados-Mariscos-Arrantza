@@ -15,7 +15,6 @@
 
     <!-- hreflang -->
     <link rel="alternate" hreflang="es" href="https://arrantza.es/" />
-    <link rel="alternate" hreflang="eu" href="https://arrantza.es/eu/" />
     <link rel="alternate" hreflang="x-default" href="https://arrantza.es/" />
 
     <!-- Open Graph -->
@@ -24,7 +23,6 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://arrantza.es/" />
     <meta property="og:locale" content="es_ES" />
-    <meta property="og:locale:alternate" content="eu_ES" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -91,7 +89,7 @@
     }
     </script>
 
-    <!-- Structured Data: FAQ -->
+    <!-- Structured Data: FAQ (must mirror the visible FAQ copy in src/pages/home/components/FAQ.tsx exactly — a mismatch between schema and on-page text is grounds for Google to ignore or penalize the rich result) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -99,7 +97,7 @@
       "mainEntity": [
         {
           "@type": "Question",
-          "name": "¿De dónde viene el pescado de Arrantza?",
+          "name": "¿De dónde viene el pescado?",
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Trabajamos con las lonjas del Cantábrico: Ondarroa, Bermeo, Santurtzi, Getaria. Pescado de bajura, de cercanía, seleccionado cada mañana directamente en lonja."
@@ -107,10 +105,26 @@
         },
         {
           "@type": "Question",
-          "name": "¿Puedo hacer encargos especiales?",
+          "name": "¿Puedo hacer encargos?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Sí. Si necesitas una pieza especial, cantidad concreta o preparación determinada, llámanos con antelación y te lo preparamos."
+            "text": "Sí. Si necesitas una pieza especial, cantidad concreta o preparación determinada, llámanos con antelación y te lo preparamos. Encargos para celebraciones, eventos o fechas señaladas son habituales."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Hacéis envíos a domicilio?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Actualmente no ofrecemos servicio de reparto a domicilio. Pero si vives cerca y tienes dificultad para desplazarte, llámanos y buscamos una solución."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Qué diferencia hay entre el pescado de lonja y el de supermercado?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Todo. Nuestro pescado llega cada mañana directamente de la lonja. El del supermercado puede llevar días en cámara. La diferencia de frescura, sabor y textura es evidente desde el primer bocado."
           }
         },
         {
@@ -118,12 +132,12 @@
           "name": "¿Servís a restaurantes?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Sí. Ofrecemos servicio profesional de suministro diario para hostelería. Más de 20 restaurantes y hoteles confían en nosotros."
+            "text": "Sí. Ofrecemos servicio profesional de suministro diario para hostelería. Más de 20 restaurantes y hoteles confían en nosotros. Contacta para conocer condiciones."
           }
         },
         {
           "@type": "Question",
-          "name": "¿Cuál es el horario de Arrantza?",
+          "name": "¿Cuál es el horario?",
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Abrimos de martes a sábado de 9:00 a 14:00 y de 17:00 a 20:00. Los lunes cerramos por descanso. Los domingos abrimos de 9:00 a 14:00."
@@ -140,7 +154,7 @@
       "@type": "Organization",
       "name": "Pescados y Mariscos Arrantza",
       "url": "https://arrantza.es/",
-      "logo": "https://arrantza.es/assets/images/logo.png",
+      "logo": "https://arrantza.es/logo.png",
       "contactPoint": {
         "@type": "ContactPoint",
         "telephone": "+34619609888",
@@ -150,13 +164,27 @@
     }
     </script>
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Structured Data: WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Pescados y Mariscos Arrantza",
+      "url": "https://arrantza.es/",
+      "inLanguage": "es-ES"
+    }
+    </script>
 
-    <!-- Icon Libraries -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.5.0/remixicon.min.css">
+    <!-- End Primary SEO region (scripts/generate-static-routes.mjs swaps everything
+         above this marker per-route; everything from here on is shared by all pages) -->
+
+    <!-- Fonts (autoalojadas: sin peticiones a fonts.googleapis.com/gstatic.com,
+         ver informe de auditoría legal — evita enviar la IP del visitante a Google) -->
+    <link rel="stylesheet" href="/fonts/fonts.css">
+
+    <!-- Icon Libraries (autoalojadas: sin peticiones a cdnjs.cloudflare.com) -->
+    <link rel="stylesheet" href="/vendor/fontawesome/all.min.css">
+    <link rel="stylesheet" href="/vendor/remixicon/remixicon.min.css">
   </head>
   <body>
     <div id="root"></div>

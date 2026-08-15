@@ -70,6 +70,7 @@ function ProductCard({
           <img
             src={producto.imagen_url}
             alt={productName}
+            loading="lazy"
             className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
             draggable={false}
           />

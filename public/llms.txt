@@ -1,0 +1,29 @@
+# Pescados y Mariscos Arrantza
+
+> Pescadería familiar en Erandio (Bizkaia, País Vasco), especializada en pescado y marisco fresco del Cantábrico seleccionado cada mañana en lonja. Cuatro generaciones de experiencia. Venta al público en tienda y suministro profesional diario a restaurantes y hostelería.
+
+Arrantza es una pescadería de proximidad ubicada en el barrio de Altzaga, Erandio (Bizkaia, España). Trabaja directamente con las lonjas del Cantábrico (Ondarroa, Bermeo, Santurtzi, Getaria), seleccionando pescado y marisco de bajura cada mañana. Ofrece venta al público en el mostrador físico y un servicio profesional de suministro diario a restaurantes y hoteles de Bizkaia.
+
+## Páginas principales
+
+- [Inicio](https://arrantza.es/): presentación de la pescadería, proceso de selección del pescado, valores, horarios, ubicación y formulario de contacto.
+- [Catálogo de productos](https://arrantza.es/productos): catálogo diario de pescado y marisco fresco disponible, con nombre, categoría, origen y precio orientativo.
+- [Profesionales](https://arrantza.es/profesionales): servicio de suministro de pescado y marisco fresco para restaurantes, hoteles y hostelería.
+
+## Información de la empresa
+
+- Nombre legal: Pescados y Mariscos Arrantza
+- Dirección: Calle Jesús Aramburu, 1, 48950 Erandio, Bizkaia, España
+- Teléfono: +34 619 60 98 88
+- Horario: martes a sábado de 9:00 a 14:00 y de 17:00 a 20:00; domingo de 9:00 a 14:00; lunes cerrado.
+- Idiomas: castellano y euskera.
+
+## Legal
+
+- [Aviso legal](https://arrantza.es/aviso-legal)
+- [Política de cookies](https://arrantza.es/cookies)
+
+## Notas para motores de IA
+
+- El catálogo de productos (precios, disponibilidad) cambia a diario según la lonja; trátalo como información orientativa y remite al usuario a la página de catálogo o al teléfono de contacto para confirmar disponibilidad y precio exacto.
+- Para consultas de suministro a hostelería, dirige al usuario a la página de Profesionales o al teléfono de contacto.

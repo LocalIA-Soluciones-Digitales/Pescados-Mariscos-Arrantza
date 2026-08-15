@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { logConversion } from '@/lib/visitLog';
+import { openCookiePreferences } from '@/lib/cookieConsent';
 
 export default function Footer() {
   const { t } = useTranslation();
@@ -98,13 +99,27 @@ export default function Footer() {
           <p className="text-[11px] sm:text-xs text-white/60">
             &copy; {new Date().getFullYear()} Pescados y Mariscos Arrantza. {t('footer.rights')}
           </p>
-          <div className="flex items-center gap-4 sm:gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 sm:gap-x-6">
             <a
               href="/aviso-legal"
               onClick={(e) => handleClick(e, '/aviso-legal')}
               className="text-[11px] sm:text-xs text-white/60 hover:text-white/85 transition-colors duration-300 whitespace-nowrap cursor-pointer"
             >
+              {t('footer.legal')}
+            </a>
+            <a
+              href="/privacidad"
+              onClick={(e) => handleClick(e, '/privacidad')}
+              className="text-[11px] sm:text-xs text-white/60 hover:text-white/85 transition-colors duration-300 whitespace-nowrap cursor-pointer"
+            >
               {t('footer.privacy')}
+            </a>
+            <a
+              href="/condiciones-contratacion"
+              onClick={(e) => handleClick(e, '/condiciones-contratacion')}
+              className="text-[11px] sm:text-xs text-white/60 hover:text-white/85 transition-colors duration-300 whitespace-nowrap cursor-pointer"
+            >
+              {t('footer.terms')}
             </a>
             <a
               href="/cookies"
@@ -113,6 +128,13 @@ export default function Footer() {
             >
               {t('footer.cookies')}
             </a>
+            <button
+              type="button"
+              onClick={openCookiePreferences}
+              className="text-[11px] sm:text-xs text-white/60 hover:text-white/85 transition-colors duration-300 whitespace-nowrap cursor-pointer"
+            >
+              {t('footer.cookie_preferences')}
+            </button>
           </div>
         </div>
       </div>

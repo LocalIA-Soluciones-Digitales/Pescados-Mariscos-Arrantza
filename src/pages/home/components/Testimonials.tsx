@@ -151,7 +151,14 @@ function ReviewForm({ onClose }: { onClose: () => void }) {
 
           {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
 
-          <p className="text-[11px] text-foreground-400 mb-3">{t('testimonials.form_moderation_note')}</p>
+          <p className="text-[11px] text-foreground-400 mb-1.5">{t('testimonials.form_moderation_note')}</p>
+          <p className="text-[11px] text-foreground-400 mb-3">
+            {t('testimonials.form_privacy_pre')}{' '}
+            <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground-600">
+              {t('testimonials.form_privacy_link')}
+            </a>
+            .
+          </p>
 
           <button
             type="submit"

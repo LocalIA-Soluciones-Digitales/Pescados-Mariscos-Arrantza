@@ -7,6 +7,8 @@ import Admin from "../pages/admin/page";
 import AdminResetPassword from "../pages/admin/components/AdminResetPassword";
 import AvisoLegal from "../pages/legal/AvisoLegal";
 import Cookies from "../pages/legal/Cookies";
+import Privacidad from "../pages/legal/Privacidad";
+import CondicionesContratacion from "../pages/legal/CondicionesContratacion";
 import NewsletterAction from "../pages/newsletter/NewsletterAction";
 
 const routes: RouteObject[] = [
@@ -37,6 +39,14 @@ const routes: RouteObject[] = [
   {
     path: "/cookies",
     element: <Cookies />,
+  },
+  {
+    path: "/privacidad",
+    element: <Privacidad />,
+  },
+  {
+    path: "/condiciones-contratacion",
+    element: <CondicionesContratacion />,
   },
   {
     path: "/newsletter/confirmar",

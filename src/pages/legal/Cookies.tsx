@@ -41,8 +41,61 @@ export default function Cookies() {
 
             <section>
               <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
+                {t('legal.cookies.s2b.title')}
+              </h2>
+              <p className="mb-2">{t('legal.cookies.s2b.p')}</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse mt-2">
+                  <thead>
+                    <tr className="border-b border-background-200">
+                      <th className="py-2 pr-4 font-semibold text-foreground-950">{t('legal.cookies.table.name')}</th>
+                      <th className="py-2 pr-4 font-semibold text-foreground-950">{t('legal.cookies.table.type')}</th>
+                      <th className="py-2 pr-4 font-semibold text-foreground-950">{t('legal.cookies.table.purpose')}</th>
+                      <th className="py-2 font-semibold text-foreground-950">{t('legal.cookies.table.duration')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="align-top">
+                    <tr className="border-b border-background-100">
+                      <td className="py-2 pr-4 font-mono text-xs">arrantza_device_id</td>
+                      <td className="py-2 pr-4">{t('legal.cookies.row.technical')}</td>
+                      <td className="py-2 pr-4">{t('legal.cookies.row1.purpose')}</td>
+                      <td className="py-2">{t('legal.cookies.row.year')}</td>
+                    </tr>
+                    <tr className="border-b border-background-100">
+                      <td className="py-2 pr-4 font-mono text-xs">arrantza_lang</td>
+                      <td className="py-2 pr-4">{t('legal.cookies.row.technical')}</td>
+                      <td className="py-2 pr-4">{t('legal.cookies.row2.purpose')}</td>
+                      <td className="py-2">{t('legal.cookies.row.persistent')}</td>
+                    </tr>
+                    <tr className="border-b border-background-100">
+                      <td className="py-2 pr-4 font-mono text-xs">arrantza_cart</td>
+                      <td className="py-2 pr-4">{t('legal.cookies.row.technical')}</td>
+                      <td className="py-2 pr-4">{t('legal.cookies.row3.purpose')}</td>
+                      <td className="py-2">{t('legal.cookies.row.persistent')}</td>
+                    </tr>
+                    <tr className="border-b border-background-100">
+                      <td className="py-2 pr-4 font-mono text-xs">arrantza_cookie_consent</td>
+                      <td className="py-2 pr-4">{t('legal.cookies.row.technical')}</td>
+                      <td className="py-2 pr-4">{t('legal.cookies.row4.purpose')}</td>
+                      <td className="py-2">{t('legal.cookies.row.persistent')}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2 pr-4 font-mono text-xs">pmz_visitor_id / pmz_session_id / pmz_source</td>
+                      <td className="py-2 pr-4">{t('legal.cookies.row.analytics')}</td>
+                      <td className="py-2 pr-4">{t('legal.cookies.row5.purpose')}</td>
+                      <td className="py-2">{t('legal.cookies.row.session_or_year')}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-xs text-foreground-400">{t('legal.cookies.s2b.note')}</p>
+            </section>
+
+            <section>
+              <h2 className="font-heading text-lg font-semibold text-foreground-950 mb-2">
                 {t('legal.cookies.s3.title')}
               </h2>
+              <p className="mb-2">{t('legal.cookies.s3.pre')}</p>
               <p>{t('legal.cookies.s3.p')}</p>
               <ul className="mt-2 space-y-1 list-disc pl-5">
                 <li>Google Chrome</li>

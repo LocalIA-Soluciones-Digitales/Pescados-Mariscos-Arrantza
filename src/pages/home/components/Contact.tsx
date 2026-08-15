@@ -132,6 +132,14 @@ export default function Contact() {
               </button>
             </form>
 
+            <p className="text-[11px] text-foreground-400 mt-3 leading-relaxed">
+              {t('contact.newsletter.privacy_pre')}{' '}
+              <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground-600">
+                {t('contact.newsletter.privacy_link')}
+              </a>
+              .
+            </p>
+
             {/* Status messages */}
             {status === 'success' && (
               <p className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-accent-600">

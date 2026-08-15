@@ -1168,6 +1168,7 @@ export default function CartDrawer({
                       {/* Home Delivery Card */}
                       <button
                         type="button"
+                        aria-pressed={customer.deliveryMethod === 'home'}
                         onClick={() => { onCustomerChange('deliveryMethod', 'home'); if (validationErrors.deliveryMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.deliveryMethod; return next; }); }}
                         className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
                           customer.deliveryMethod === 'home'
@@ -1198,6 +1199,7 @@ export default function CartDrawer({
                       {/* Store Pickup Card */}
                       <button
                         type="button"
+                        aria-pressed={customer.deliveryMethod === 'pickup'}
                         onClick={() => { onCustomerChange('deliveryMethod', 'pickup'); setValidationErrors(prev => { const next = { ...prev }; delete next.deliveryMethod; delete next.address; delete next.city; delete next.postalCode; return next; }); }}
                         className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
                           customer.deliveryMethod === 'pickup'
@@ -1245,10 +1247,11 @@ export default function CartDrawer({
                   >
                     <div className="space-y-3">
                       <div id="checkout-field-address">
-                        <label className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
+                        <label htmlFor="checkout-input-address" className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
                           {t('checkout.address_label')}
                         </label>
                         <textarea
+                          id="checkout-input-address"
                           placeholder={t('checkout.address_placeholder')}
                           value={customer.address}
                           onChange={e => { onCustomerChange('address', e.target.value); if (validationErrors.address) setValidationErrors(prev => { const next = { ...prev }; delete next.address; return next; }); }}
@@ -1264,10 +1267,11 @@ export default function CartDrawer({
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div id="checkout-field-city">
-                          <label className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
+                          <label htmlFor="checkout-input-city" className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
                             {t('checkout.city_label')}
                           </label>
                           <input
+                            id="checkout-input-city"
                             type="text"
                             value={customer.city}
                             onChange={e => { onCustomerChange('city', e.target.value); if (validationErrors.city) setValidationErrors(prev => { const next = { ...prev }; delete next.city; return next; }); }}
@@ -1281,10 +1285,11 @@ export default function CartDrawer({
                           )}
                         </div>
                         <div id="checkout-field-postalCode">
-                          <label className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
+                          <label htmlFor="checkout-input-postalCode" className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
                             {t('checkout.postal_code_label')}
                           </label>
                           <input
+                            id="checkout-input-postalCode"
                             type="text"
                             value={customer.postalCode}
                             onChange={e => { onCustomerChange('postalCode', e.target.value); if (validationErrors.postalCode) setValidationErrors(prev => { const next = { ...prev }; delete next.postalCode; return next; }); }}
@@ -1299,11 +1304,12 @@ export default function CartDrawer({
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
+                        <label htmlFor="checkout-input-deliveryInstructions" className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
                           {t('checkout.delivery_instructions_label')}
                           <span className="text-foreground-300 ml-1 font-normal normal-case tracking-normal">— {t('common.optional')}</span>
                         </label>
                         <input
+                          id="checkout-input-deliveryInstructions"
                           type="text"
                           placeholder={t('checkout.delivery_instructions_placeholder')}
                           value={customer.deliveryInstructions}
@@ -1373,10 +1379,11 @@ export default function CartDrawer({
 
                   {/* === PREFERRED DATE === */}
                   <div id="checkout-field-preferredDate" className="mb-5">
-                    <h3 className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-3">
+                    <h3 id="checkout-label-preferredDate" className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-3">
                       {t('checkout.preferred_date')}
                     </h3>
                     <input
+                      aria-labelledby="checkout-label-preferredDate"
                       type="date"
                       value={customer.preferredDate}
                       min={new Date().toISOString().split('T')[0]}
@@ -1393,11 +1400,12 @@ export default function CartDrawer({
 
                   {/* === PREFERRED TIME === */}
                   <div id="checkout-field-preferredTime" className="mb-5">
-                    <h3 className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-3">
+                    <h3 id="checkout-label-preferredTime" className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-3">
                       {t('checkout.preferred_time')}
                     </h3>
                     <div className="relative">
                       <select
+                        aria-labelledby="checkout-label-preferredTime"
                         value={customer.preferredTime}
                         onChange={e => { onCustomerChange('preferredTime', e.target.value); if (validationErrors.preferredTime) setValidationErrors(prev => { const next = { ...prev }; delete next.preferredTime; return next; }); }}
                         className={`w-full appearance-none bg-background-100 border rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-foreground-950 cursor-pointer focus:outline-none focus:ring-1 transition-all duration-200 ${validationErrors.preferredTime ? 'border-red-400 focus:border-red-500 focus:ring-red-200/40' : 'border-background-200/70 focus:border-primary-300/60 focus:ring-primary-200/40'}`}
@@ -1428,6 +1436,7 @@ export default function CartDrawer({
                       <div id="checkout-field-name">
                         <input
                           type="text"
+                          aria-label={t('cart.customer_name_placeholder')}
                           placeholder={t('cart.customer_name_placeholder')}
                           value={customer.name}
                           onChange={e => {
@@ -1450,6 +1459,7 @@ export default function CartDrawer({
                       <div id="checkout-field-phone">
                         <input
                           type="text"
+                          aria-label={t('cart.customer_phone_placeholder')}
                           placeholder={t('cart.customer_phone_placeholder')}
                           value={customer.phone}
                           onChange={e => {
@@ -1474,6 +1484,7 @@ export default function CartDrawer({
                       </p>
                       <input
                         type="email"
+                        aria-label={t('checkout.customer_email_placeholder')}
                         placeholder={t('checkout.customer_email_placeholder')}
                         value={customer.email}
                         onChange={e => onCustomerChange('email', e.target.value)}
@@ -1481,6 +1492,7 @@ export default function CartDrawer({
                       />
                       <input
                         type="text"
+                        aria-label={t('cart.customer_business_placeholder')}
                         placeholder={t('cart.customer_business_placeholder')}
                         value={customer.business}
                         onChange={e => onCustomerChange('business', e.target.value)}
@@ -1538,6 +1550,19 @@ export default function CartDrawer({
                   {t('cart.estimated_note')}
                 </p>
               )}
+
+              <p className="text-[10px] text-foreground-400 text-center leading-relaxed px-2">
+                {t('cart.privacy_notice_pre')}{' '}
+                <a
+                  href="/privacidad"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-foreground-600"
+                >
+                  {t('cart.privacy_notice_link')}
+                </a>
+                .
+              </p>
 
               {/* ── Cloudflare Turnstile placeholder (hidden when disabled) ── */}
               <TurnstileWidget onTokenReceived={turnstile.onTokenReceived} />

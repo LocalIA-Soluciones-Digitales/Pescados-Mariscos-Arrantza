@@ -1,4 +1,5 @@
 import { supabase, SITE_KEY } from './supabaseClient';
+import { hasAnalyticsConsent } from './cookieConsent';
 
 export type EventType = 'pageview' | 'tel_click' | 'whatsapp_click' | 'category_view' | 'product_view' | 'add_to_cart';
 export type SourceCategory = 'google_ads' | 'google_organic' | 'social' | 'referral' | 'direct' | 'other';
@@ -108,6 +109,11 @@ function getAttribution(): Attribution {
 }
 
 async function insertEvent(eventType: EventType, path: string, label?: string) {
+  // Analítica propia (páginas vistas, clics, productos vistos...) requiere
+  // consentimiento previo del usuario (banner de cookies) — sin él, no se
+  // escribe nada en sessionStorage/localStorage ni se llama a Supabase.
+  if (!hasAnalyticsConsent()) return;
+
   const attribution = getAttribution();
   try {
     await supabase.rpc('registrar_visita', {

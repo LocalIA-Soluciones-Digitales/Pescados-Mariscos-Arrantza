@@ -137,6 +137,7 @@ export default function Navbar() {
               <a
                 href="/admin"
                 onClick={(e) => { e.preventDefault(); navigate('/admin'); }}
+                rel="nofollow"
                 className={`hidden lg:inline-flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-full border text-xs font-medium transition-colors duration-300 ${
                   showDark
                     ? 'border-background-200/70 text-foreground-400 hover:text-foreground-700 hover:border-foreground-300/60 hover:bg-background-100'
@@ -220,6 +221,7 @@ export default function Navbar() {
         <a
           href="/admin"
           onClick={(e) => { e.preventDefault(); handleNavClick('/admin'); }}
+          rel="nofollow"
           className={`absolute left-1/2 -translate-x-1/2 bottom-10 inline-flex items-center gap-2 px-4 py-2 rounded-full border border-background-200/70 text-xs font-medium text-foreground-400 hover:text-foreground-700 hover:border-background-300 transition-all duration-300 ${
             mobileOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}
