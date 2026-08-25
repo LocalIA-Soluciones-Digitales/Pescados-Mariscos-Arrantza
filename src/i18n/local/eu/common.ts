@@ -171,6 +171,22 @@ const common = {
   "products.no_results_subtitle": "Probatu beste bilaketa-termino edo kategoria batekin.",
   "products.restaurant.cta_new": "Eskatu kontu profesionala",
 
+  // Stock requests — agortutako produktuen berrekipamendu-abisua
+  "stock_request.cta_button": "Jakinarazi",
+  "stock_request.modal_title": "Jakinarazi iristean",
+  "stock_request.modal_subtitle": "{{producto}} agortuta dago une honetan. Utzi zure datuak eta berriro hornitu bezain laster jakinaraziko dizugu.",
+  "stock_request.form_name": "Zure izena (aukerakoa)",
+  "stock_request.form_phone": "Telefonoa (aukerakoa, jakinarazteko)",
+  "stock_request.form_quantity": "Gutxi gorabeherako kantitatea, kg-tan (aukerakoa)",
+  "stock_request.form_notes": "Oharra (aukerakoa)",
+  "stock_request.submit_button": "Bidali eskaera",
+  "stock_request.submit_sending": "Bidaltzen…",
+  "stock_request.success_title": "Eskaera bidalita!",
+  "stock_request.success_subtitle": "{{producto}} eskuragarri dugunean jakinaraziko dizugu.",
+  "stock_request.success_close": "Itxi",
+  "stock_request.close_label": "Itxi",
+  "stock_request.error_generic": "Ezin izan da eskaera bidali. Saiatu berriro.",
+
   // Products - Fish items
   "products.fish.items.lubina.name": "Lupia Basatia",
   "products.fish.items.lubina.desc": "Zapore fineko arrain zuria. Egosi, gatzetan edo plantxan bikaina.",

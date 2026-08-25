@@ -7,17 +7,19 @@ import PedidosPanel from './PedidosPanel';
 import ResenasPanel from './ResenasPanel';
 import StockPanel from './StockPanel';
 import ReservasPanel from './ReservasPanel';
+import SolicitudesStockPanel from './SolicitudesStockPanel';
 import HoyPanel from './HoyPanel';
 import ClientesPanel from './ClientesPanel';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
 import { useReservas } from '@/hooks/useReservas';
+import { useSolicitudesStock } from '@/hooks/useSolicitudesStock';
 import { usePulse } from '@/hooks/usePulse';
 import { useOrderAlertSound } from '@/hooks/useOrderAlertSound';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import ViewSwitcher from './ViewSwitcher';
 
-type Tab = 'hoy' | 'productos' | 'pedidos' | 'resenas' | 'stock' | 'reservas' | 'clientes';
+type Tab = 'hoy' | 'productos' | 'pedidos' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -182,6 +184,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'stock', label: 'Stock' },
   { value: 'pedidos', label: 'Pedidos' },
   { value: 'reservas', label: 'Reservas' },
+  { value: 'solicitudes', label: 'Solicitudes' },
   { value: 'resenas', label: 'Reseñas' },
   { value: 'clientes', label: 'Clientes' },
 ];
@@ -217,9 +220,11 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   const { pedidos, loading: loadingPedidos } = usePedidos();
   const { resenas, loading: loadingResenas } = useResenas();
   const { reservas, loading: loadingReservas } = useReservas();
+  const { solicitudes } = useSolicitudesStock();
   const pedidosNuevos = useMemo(() => pedidos.filter((p) => p.estado === 'nuevo').length, [pedidos]);
   const resenasPendientes = useMemo(() => resenas.filter((r) => r.estado === 'pendiente').length, [resenas]);
   const reservasPendientes = useMemo(() => reservas.filter((r) => r.estado === 'pendiente').length, [reservas]);
+  const solicitudesPendientes = useMemo(() => solicitudes.filter((s) => s.estado === 'pendiente').length, [solicitudes]);
 
   // Resalta visualmente la pestaña correspondiente durante unos segundos
   // cuando entra algo nuevo, y avisa con un sonido en el caso de pedidos
@@ -227,6 +232,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   const pedidosPulse = usePulse(pedidosNuevos);
   const reservasPulse = usePulse(reservasPendientes);
   const resenasPulse = usePulse(resenasPendientes);
+  const solicitudesPulse = usePulse(solicitudesPendientes);
 
   const { playNewOrderSound, unlock } = useOrderAlertSound();
   const pedidosNuevosPrevRef = useRef<number | null>(null);
@@ -298,8 +304,21 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
                   ? stockBajoCount
                   : t.value === 'reservas'
                     ? reservasPendientes
-                    : 0;
-        const pulse = t.value === 'hoy' ? pedidosPulse || reservasPulse : t.value === 'pedidos' ? pedidosPulse : t.value === 'reservas' ? reservasPulse : t.value === 'resenas' ? resenasPulse : false;
+                    : t.value === 'solicitudes'
+                      ? solicitudesPendientes
+                      : 0;
+        const pulse =
+          t.value === 'hoy'
+            ? pedidosPulse || reservasPulse
+            : t.value === 'pedidos'
+              ? pedidosPulse
+              : t.value === 'reservas'
+                ? reservasPulse
+                : t.value === 'resenas'
+                  ? resenasPulse
+                  : t.value === 'solicitudes'
+                    ? solicitudesPulse
+                    : false;
         return (
           <button
             key={t.value}
@@ -378,6 +397,8 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         <ResenasPanel />
       ) : tab === 'reservas' ? (
         <ReservasPanel />
+      ) : tab === 'solicitudes' ? (
+        <SolicitudesStockPanel />
       ) : tab === 'clientes' ? (
         <ClientesPanel pedidos={pedidos} reservas={reservas} loading={loadingPedidos || loadingReservas} />
       ) : tab === 'stock' ? (

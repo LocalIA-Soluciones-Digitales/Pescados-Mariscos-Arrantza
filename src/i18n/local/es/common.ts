@@ -154,6 +154,22 @@ const common = {
   "products.no_results_subtitle": "Prueba con otro término de búsqueda o categoría.",
   "products.restaurant.cta_new": "Solicitar cuenta profesional",
 
+  // Stock requests — aviso de reposición para productos agotados
+  "stock_request.cta_button": "Avísame",
+  "stock_request.modal_title": "Avísame cuando llegue",
+  "stock_request.modal_subtitle": "{{producto}} está agotado ahora mismo. Déjanos tus datos y te avisamos en cuanto lo repongamos.",
+  "stock_request.form_name": "Tu nombre (opcional)",
+  "stock_request.form_phone": "Teléfono (opcional, para avisarte)",
+  "stock_request.form_quantity": "Cantidad aproximada, en kg (opcional)",
+  "stock_request.form_notes": "Nota (opcional)",
+  "stock_request.submit_button": "Enviar solicitud",
+  "stock_request.submit_sending": "Enviando…",
+  "stock_request.success_title": "¡Solicitud enviada!",
+  "stock_request.success_subtitle": "Te avisaremos en cuanto tengamos {{producto}} disponible.",
+  "stock_request.success_close": "Cerrar",
+  "stock_request.close_label": "Cerrar",
+  "stock_request.error_generic": "No se pudo enviar la solicitud. Inténtalo de nuevo.",
+
   // Products
   "products.label": "Productos",
   "products.title": "Lo que el mar nos trae cada día",

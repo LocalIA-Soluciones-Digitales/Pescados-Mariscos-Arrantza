@@ -7,6 +7,7 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { useCart } from '@/hooks/useCart';
 import type { CartItem } from '@/hooks/useCart';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
+import SolicitudStockModal from '@/pages/productos/components/SolicitudStockModal';
 import { temporada } from '@/mocks/productos';
 import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { useCartSound } from '@/hooks/useCartSound';
@@ -687,6 +688,7 @@ function ProductCard({
   onIncrease,
   onDecrease,
   onSetKg,
+  onRequestStock,
 }: {
   product: Producto;
   index: number;
@@ -699,6 +701,7 @@ function ProductCard({
   onIncrease: (productId: string) => void;
   onDecrease: (productId: string) => void;
   onSetKg: (productId: string, kg: number) => void;
+  onRequestStock: (p: Producto) => void;
 }) {
   const { t, i18n } = useTranslation();
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
@@ -793,9 +796,14 @@ function ProductCard({
             {product.precio}
           </span>
           {agotado ? (
-            <span className="inline-flex items-center px-2.5 py-2 md:px-4 md:py-2 rounded-full bg-background-200/60 text-foreground-400 text-[11px] md:text-xs font-medium whitespace-nowrap cursor-not-allowed">
-              {t('products.badge_agotado')}
-            </span>
+            <button
+              type="button"
+              onClick={() => onRequestStock(product)}
+              className="inline-flex items-center gap-1 px-2.5 py-2 md:px-4 md:py-2 rounded-full bg-primary-50 text-primary-600 text-[11px] md:text-xs font-medium whitespace-nowrap cursor-pointer hover:bg-primary-100 transition-colors"
+            >
+              <i className="ri-notification-3-line"></i>
+              {t('stock_request.cta_button')}
+            </button>
           ) : !isInCart ? (
             <button
               type="button"
@@ -907,6 +915,7 @@ function CatalogGrid({
   onIncrease,
   onDecrease,
   onSetKg,
+  onRequestStock,
   removingProductId,
   highlightedProductId,
   groupBy,
@@ -919,6 +928,7 @@ function CatalogGrid({
   onIncrease: (productId: string) => void;
   onDecrease: (productId: string) => void;
   onSetKg: (productId: string, kg: number) => void;
+  onRequestStock: (p: Producto) => void;
   removingProductId: string | null;
   highlightedProductId?: string | null;
   groupBy?: 'subcategory';
@@ -946,7 +956,7 @@ function CatalogGrid({
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-4 md:gap-6 lg:gap-8">
         {products.map((product, idx) => (
-          <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
+          <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onRequestStock={onRequestStock} />
         ))}
       </div>
     );
@@ -1006,7 +1016,7 @@ function CatalogGrid({
               {items.map((product) => {
                 const idx = globalIdx++;
                 return (
-                  <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
+                  <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onRequestStock={onRequestStock} />
                 );
               })}
             </div>
@@ -1023,7 +1033,7 @@ function CatalogGrid({
             {ungrouped.map((product) => {
               const idx = globalIdx++;
               return (
-                <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} />
+                <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onRequestStock={onRequestStock} />
               );
             })}
           </div>
@@ -1207,6 +1217,7 @@ export default function Productos() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('todos');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [solicitudProducto, setSolicitudProducto] = useState<Producto | null>(null);
 
   // Deep link from other pages (e.g. home carousel) — land directly on the
   // product's card in the catalog, without applying any name filter.
@@ -1579,6 +1590,7 @@ export default function Productos() {
                 onIncrease={handleIncreaseKg}
                 onDecrease={handleDecreaseKg}
                 onSetKg={setKg}
+                onRequestStock={setSolicitudProducto}
                 removingProductId={removingProductId}
                 highlightedProductId={highlightedCardId}
                 groupBy={shouldGroupBySubcategory ? 'subcategory' : undefined}
@@ -1615,6 +1627,11 @@ export default function Productos() {
         onSaveLastOrder={saveLastOrder}
         onLoadOrder={loadOrder}
       />
+
+      {/* Solicitud de aviso de stock */}
+      {solicitudProducto && (
+        <SolicitudStockModal product={solicitudProducto} onClose={() => setSolicitudProducto(null)} />
+      )}
 
       {/* Toast notification */}
       <AddToCartToast

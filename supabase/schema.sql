@@ -1109,15 +1109,107 @@ create policy "reservas_ajustes_delete_admin"
 create index if not exists idx_reservas_ajustes_evento_id on public.reservas_ajustes (evento_id);
 
 -- ============================================================
+-- Solicitudes de stock: cuando un producto está agotado
+-- (productos.disponible = false), el cliente puede pedir desde la web
+-- que se le avise o se reponga, sin necesidad de cuenta. El pescadero
+-- las ve en el panel de Stock y las marca como atendidas al reponer o
+-- contactar con el cliente — mismo patrón sin-login que `reservas`.
+-- ============================================================
+create table if not exists public.solicitudes_stock (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  producto_id uuid references public.productos (id) on delete set null,
+  producto_nombre text not null,
+  cliente_nombre text,
+  cliente_telefono text,
+  cantidad_kg numeric,
+  notas text,
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'atendida', 'descartada')),
+  device_id uuid,
+  created_at timestamptz not null default now()
+);
+
+alter table public.solicitudes_stock enable row level security;
+
+-- Gestión: el pescadero del cliente dueño de la solicitud, o desarrollador.
+-- No hay policy de insert para "authenticated"/"anon": el cliente crea la
+-- solicitud siempre vía crear_solicitud_stock (security definer), igual
+-- que reservas.
+drop policy if exists "solicitudes_stock_select_admin" on public.solicitudes_stock;
+create policy "solicitudes_stock_select_admin"
+  on public.solicitudes_stock for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "solicitudes_stock_update_admin" on public.solicitudes_stock;
+create policy "solicitudes_stock_update_admin"
+  on public.solicitudes_stock for update
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "solicitudes_stock_delete_admin" on public.solicitudes_stock;
+create policy "solicitudes_stock_delete_admin"
+  on public.solicitudes_stock for delete
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_solicitudes_stock_created_at on public.solicitudes_stock (created_at desc);
+create index if not exists idx_solicitudes_stock_estado on public.solicitudes_stock (estado);
+create index if not exists idx_solicitudes_stock_producto_id on public.solicitudes_stock (producto_id);
+
+-- El cliente envía la solicitud desde la web (sin sesión) siempre vía esta
+-- función, nunca por insert directo — mismo patrón que crear_reserva.
+-- producto_nombre se guarda tal cual está en el momento de la solicitud,
+-- para que la fila siga siendo legible aunque el producto se borre o
+-- cambie de nombre después.
+create or replace function public.crear_solicitud_stock(
+  p_site_key uuid, p_producto_id uuid, p_cliente_nombre text, p_cliente_telefono text,
+  p_cantidad_kg numeric, p_notas text, p_device_id uuid
+)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_cliente_id uuid;
+  v_producto_nombre text;
+  v_id uuid;
+begin
+  v_cliente_id := public.cliente_id_from_site_key(p_site_key);
+  if v_cliente_id is null then
+    raise exception 'site_key inválida';
+  end if;
+
+  select nombre_es into v_producto_nombre
+  from public.productos
+  where id = p_producto_id and cliente_id = v_cliente_id;
+
+  if v_producto_nombre is null then
+    raise exception 'producto inválido';
+  end if;
+
+  insert into public.solicitudes_stock (
+    cliente_id, producto_id, producto_nombre, cliente_nombre, cliente_telefono, cantidad_kg, notas, device_id
+  ) values (
+    v_cliente_id, p_producto_id, v_producto_nombre, nullif(p_cliente_nombre, ''), nullif(p_cliente_telefono, ''),
+    p_cantidad_kg, nullif(p_notas, ''), p_device_id
+  ) returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+-- ============================================================
 -- Realtime: el panel de gestión (usePedidos, useReservas, useResenas,
--- useProductos, useNewsletter, useReservasEventos, useReservasAjustes) se
--- suscribe a estas tablas con Postgres Changes para refrescarse solo en
--- cuanto cambian, sin recargar la página. Postgres Changes solo emite
--- eventos de una tabla si está añadida a la publicación `supabase_realtime`
--- — no ocurre automáticamente al crear la tabla, hay que añadirla a mano.
--- El envío a cada cliente conectado sigue filtrado por sus policies de
--- select (RLS), igual que una query normal: un cliente_id no ve cambios de
--- otro. Bloque idempotente: solo añade las que falten.
+-- useProductos, useNewsletter, useReservasEventos, useReservasAjustes,
+-- useSolicitudesStock) se suscribe a estas tablas con Postgres Changes
+-- para refrescarse solo en cuanto cambian, sin recargar la página.
+-- Postgres Changes solo emite eventos de una tabla si está añadida a la
+-- publicación `supabase_realtime` — no ocurre automáticamente al crear la
+-- tabla, hay que añadirla a mano. El envío a cada cliente conectado sigue
+-- filtrado por sus policies de select (RLS), igual que una query normal:
+-- un cliente_id no ve cambios de otro. Bloque idempotente: solo añade las
+-- que falten.
 -- ============================================================
 
 do $$
@@ -1126,7 +1218,7 @@ declare
 begin
   foreach t in array array[
     'pedidos', 'reservas', 'reservas_eventos', 'reservas_ajustes',
-    'resenas', 'newsletter_subscribers', 'productos'
+    'resenas', 'newsletter_subscribers', 'productos', 'solicitudes_stock'
   ]
   loop
     if not exists (
