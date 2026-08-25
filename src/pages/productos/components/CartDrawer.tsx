@@ -336,10 +336,16 @@ function CartLineItem({
     }
   };
 
+  // Note field starts open only if it already carries text; otherwise it's
+  // a small toggle — most orders don't need a per-product instruction, and
+  // showing an empty input for every line was most of why cards ran long.
+  const [noteOpen, setNoteOpen] = useState(() => Boolean(cartItem.note && cartItem.note.trim()));
+  const hasNote = Boolean(cartItem.note && cartItem.note.trim());
+
   return (
-    <div className={`flex gap-3 py-4 border-b border-background-200/60 last:border-b-0 rounded-lg transition-shadow duration-200 ${rowFlashing ? 'animate-row-flash' : ''}`}>
+    <div className={`flex gap-2.5 py-3 border-b border-background-200/60 last:border-b-0 rounded-lg transition-shadow duration-200 ${rowFlashing ? 'animate-row-flash' : ''}`}>
       {/* Thumbnail */}
-      <div className="w-16 h-16 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
+      <div className="w-12 h-12 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
         <img
           src={product.imagen_url ?? ''}
           alt={pickLang(product, 'nombre', i18n.language)}
@@ -349,10 +355,29 @@ function CartLineItem({
 
       {/* Details */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <h4 className="text-sm font-semibold text-foreground-950 truncate">
-            {pickLang(product, 'nombre', i18n.language)}
-          </h4>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold text-foreground-950 truncate">
+              {pickLang(product, 'nombre', i18n.language)}
+            </h4>
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              <span className="text-[10px] text-foreground-400 inline-flex items-center gap-0.5">
+                <i className="ri-map-pin-line text-[9px]"></i>
+                {pickLang(product, 'origen', i18n.language)}
+              </span>
+              {!product.disponible ? (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-foreground-200/90 text-foreground-700 text-[9px] font-medium whitespace-nowrap">
+                  <span className="w-1 h-1 rounded-full bg-foreground-500"></span>
+                  {t('products.badge_agotado')}
+                </span>
+              ) : (
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${badgeStyle.bg} ${badgeStyle.text} text-[9px] font-medium whitespace-nowrap`}>
+                  <span className={`w-1 h-1 rounded-full ${badgeStyle.dot}`}></span>
+                  {t(getBadgeLabelKey(product.estado))}
+                </span>
+              )}
+            </div>
+          </div>
           <button
             type="button"
             onClick={onRemove}
@@ -363,116 +388,84 @@ function CartLineItem({
           </button>
         </div>
 
-        {/* Origin + badge */}
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <span className="text-[11px] text-foreground-400 inline-flex items-center gap-0.5">
-            <i className="ri-map-pin-line text-[9px]"></i>
-            {pickLang(product, 'origen', i18n.language)}
-          </span>
-          {!product.disponible ? (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-foreground-200/90 text-foreground-700 text-[10px] font-medium whitespace-nowrap">
-              <span className="w-1 h-1 rounded-full bg-foreground-500"></span>
-              {t('products.badge_agotado')}
-            </span>
-          ) : (
-            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${badgeStyle.bg} ${badgeStyle.text} text-[10px] font-medium whitespace-nowrap`}>
-              <span className={`w-1 h-1 rounded-full ${badgeStyle.dot}`}></span>
-              {t(getBadgeLabelKey(product.estado))}
-            </span>
-          )}
-        </div>
-
-        {/* Quantity selector */}
-        <div className="mb-2">
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-foreground-400 mr-1.5">
-              {t('cart.quantity_label')}
-            </span>
-            <div className="flex items-center bg-background-100 rounded-full p-0.5">
-              <div className={`relative group rounded-full ${minShaking ? 'animate-min-ring' : ''}`}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (cartItem.kg <= 0.5) {
-                      setMinShaking(true);
-                      setTimeout(() => setMinShaking(false), 500);
-                      return;
-                    }
-                    onDecrease();
-                  }}
-                  disabled={cartItem.kg <= 0.5}
-                  className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-                    cartItem.kg <= 0.5
-                      ? `text-foreground-300 cursor-not-allowed ${minShaking ? 'animate-min-shake' : ''}`
-                      : 'text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer'
-                  }`}
-                  aria-label="Reducir cantidad"
-                >
-                  −
-                </button>
-                {cartItem.kg <= 0.5 && (
-                  <span className="absolute -top-[26px] left-1/2 -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-medium text-background-50 bg-foreground-800 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                    0.5 kg mín
-                    <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-foreground-800"></span>
-                  </span>
-                )}
-              </div>
-              {isEditingWeight ? (
-                <input
-                  type="number"
-                  value={editWeightValue}
-                  onChange={(e) => setEditWeightValue(e.target.value)}
-                  onBlur={handleConfirmEditWeight}
-                  onKeyDown={handleWeightKeyDown}
-                  className="w-[56px] text-center text-sm font-semibold text-foreground-950 bg-transparent border-0 outline-none appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none tabular-nums"
-                  step="0.1"
-                  min="0.5"
-                  autoFocus
-                  inputMode="decimal"
-                  aria-label="Editar peso en kg"
-                />
-              ) : (
-                <span
-                  onClick={handleStartEditWeight}
-                  className={`min-w-[48px] text-center text-sm font-semibold text-foreground-950 tabular-nums cursor-pointer hover:text-primary-600 transition-colors duration-200 select-none inline-block ${weightPopping ? 'animate-weight-pop' : ''}`}
-                  title={t('cart.weight_hint_short')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStartEditWeight(); } }}
-                  aria-label="Haz clic para editar el peso"
-                >
-                  {formatKg(cartItem.kg)}
-                </span>
-              )}
+        {/* Quantity stepper + preparation, one row */}
+        <div className="flex items-center gap-1.5 mt-2">
+          <div className="flex items-center bg-background-100 rounded-full p-0.5 flex-shrink-0">
+            <div className={`relative group rounded-full ${minShaking ? 'animate-min-ring' : ''}`}>
               <button
                 type="button"
                 onClick={() => {
-                  setPlusBouncing(true);
-                  setTimeout(() => setPlusBouncing(false), 400);
-                  onIncrease();
+                  if (cartItem.kg <= 0.5) {
+                    setMinShaking(true);
+                    setTimeout(() => setMinShaking(false), 500);
+                    return;
+                  }
+                  onDecrease();
                 }}
-                className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200 ${plusBouncing ? 'animate-plus-bounce' : ''}`}
-                aria-label="Aumentar cantidad"
+                disabled={cartItem.kg <= 0.5}
+                className={`w-6 h-6 flex items-center justify-center rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+                  cartItem.kg <= 0.5
+                    ? `text-foreground-300 cursor-not-allowed ${minShaking ? 'animate-min-shake' : ''}`
+                    : 'text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer'
+                }`}
+                aria-label="Reducir cantidad"
               >
-                +
+                −
               </button>
+              {cartItem.kg <= 0.5 && (
+                <span className="absolute -top-[26px] left-1/2 -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-medium text-background-50 bg-foreground-800 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                  0.5 kg mín
+                  <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-foreground-800"></span>
+                </span>
+              )}
             </div>
-            <span className="text-xs text-foreground-400 ml-2 tabular-nums whitespace-nowrap">
-              {pricePerKg} {t('cart.price_label')}
-            </span>
+            {isEditingWeight ? (
+              <input
+                type="number"
+                value={editWeightValue}
+                onChange={(e) => setEditWeightValue(e.target.value)}
+                onBlur={handleConfirmEditWeight}
+                onKeyDown={handleWeightKeyDown}
+                className="w-[48px] text-center text-xs font-semibold text-foreground-950 bg-transparent border-0 outline-none appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none tabular-nums"
+                step="0.1"
+                min="0.5"
+                autoFocus
+                inputMode="decimal"
+                aria-label="Editar peso en kg"
+              />
+            ) : (
+              <span
+                onClick={handleStartEditWeight}
+                className={`min-w-[40px] text-center text-xs font-semibold text-foreground-950 tabular-nums cursor-pointer hover:text-primary-600 transition-colors duration-200 select-none inline-block ${weightPopping ? 'animate-weight-pop' : ''}`}
+                title={t('cart.weight_hint_short')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStartEditWeight(); } }}
+                aria-label="Haz clic para editar el peso"
+              >
+                {formatKg(cartItem.kg)}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setPlusBouncing(true);
+                setTimeout(() => setPlusBouncing(false), 400);
+                onIncrease();
+              }}
+              className={`w-6 h-6 flex items-center justify-center rounded-full text-sm font-medium text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-all duration-200 ${plusBouncing ? 'animate-plus-bounce' : ''}`}
+              aria-label="Aumentar cantidad"
+            >
+              +
+            </button>
           </div>
-        </div>
 
-        {/* Preparation selector */}
-        <div className="flex items-center gap-1 mb-2 pr-4">
-          <span className="text-[10px] uppercase tracking-wider text-foreground-400 mr-1.5">
-            {t('cart.preparation_label')}
-          </span>
           <div className="relative flex-1 min-w-0">
             <select
               value={cartItem.preparation || 'whole'}
               onChange={(e) => onPreparationChange(e.target.value)}
-              className="w-full truncate appearance-none bg-background-100 border border-background-200/70 rounded-full pl-3.5 pr-8 py-1.5 text-xs font-medium text-foreground-950 cursor-pointer focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-200"
+              aria-label={t('cart.preparation_label')}
+              className="w-full truncate appearance-none bg-background-100 border border-background-200/70 rounded-full pl-3 pr-7 py-1 text-xs font-medium text-foreground-950 cursor-pointer focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-200"
             >
               {PREPARATIONS.map((p) => (
                 <option key={p.key} value={p.key}>
@@ -480,56 +473,47 @@ function CartLineItem({
                 </option>
               ))}
             </select>
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 flex items-center justify-center text-foreground-400 pointer-events-none">
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 flex items-center justify-center text-foreground-400 pointer-events-none">
               <i className="ri-arrow-down-s-line text-xs"></i>
             </span>
-            {/* Saved indicator — tiny checkmark when preparation differs from default */}
-            <span
-              className={`absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center rounded-full bg-emerald-100/80 text-emerald-600 ring-2 ring-background-50 transition-all duration-300 ${
-                (cartItem.preparation || 'whole') !== 'whole'
-                  ? 'opacity-100 scale-100'
-                  : 'opacity-0 scale-75'
-              }`}
-            >
-              <i className="ri-check-line text-[11px]"></i>
-            </span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setNoteOpen(v => !v)}
+            title={t('cart.item_note_tooltip')}
+            aria-label={t('cart.item_note_label')}
+            aria-pressed={noteOpen}
+            className={`relative w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full transition-all duration-200 ${
+              hasNote
+                ? 'bg-emerald-100/80 text-emerald-600'
+                : 'bg-background-100 text-foreground-400 hover:text-foreground-700 hover:bg-background-200/70'
+            }`}
+          >
+            <i className="ri-edit-2-line text-xs"></i>
+          </button>
         </div>
 
-        {/* Per-item note */}
-        <div className="flex items-center gap-1 mb-2 pr-4">
-          <div className="relative flex items-center gap-1 mr-1.5 flex-shrink-0">
-            <span className="text-[10px] uppercase tracking-wider text-foreground-400">
-              {t('cart.item_note_label')}
-            </span>
-            <span className="group relative w-3.5 h-3.5 flex items-center justify-center text-foreground-300 hover:text-foreground-500 cursor-help transition-colors duration-200">
-              <i className="ri-information-line text-[11px]"></i>
-              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-[220px] px-3 py-2 bg-foreground-800 text-background-50 rounded-lg text-[10px] leading-relaxed font-normal normal-case tracking-normal opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-20 whitespace-normal">
-                {t('cart.item_note_tooltip')}
-                <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-foreground-800"></span>
-              </span>
-            </span>
-          </div>
-          <div className="relative flex-1 min-w-0">
+        {/* Per-item note — collapsed by default, tucked behind the pencil icon above */}
+        {noteOpen && (
+          <div className="relative mt-1.5">
             <input
               type="text"
               value={cartItem.note || ''}
               onChange={(e) => onNoteChange(e.target.value)}
               placeholder={t('cart.item_note_placeholder')}
               maxLength={60}
+              autoFocus={!hasNote}
               className="w-full bg-background-100 border border-background-200/70 rounded-full pl-3.5 pr-3 py-1.5 text-xs text-foreground-950 placeholder:text-foreground-300 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-200"
             />
-            {cartItem.note && cartItem.note.trim().length > 0 && (
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 flex items-center justify-center text-emerald-500 pointer-events-none">
-                <i className="ri-check-line text-[10px]"></i>
-              </span>
-            )}
           </div>
-        </div>
+        )}
 
-        {/* Estimated subtotal */}
-        <div className="flex items-center justify-end pr-6">
-          <span className="text-xs text-foreground-400 mr-2">{t('cart.estimated_subtotal')}</span>
+        {/* Price per kg + subtotal, one compact line */}
+        <div className="flex items-center justify-between mt-1.5">
+          <span className="text-[10px] text-foreground-400 tabular-nums">
+            {pricePerKg} {t('cart.price_label')}
+          </span>
           <span className="text-sm font-semibold text-foreground-950 whitespace-nowrap overflow-hidden">
             <RollingNumber value={formatPrice(subtotal)} />
           </span>
@@ -1266,84 +1250,6 @@ export default function CartDrawer({
                     </p>
                   </div>
 
-                  {/* === PAYMENT METHOD === */}
-                  <div id="checkout-field-paymentMethod" className="mb-6">
-                    <h3 className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-3">
-                      {t('cart.payment_method_title')}
-                    </h3>
-                    <div className={`grid grid-cols-2 gap-3 p-0.5 rounded-xl transition-all duration-300 ${validationErrors.paymentMethod ? 'ring-2 ring-red-400/60' : ''}`}>
-                      {/* Pay locally */}
-                      <button
-                        type="button"
-                        aria-pressed={paymentChoice === 'local'}
-                        onClick={() => { setPaymentChoice('local'); if (validationErrors.paymentMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.paymentMethod; return next; }); }}
-                        className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
-                          paymentChoice === 'local'
-                            ? 'border-primary-500 bg-primary-50/50'
-                            : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
-                        }`}
-                      >
-                        {paymentChoice === 'local' && (
-                          <span className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full bg-primary-500 text-background-50 animate-[scaleIn_0.3s_ease-out]">
-                            <i className="ri-check-line text-[11px]"></i>
-                          </span>
-                        )}
-                        <span className={`w-10 h-10 flex items-center justify-center rounded-full mb-3 text-xl transition-all duration-300 ${
-                          paymentChoice === 'local'
-                            ? 'bg-primary-100 text-primary-600'
-                            : 'bg-background-100 text-foreground-400'
-                        }`}>
-                          <i className="ri-store-2-line"></i>
-                        </span>
-                        <span className="text-sm font-semibold text-foreground-950 mb-2 whitespace-nowrap">
-                          {t('cart.payment_local')}
-                        </span>
-                        <span className="text-[11px] text-foreground-400 leading-relaxed whitespace-normal max-w-[160px]">
-                          {t('cart.payment_local_desc')}
-                        </span>
-                      </button>
-
-                      {/* Pay online */}
-                      <button
-                        type="button"
-                        aria-pressed={paymentChoice === 'online'}
-                        onClick={() => { setPaymentChoice('online'); if (validationErrors.paymentMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.paymentMethod; return next; }); }}
-                        className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
-                          paymentChoice === 'online'
-                            ? 'border-primary-500 bg-primary-50/50'
-                            : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
-                        }`}
-                      >
-                        {paymentChoice === 'online' && (
-                          <span className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full bg-primary-500 text-background-50 animate-[scaleIn_0.3s_ease-out]">
-                            <i className="ri-check-line text-[11px]"></i>
-                          </span>
-                        )}
-                        <span className={`w-10 h-10 flex items-center justify-center rounded-full mb-3 text-xl transition-all duration-300 ${
-                          paymentChoice === 'online'
-                            ? 'bg-primary-100 text-primary-600'
-                            : 'bg-background-100 text-foreground-400'
-                        }`}>
-                          <i className="ri-secure-payment-line"></i>
-                        </span>
-                        <span className="text-sm font-semibold text-foreground-950 mb-2 whitespace-nowrap">
-                          {t('cart.payment_online')}
-                        </span>
-                        <span className="text-[11px] text-foreground-400 leading-relaxed whitespace-normal max-w-[160px]">
-                          {t('cart.payment_online_desc')}
-                        </span>
-                      </button>
-                    </div>
-                    {validationErrors.paymentMethod && (
-                      <p className="text-xs text-red-500 mt-2 ml-0.5 flex items-center gap-1.5 animate-fadeIn">
-                        <span className="w-3.5 h-3.5 flex items-center justify-center">
-                          <i className="ri-error-warning-line text-xs"></i>
-                        </span>
-                        {validationErrors.paymentMethod}
-                      </p>
-                    )}
-                  </div>
-
                   {/* === DELIVERY METHOD === */}
                   <div id="checkout-field-deliveryMethod" className="mb-6">
                     <h3 className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-3">
@@ -1715,14 +1621,92 @@ export default function CartDrawer({
                       {customer.notes.length}/500
                     </p>
                   </div>
-                </div>
-              )}
-            </div>
 
-            {/* Footer — compact by design: this panel competes with the scrollable
-                body for vertical space on short mobile screens, so every line
-                here has to earn its place. */}
-            <div className="px-5 py-3.5 border-t border-background-200/60 flex-shrink-0 space-y-2.5 max-h-[52vh] overflow-y-auto overscroll-contain">
+                  {/* === PAYMENT METHOD — last question before confirming === */}
+                  <div id="checkout-field-paymentMethod" className="mb-6">
+                    <h3 className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-3">
+                      {t('cart.payment_method_title')}
+                    </h3>
+                    <div className={`grid grid-cols-2 gap-3 p-0.5 rounded-xl transition-all duration-300 ${validationErrors.paymentMethod ? 'ring-2 ring-red-400/60' : ''}`}>
+                      {/* Pay locally */}
+                      <button
+                        type="button"
+                        aria-pressed={paymentChoice === 'local'}
+                        onClick={() => { setPaymentChoice('local'); if (validationErrors.paymentMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.paymentMethod; return next; }); }}
+                        className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
+                          paymentChoice === 'local'
+                            ? 'border-primary-500 bg-primary-50/50'
+                            : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
+                        }`}
+                      >
+                        {paymentChoice === 'local' && (
+                          <span className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full bg-primary-500 text-background-50 animate-[scaleIn_0.3s_ease-out]">
+                            <i className="ri-check-line text-[11px]"></i>
+                          </span>
+                        )}
+                        <span className={`w-10 h-10 flex items-center justify-center rounded-full mb-3 text-xl transition-all duration-300 ${
+                          paymentChoice === 'local'
+                            ? 'bg-primary-100 text-primary-600'
+                            : 'bg-background-100 text-foreground-400'
+                        }`}>
+                          <i className="ri-store-2-line"></i>
+                        </span>
+                        <span className="text-sm font-semibold text-foreground-950 mb-2 whitespace-nowrap">
+                          {t('cart.payment_local')}
+                        </span>
+                        <span className="text-[11px] text-foreground-400 leading-relaxed whitespace-normal max-w-[160px]">
+                          {t('cart.payment_local_desc')}
+                        </span>
+                      </button>
+
+                      {/* Pay online */}
+                      <button
+                        type="button"
+                        aria-pressed={paymentChoice === 'online'}
+                        onClick={() => { setPaymentChoice('online'); if (validationErrors.paymentMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.paymentMethod; return next; }); }}
+                        className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
+                          paymentChoice === 'online'
+                            ? 'border-primary-500 bg-primary-50/50'
+                            : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
+                        }`}
+                      >
+                        {paymentChoice === 'online' && (
+                          <span className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full bg-primary-500 text-background-50 animate-[scaleIn_0.3s_ease-out]">
+                            <i className="ri-check-line text-[11px]"></i>
+                          </span>
+                        )}
+                        <span className={`w-10 h-10 flex items-center justify-center rounded-full mb-3 text-xl transition-all duration-300 ${
+                          paymentChoice === 'online'
+                            ? 'bg-primary-100 text-primary-600'
+                            : 'bg-background-100 text-foreground-400'
+                        }`}>
+                          <i className="ri-secure-payment-line"></i>
+                        </span>
+                        <span className="text-sm font-semibold text-foreground-950 mb-2 whitespace-nowrap">
+                          {t('cart.payment_online')}
+                        </span>
+                        <span className="text-[11px] text-foreground-400 leading-relaxed whitespace-normal max-w-[160px]">
+                          {t('cart.payment_online_desc')}
+                        </span>
+                      </button>
+                    </div>
+                    {validationErrors.paymentMethod && (
+                      <p className="text-xs text-red-500 mt-2 ml-0.5 flex items-center gap-1.5 animate-fadeIn">
+                        <span className="w-3.5 h-3.5 flex items-center justify-center">
+                          <i className="ri-error-warning-line text-xs"></i>
+                        </span>
+                        {validationErrors.paymentMethod}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Confirm area — this used to be a footer pinned below the
+                      scrollable body, always visible even before the form
+                      was filled in. It's now just the last thing in the
+                      scroll, same as any other section, so nothing to
+                      confirm shows up until you've actually scrolled
+                      through the whole form. */}
+                  <div className="pt-4 pb-2 space-y-2.5 border-t border-background-200/60">
               {Object.keys(validationErrors).length > 0 && (
                 <p className="text-xs text-red-500 text-center leading-relaxed flex items-center justify-center gap-1.5">
                   <span className="w-3.5 h-3.5 flex items-center justify-center">
@@ -1744,11 +1728,11 @@ export default function CartDrawer({
               {/* ── Cloudflare Turnstile placeholder (hidden when disabled) ── */}
               <TurnstileWidget onTokenReceived={turnstile.onTokenReceived} />
 
-              {/* The local/online choice itself lives up in the scrollable
-                  form (id="checkout-field-paymentMethod"), next to the other
-                  checkout questions — same treatment as delivery method, date
-                  and time. Keeping it there instead of pinned here is what
-                  keeps this footer down to one action's worth of height. */}
+              {/* The local/online choice itself is the last question in the
+                  form above (id="checkout-field-paymentMethod"), same
+                  treatment as delivery method, date and time. It stays in
+                  the normal scroll instead of pinned here, so this action
+                  only comes into view once the rest of the form has. */}
 
               {/* Default action: WhatsApp order. Shown until "online" is
                   chosen above; if payment method wasn't chosen at all yet,
@@ -1757,27 +1741,23 @@ export default function CartDrawer({
               {paymentChoice !== 'online' && (
                 <button
                   type="button"
-                  disabled={isEmpty || (isTurnstileEnabled() && !turnstile.verified)}
+                  disabled={isTurnstileEnabled() && !turnstile.verified}
                   onClick={handleSendOrder}
                   className={`w-full py-3 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 ${
-                    isEmpty || (isTurnstileEnabled() && !turnstile.verified)
+                    isTurnstileEnabled() && !turnstile.verified
                       ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
                       : 'bg-primary-500 text-background-50 hover:bg-primary-600 active:scale-[0.98]'
                   }`}
                 >
-                  {isEmpty ? (
-                    t('cart.confirm_order')
-                  ) : (
-                    <span className="inline-flex items-center gap-1 overflow-hidden">
-                      <span>{t('cart.confirm_order')} · </span>
-                      <RollingNumber value={formatPrice(estimatedTotal)} />
-                    </span>
-                  )}
+                  <span className="inline-flex items-center gap-1 overflow-hidden">
+                    <span>{t('cart.confirm_order')} · </span>
+                    <RollingNumber value={formatPrice(estimatedTotal)} />
+                  </span>
                 </button>
               )}
 
               {/* Online chosen: card / Bizum sub-choice, side by side */}
-              {!isEmpty && paymentChoice === 'online' && (
+              {paymentChoice === 'online' && (
                 <div className="grid grid-cols-2 gap-2.5">
                   <button
                     type="button"
@@ -1809,8 +1789,7 @@ export default function CartDrawer({
               )}
 
               {/* Utility links — preview & clear, kept lightweight on purpose */}
-              {!isEmpty && (
-                <div className="flex items-center justify-center gap-5 pt-0.5">
+              <div className="flex items-center justify-center gap-5 pt-0.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -1832,7 +1811,6 @@ export default function CartDrawer({
                     {t('cart.clear')}
                   </button>
                 </div>
-              )}
 
               {/* Legal notice — smallest, least urgent line, last */}
               <p className="text-[10px] text-foreground-400 text-center leading-relaxed px-2">
@@ -1847,6 +1825,9 @@ export default function CartDrawer({
                 </a>
                 .
               </p>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
