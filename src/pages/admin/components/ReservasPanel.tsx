@@ -153,6 +153,12 @@ function ReservaCard({
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${ESTADO_STYLES[reserva.estado]}`}>
               {ESTADO_LABELS[reserva.estado]}
             </span>
+            {reserva.fecha_deseada && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary-100/70 text-primary-700">
+                <i className="ri-calendar-check-line"></i>
+                Recoge: {formatFecha(reserva.fecha_deseada)}
+              </span>
+            )}
             <span className="text-[10px] text-foreground-400">{new Date(reserva.created_at).toLocaleString('es-ES')}</span>
           </div>
           <p className="text-sm font-medium text-foreground-950 mt-1">{reserva.cliente_nombre}</p>
@@ -406,8 +412,8 @@ export default function ReservasPanel() {
                     </span>
                   </div>
                   <p className="text-xs text-foreground-400 mt-1">
-                    Entrega: {formatFecha(eventoActivo.fecha_entrega)}
-                    {eventoActivo.fecha_limite && <> · Límite de pedido: {formatFecha(eventoActivo.fecha_limite)}</>}
+                    Recogidas desde: {formatFecha(eventoActivo.fecha_entrega)}
+                    {eventoActivo.fecha_limite && <> · Fecha límite de pedido: {formatFecha(eventoActivo.fecha_limite)}</>}
                   </p>
                 </div>
 

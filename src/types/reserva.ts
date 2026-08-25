@@ -32,6 +32,7 @@ export interface Reserva {
   cliente_nombre: string;
   cliente_telefono: string | null;
   cliente_email: string | null;
+  fecha_deseada: string | null;
   notas: string | null;
   estado: ReservaEstado;
   device_id: string | null;

@@ -39,10 +39,11 @@ function buildWhatsAppMessage(params: {
   nombre: string;
   telefono: string;
   email: string;
+  fechaDeseada: string;
   notas: string;
   lang: string;
 }): string {
-  const { evento, items, totalWeight, nombre, telefono, email, notas, lang } = params;
+  const { evento, items, totalWeight, nombre, telefono, email, fechaDeseada, notas, lang } = params;
   const sep = '━━━━━━━━━━━━━━━━━━━━━━';
   const lines: string[] = [];
 
@@ -64,8 +65,8 @@ function buildWhatsAppMessage(params: {
     lines.push(email.trim());
   }
   lines.push('');
-  lines.push('📅 Fecha de entrega deseada');
-  lines.push(formatFecha(evento.fecha_entrega, lang));
+  lines.push('📅 Día de recogida deseado');
+  lines.push(fechaDeseada ? formatFecha(fechaDeseada, lang) : '—');
   lines.push('');
   lines.push(sep);
 
@@ -170,6 +171,7 @@ export default function Reservas() {
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
   const [email, setEmail] = useState('');
+  const [fechaDeseada, setFechaDeseada] = useState('');
   const [notas, setNotas] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -223,6 +225,10 @@ export default function Reservas() {
       setError(t('reservas.error_empty'));
       return;
     }
+    if (!fechaDeseada) {
+      setError(t('reservas.error_date'));
+      return;
+    }
     setError(null);
     setSending(true);
 
@@ -235,11 +241,12 @@ export default function Reservas() {
       clienteNombre: nombre.trim(),
       clienteTelefono: telefono.trim(),
       clienteEmail: email.trim(),
+      fechaDeseada,
       notas: notas.trim(),
       deviceId: getDeviceId(),
     });
 
-    const message = buildWhatsAppMessage({ evento, items, totalWeight, nombre, telefono, email, notas, lang: i18n.language });
+    const message = buildWhatsAppMessage({ evento, items, totalWeight, nombre, telefono, email, fechaDeseada, notas, lang: i18n.language });
     const whatsappUrl = `https://wa.me/34619609888?text=${encodeURIComponent(message)}`;
 
     setSending(false);
@@ -259,6 +266,7 @@ export default function Reservas() {
     setNombre('');
     setTelefono('');
     setEmail('');
+    setFechaDeseada('');
     setNotas('');
     setError(null);
     setSuccess(false);
@@ -425,6 +433,16 @@ export default function Reservas() {
                       placeholder={t('reservas.form_email')}
                       className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm focus:outline-none focus:border-foreground-300/60"
                     />
+                    <div>
+                      <label className="block text-[11px] text-foreground-500 mb-1">{t('reservas.form_date')}</label>
+                      <input
+                        type="date"
+                        value={fechaDeseada}
+                        min={evento.fecha_entrega}
+                        onChange={(e) => setFechaDeseada(e.target.value)}
+                        className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm focus:outline-none focus:border-foreground-300/60"
+                      />
+                    </div>
                     <textarea
                       value={notas}
                       onChange={(e) => setNotas(e.target.value)}

@@ -10,6 +10,7 @@ export interface NewReservaInput {
   clienteNombre: string;
   clienteTelefono: string;
   clienteEmail: string;
+  fechaDeseada: string;
   notas: string;
   deviceId: string;
 }
@@ -29,6 +30,7 @@ export async function logReserva(input: NewReservaInput): Promise<{ ok: boolean;
       p_cliente_nombre: input.clienteNombre,
       p_cliente_telefono: input.clienteTelefono || null,
       p_cliente_email: input.clienteEmail || null,
+      p_fecha_deseada: input.fechaDeseada || null,
       p_notas: input.notas || null,
       p_device_id: input.deviceId,
     });

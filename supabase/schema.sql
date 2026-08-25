@@ -885,6 +885,12 @@ create trigger trg_newsletter_confirmacion
 -- al crearse.
 -- ============================================================
 
+-- fecha_entrega: primer día de recogida disponible de la campaña (p.ej.
+-- Nochebuena). fecha_limite: último día en que se aceptan reservas — NO es
+-- una fecha de entrega única para todos los clientes, cada cliente indica su
+-- propio día de recogida al reservar (reservas.fecha_deseada), ya que una
+-- campaña de fiestas cubre varias fechas relevantes (Nochebuena, Nochevieja,
+-- Reyes...).
 create table if not exists public.reservas_eventos (
   id uuid primary key default gen_random_uuid(),
   cliente_id uuid not null references public.clientes (id),
@@ -895,7 +901,8 @@ create table if not exists public.reservas_eventos (
   activo boolean not null default true,
   orden integer not null default 0,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint reservas_eventos_fecha_limite_check check (fecha_limite is null or fecha_limite >= fecha_entrega)
 );
 
 drop trigger if exists trg_reservas_eventos_updated_at on public.reservas_eventos;
@@ -932,7 +939,8 @@ create policy "reservas_eventos_delete_admin"
 
 create index if not exists idx_reservas_eventos_activo on public.reservas_eventos (activo);
 
--- Lectura pública: solo eventos activos del cliente resuelto por
+-- Lectura pública: solo eventos activos y todavía dentro de plazo (sin
+-- fecha límite, o con fecha límite no pasada) del cliente resuelto por
 -- site_key, nunca por select directo — igual que get_productos_publico.
 create or replace function public.get_reservas_eventos_publico(p_site_key uuid)
 returns setof reservas_eventos
@@ -941,6 +949,7 @@ as $$
   select e.* from public.reservas_eventos e
   where e.cliente_id = public.cliente_id_from_site_key(p_site_key)
     and e.activo = true
+    and (e.fecha_limite is null or e.fecha_limite >= current_date)
   order by e.orden asc, e.fecha_entrega asc;
 $$;
 
@@ -955,6 +964,7 @@ create table if not exists public.reservas (
   cliente_nombre text not null,
   cliente_telefono text,
   cliente_email text,
+  fecha_deseada text,
   notas text,
   estado text not null default 'pendiente' check (estado in ('pendiente', 'confirmada', 'entregada', 'cancelada')),
   device_id uuid,
@@ -991,11 +1001,14 @@ create index if not exists idx_reservas_evento_id on public.reservas (evento_id)
 create index if not exists idx_reservas_device_id on public.reservas (device_id);
 
 -- El cliente envía la reserva desde la web (sin sesión) siempre vía esta
--- función, nunca por insert directo.
+-- función, nunca por insert directo. p_fecha_deseada es el día que el
+-- propio cliente quiere recoger su pedido (texto libre, igual que
+-- pedidos.fecha_preferida) — la campaña solo marca el periodo en que se
+-- aceptan reservas, no impone una única fecha de entrega para todos.
 create or replace function public.crear_reserva(
   p_site_key uuid, p_evento_id uuid, p_items jsonb, p_total_productos integer, p_peso_total numeric,
   p_importe_estimado numeric, p_cliente_nombre text, p_cliente_telefono text, p_cliente_email text,
-  p_notas text, p_device_id uuid
+  p_fecha_deseada text, p_notas text, p_device_id uuid
 )
 returns uuid
 language plpgsql security definer set search_path = public
@@ -1012,8 +1025,9 @@ begin
   if not exists (
     select 1 from public.reservas_eventos
     where id = p_evento_id and cliente_id = v_cliente_id and activo = true
+      and (fecha_limite is null or fecha_limite >= current_date)
   ) then
-    raise exception 'evento de reserva inválido';
+    raise exception 'evento de reserva inválido o cerrado';
   end if;
 
   if char_length(p_cliente_nombre) < 1 or char_length(p_cliente_nombre) > 150 then
@@ -1022,10 +1036,10 @@ begin
 
   insert into public.reservas (
     cliente_id, evento_id, items, total_productos, peso_total, importe_estimado,
-    cliente_nombre, cliente_telefono, cliente_email, notas, device_id
+    cliente_nombre, cliente_telefono, cliente_email, fecha_deseada, notas, device_id
   ) values (
     v_cliente_id, p_evento_id, p_items, p_total_productos, p_peso_total, p_importe_estimado,
-    p_cliente_nombre, p_cliente_telefono, p_cliente_email, p_notas, p_device_id
+    p_cliente_nombre, p_cliente_telefono, p_cliente_email, p_fecha_deseada, p_notas, p_device_id
   ) returning id into v_id;
 
   return v_id;

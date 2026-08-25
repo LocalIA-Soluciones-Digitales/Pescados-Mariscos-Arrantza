@@ -42,7 +42,11 @@ export default function ReservaEventoModal({
       return;
     }
     if (!form.fecha_entrega) {
-      setError('Indica la fecha de entrega.');
+      setError('Indica el primer día de recogida disponible.');
+      return;
+    }
+    if (form.fecha_limite && form.fecha_limite < form.fecha_entrega) {
+      setError('La fecha límite de pedido no puede ser anterior al primer día de recogida.');
       return;
     }
     setSaving(true);
@@ -102,7 +106,7 @@ export default function ReservaEventoModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-foreground-500 mb-1.5">Fecha de entrega</label>
+              <label className="block text-xs font-medium text-foreground-500 mb-1.5">Primer día de recogida</label>
               <input
                 type="date"
                 value={form.fecha_entrega}
@@ -121,7 +125,9 @@ export default function ReservaEventoModal({
             </div>
           </div>
           <p className="text-[11px] text-foreground-400 -mt-2">
-            La fecha límite es opcional: si la indicas, la web dejará de aceptar reservas para esta campaña a partir de ese día.
+            Esto NO es una fecha de entrega única: es solo el periodo en que se aceptan reservas (desde el primer día de
+            recogida hasta la fecha límite, si la indicas). Cada cliente elige su propio día de recogida al reservar
+            (Nochebuena, Nochevieja, Reyes...).
           </p>
 
           <label className="flex items-center gap-3 cursor-pointer select-none py-1">
