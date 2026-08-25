@@ -10,6 +10,12 @@ export interface NewReservaEventoInput {
   fecha_limite: string | null;
 }
 
+// Mismo criterio que el order-by de fetchEventos, para que insertar o editar
+// una campaña en el estado local no rompa el orden cronológico ya cargado.
+function ordenarEventos(eventos: ReservaEvento[]): ReservaEvento[] {
+  return [...eventos].sort((a, b) => a.orden - b.orden || a.fecha_entrega.localeCompare(b.fecha_entrega));
+}
+
 export function useReservasEventos() {
   const [eventos, setEventos] = useState<ReservaEvento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,14 +43,14 @@ export function useReservasEventos() {
       .select()
       .single();
     if (error) return null;
-    setEventos((prev) => [...prev, data as ReservaEvento]);
+    setEventos((prev) => ordenarEventos([...prev, data as ReservaEvento]));
     return data as ReservaEvento;
   }, []);
 
   const patchEvento = useCallback(async (id: string, patch: Partial<NewReservaEventoInput> & { activo?: boolean }) => {
     const { error } = await supabase.from('reservas_eventos').update(patch).eq('id', id);
     if (error) return false;
-    setEventos((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    setEventos((prev) => ordenarEventos(prev.map((e) => (e.id === id ? { ...e, ...patch } : e))));
     return true;
   }, []);
 
