@@ -1,0 +1,538 @@
+import { useMemo, useState } from 'react';
+import { useReservasEventos } from '@/hooks/useReservasEventos';
+import { useReservas } from '@/hooks/useReservas';
+import { useReservasAjustes } from '@/hooks/useReservasAjustes';
+import ReservaEventoModal from './ReservaEventoModal';
+import type { Reserva, ReservaEstado, ReservaEvento } from '@/types/reserva';
+
+const ESTADO_LABELS: Record<ReservaEstado, string> = {
+  pendiente: 'Pendiente',
+  confirmada: 'Confirmada',
+  entregada: 'Entregada',
+  cancelada: 'Cancelada',
+};
+
+const ESTADO_STYLES: Record<ReservaEstado, string> = {
+  pendiente: 'bg-sky-100/80 text-sky-700',
+  confirmada: 'bg-amber-100/80 text-amber-700',
+  entregada: 'bg-emerald-100/80 text-emerald-700',
+  cancelada: 'bg-foreground-200/70 text-foreground-500',
+};
+
+const ESTADO_FILTROS: { value: 'todas' | ReservaEstado; label: string }[] = [
+  { value: 'todas', label: 'Todas' },
+  { value: 'pendiente', label: 'Pendientes' },
+  { value: 'confirmada', label: 'Confirmadas' },
+  { value: 'entregada', label: 'Entregadas' },
+  { value: 'cancelada', label: 'Canceladas' },
+];
+
+const NEXT_ESTADO: Record<ReservaEstado, ReservaEstado | null> = {
+  pendiente: 'confirmada',
+  confirmada: 'entregada',
+  entregada: null,
+  cancelada: null,
+};
+
+function formatFecha(iso: string | null): string {
+  if (!iso) return '—';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function formatKg(n: number): string {
+  const rounded = Math.round(n * 100) / 100;
+  return `${rounded} kg`;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Resumen por producto — lo que el pescadero necesita comprar        */
+/* ------------------------------------------------------------------ */
+interface ResumenRow {
+  key: string;
+  nombre: string;
+  productoId: string | null;
+  reservado: number;
+  entregado: number;
+  pendiente: number;
+}
+
+function ResumenRowCard({
+  row,
+  onRegistrarEntrega,
+}: {
+  row: ResumenRow;
+  onRegistrarEntrega: (kg: number) => Promise<void>;
+}) {
+  const [entrada, setEntrada] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const registrar = async () => {
+    const kg = Number(entrada);
+    if (!Number.isFinite(kg) || kg <= 0) {
+      setEntrada('');
+      return;
+    }
+    setSaving(true);
+    await onRegistrarEntrega(kg);
+    setSaving(false);
+    setEntrada('');
+  };
+
+  const completo = row.pendiente <= 0 && row.reservado > 0;
+
+  return (
+    <div
+      className={`rounded-lg border px-4 py-3 transition-colors ${
+        completo ? 'bg-emerald-50/50 border-emerald-200' : 'bg-background-50 border-background-200/70'
+      } ${saving ? 'opacity-60' : ''}`}
+    >
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground-950 truncate">{row.nombre}</p>
+          <p className="text-xs text-foreground-400 mt-0.5">
+            Reservado: {formatKg(row.reservado)} · Entregado: {formatKg(row.entregado)}
+          </p>
+        </div>
+        <div className="flex items-center gap-4 flex-shrink-0">
+          <div className="text-right">
+            <p className={`text-lg font-bold leading-none tabular-nums ${completo ? 'text-emerald-600' : 'text-foreground-950'}`}>
+              {completo ? '✓' : formatKg(row.pendiente)}
+            </p>
+            <p className="text-[10px] uppercase tracking-wide text-foreground-400 mt-0.5">
+              {completo ? 'Completado' : 'Pendiente de comprar'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-background-200/60">
+        <label className="text-[11px] text-foreground-400">Registrar entrega</label>
+        <input
+          type="number"
+          step="0.5"
+          min="0"
+          placeholder="0"
+          value={entrada}
+          onChange={(e) => setEntrada(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+          }}
+          onBlur={registrar}
+          disabled={saving}
+          className="w-16 px-2 py-1 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
+        />
+        <span className="text-xs text-foreground-400">kg</span>
+        <span className="text-[11px] text-foreground-300 ml-1">— o marca la reserva como "Entregada" en la pestaña Reservas</span>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tarjeta de reserva individual                                      */
+/* ------------------------------------------------------------------ */
+function ReservaCard({
+  reserva,
+  onSetEstado,
+  onDelete,
+}: {
+  reserva: Reserva;
+  onSetEstado: (id: string, estado: ReservaEstado) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const next = NEXT_ESTADO[reserva.estado];
+  const telefono = reserva.cliente_telefono?.replace(/\D/g, '');
+
+  return (
+    <div className="bg-background-50 border border-background-200/70 rounded-lg p-3">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${ESTADO_STYLES[reserva.estado]}`}>
+              {ESTADO_LABELS[reserva.estado]}
+            </span>
+            <span className="text-[10px] text-foreground-400">{new Date(reserva.created_at).toLocaleString('es-ES')}</span>
+          </div>
+          <p className="text-sm font-medium text-foreground-950 mt-1">{reserva.cliente_nombre}</p>
+        </div>
+        <p className="text-sm font-semibold text-foreground-950 flex-shrink-0">
+          {reserva.importe_estimado != null ? `${reserva.importe_estimado.toFixed(2)} €` : '—'}
+        </p>
+      </div>
+
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="text-xs text-foreground-500 hover:text-foreground-950 mb-2">
+        {reserva.total_productos} producto{reserva.total_productos === 1 ? '' : 's'} · {reserva.peso_total} kg {expanded ? '▲' : '▼'}
+      </button>
+
+      {expanded && (
+        <div className="bg-background-100 rounded-lg p-2.5 mb-2 space-y-1">
+          {reserva.items.map((item, idx) => (
+            <p key={idx} className="text-xs text-foreground-600">
+              {item.kg} kg — {item.nombre}
+              {item.nota ? ` — "${item.nota}"` : ''}
+            </p>
+          ))}
+          {reserva.notas && <p className="text-xs text-foreground-500 italic mt-1">Notas: {reserva.notas}</p>}
+          {reserva.cliente_email && <p className="text-xs text-foreground-500 mt-1">{reserva.cliente_email}</p>}
+        </div>
+      )}
+
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {telefono && (
+          <>
+            <a href={`tel:+34${telefono.replace(/^34/, '')}`} className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70">
+              Llamar
+            </a>
+            <a href={`https://wa.me/34${telefono.replace(/^34/, '')}`} target="_blank" rel="noreferrer" className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+              WhatsApp
+            </a>
+          </>
+        )}
+        {next && (
+          <button
+            type="button"
+            onClick={() => onSetEstado(reserva.id, next)}
+            className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-primary-500 text-background-50 hover:bg-primary-600"
+          >
+            Marcar {ESTADO_LABELS[next].toLowerCase()}
+          </button>
+        )}
+        {reserva.estado !== 'cancelada' && reserva.estado !== 'entregada' && (
+          <button
+            type="button"
+            onClick={() => onSetEstado(reserva.id, 'cancelada')}
+            className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-600 hover:bg-red-100"
+          >
+            Cancelar
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            if (confirm('¿Eliminar esta reserva del historial?')) onDelete(reserva.id);
+          }}
+          className="ml-auto px-2 py-1 rounded-full text-[11px] font-medium text-foreground-400 hover:text-red-600"
+        >
+          <i className="ri-delete-bin-line"></i>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Selector de campañas (eventos de reserva)                          */
+/* ------------------------------------------------------------------ */
+function EventoTabs({
+  eventos,
+  selectedId,
+  onSelect,
+  onNuevo,
+}: {
+  eventos: ReservaEvento[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onNuevo: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+      {eventos.map((ev) => (
+        <button
+          key={ev.id}
+          type="button"
+          onClick={() => onSelect(ev.id)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+            selectedId === ev.id ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+          }`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${ev.activo ? 'bg-emerald-400' : 'bg-foreground-300'}`}></span>
+          {ev.nombre_es}
+          <span className={`text-[10px] ${selectedId === ev.id ? 'text-background-50/80' : 'text-foreground-400'}`}>
+            {formatFecha(ev.fecha_entrega)}
+          </span>
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={onNuevo}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 border border-dashed border-background-300 text-foreground-500 hover:bg-background-100"
+      >
+        <i className="ri-add-line"></i>
+        Nueva campaña
+      </button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Panel principal                                                    */
+/* ------------------------------------------------------------------ */
+export default function ReservasPanel() {
+  const { eventos, loading: loadingEventos, crearEvento, patchEvento, eliminarEvento } = useReservasEventos();
+  const { reservas, loading: loadingReservas, setEstado, deleteReserva } = useReservas();
+  const { ajustes, registrarAjuste } = useReservasAjustes();
+
+  const [selectedEventoId, setSelectedEventoId] = useState<string | null>(null);
+  const [vista, setVista] = useState<'resumen' | 'reservas'>('resumen');
+  const [filtroEstado, setFiltroEstado] = useState<'todas' | ReservaEstado>('todas');
+  const [modalEvento, setModalEvento] = useState<'new' | ReservaEvento | null>(null);
+
+  const eventoActivo = useMemo(() => {
+    if (selectedEventoId) return eventos.find((e) => e.id === selectedEventoId) ?? null;
+    return eventos.find((e) => e.activo) ?? eventos[0] ?? null;
+  }, [eventos, selectedEventoId]);
+
+  const reservasDelEvento = useMemo(
+    () => (eventoActivo ? reservas.filter((r) => r.evento_id === eventoActivo.id) : []),
+    [reservas, eventoActivo],
+  );
+  const ajustesDelEvento = useMemo(
+    () => (eventoActivo ? ajustes.filter((a) => a.evento_id === eventoActivo.id) : []),
+    [ajustes, eventoActivo],
+  );
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { todas: reservasDelEvento.length };
+    (['pendiente', 'confirmada', 'entregada', 'cancelada'] as ReservaEstado[]).forEach((e) => {
+      c[e] = reservasDelEvento.filter((r) => r.estado === e).length;
+    });
+    return c;
+  }, [reservasDelEvento]);
+
+  const visibles = useMemo(
+    () => (filtroEstado === 'todas' ? reservasDelEvento : reservasDelEvento.filter((r) => r.estado === filtroEstado)),
+    [reservasDelEvento, filtroEstado],
+  );
+
+  const resumen = useMemo(() => {
+    const map = new Map<string, ResumenRow>();
+    reservasDelEvento
+      .filter((r) => r.estado !== 'cancelada')
+      .forEach((r) => {
+        r.items.forEach((item) => {
+          const key = item.productoId || item.nombre;
+          const row = map.get(key) ?? { key, nombre: item.nombre, productoId: item.productoId || null, reservado: 0, entregado: 0, pendiente: 0 };
+          row.reservado += item.kg;
+          if (r.estado === 'entregada') row.entregado += item.kg;
+          map.set(key, row);
+        });
+      });
+    ajustesDelEvento.forEach((a) => {
+      const key = a.producto_id || a.producto_nombre;
+      const row = map.get(key) ?? { key, nombre: a.producto_nombre, productoId: a.producto_id, reservado: 0, entregado: 0, pendiente: 0 };
+      row.entregado += a.kg;
+      map.set(key, row);
+    });
+    return Array.from(map.values())
+      .map((row) => ({ ...row, pendiente: Math.max(row.reservado - row.entregado, 0) }))
+      .sort((a, b) => b.pendiente - a.pendiente || b.reservado - a.reservado || a.nombre.localeCompare(b.nombre, 'es'));
+  }, [reservasDelEvento, ajustesDelEvento]);
+
+  const totalPendienteKg = useMemo(() => resumen.reduce((sum, r) => sum + r.pendiente, 0), [resumen]);
+  const clientesUnicos = useMemo(
+    () => new Set(reservasDelEvento.filter((r) => r.estado !== 'cancelada').map((r) => r.cliente_nombre.trim().toLowerCase())).size,
+    [reservasDelEvento],
+  );
+
+  const loading = loadingEventos || loadingReservas;
+
+  const handleSaveEvento = async (input: Parameters<typeof crearEvento>[0] & { activo: boolean }) => {
+    if (modalEvento === 'new') {
+      const created = await crearEvento(input);
+      if (created) setSelectedEventoId(created.id);
+      return !!created;
+    }
+    if (modalEvento) {
+      return patchEvento(modalEvento.id, input);
+    }
+    return false;
+  };
+
+  const handleEliminarEvento = async () => {
+    if (!eventoActivo) return;
+    if (!confirm(`¿Eliminar la campaña "${eventoActivo.nombre_es}"? Solo es posible si no tiene reservas asociadas.`)) return;
+    const ok = await eliminarEvento(eventoActivo.id);
+    if (!ok) alert('No se pudo eliminar: esta campaña tiene reservas asociadas. Cancélalas o consérvala como cerrada.');
+    else setSelectedEventoId(null);
+  };
+
+  if (loading && eventos.length === 0) {
+    return (
+      <div className="px-4 md:px-8 py-6">
+        <p className="text-sm text-foreground-400">Cargando…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 md:px-8 py-6 pb-28">
+      <p className="text-xs text-foreground-400 mb-4">
+        Crea una campaña por cada fecha especial (Navidad, Nochevieja...). Los clientes reservan productos y cantidades
+        desde la web para esa fecha; aquí ves cuánto llevas reservado de cada producto, para saber qué pedir en la lonja.
+        Al marcar una reserva como "Entregada" (o registrar una entrega manual) se descuenta automáticamente del pendiente.
+      </p>
+
+      {eventos.length === 0 ? (
+        <div className="text-center py-16">
+          <span className="w-14 h-14 flex items-center justify-center mx-auto mb-4 rounded-full bg-background-100 text-foreground-400 text-2xl">
+            <i className="ri-calendar-event-line"></i>
+          </span>
+          <p className="text-sm font-medium text-foreground-700 mb-1">Todavía no hay ninguna campaña de reservas</p>
+          <p className="text-xs text-foreground-400 mb-4">Crea la primera, por ejemplo "Navidad 2026", con su fecha de entrega.</p>
+          <button
+            type="button"
+            onClick={() => setModalEvento('new')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600"
+          >
+            <i className="ri-add-line"></i>
+            Crear campaña de reservas
+          </button>
+        </div>
+      ) : (
+        <>
+          <EventoTabs eventos={eventos} selectedId={eventoActivo?.id ?? null} onSelect={setSelectedEventoId} onNuevo={() => setModalEvento('new')} />
+
+          {eventoActivo && (
+            <>
+              {/* Cabecera de la campaña seleccionada */}
+              <div className="mt-4 bg-background-50 border border-background-200/70 rounded-lg p-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-heading font-semibold text-foreground-950">{eventoActivo.nombre_es}</h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${eventoActivo.activo ? 'bg-emerald-100/80 text-emerald-700' : 'bg-background-200/70 text-foreground-500'}`}>
+                      {eventoActivo.activo ? 'Abierta' : 'Cerrada'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-foreground-400 mt-1">
+                    Entrega: {formatFecha(eventoActivo.fecha_entrega)}
+                    {eventoActivo.fecha_limite && <> · Límite de pedido: {formatFecha(eventoActivo.fecha_limite)}</>}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-4 text-center">
+                  <div>
+                    <p className="text-lg font-bold text-foreground-950 leading-none tabular-nums">{counts.todas}</p>
+                    <p className="text-[10px] text-foreground-400 mt-1">reservas</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-foreground-950 leading-none tabular-nums">{clientesUnicos}</p>
+                    <p className="text-[10px] text-foreground-400 mt-1">clientes</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-primary-600 leading-none tabular-nums">{formatKg(totalPendienteKg)}</p>
+                    <p className="text-[10px] text-foreground-400 mt-1">pendiente</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => patchEvento(eventoActivo.id, { activo: !eventoActivo.activo })}
+                    className="px-2.5 py-1.5 rounded-full text-[11px] font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70"
+                  >
+                    {eventoActivo.activo ? 'Cerrar campaña' : 'Reabrir'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalEvento(eventoActivo)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-background-100 text-foreground-600 hover:bg-background-200/70"
+                    aria-label="Editar campaña"
+                  >
+                    <i className="ri-pencil-line text-sm"></i>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleEliminarEvento}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-600 hover:bg-red-100"
+                    aria-label="Eliminar campaña"
+                  >
+                    <i className="ri-delete-bin-line text-sm"></i>
+                  </button>
+                </div>
+              </div>
+
+              {/* Cambio de vista */}
+              <div className="flex items-center gap-1.5 mt-4 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setVista('resumen')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium ${vista === 'resumen' ? 'bg-foreground-950 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'}`}
+                >
+                  <i className="ri-bar-chart-2-line mr-1"></i>
+                  Resumen por producto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVista('reservas')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium ${vista === 'reservas' ? 'bg-foreground-950 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'}`}
+                >
+                  <i className="ri-list-check-2 mr-1"></i>
+                  Reservas ({counts.todas})
+                </button>
+              </div>
+
+              {vista === 'resumen' ? (
+                resumen.length === 0 ? (
+                  <p className="text-sm text-foreground-400 mt-6">Todavía no hay reservas para esta campaña.</p>
+                ) : (
+                  <div className="space-y-2 mt-2">
+                    {resumen.map((row) => (
+                      <ResumenRowCard
+                        key={row.key}
+                        row={row}
+                        onRegistrarEntrega={async (kg) => {
+                          await registrarAjuste({
+                            evento_id: eventoActivo.id,
+                            producto_id: row.productoId,
+                            producto_nombre: row.nombre,
+                            kg,
+                          });
+                        }}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide mb-3">
+                    {ESTADO_FILTROS.map((f) => (
+                      <button
+                        key={f.value}
+                        type="button"
+                        onClick={() => setFiltroEstado(f.value)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+                          filtroEstado === f.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+                        }`}
+                      >
+                        {f.label}
+                        <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${filtroEstado === f.value ? 'bg-background-50/20' : 'bg-background-200/60 text-foreground-400'}`}>
+                          {counts[f.value] ?? 0}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {visibles.length === 0 ? (
+                    <p className="text-sm text-foreground-400">No hay reservas que coincidan con el filtro.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {visibles.map((reserva) => (
+                        <ReservaCard key={reserva.id} reserva={reserva} onSetEstado={setEstado} onDelete={deleteReserva} />
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {modalEvento !== null && (
+        <ReservaEventoModal evento={modalEvento === 'new' ? null : modalEvento} onClose={() => setModalEvento(null)} onSave={handleSaveEvento} />
+      )}
+    </div>
+  );
+}

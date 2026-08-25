@@ -6,12 +6,14 @@ import ProductoFormModal from './ProductoFormModal';
 import PedidosPanel from './PedidosPanel';
 import ResenasPanel from './ResenasPanel';
 import StockPanel from './StockPanel';
+import ReservasPanel from './ReservasPanel';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
+import { useReservas } from '@/hooks/useReservas';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import ViewSwitcher from './ViewSwitcher';
 
-type Tab = 'productos' | 'pedidos' | 'resenas' | 'stock';
+type Tab = 'productos' | 'pedidos' | 'resenas' | 'stock' | 'reservas';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -174,6 +176,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'productos', label: 'Productos' },
   { value: 'stock', label: 'Stock' },
   { value: 'pedidos', label: 'Pedidos' },
+  { value: 'reservas', label: 'Reservas' },
   { value: 'resenas', label: 'Reseñas' },
 ];
 
@@ -203,8 +206,10 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   // Solo para el contador de la pestaña — cada panel trae sus propios datos.
   const { pedidos } = usePedidos();
   const { resenas } = useResenas();
+  const { reservas } = useReservas();
   const pedidosNuevos = useMemo(() => pedidos.filter((p) => p.estado === 'nuevo').length, [pedidos]);
   const resenasPendientes = useMemo(() => resenas.filter((r) => r.estado === 'pendiente').length, [resenas]);
+  const reservasPendientes = useMemo(() => reservas.filter((r) => r.estado === 'pendiente').length, [reservas]);
 
   const agotadosCount = useMemo(() => productos.filter((p) => !p.disponible).length, [productos]);
   const destacadosCount = useMemo(() => productos.filter((p) => p.destacado).length, [productos]);
@@ -249,7 +254,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   const tabsNav = (
     <div ref={tabsScroll.ref} onWheel={tabsScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
       {TABS.map((t) => {
-        const badge = t.value === 'pedidos' ? pedidosNuevos : t.value === 'resenas' ? resenasPendientes : t.value === 'stock' ? stockBajoCount : 0;
+        const badge = t.value === 'pedidos' ? pedidosNuevos : t.value === 'resenas' ? resenasPendientes : t.value === 'stock' ? stockBajoCount : t.value === 'reservas' ? reservasPendientes : 0;
         return (
           <button
             key={t.value}
@@ -308,6 +313,8 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         <PedidosPanel />
       ) : tab === 'resenas' ? (
         <ResenasPanel />
+      ) : tab === 'reservas' ? (
+        <ReservasPanel />
       ) : tab === 'stock' ? (
         <StockPanel productos={productos} loading={loading} onPatch={patchLocal} />
       ) : (

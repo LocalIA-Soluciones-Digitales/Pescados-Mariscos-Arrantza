@@ -4,6 +4,7 @@ import AvailableToday from './components/AvailableToday';
 import About from './components/About';
 import Process from './components/Process';
 import Fleet from './components/Fleet';
+import ReservasBanner from './components/ReservasBanner';
 import WhyChooseUs from './components/WhyChooseUs';
 import Gallery from './components/Gallery';
 import Testimonials from './components/Testimonials';
@@ -20,6 +21,7 @@ export default function Home() {
       <main>
         <Hero />
         <AvailableToday />
+        <ReservasBanner />
         <About />
         <Process />
         <Fleet />

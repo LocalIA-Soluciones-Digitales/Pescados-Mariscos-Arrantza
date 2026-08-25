@@ -836,3 +836,214 @@ create trigger trg_newsletter_confirmacion
 --   ('<CLIENTE_ID>', 'newsletter_confirm_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/newsletter-confirm"'),
 --   ('<CLIENTE_ID>', 'newsletter_confirm_secret', '"<UN_SECRETO_ALEATORIO>"')
 -- on conflict (key, cliente_id) do update set value = excluded.value;
+
+-- ============================================================
+-- Reservas para fechas especiales (Navidad, Nochevieja...). El
+-- pescadero abre "eventos" de reserva (una fecha de entrega y, si
+-- quiere, una fecha límite para pedir), y desde la web pública el
+-- cliente reserva productos y cantidades para ese evento sin
+-- necesidad de que haya stock disponible ahora mismo — es un pedido a
+-- futuro, así que a diferencia de `pedidos` NO descuenta `stock_kg`
+-- al crearse.
+-- ============================================================
+
+create table if not exists public.reservas_eventos (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  nombre_es text not null,
+  nombre_eu text,
+  fecha_entrega date not null,
+  fecha_limite date,
+  activo boolean not null default true,
+  orden integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_reservas_eventos_updated_at on public.reservas_eventos;
+create trigger trg_reservas_eventos_updated_at
+  before update on public.reservas_eventos
+  for each row execute function public.set_updated_at();
+
+alter table public.reservas_eventos enable row level security;
+
+drop policy if exists "reservas_eventos_select_admin" on public.reservas_eventos;
+create policy "reservas_eventos_select_admin"
+  on public.reservas_eventos for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "reservas_eventos_insert_admin" on public.reservas_eventos;
+create policy "reservas_eventos_insert_admin"
+  on public.reservas_eventos for insert
+  to authenticated
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "reservas_eventos_update_admin" on public.reservas_eventos;
+create policy "reservas_eventos_update_admin"
+  on public.reservas_eventos for update
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "reservas_eventos_delete_admin" on public.reservas_eventos;
+create policy "reservas_eventos_delete_admin"
+  on public.reservas_eventos for delete
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_reservas_eventos_activo on public.reservas_eventos (activo);
+
+-- Lectura pública: solo eventos activos del cliente resuelto por
+-- site_key, nunca por select directo — igual que get_productos_publico.
+create or replace function public.get_reservas_eventos_publico(p_site_key uuid)
+returns setof reservas_eventos
+language sql stable security definer set search_path = public
+as $$
+  select e.* from public.reservas_eventos e
+  where e.cliente_id = public.cliente_id_from_site_key(p_site_key)
+    and e.activo = true
+  order by e.orden asc, e.fecha_entrega asc;
+$$;
+
+create table if not exists public.reservas (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  evento_id uuid not null references public.reservas_eventos (id),
+  items jsonb not null,
+  total_productos integer not null default 0,
+  peso_total numeric not null default 0,
+  importe_estimado numeric,
+  cliente_nombre text not null,
+  cliente_telefono text,
+  cliente_email text,
+  notas text,
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'confirmada', 'entregada', 'cancelada')),
+  device_id uuid,
+  created_at timestamptz not null default now()
+);
+
+alter table public.reservas enable row level security;
+
+-- Gestión: el pescadero del cliente dueño de la reserva, o desarrollador.
+-- No hay policy de insert para "authenticated"/"anon": el cliente crea la
+-- reserva siempre vía crear_reserva (security definer), igual que pedidos.
+drop policy if exists "reservas_select_admin" on public.reservas;
+create policy "reservas_select_admin"
+  on public.reservas for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "reservas_update_admin" on public.reservas;
+create policy "reservas_update_admin"
+  on public.reservas for update
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "reservas_delete_admin" on public.reservas;
+create policy "reservas_delete_admin"
+  on public.reservas for delete
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_reservas_created_at on public.reservas (created_at desc);
+create index if not exists idx_reservas_estado on public.reservas (estado);
+create index if not exists idx_reservas_evento_id on public.reservas (evento_id);
+create index if not exists idx_reservas_device_id on public.reservas (device_id);
+
+-- El cliente envía la reserva desde la web (sin sesión) siempre vía esta
+-- función, nunca por insert directo.
+create or replace function public.crear_reserva(
+  p_site_key uuid, p_evento_id uuid, p_items jsonb, p_total_productos integer, p_peso_total numeric,
+  p_importe_estimado numeric, p_cliente_nombre text, p_cliente_telefono text, p_cliente_email text,
+  p_notas text, p_device_id uuid
+)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_cliente_id uuid;
+  v_id uuid;
+begin
+  v_cliente_id := public.cliente_id_from_site_key(p_site_key);
+  if v_cliente_id is null then
+    raise exception 'site_key inválida';
+  end if;
+
+  if not exists (
+    select 1 from public.reservas_eventos
+    where id = p_evento_id and cliente_id = v_cliente_id and activo = true
+  ) then
+    raise exception 'evento de reserva inválido';
+  end if;
+
+  if char_length(p_cliente_nombre) < 1 or char_length(p_cliente_nombre) > 150 then
+    raise exception 'nombre inválido';
+  end if;
+
+  insert into public.reservas (
+    cliente_id, evento_id, items, total_productos, peso_total, importe_estimado,
+    cliente_nombre, cliente_telefono, cliente_email, notas, device_id
+  ) values (
+    v_cliente_id, p_evento_id, p_items, p_total_productos, p_peso_total, p_importe_estimado,
+    p_cliente_nombre, p_cliente_telefono, p_cliente_email, p_notas, p_device_id
+  ) returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+-- Historial de reservas por dispositivo, sin login — mismo patrón que
+-- get_pedidos_by_device.
+create or replace function public.get_reservas_by_device(p_device_id uuid)
+returns setof reservas
+language sql stable security definer set search_path = public
+as $$
+  select *
+  from public.reservas
+  where device_id = p_device_id
+  order by created_at desc
+  limit 20;
+$$;
+
+revoke all on function public.get_reservas_by_device(uuid) from public;
+grant execute on function public.get_reservas_by_device(uuid) to anon, authenticated;
+
+-- Ajustes manuales sobre el resumen de un producto reservado: permite al
+-- pescadero registrar una entrega/venta de reserva que no está ligada a
+-- una fila concreta de `reservas` (p. ej. una reserva gestionada por
+-- teléfono) sin tener que editar los items de una reserva existente. El
+-- resumen por producto en el panel resta estos kg del total pendiente.
+create table if not exists public.reservas_ajustes (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  evento_id uuid not null references public.reservas_eventos (id),
+  producto_id uuid references public.productos (id),
+  producto_nombre text not null,
+  kg numeric not null,
+  nota text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.reservas_ajustes enable row level security;
+
+drop policy if exists "reservas_ajustes_select_admin" on public.reservas_ajustes;
+create policy "reservas_ajustes_select_admin"
+  on public.reservas_ajustes for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "reservas_ajustes_insert_admin" on public.reservas_ajustes;
+create policy "reservas_ajustes_insert_admin"
+  on public.reservas_ajustes for insert
+  to authenticated
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "reservas_ajustes_delete_admin" on public.reservas_ajustes;
+create policy "reservas_ajustes_delete_admin"
+  on public.reservas_ajustes for delete
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_reservas_ajustes_evento_id on public.reservas_ajustes (evento_id);

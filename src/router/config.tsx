@@ -2,6 +2,7 @@ import type { RouteObject } from "react-router-dom";
 import NotFound from "../pages/NotFound";
 import Home from "../pages/home/page";
 import Productos from "../pages/productos/page";
+import Reservas from "../pages/reservas/page";
 import Profesionales from "../pages/profesionales/page";
 import Admin from "../pages/admin/page";
 import AdminResetPassword from "../pages/admin/components/AdminResetPassword";
@@ -19,6 +20,10 @@ const routes: RouteObject[] = [
   {
     path: "/productos",
     element: <Productos />,
+  },
+  {
+    path: "/reservas",
+    element: <Reservas />,
   },
   {
     path: "/profesionales",

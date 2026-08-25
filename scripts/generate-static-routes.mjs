@@ -278,6 +278,23 @@ async function main() {
       ],
     },
     {
+      path: '/reservas',
+      dir: 'reservas',
+      title: 'Reservas para Navidad y Fechas Especiales | Arrantza Erandio',
+      description:
+        'Reserva con antelación tu pescado y marisco fresco para Navidad, Nochevieja u otras fechas especiales. Elige productos y cantidades y recógelo listo el día que necesites.',
+      lastmod: '2026-08-25',
+      schemas: [
+        localBusiness(),
+        organization(),
+        website(),
+        breadcrumbList([
+          { name: 'Inicio', path: '/' },
+          { name: 'Reservas', path: '/reservas' },
+        ]),
+      ],
+    },
+    {
       path: '/profesionales',
       dir: 'profesionales',
       title: 'Suministro de Pescado Fresco para Hostelería | Arrantza Profesionales',
