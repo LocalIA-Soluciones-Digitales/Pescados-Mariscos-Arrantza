@@ -314,27 +314,6 @@ function CartLineItem({
     }
   }, [cartItem.kg, weightPopping]);
 
-  const [weightHintDismissed, setWeightHintDismissed] = useState(() => {
-    try { return localStorage.getItem('arrantza_weight_hint_dismissed') === 'true'; }
-    catch { return false; }
-  });
-  const [weightHintVisible, setWeightHintVisible] = useState(false);
-
-  useEffect(() => {
-    if (!weightHintDismissed) {
-      const timer = setTimeout(() => setWeightHintVisible(true), 400);
-      return () => clearTimeout(timer);
-    }
-  }, [weightHintDismissed]);
-
-  const handleDismissWeightHint = () => {
-    setWeightHintVisible(false);
-    setTimeout(() => {
-      setWeightHintDismissed(true);
-      try { localStorage.setItem('arrantza_weight_hint_dismissed', 'true'); } catch { /* noop */ }
-    }, 400);
-  };
-
   const handleStartEditWeight = () => {
     setIsEditingWeight(true);
     setEditWeightValue(String(cartItem.kg));
@@ -345,9 +324,6 @@ function CartLineItem({
     if (!isNaN(parsed) && parsed >= 0.5) {
       const rounded = Math.max(0.5, Math.round(parsed * 100) / 100);
       onSetKg(rounded);
-      if (!weightHintDismissed) {
-        handleDismissWeightHint();
-      }
     }
     setIsEditingWeight(false);
   };
@@ -485,16 +461,6 @@ function CartLineItem({
               {pricePerKg} {t('cart.price_label')}
             </span>
           </div>
-          {!weightHintDismissed && (
-            <p
-              className={`text-[10px] text-foreground-400 mt-1 pl-[72px] transition-all duration-400 ease-out ${
-                weightHintVisible ? 'opacity-100 max-h-8 translate-y-0' : 'opacity-0 max-h-0 translate-y-1 overflow-hidden'
-              }`}
-              aria-live="polite"
-            >
-              💡 {t('cart.weight_hint')}
-            </p>
-          )}
         </div>
 
         {/* Preparation selector */}
@@ -1138,7 +1104,7 @@ export default function CartDrawer({
         ) : (
           <>
             {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto overscroll-contain">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
               {isEmpty ? (
                 /* Empty state */
                 <div className="flex flex-col h-full">
@@ -1282,6 +1248,11 @@ export default function CartDrawer({
                         <RollingNumber value={formatPrice(estimatedTotal)} />
                       </span>
                     </div>
+
+                    {/* Pricing disclaimer — lives with the total it explains */}
+                    <p className="px-4 py-2.5 text-[10px] text-foreground-400 leading-relaxed bg-background-100/40">
+                      {t('cart.estimated_note')}
+                    </p>
                   </div>
 
                   {/* === DELIVERY METHOD === */}
@@ -1659,20 +1630,16 @@ export default function CartDrawer({
               )}
             </div>
 
-            {/* Footer */}
-            <div className="px-5 py-4 border-t border-background-200/60 flex-shrink-0 space-y-3">
+            {/* Footer — compact by design: this panel competes with the scrollable
+                body for vertical space on short mobile screens, so every line
+                here has to earn its place. */}
+            <div className="px-5 py-3.5 border-t border-background-200/60 flex-shrink-0 space-y-2.5 max-h-[52vh] overflow-y-auto overscroll-contain">
               {Object.keys(validationErrors).length > 0 && (
                 <p className="text-xs text-red-500 text-center leading-relaxed flex items-center justify-center gap-1.5">
                   <span className="w-3.5 h-3.5 flex items-center justify-center">
                     <i className="ri-error-warning-line text-xs"></i>
                   </span>
                   {t('cart.validation_general')}
-                </p>
-              )}
-
-              {!isEmpty && (
-                <p className="text-[10px] text-foreground-400 text-center leading-relaxed px-2">
-                  {t('cart.estimated_note')}
                 </p>
               )}
 
@@ -1685,22 +1652,10 @@ export default function CartDrawer({
                 </p>
               )}
 
-              <p className="text-[10px] text-foreground-400 text-center leading-relaxed px-2">
-                {t('cart.privacy_notice_pre')}{' '}
-                <a
-                  href="/privacidad"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-foreground-600"
-                >
-                  {t('cart.privacy_notice_link')}
-                </a>
-                .
-              </p>
-
               {/* ── Cloudflare Turnstile placeholder (hidden when disabled) ── */}
               <TurnstileWidget onTokenReceived={turnstile.onTokenReceived} />
 
+              {/* Primary action — WhatsApp order */}
               <button
                 type="button"
                 disabled={isEmpty || (isTurnstileEnabled() && !turnstile.verified)}
@@ -1721,68 +1676,77 @@ export default function CartDrawer({
                 )}
               </button>
 
+              {/* Secondary payment methods — side by side to save vertical space */}
               {!isEmpty && (
-                <button
-                  type="button"
-                  disabled={payingWithCard || (isTurnstileEnabled() && !turnstile.verified)}
-                  onClick={handlePayWithCard}
-                  className={`w-full py-3 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 flex items-center justify-center gap-2 ${
-                    payingWithCard || (isTurnstileEnabled() && !turnstile.verified)
-                      ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
-                      : 'bg-foreground-950 text-background-50 hover:bg-foreground-800 active:scale-[0.98]'
-                  }`}
-                >
-                  <span className="w-4 h-4 flex items-center justify-center">
-                    <i className={payingWithCard ? 'ri-loader-4-line animate-spin' : 'ri-bank-card-line'}></i>
-                  </span>
-                  {payingWithCard ? t('cart.card_payment_loading') : t('cart.card_payment_button')}
-                </button>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    disabled={payingWithCard || (isTurnstileEnabled() && !turnstile.verified)}
+                    onClick={handlePayWithCard}
+                    className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl text-[11px] font-semibold leading-tight text-center cursor-pointer transition-all duration-300 ${
+                      payingWithCard || (isTurnstileEnabled() && !turnstile.verified)
+                        ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
+                        : 'bg-foreground-950 text-background-50 hover:bg-foreground-800 active:scale-[0.98]'
+                    }`}
+                  >
+                    <i className={`text-base ${payingWithCard ? 'ri-loader-4-line animate-spin' : 'ri-bank-card-line'}`}></i>
+                    {payingWithCard ? t('cart.card_payment_loading') : t('cart.card_payment_button')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={payingWithBizum || (isTurnstileEnabled() && !turnstile.verified)}
+                    onClick={handlePayWithBizum}
+                    className={`flex flex-col items-center justify-center gap-1 py-2.5 rounded-2xl text-[11px] font-semibold leading-tight text-center cursor-pointer transition-all duration-300 ${
+                      payingWithBizum || (isTurnstileEnabled() && !turnstile.verified)
+                        ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
+                        : 'bg-sky-500 text-background-50 hover:bg-sky-600 active:scale-[0.98]'
+                    }`}
+                  >
+                    <i className={`text-base ${payingWithBizum ? 'ri-loader-4-line animate-spin' : 'ri-smartphone-line'}`}></i>
+                    {payingWithBizum ? t('cart.bizum_payment_loading') : t('cart.bizum_payment_button')}
+                  </button>
+                </div>
               )}
 
+              {/* Utility links — preview & clear, kept lightweight on purpose */}
               {!isEmpty && (
-                <button
-                  type="button"
-                  disabled={payingWithBizum || (isTurnstileEnabled() && !turnstile.verified)}
-                  onClick={handlePayWithBizum}
-                  className={`w-full py-3 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 flex items-center justify-center gap-2 ${
-                    payingWithBizum || (isTurnstileEnabled() && !turnstile.verified)
-                      ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
-                      : 'bg-sky-500 text-background-50 hover:bg-sky-600 active:scale-[0.98]'
-                  }`}
-                >
-                  <span className="w-4 h-4 flex items-center justify-center">
-                    <i className={payingWithBizum ? 'ri-loader-4-line animate-spin' : 'ri-smartphone-line'}></i>
-                  </span>
-                  {payingWithBizum ? t('cart.bizum_payment_loading') : t('cart.bizum_payment_button')}
-                </button>
-              )}
-
-              {!isEmpty && (
-                <>
+                <div className="flex items-center justify-center gap-5 pt-0.5">
                   <button
                     type="button"
                     onClick={() => {
                       if (!validateOrder()) return;
                       setShowPreview(true);
                     }}
-                    className="w-full py-3 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 bg-background-100 text-foreground-700 border border-background-200/70 hover:bg-background-200/60 hover:text-foreground-950 active:scale-[0.98]"
+                    className="inline-flex items-center gap-1.5 py-1.5 text-xs font-medium text-foreground-500 hover:text-foreground-950 cursor-pointer whitespace-nowrap transition-colors duration-200"
                   >
-                    <span className="inline-flex items-center gap-2">
-                      <span className="w-4 h-4 flex items-center justify-center">
-                        <i className="ri-eye-line text-sm"></i>
-                      </span>
-                      {t('cart.preview_button')}
-                    </span>
+                    <i className="ri-eye-line text-sm"></i>
+                    {t('cart.preview_button')}
                   </button>
+                  <span className="w-px h-3.5 bg-background-300/70" aria-hidden="true" />
                   <button
                     type="button"
                     onClick={() => setShowClearConfirm(true)}
-                    className="w-full py-2 text-xs text-foreground-400 hover:text-red-500 cursor-pointer whitespace-nowrap transition-colors duration-200"
+                    className="inline-flex items-center gap-1.5 py-1.5 text-xs font-medium text-foreground-400 hover:text-red-500 cursor-pointer whitespace-nowrap transition-colors duration-200"
                   >
+                    <i className="ri-delete-bin-line text-sm"></i>
                     {t('cart.clear')}
                   </button>
-                </>
+                </div>
               )}
+
+              {/* Legal notice — smallest, least urgent line, last */}
+              <p className="text-[10px] text-foreground-400 text-center leading-relaxed px-2">
+                {t('cart.privacy_notice_pre')}{' '}
+                <a
+                  href="/privacidad"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-foreground-600"
+                >
+                  {t('cart.privacy_notice_link')}
+                </a>
+                .
+              </p>
             </div>
           </>
         )}
@@ -1850,7 +1814,7 @@ export default function CartDrawer({
             </div>
 
             {/* Modal body - itemized ticket */}
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
               <div className="rounded-lg bg-background-100/50 border border-background-200/50 overflow-hidden">
                 {/* Ticket header */}
                 <div className="flex items-center gap-2.5 px-4 pt-4 pb-3 border-b border-dashed border-background-300/80">
@@ -2007,7 +1971,7 @@ export default function CartDrawer({
             </div>
 
             {/* Modal body - message preview */}
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
               <div className="mb-4 p-3 rounded-lg bg-primary-50/40 border border-primary-200/50">
                 <p className="text-xs text-foreground-500 flex items-center gap-1.5">
                   <span className="w-3.5 h-3.5 flex items-center justify-center text-primary-500">
