@@ -182,6 +182,7 @@ create policy "productos_storage_escritura_admin"
     and (metadata->>'mimetype') in ('image/jpeg', 'image/png', 'image/webp')
   );
 
+drop policy if exists "productos_storage_actualizacion_admin" on storage.objects;
 create policy "productos_storage_actualizacion_admin"
   on storage.objects for update
   to authenticated
@@ -192,6 +193,7 @@ create policy "productos_storage_actualizacion_admin"
     and (metadata->>'mimetype') in ('image/jpeg', 'image/png', 'image/webp')
   );
 
+drop policy if exists "productos_storage_borrado_admin" on storage.objects;
 create policy "productos_storage_borrado_admin"
   on storage.objects for delete
   to authenticated
