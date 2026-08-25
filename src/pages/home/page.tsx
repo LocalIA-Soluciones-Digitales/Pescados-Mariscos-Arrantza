@@ -5,6 +5,7 @@ import About from './components/About';
 import Process from './components/Process';
 import Fleet from './components/Fleet';
 import ReservasBanner from './components/ReservasBanner';
+import ReservasPopup from './components/ReservasPopup';
 import WhyChooseUs from './components/WhyChooseUs';
 import Gallery from './components/Gallery';
 import Testimonials from './components/Testimonials';
@@ -18,6 +19,7 @@ export default function Home() {
   return (
     <>
       <Navbar />
+      <ReservasPopup />
       <main>
         <Hero />
         <AvailableToday />
