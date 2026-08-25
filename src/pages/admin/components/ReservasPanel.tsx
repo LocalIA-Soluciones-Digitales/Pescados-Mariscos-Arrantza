@@ -106,7 +106,7 @@ function ResumenRowCard({
 
   return (
     <div
-      className={`rounded-lg border px-4 py-3 transition-colors ${
+      className={`rounded-xl border px-4 py-3 shadow-card hover:shadow-card-hover transition-all duration-200 ${
         completo ? 'bg-emerald-50/50 border-emerald-200' : 'bg-background-50 border-background-200/70'
       } ${saving ? 'opacity-60' : ''}`}
     >
@@ -204,7 +204,7 @@ function ReservaCard({
   };
 
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-lg p-3">
+    <div className="bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 p-3">
       <div className="flex items-start justify-between gap-2 mb-2">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -476,7 +476,7 @@ export default function ReservasPanel() {
           {eventoActivo && (
             <>
               {/* Cabecera de la campaña seleccionada */}
-              <div className="mt-4 bg-background-50 border border-background-200/70 rounded-lg p-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+              <div className="mt-4 bg-background-50 border border-background-200/70 rounded-xl shadow-card p-4 flex flex-wrap items-center gap-x-6 gap-y-3">
                 <div className="flex-1 min-w-[200px]">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="text-sm font-heading font-semibold text-foreground-950">{eventoActivo.nombre_es}</h3>

@@ -80,7 +80,7 @@ export default function ResenasPanel() {
       ) : (
         <div className="space-y-2">
           {visibles.map((resena) => (
-            <div key={resena.id} className="bg-background-50 border border-background-200/70 rounded-lg p-3">
+            <div key={resena.id} className="bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 p-3">
               <div className="flex items-start justify-between gap-2 mb-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${ESTADO_STYLES[resena.estado]}`}>

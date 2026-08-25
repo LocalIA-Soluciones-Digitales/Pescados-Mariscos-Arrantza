@@ -105,7 +105,7 @@ function ProductoCard({
   };
 
   return (
-    <div className={`bg-background-50 border border-background-200/70 rounded-lg overflow-hidden ${busy ? 'opacity-60' : ''}`}>
+    <div className={`bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden ${busy ? 'opacity-60' : ''}`}>
       <div className="relative aspect-[5/4] bg-background-100">
         {producto.imagen_url && (
           <img src={producto.imagen_url} alt={producto.nombre_es} className={`w-full h-full object-cover ${!producto.disponible ? 'grayscale opacity-60' : ''}`} />
@@ -305,16 +305,23 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
             key={t.value}
             type="button"
             onClick={() => setTab(t.value)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
-              tab === t.value ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-all duration-200 ${
+              tab === t.value ? 'bg-primary-500 text-background-50 shadow-card' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
             }`}
           >
             {t.label}
             {badge > 0 && (
-              <span
-                className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-none ${pulse ? 'animate-pulse' : ''} ${tab === t.value ? 'bg-background-50/20' : 'bg-red-100 text-red-600'}`}
-              >
-                {badge}
+              <span className="relative inline-flex flex-shrink-0">
+                {pulse && (
+                  <span className="absolute inset-0 rounded-full bg-red-400 animate-ping"></span>
+                )}
+                <span
+                  className={`relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+                    tab === t.value ? 'bg-background-50/25' : 'bg-red-500 text-background-50'
+                  }`}
+                >
+                  {badge}
+                </span>
               </span>
             )}
           </button>
@@ -325,12 +332,12 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
 
   return (
     <div className="min-h-screen bg-background-100" style={{ '--admin-header-height': `${headerHeight}px` } as CSSProperties}>
-      <header ref={headerRef} className="sticky top-0 z-20 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-3 md:py-4">
+      <header ref={headerRef} className="sticky top-0 z-20 bg-background-50 border-b border-background-200/70 shadow-card px-4 md:px-8 py-3 md:py-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <div className="min-w-0">
-              <h1 className="text-base font-heading font-semibold text-foreground-950 truncate">Gestión</h1>
-              <p className="text-xs text-foreground-400 truncate">Pescados y Mariscos Arrantza</p>
+              <h1 className="text-lg font-heading font-semibold text-foreground-950 truncate leading-tight">Gestión</h1>
+              <p className="text-[11px] uppercase tracking-wide text-foreground-400 truncate">Pescados y Mariscos Arrantza</p>
             </div>
             <div className="hidden md:block">{tabsNav}</div>
           </div>

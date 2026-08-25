@@ -66,7 +66,7 @@ function PedidoCard({
   const telefono = pedido.cliente_telefono?.replace(/\D/g, '');
 
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-lg p-3">
+    <div className="bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 p-3">
       <div className="flex items-start justify-between gap-2 mb-2">
         <div>
           <div className="flex items-center gap-2 flex-wrap">

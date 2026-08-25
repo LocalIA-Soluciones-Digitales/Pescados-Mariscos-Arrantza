@@ -90,6 +90,14 @@ export default {
         animation: {
           fadeIn: 'fadeIn 0.25s ease-out',
         },
+        // Sombras tintadas con el propio foreground de la marca (en vez del
+        // negro plano por defecto de Tailwind) para que la elevación se
+        // sienta parte del mismo sistema editorial, no un componente de
+        // dashboard genérico pegado encima.
+        boxShadow: {
+          card: '0 1px 2px 0 rgb(38 42 46 / 0.05), 0 1px 1px 0 rgb(38 42 46 / 0.03)',
+          'card-hover': '0 16px 32px -12px rgb(38 42 46 / 0.18), 0 4px 8px -4px rgb(38 42 46 / 0.08)',
+        },
       },
     },
     plugins: [],

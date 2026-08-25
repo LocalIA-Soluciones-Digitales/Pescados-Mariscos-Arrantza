@@ -24,6 +24,13 @@ interface ClienteAgregado {
   historial: HistorialEntrada[];
 }
 
+function initials(nombre: string): string {
+  const parts = nombre.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
 // Agrupa por teléfono normalizado (más fiable que el nombre, que un mismo
 // cliente puede escribir de formas distintas cada vez); si no hay teléfono,
 // se agrupa por nombre en minúsculas como último recurso.
@@ -182,72 +189,79 @@ export default function ClientesPanel({
             const habitual = c.totalPedidos + c.totalReservas >= 3;
             const expanded = expandedKey === c.key;
             return (
-              <div key={c.key} className="bg-background-50 border border-background-200/70 rounded-lg p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium text-foreground-950">{c.nombre}</p>
-                      {habitual && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100/80 text-amber-700">
-                          <i className="ri-star-fill"></i>
-                          Habitual
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-foreground-400 mt-0.5">
-                      {c.totalPedidos} pedido{c.totalPedidos === 1 ? '' : 's'} · {c.totalReservas} reserva
-                      {c.totalReservas === 1 ? '' : 's'} · Última vez: {new Date(c.ultimaFecha).toLocaleDateString('es-ES')}
-                    </p>
-                    {c.productosFavoritos.length > 0 && (
-                      <p className="text-xs text-foreground-500 mt-1 truncate">
-                        Suele pedir: {c.productosFavoritos.map((p) => p.nombre).join(', ')}
+              <div key={c.key} className="bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 p-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary-50 text-primary-600 flex items-center justify-center text-sm font-heading font-semibold flex-shrink-0">
+                    {initials(c.nombre)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-foreground-950 truncate">{c.nombre}</p>
+                          {habitual && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 border border-amber-200 text-amber-700">
+                              <i className="ri-star-fill text-amber-500"></i>
+                              Habitual
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-foreground-400 mt-0.5">
+                          {c.totalPedidos} pedido{c.totalPedidos === 1 ? '' : 's'} · {c.totalReservas} reserva
+                          {c.totalReservas === 1 ? '' : 's'} · Última vez: {new Date(c.ultimaFecha).toLocaleDateString('es-ES')}
+                        </p>
+                        {c.productosFavoritos.length > 0 && (
+                          <p className="text-xs text-foreground-500 mt-1 truncate">
+                            Suele pedir: {c.productosFavoritos.map((p) => p.nombre).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold text-foreground-950 flex-shrink-0 tabular-nums">
+                        {c.totalGastado > 0 ? `${c.totalGastado.toFixed(2)} €` : '—'}
                       </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap mt-2.5 pt-2.5 border-t border-background-200/60">
+                      {c.telefono && (
+                        <>
+                          <a
+                            href={telHref(c.telefono)}
+                            className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70"
+                          >
+                            Llamar
+                          </a>
+                          <a
+                            href={whatsappHref(c.telefono)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                          >
+                            WhatsApp
+                          </a>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedKey(expanded ? null : c.key)}
+                        className="ml-auto text-xs text-foreground-500 hover:text-foreground-950"
+                      >
+                        Historial ({c.historial.length}) {expanded ? '▲' : '▼'}
+                      </button>
+                    </div>
+
+                    {expanded && (
+                      <div className="bg-background-100 rounded-lg p-2.5 mt-2 space-y-1">
+                        {c.historial.map((h, idx) => (
+                          <p key={idx} className="text-xs text-foreground-600">
+                            {new Date(h.fecha).toLocaleDateString('es-ES')} — {h.tipo === 'pedido' ? 'Pedido' : 'Reserva'} · {h.kg} kg ·{' '}
+                            {h.estado}
+                            {h.importe != null ? ` · ${h.importe.toFixed(2)} €` : ''}
+                          </p>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  <p className="text-sm font-semibold text-foreground-950 flex-shrink-0">
-                    {c.totalGastado > 0 ? `${c.totalGastado.toFixed(2)} €` : '—'}
-                  </p>
                 </div>
-
-                <div className="flex items-center gap-1.5 flex-wrap mt-2.5 pt-2.5 border-t border-background-200/60">
-                  {c.telefono && (
-                    <>
-                      <a
-                        href={telHref(c.telefono)}
-                        className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70"
-                      >
-                        Llamar
-                      </a>
-                      <a
-                        href={whatsappHref(c.telefono)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                      >
-                        WhatsApp
-                      </a>
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setExpandedKey(expanded ? null : c.key)}
-                    className="ml-auto text-xs text-foreground-500 hover:text-foreground-950"
-                  >
-                    Historial ({c.historial.length}) {expanded ? '▲' : '▼'}
-                  </button>
-                </div>
-
-                {expanded && (
-                  <div className="bg-background-100 rounded-lg p-2.5 mt-2 space-y-1">
-                    {c.historial.map((h, idx) => (
-                      <p key={idx} className="text-xs text-foreground-600">
-                        {new Date(h.fecha).toLocaleDateString('es-ES')} — {h.tipo === 'pedido' ? 'Pedido' : 'Reserva'} · {h.kg} kg ·{' '}
-                        {h.estado}
-                        {h.importe != null ? ` · ${h.importe.toFixed(2)} €` : ''}
-                      </p>
-                    ))}
-                  </div>
-                )}
               </div>
             );
           })}

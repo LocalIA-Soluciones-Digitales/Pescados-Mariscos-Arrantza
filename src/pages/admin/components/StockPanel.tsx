@@ -65,7 +65,7 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
 
   return (
     <div
-      className={`rounded-lg border px-3 py-2.5 transition-colors ${
+      className={`rounded-xl border px-3 py-2.5 shadow-card hover:shadow-card-hover transition-all duration-200 ${
         stockBajo ? 'bg-red-50/60 border-red-200 border-l-4 border-l-red-400' : 'bg-background-50 border-background-200/70'
       } ${saving ? 'opacity-60' : ''}`}
     >
