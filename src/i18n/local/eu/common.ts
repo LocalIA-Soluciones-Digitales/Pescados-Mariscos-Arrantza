@@ -538,6 +538,7 @@ const common = {
   "cart.card_payment_loading": "Ordainketa segurua irekitzen...",
   "cart.card_payment_error": "Ezin izan da ordainketa hasi. Saiatu berriro edo eskatu WhatsApp bidez.",
   "cart.bizum_payment_button": "Bizum bidez ordaindu",
+  "cart.bizum_payment_loading": "Eskaera erregistratzen...",
   "cart.bizum_confirmation_title": "Ia bukatu da!",
   "cart.bizum_confirmation_text": "Arrandegiari WhatsApp bidez abisatu diogu. Bidali zenbatekoa Bizum bidez adierazitako zenbakira eta jaso bezain laster zure eskaera berretsiko dugu.",
   "cart.bizum_amount_label": "Bidali beharreko zenbatekoa",

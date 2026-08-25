@@ -12,6 +12,7 @@ import { logConversion } from '@/lib/visitLog';
 import { logPedido } from '@/lib/pedidosLog';
 import { getDeviceId } from '@/lib/deviceId';
 import { crearSesionPagoStripe } from '@/lib/pagoStripe';
+import { crearPedidoBizum } from '@/lib/pedidoBizum';
 
 /* ------------------------------------------------------------------ */
 /*  Badge style — same muted palette as catalogue                     */
@@ -632,6 +633,7 @@ export default function CartDrawer({
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [bizumConfirmed, setBizumConfirmed] = useState(false);
   const [bizumAmountToShow, setBizumAmountToShow] = useState<number | null>(null);
+  const [payingWithBizum, setPayingWithBizum] = useState(false);
   const hasLastOrder = orderHistory.length > 0;
 
   // ── Turnstile verification (currently always passes) ──
@@ -855,7 +857,12 @@ export default function CartDrawer({
   // Bizum sin comisión: el cliente paga a mano al número del negocio, igual
   // que hoy por WhatsApp, pero registrado como "pendiente de pago" para que
   // el pescadero lo marque como pagado desde el panel en cuanto lo reciba.
-  const handlePayWithBizum = () => {
+  //
+  // El aviso a David intenta salir automático (CallMeBot, vía Edge Function)
+  // para que el cliente no tenga que abrir su WhatsApp y pulsar enviar. Si
+  // eso falla por lo que sea (servicio no configurado, caído, sin red...) se
+  // cae al mismo wa.me manual de siempre — nunca se pierde el aviso.
+  const handlePayWithBizum = async () => {
     if (!validateOrder()) return;
     if (isTurnstileEnabled() && !turnstile.verified) return;
 
@@ -865,60 +872,72 @@ export default function CartDrawer({
       return sum + extractPricePerKg(product.precio) * item.kg;
     }, 0);
 
-    const message = generateWhatsAppMessage({
-      customer,
-      items,
-      totalProducts,
-      totalWeight,
-      subTotalAmount,
-      deliveryCost,
-      getProductName: (productId) => {
-        const product = productMap.get(productId);
-        return product ? pickLang(product, 'nombre', i18n.language) : productId;
-      },
-      getPreparationLabel: (prep) => t(`cart.prep_${prep}` as any),
-      productMap,
-      metodoPago: 'bizum',
-    });
+    const buildFallbackWhatsappUrl = () => {
+      const message = generateWhatsAppMessage({
+        customer,
+        items,
+        totalProducts,
+        totalWeight,
+        subTotalAmount,
+        deliveryCost,
+        getProductName: (productId) => {
+          const product = productMap.get(productId);
+          return product ? pickLang(product, 'nombre', i18n.language) : productId;
+        },
+        getPreparationLabel: (prep) => t(`cart.prep_${prep}` as any),
+        productMap,
+        metodoPago: 'bizum',
+      });
+      return `https://wa.me/${BIZUM_PHONE_WA}?text=${encodeURIComponent(message)}`;
+    };
 
-    const encoded = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${BIZUM_PHONE_WA}?text=${encoded}`;
+    setPayingWithBizum(true);
+    try {
+      const result = await crearPedidoBizum(items, customer, getDeviceId());
+      onSaveLastOrder();
+      if (!result.whatsappSent) {
+        window.open(buildFallbackWhatsappUrl(), '_blank');
+      }
+      setBizumAmountToShow(result.importeEstimado);
+    } catch {
+      // La Edge Function falló por completo: registro local (como siempre
+      // hacía este botón) y abre WhatsApp a mano, para no perder el pedido.
+      onSaveLastOrder();
+      void logPedido({
+        items: items.map((item) => {
+          const product = productMap.get(item.productId);
+          return {
+            productoId: item.productId,
+            nombre: product ? pickLang(product, 'nombre', i18n.language) : item.productId,
+            kg: item.kg,
+            preparacion: item.preparation,
+            nota: item.note,
+            precioKg: product ? extractPricePerKg(product.precio) : 0,
+          };
+        }),
+        totalProductos: totalProducts,
+        pesoTotal: totalWeight,
+        importeEstimado: subTotalAmount + deliveryCost,
+        metodoEntrega: customer.deliveryMethod,
+        clienteNombre: customer.name,
+        clienteNegocio: customer.business,
+        clienteTelefono: customer.phone,
+        clienteEmail: customer.email,
+        clienteDireccion: customer.address,
+        clienteCiudad: customer.city,
+        clienteCp: customer.postalCode,
+        fechaPreferida: customer.preferredDate,
+        horaPreferida: customer.preferredTime,
+        notas: customer.notes,
+        deviceId: getDeviceId(),
+        metodoPago: 'bizum',
+      });
+      window.open(buildFallbackWhatsappUrl(), '_blank');
+      setBizumAmountToShow(subTotalAmount + deliveryCost);
+    } finally {
+      setPayingWithBizum(false);
+    }
 
-    onSaveLastOrder();
-
-    void logPedido({
-      items: items.map((item) => {
-        const product = productMap.get(item.productId);
-        return {
-          productoId: item.productId,
-          nombre: product ? pickLang(product, 'nombre', i18n.language) : item.productId,
-          kg: item.kg,
-          preparacion: item.preparation,
-          nota: item.note,
-          precioKg: product ? extractPricePerKg(product.precio) : 0,
-        };
-      }),
-      totalProductos: totalProducts,
-      pesoTotal: totalWeight,
-      importeEstimado: subTotalAmount + deliveryCost,
-      metodoEntrega: customer.deliveryMethod,
-      clienteNombre: customer.name,
-      clienteNegocio: customer.business,
-      clienteTelefono: customer.phone,
-      clienteEmail: customer.email,
-      clienteDireccion: customer.address,
-      clienteCiudad: customer.city,
-      clienteCp: customer.postalCode,
-      fechaPreferida: customer.preferredDate,
-      horaPreferida: customer.preferredTime,
-      notas: customer.notes,
-      deviceId: getDeviceId(),
-      metodoPago: 'bizum',
-    });
-
-    window.open(whatsappUrl, '_blank');
-
-    setBizumAmountToShow(subTotalAmount + deliveryCost);
     onClearCart();
     setValidationErrors({});
     setBizumConfirmed(true);
@@ -1723,18 +1742,18 @@ export default function CartDrawer({
               {!isEmpty && (
                 <button
                   type="button"
-                  disabled={isTurnstileEnabled() && !turnstile.verified}
+                  disabled={payingWithBizum || (isTurnstileEnabled() && !turnstile.verified)}
                   onClick={handlePayWithBizum}
                   className={`w-full py-3 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 flex items-center justify-center gap-2 ${
-                    isTurnstileEnabled() && !turnstile.verified
+                    payingWithBizum || (isTurnstileEnabled() && !turnstile.verified)
                       ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
                       : 'bg-sky-500 text-background-50 hover:bg-sky-600 active:scale-[0.98]'
                   }`}
                 >
                   <span className="w-4 h-4 flex items-center justify-center">
-                    <i className="ri-smartphone-line"></i>
+                    <i className={payingWithBizum ? 'ri-loader-4-line animate-spin' : 'ri-smartphone-line'}></i>
                   </span>
-                  {t('cart.bizum_payment_button')}
+                  {payingWithBizum ? t('cart.bizum_payment_loading') : t('cart.bizum_payment_button')}
                 </button>
               )}
 

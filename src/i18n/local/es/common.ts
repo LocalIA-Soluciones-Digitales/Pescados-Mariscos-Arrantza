@@ -541,6 +541,7 @@ const common = {
   "cart.card_payment_loading": "Abriendo pago seguro...",
   "cart.card_payment_error": "No se pudo iniciar el pago. Inténtalo de nuevo o pide por WhatsApp.",
   "cart.bizum_payment_button": "Pagar por Bizum",
+  "cart.bizum_payment_loading": "Registrando pedido...",
   "cart.bizum_confirmation_title": "¡Ya casi está!",
   "cart.bizum_confirmation_text": "Hemos avisado a la pescadería por WhatsApp. Envía el importe por Bizum al número indicado y confirmaremos tu pedido en cuanto lo recibamos.",
   "cart.bizum_amount_label": "Importe a enviar",
