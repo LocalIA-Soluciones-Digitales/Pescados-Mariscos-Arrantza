@@ -306,15 +306,20 @@ export default function Reservas() {
         ) : (
           <>
             {/* Hero */}
-            <section className="relative bg-foreground-950 overflow-hidden">
+            <section className="relative bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 overflow-hidden rounded-b-[2rem] md:rounded-b-[2.5rem]">
+              <div className="absolute -top-24 -right-16 w-80 h-80 rounded-full bg-accent-400/15 blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-28 -left-16 w-72 h-72 rounded-full bg-primary-300/10 blur-3xl pointer-events-none" />
               <div
-                className="absolute inset-0 opacity-[0.04] pointer-events-none"
+                className="absolute inset-0 opacity-[0.05] pointer-events-none"
                 style={{
                   backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
                 }}
               />
               <div className="container-wide px-4 md:px-6 lg:px-12 relative z-10 py-14 md:py-20">
                 <div className="max-w-2xl">
+                  <span className="w-11 h-11 flex items-center justify-center rounded-full bg-background-50/10 ring-1 ring-background-50/15 text-accent-300 text-lg mb-4">
+                    <i className="ri-calendar-event-line"></i>
+                  </span>
                   <span className="section-label text-white/70">{t('reservas.hero_label')}</span>
                   <h1 className="text-2xl md:text-4xl font-heading font-semibold text-background-50 leading-[1.15] mb-4">
                     {t('reservas.hero_title', { evento: eventoNombre(evento, i18n.language) })}
@@ -322,12 +327,12 @@ export default function Reservas() {
                   <p className="text-sm md:text-base text-white/80 leading-relaxed mb-6">{t('reservas.hero_subtitle')}</p>
 
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 text-white text-xs md:text-sm font-medium">
+                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 ring-1 ring-white/10 text-white text-xs md:text-sm font-medium">
                       <i className="ri-calendar-check-line"></i>
                       {t('reservas.delivery_label')}: {formatFecha(evento.fecha_entrega, i18n.language)}
                     </span>
                     {evento.fecha_limite && (
-                      <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-500/20 text-accent-300 text-xs md:text-sm font-medium">
+                      <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent-400/15 ring-1 ring-accent-300/20 text-accent-300 text-xs md:text-sm font-medium">
                         <i className="ri-time-line"></i>
                         {t('reservas.deadline_label')}: {formatFecha(evento.fecha_limite, i18n.language)}
                       </span>
