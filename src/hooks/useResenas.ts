@@ -1,19 +1,27 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { getMiClienteId } from '@/lib/clienteContext';
 import { useRealtimeTable } from './useRealtimeTable';
 import type { Resena, ResenaEstado } from '@/types/resena';
 
 // Vista de administración: trae todas las reseñas (pendientes incluidas)
 // para que el pescadero las modere.
+//
+// Filtramos explícitamente por cliente_id (en vez de confiar solo en RLS)
+// porque la política "resenas_select_admin" deja pasar a las cuentas de
+// desarrollador (is_developer()) sin restringir por cliente, y sin este
+// filtro esas cuentas ven reseñas de todos los negocios de Supabase.
 export function useResenas() {
   const [resenas, setResenas] = useState<Resena[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchResenas = useCallback(async () => {
     setLoading(true);
+    const clienteId = await getMiClienteId();
     const { data } = await supabase
       .from('resenas')
       .select('*')
+      .eq('cliente_id', clienteId)
       .order('created_at', { ascending: false });
     setResenas(data ?? []);
     setLoading(false);
