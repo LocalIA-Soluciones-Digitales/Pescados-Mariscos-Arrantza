@@ -1,5 +1,5 @@
 import { supabase, SITE_KEY } from './supabaseClient';
-import type { PedidoItem, PedidoMetodoEntrega } from '@/types/pedido';
+import type { PedidoItem, PedidoMetodoEntrega, PedidoMetodoPago } from '@/types/pedido';
 
 export interface NewPedidoInput {
   items: PedidoItem[];
@@ -7,6 +7,7 @@ export interface NewPedidoInput {
   pesoTotal: number;
   importeEstimado: number | null;
   metodoEntrega: PedidoMetodoEntrega;
+  metodoPago?: PedidoMetodoPago;
   clienteNombre: string;
   clienteNegocio: string;
   clienteTelefono: string;
@@ -43,6 +44,7 @@ export async function logPedido(input: NewPedidoInput): Promise<void> {
       p_hora_preferida: input.horaPreferida || null,
       p_notas: input.notas || null,
       p_device_id: input.deviceId,
+      p_metodo_pago: input.metodoPago ?? 'whatsapp',
     });
   } catch {
     // El registro de pedidos nunca debe bloquear el envío por WhatsApp.

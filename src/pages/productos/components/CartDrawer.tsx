@@ -73,10 +73,12 @@ function generateWhatsAppMessage(params: {
   getProductName: (productId: string) => string;
   getPreparationLabel: (prep: string) => string;
   productMap: Map<string, Producto>;
+  metodoPago?: 'whatsapp' | 'bizum';
 }): string {
-  const { customer, items, totalProducts, totalWeight, subTotalAmount, deliveryCost, getProductName, getPreparationLabel, productMap } = params;
+  const { customer, items, totalProducts, totalWeight, subTotalAmount, deliveryCost, getProductName, getPreparationLabel, productMap, metodoPago } = params;
   const sep = '━━━━━━━━━━━━━━━━━━━━━━';
   const isHomeDelivery = customer.deliveryMethod === 'home';
+  const finalTotal = subTotalAmount + deliveryCost;
 
   const lines: string[] = [];
 
@@ -84,6 +86,14 @@ function generateWhatsAppMessage(params: {
   lines.push('🦞 NUEVO PEDIDO');
   lines.push('');
   lines.push(sep);
+
+  // ══════════════════ PAGO POR BIZUM (si aplica) ══════════════════
+  if (metodoPago === 'bizum') {
+    lines.push('');
+    lines.push('📲 PAGO POR BIZUM — pendiente de confirmar');
+    lines.push(`El cliente va a enviar ${formatPrice(finalTotal)} por Bizum a este número.`);
+    lines.push(sep);
+  }
 
   // ══════════════════ CUSTOMER INFO ══════════════════
   lines.push('');
@@ -173,8 +183,6 @@ function generateWhatsAppMessage(params: {
   }
 
   // ══════════════════ ORDER SUMMARY ══════════════════
-  const finalTotal = subTotalAmount + deliveryCost;
-
   lines.push('');
   lines.push('📦 RESUMEN DEL PEDIDO');
   lines.push('');
@@ -241,6 +249,8 @@ const TIME_SLOTS = [
 ] as const;
 
 const DELIVERY_COST = 3.50;
+const BIZUM_PHONE_DISPLAY = '619 60 98 88';
+const BIZUM_PHONE_WA = '34619609888';
 
 /* ------------------------------------------------------------------ */
 /*  Cart line item                                                     */
@@ -620,6 +630,8 @@ export default function CartDrawer({
   const [orderConfirmed, setOrderConfirmed] = useState(false);
   const [payingWithCard, setPayingWithCard] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [bizumConfirmed, setBizumConfirmed] = useState(false);
+  const [bizumAmountToShow, setBizumAmountToShow] = useState<number | null>(null);
   const hasLastOrder = orderHistory.length > 0;
 
   // ── Turnstile verification (currently always passes) ──
@@ -648,6 +660,7 @@ export default function CartDrawer({
   const handleClose = useCallback(() => {
     setAnimating(false);
     setOrderConfirmed(false);
+    setBizumConfirmed(false);
     setTimeout(onClose, 200);
   }, [onClose]);
 
@@ -776,7 +789,7 @@ export default function CartDrawer({
     });
 
     const encoded = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/34619609888?text=${encoded}`;
+    const whatsappUrl = `https://wa.me/${BIZUM_PHONE_WA}?text=${encoded}`;
 
     // ── Save as last order for Buy Again ──
     onSaveLastOrder();
@@ -837,6 +850,78 @@ export default function CartDrawer({
       setPaymentError(t('cart.card_payment_error'));
       setPayingWithCard(false);
     }
+  };
+
+  // Bizum sin comisión: el cliente paga a mano al número del negocio, igual
+  // que hoy por WhatsApp, pero registrado como "pendiente de pago" para que
+  // el pescadero lo marque como pagado desde el panel en cuanto lo reciba.
+  const handlePayWithBizum = () => {
+    if (!validateOrder()) return;
+    if (isTurnstileEnabled() && !turnstile.verified) return;
+
+    const subTotalAmount = items.reduce((sum, item) => {
+      const product = productMap.get(item.productId);
+      if (!product) return sum;
+      return sum + extractPricePerKg(product.precio) * item.kg;
+    }, 0);
+
+    const message = generateWhatsAppMessage({
+      customer,
+      items,
+      totalProducts,
+      totalWeight,
+      subTotalAmount,
+      deliveryCost,
+      getProductName: (productId) => {
+        const product = productMap.get(productId);
+        return product ? pickLang(product, 'nombre', i18n.language) : productId;
+      },
+      getPreparationLabel: (prep) => t(`cart.prep_${prep}` as any),
+      productMap,
+      metodoPago: 'bizum',
+    });
+
+    const encoded = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${BIZUM_PHONE_WA}?text=${encoded}`;
+
+    onSaveLastOrder();
+
+    void logPedido({
+      items: items.map((item) => {
+        const product = productMap.get(item.productId);
+        return {
+          productoId: item.productId,
+          nombre: product ? pickLang(product, 'nombre', i18n.language) : item.productId,
+          kg: item.kg,
+          preparacion: item.preparation,
+          nota: item.note,
+          precioKg: product ? extractPricePerKg(product.precio) : 0,
+        };
+      }),
+      totalProductos: totalProducts,
+      pesoTotal: totalWeight,
+      importeEstimado: subTotalAmount + deliveryCost,
+      metodoEntrega: customer.deliveryMethod,
+      clienteNombre: customer.name,
+      clienteNegocio: customer.business,
+      clienteTelefono: customer.phone,
+      clienteEmail: customer.email,
+      clienteDireccion: customer.address,
+      clienteCiudad: customer.city,
+      clienteCp: customer.postalCode,
+      fechaPreferida: customer.preferredDate,
+      horaPreferida: customer.preferredTime,
+      notas: customer.notes,
+      deviceId: getDeviceId(),
+      metodoPago: 'bizum',
+    });
+
+    window.open(whatsappUrl, '_blank');
+
+    setBizumAmountToShow(subTotalAmount + deliveryCost);
+    onClearCart();
+    setValidationErrors({});
+    setBizumConfirmed(true);
   };
 
   if (!open) return null;
@@ -1636,6 +1721,24 @@ export default function CartDrawer({
               )}
 
               {!isEmpty && (
+                <button
+                  type="button"
+                  disabled={isTurnstileEnabled() && !turnstile.verified}
+                  onClick={handlePayWithBizum}
+                  className={`w-full py-3 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 flex items-center justify-center gap-2 ${
+                    isTurnstileEnabled() && !turnstile.verified
+                      ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
+                      : 'bg-sky-500 text-background-50 hover:bg-sky-600 active:scale-[0.98]'
+                  }`}
+                >
+                  <span className="w-4 h-4 flex items-center justify-center">
+                    <i className="ri-smartphone-line"></i>
+                  </span>
+                  {t('cart.bizum_payment_button')}
+                </button>
+              )}
+
+              {!isEmpty && (
                 <>
                   <button
                     type="button"
@@ -1966,6 +2069,41 @@ export default function CartDrawer({
               type="button"
               onClick={handleClose}
               className="px-6 py-2.5 rounded-full text-sm font-medium text-background-50 bg-primary-500 hover:bg-primary-600 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
+            >
+              {t('cart.confirmation_close')}
+            </button>
+          </div>
+        )}
+
+        {/* === BIZUM PAYMENT INSTRUCTIONS POPUP === */}
+        {bizumConfirmed && (
+          <div
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background-50 px-6 text-center"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('cart.bizum_confirmation_title')}
+          >
+            <span className="w-14 h-14 flex items-center justify-center rounded-full bg-sky-100 text-sky-600 mb-5 animate-[scaleIn_0.3s_ease-out]">
+              <i className="ri-smartphone-line text-3xl"></i>
+            </span>
+            <h3 className="text-lg font-heading font-semibold text-foreground-950 mb-2">
+              {t('cart.bizum_confirmation_title')}
+            </h3>
+            <p className="text-sm text-foreground-500 mb-5 max-w-[300px] leading-relaxed">
+              {t('cart.bizum_confirmation_text')}
+            </p>
+            <div className="w-full max-w-[280px] rounded-lg bg-sky-50/70 border border-sky-200/70 px-5 py-4 mb-6">
+              <p className="text-[10px] uppercase tracking-wider text-sky-700/80 mb-1">{t('cart.bizum_amount_label')}</p>
+              <p className="text-2xl font-semibold text-sky-900 mb-3 tabular-nums">
+                {bizumAmountToShow !== null ? formatPrice(bizumAmountToShow) : ''}
+              </p>
+              <p className="text-[10px] uppercase tracking-wider text-sky-700/80 mb-1">{t('cart.bizum_phone_label')}</p>
+              <p className="text-lg font-semibold text-sky-900 tabular-nums">{BIZUM_PHONE_DISPLAY}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-6 py-2.5 rounded-full text-sm font-medium text-background-50 bg-sky-500 hover:bg-sky-600 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
             >
               {t('cart.confirmation_close')}
             </button>

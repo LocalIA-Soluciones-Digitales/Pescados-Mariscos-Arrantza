@@ -50,7 +50,17 @@ function formatPrecio(n: number | null): string {
   return `${n.toFixed(2)} €`;
 }
 
-function PedidoCard({ pedido, onSetEstado, onDelete }: { pedido: Pedido; onSetEstado: (id: string, estado: PedidoEstado) => void; onDelete: (id: string) => void }) {
+function PedidoCard({
+  pedido,
+  onSetEstado,
+  onSetEstadoPago,
+  onDelete,
+}: {
+  pedido: Pedido;
+  onSetEstado: (id: string, estado: PedidoEstado) => void;
+  onSetEstadoPago: (id: string, estadoPago: PedidoEstadoPago) => void;
+  onDelete: (id: string) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const next = NEXT_ESTADO[pedido.estado];
   const telefono = pedido.cliente_telefono?.replace(/\D/g, '');
@@ -123,6 +133,15 @@ function PedidoCard({ pedido, onSetEstado, onDelete }: { pedido: Pedido; onSetEs
             </a>
           </>
         )}
+        {pedido.metodo_pago === 'bizum' && pedido.estado_pago === 'pendiente' && (
+          <button
+            type="button"
+            onClick={() => onSetEstadoPago(pedido.id, 'pagado')}
+            className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-sky-500 text-background-50 hover:bg-sky-600"
+          >
+            Marcar pagado (Bizum)
+          </button>
+        )}
         {next && (
           <button
             type="button"
@@ -156,7 +175,7 @@ function PedidoCard({ pedido, onSetEstado, onDelete }: { pedido: Pedido; onSetEs
 }
 
 export default function PedidosPanel() {
-  const { pedidos, loading, setEstado, deletePedido } = usePedidos();
+  const { pedidos, loading, setEstado, setEstadoPago, deletePedido } = usePedidos();
   const [filtro, setFiltro] = useState<'todos' | PedidoEstado>('todos');
 
   const counts = useMemo(() => {
@@ -199,7 +218,7 @@ export default function PedidosPanel() {
       ) : (
         <div className="space-y-2">
           {visibles.map((pedido) => (
-            <PedidoCard key={pedido.id} pedido={pedido} onSetEstado={setEstado} onDelete={deletePedido} />
+            <PedidoCard key={pedido.id} pedido={pedido} onSetEstado={setEstado} onSetEstadoPago={setEstadoPago} onDelete={deletePedido} />
           ))}
         </div>
       )}

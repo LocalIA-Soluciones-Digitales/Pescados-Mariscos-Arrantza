@@ -1,6 +1,6 @@
 export type PedidoEstado = 'nuevo' | 'confirmado' | 'completado' | 'cancelado';
 export type PedidoMetodoEntrega = 'home' | 'pickup';
-export type PedidoMetodoPago = 'whatsapp' | 'stripe';
+export type PedidoMetodoPago = 'whatsapp' | 'stripe' | 'bizum';
 export type PedidoEstadoPago = 'no_aplica' | 'pendiente' | 'pagado' | 'fallido';
 
 export interface PedidoItem {

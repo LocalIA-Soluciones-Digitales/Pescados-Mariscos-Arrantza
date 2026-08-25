@@ -374,7 +374,7 @@ create table if not exists public.pedidos (
   -- Cómo se envió el pedido y en qué punto está su cobro online. 'no_aplica'
   -- cubre el flujo histórico por WhatsApp, donde el cobro ocurre fuera de la
   -- web (en tienda o por transferencia) y nunca pasa por Stripe.
-  metodo_pago text not null default 'whatsapp' check (metodo_pago in ('whatsapp', 'stripe')),
+  metodo_pago text not null default 'whatsapp' check (metodo_pago in ('whatsapp', 'stripe', 'bizum')),
   estado_pago text not null default 'no_aplica' check (estado_pago in ('no_aplica', 'pendiente', 'pagado', 'fallido')),
   stripe_session_id text,
   stripe_payment_intent_id text,
@@ -389,10 +389,16 @@ create table if not exists public.pedidos (
 -- base real, ejecutar este bloque en el SQL Editor de Supabase es lo que
 -- realmente las añade.
 alter table public.pedidos
-  add column if not exists metodo_pago text not null default 'whatsapp' check (metodo_pago in ('whatsapp', 'stripe')),
+  add column if not exists metodo_pago text not null default 'whatsapp' check (metodo_pago in ('whatsapp', 'stripe', 'bizum')),
   add column if not exists estado_pago text not null default 'no_aplica' check (estado_pago in ('no_aplica', 'pendiente', 'pagado', 'fallido')),
   add column if not exists stripe_session_id text,
   add column if not exists stripe_payment_intent_id text;
+
+-- El check de metodo_pago ya existía sin 'bizum' antes de añadir el pago
+-- manual por Bizum — en una instalación nueva el create table de arriba ya
+-- lo incluye (no-op); en la base real, esto amplía el constraint existente.
+alter table public.pedidos drop constraint if exists pedidos_metodo_pago_check;
+alter table public.pedidos add constraint pedidos_metodo_pago_check check (metodo_pago in ('whatsapp', 'stripe', 'bizum'));
 
 create unique index if not exists idx_pedidos_stripe_session_id on public.pedidos (stripe_session_id) where stripe_session_id is not null;
 
@@ -454,7 +460,7 @@ begin
     v_cliente_id, p_items, p_total_productos, p_peso_total, p_importe_estimado, p_metodo_entrega,
     p_cliente_nombre, p_cliente_negocio, p_cliente_telefono, p_cliente_email,
     p_cliente_direccion, p_cliente_ciudad, p_cliente_cp, p_fecha_preferida, p_hora_preferida, p_notas, p_device_id,
-    p_metodo_pago, case when p_metodo_pago = 'stripe' then 'pendiente' else 'no_aplica' end
+    p_metodo_pago, case when p_metodo_pago in ('stripe', 'bizum') then 'pendiente' else 'no_aplica' end
   ) returning id into v_id;
 
   return v_id;
