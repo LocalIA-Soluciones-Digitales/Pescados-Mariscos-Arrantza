@@ -3,7 +3,7 @@ import { useReservasEventos } from '@/hooks/useReservasEventos';
 import { useReservas } from '@/hooks/useReservas';
 import { useReservasAjustes } from '@/hooks/useReservasAjustes';
 import ReservaEventoModal from './ReservaEventoModal';
-import type { Reserva, ReservaEstado, ReservaEvento } from '@/types/reserva';
+import type { Reserva, ReservaAjuste, ReservaEstado, ReservaEvento } from '@/types/reserva';
 
 const ESTADO_LABELS: Record<ReservaEstado, string> = {
   pendiente: 'Pendiente',
@@ -34,6 +34,16 @@ const NEXT_ESTADO: Record<ReservaEstado, ReservaEstado | null> = {
   cancelada: null,
 };
 
+// Permite deshacer un clic equivocado (p.ej. "Marcar entregada" en la reserva
+// que no era) volviendo un paso atrás, en vez de dejar el estado "entregada"
+// como definitivo sin salida.
+const PREV_ESTADO: Record<ReservaEstado, ReservaEstado | null> = {
+  pendiente: null,
+  confirmada: 'pendiente',
+  entregada: 'confirmada',
+  cancelada: null,
+};
+
 function formatFecha(iso: string | null): string {
   if (!iso) return '—';
   const [y, m, d] = iso.split('-');
@@ -59,24 +69,37 @@ interface ResumenRow {
 
 function ResumenRowCard({
   row,
+  ajustes,
   onRegistrarEntrega,
+  onDeshacerAjuste,
 }: {
   row: ResumenRow;
+  ajustes: ReservaAjuste[];
   onRegistrarEntrega: (kg: number) => Promise<void>;
+  onDeshacerAjuste: (id: string) => Promise<void>;
 }) {
   const [entrada, setEntrada] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const registrar = async () => {
+  const kgValido = (() => {
     const kg = Number(entrada);
-    if (!Number.isFinite(kg) || kg <= 0) {
-      setEntrada('');
-      return;
-    }
+    return Number.isFinite(kg) && kg > 0 ? kg : null;
+  })();
+
+  const registrar = async () => {
+    if (kgValido === null) return;
+    if (!confirm(`¿Registrar entrega de ${formatKg(kgValido)} de "${row.nombre}"? Se restará del pendiente.`)) return;
     setSaving(true);
-    await onRegistrarEntrega(kg);
+    await onRegistrarEntrega(kgValido);
     setSaving(false);
     setEntrada('');
+  };
+
+  const deshacer = async (ajuste: ReservaAjuste) => {
+    if (!confirm(`¿Deshacer esta entrega de ${formatKg(ajuste.kg)} de "${row.nombre}"? Volverá a sumarse al pendiente.`)) return;
+    setSaving(true);
+    await onDeshacerAjuste(ajuste.id);
+    setSaving(false);
   };
 
   const completo = row.pendiente <= 0 && row.reservado > 0;
@@ -116,15 +139,44 @@ function ResumenRowCard({
           value={entrada}
           onChange={(e) => setEntrada(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Enter') registrar();
           }}
-          onBlur={registrar}
           disabled={saving}
           className="w-16 px-2 py-1 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
         />
         <span className="text-xs text-foreground-400">kg</span>
+        <button
+          type="button"
+          onClick={registrar}
+          disabled={saving || kgValido === null}
+          className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Registrar
+        </button>
         <span className="text-[11px] text-foreground-300 ml-1">— o marca la reserva como "Entregada" en la pestaña Reservas</span>
       </div>
+
+      {ajustes.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-background-200/40 space-y-1">
+          <p className="text-[10px] uppercase tracking-wide text-foreground-400">Entregas manuales registradas</p>
+          {ajustes.map((a) => (
+            <div key={a.id} className="flex items-center justify-between text-[11px] text-foreground-500">
+              <span>
+                {formatKg(a.kg)} — {new Date(a.created_at).toLocaleString('es-ES')}
+              </span>
+              <button
+                type="button"
+                onClick={() => deshacer(a)}
+                disabled={saving}
+                className="inline-flex items-center gap-1 text-foreground-400 hover:text-red-600 disabled:opacity-40"
+              >
+                <i className="ri-arrow-go-back-line"></i>
+                Deshacer
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -143,7 +195,13 @@ function ReservaCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const next = NEXT_ESTADO[reserva.estado];
+  const prev = PREV_ESTADO[reserva.estado];
   const telefono = reserva.cliente_telefono?.replace(/\D/g, '');
+
+  const handleSetEstado = (estado: ReservaEstado, mensaje: string) => {
+    if (!confirm(mensaje)) return;
+    onSetEstado(reserva.id, estado);
+  };
 
   return (
     <div className="bg-background-50 border border-background-200/70 rounded-lg p-3">
@@ -199,16 +257,26 @@ function ReservaCard({
         {next && (
           <button
             type="button"
-            onClick={() => onSetEstado(reserva.id, next)}
+            onClick={() => handleSetEstado(next, `¿Marcar esta reserva como "${ESTADO_LABELS[next]}"?`)}
             className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-primary-500 text-background-50 hover:bg-primary-600"
           >
             Marcar {ESTADO_LABELS[next].toLowerCase()}
           </button>
         )}
+        {prev && (
+          <button
+            type="button"
+            onClick={() => handleSetEstado(prev, `¿Deshacer y volver esta reserva a "${ESTADO_LABELS[prev]}"?`)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-background-100 text-foreground-500 hover:bg-background-200/70"
+          >
+            <i className="ri-arrow-go-back-line"></i>
+            Deshacer
+          </button>
+        )}
         {reserva.estado !== 'cancelada' && reserva.estado !== 'entregada' && (
           <button
             type="button"
-            onClick={() => onSetEstado(reserva.id, 'cancelada')}
+            onClick={() => handleSetEstado('cancelada', '¿Cancelar esta reserva?')}
             className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-600 hover:bg-red-100"
           >
             Cancelar
@@ -278,7 +346,7 @@ function EventoTabs({
 export default function ReservasPanel() {
   const { eventos, loading: loadingEventos, crearEvento, patchEvento, eliminarEvento } = useReservasEventos();
   const { reservas, loading: loadingReservas, setEstado, deleteReserva } = useReservas();
-  const { ajustes, registrarAjuste } = useReservasAjustes();
+  const { ajustes, registrarAjuste, eliminarAjuste } = useReservasAjustes();
 
   const [selectedEventoId, setSelectedEventoId] = useState<string | null>(null);
   const [vista, setVista] = useState<'resumen' | 'reservas'>('resumen');
@@ -493,6 +561,7 @@ export default function ReservasPanel() {
                       <ResumenRowCard
                         key={row.key}
                         row={row}
+                        ajustes={ajustesDelEvento.filter((a) => (a.producto_id || a.producto_nombre) === row.key)}
                         onRegistrarEntrega={async (kg) => {
                           await registrarAjuste({
                             evento_id: eventoActivo.id,
@@ -500,6 +569,9 @@ export default function ReservasPanel() {
                             producto_nombre: row.nombre,
                             kg,
                           });
+                        }}
+                        onDeshacerAjuste={async (id) => {
+                          await eliminarAjuste(id);
                         }}
                       />
                     ))}
