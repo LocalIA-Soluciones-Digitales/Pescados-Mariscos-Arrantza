@@ -124,15 +124,23 @@ export default function ReservaEventoModal({
             La fecha límite es opcional: si la indicas, la web dejará de aceptar reservas para esta campaña a partir de ese día.
           </p>
 
-          <label className="flex items-center gap-2.5 cursor-pointer select-none pt-1">
+          <label className="flex items-center gap-3 cursor-pointer select-none py-1">
             <button
               type="button"
+              role="switch"
+              aria-checked={form.activo}
               onClick={() => setForm((f) => ({ ...f, activo: !f.activo }))}
-              className={`w-10 h-6 rounded-full relative transition-colors flex-shrink-0 ${form.activo ? 'bg-primary-500' : 'bg-background-300'}`}
+              className={`relative inline-flex flex-shrink-0 items-center w-11 h-6 rounded-full border transition-colors duration-200 ${
+                form.activo ? 'bg-primary-500 border-primary-500' : 'bg-background-200 border-background-300'
+              }`}
             >
-              <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.activo ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+              <span
+                className={`inline-block w-5 h-5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
+                  form.activo ? 'translate-x-[22px]' : 'translate-x-0.5'
+                }`}
+              />
             </button>
-            <span className="text-sm text-foreground-700">
+            <span className="text-sm text-foreground-700 leading-snug">
               {form.activo ? 'Abierta a reservas en la web' : 'Cerrada (no visible para clientes)'}
             </span>
           </label>
