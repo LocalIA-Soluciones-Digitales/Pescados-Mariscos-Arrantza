@@ -636,6 +636,7 @@ export default function CartDrawer({
 
   const handleClearConfirm = useCallback(() => {
     onClearCart();
+    setPaymentChoice(null);
     setShowClearConfirm(false);
   }, [onClearCart]);
 
@@ -655,6 +656,12 @@ export default function CartDrawer({
 
   const validateOrder = useCallback((): boolean => {
     const errors: Record<string, string> = {};
+
+    // Payment method — local vs online (always required, checked first
+    // since it decides which button in the footer even applies)
+    if (paymentChoice !== 'local' && paymentChoice !== 'online') {
+      errors.paymentMethod = t('cart.validation_payment_method_required');
+    }
 
     // Delivery method (always required)
     if (!customer.deliveryMethod || (customer.deliveryMethod !== 'home' && customer.deliveryMethod !== 'pickup')) {
@@ -713,7 +720,7 @@ export default function CartDrawer({
     }
 
     return true;
-  }, [customer, t]);
+  }, [customer, paymentChoice, t]);
 
   /**
    * Order confirmation pipeline:
@@ -801,6 +808,7 @@ export default function CartDrawer({
     // ── Reset the drawer to a clean state and show the thank-you popup ──
     onClearCart();
     setValidationErrors({});
+    setPaymentChoice(null);
     setOrderConfirmed(true);
   };
 
@@ -908,6 +916,7 @@ export default function CartDrawer({
 
     onClearCart();
     setValidationErrors({});
+    setPaymentChoice(null);
     setBizumConfirmed(true);
   };
 
@@ -1255,6 +1264,84 @@ export default function CartDrawer({
                     <p className="px-4 py-2.5 text-[10px] text-foreground-400 leading-relaxed bg-background-100/40">
                       {t('cart.estimated_note')}
                     </p>
+                  </div>
+
+                  {/* === PAYMENT METHOD === */}
+                  <div id="checkout-field-paymentMethod" className="mb-6">
+                    <h3 className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-3">
+                      {t('cart.payment_method_title')}
+                    </h3>
+                    <div className={`grid grid-cols-2 gap-3 p-0.5 rounded-xl transition-all duration-300 ${validationErrors.paymentMethod ? 'ring-2 ring-red-400/60' : ''}`}>
+                      {/* Pay locally */}
+                      <button
+                        type="button"
+                        aria-pressed={paymentChoice === 'local'}
+                        onClick={() => { setPaymentChoice('local'); if (validationErrors.paymentMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.paymentMethod; return next; }); }}
+                        className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
+                          paymentChoice === 'local'
+                            ? 'border-primary-500 bg-primary-50/50'
+                            : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
+                        }`}
+                      >
+                        {paymentChoice === 'local' && (
+                          <span className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full bg-primary-500 text-background-50 animate-[scaleIn_0.3s_ease-out]">
+                            <i className="ri-check-line text-[11px]"></i>
+                          </span>
+                        )}
+                        <span className={`w-10 h-10 flex items-center justify-center rounded-full mb-3 text-xl transition-all duration-300 ${
+                          paymentChoice === 'local'
+                            ? 'bg-primary-100 text-primary-600'
+                            : 'bg-background-100 text-foreground-400'
+                        }`}>
+                          <i className="ri-store-2-line"></i>
+                        </span>
+                        <span className="text-sm font-semibold text-foreground-950 mb-2 whitespace-nowrap">
+                          {t('cart.payment_local')}
+                        </span>
+                        <span className="text-[11px] text-foreground-400 leading-relaxed whitespace-normal max-w-[160px]">
+                          {t('cart.payment_local_desc')}
+                        </span>
+                      </button>
+
+                      {/* Pay online */}
+                      <button
+                        type="button"
+                        aria-pressed={paymentChoice === 'online'}
+                        onClick={() => { setPaymentChoice('online'); if (validationErrors.paymentMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.paymentMethod; return next; }); }}
+                        className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
+                          paymentChoice === 'online'
+                            ? 'border-primary-500 bg-primary-50/50'
+                            : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
+                        }`}
+                      >
+                        {paymentChoice === 'online' && (
+                          <span className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full bg-primary-500 text-background-50 animate-[scaleIn_0.3s_ease-out]">
+                            <i className="ri-check-line text-[11px]"></i>
+                          </span>
+                        )}
+                        <span className={`w-10 h-10 flex items-center justify-center rounded-full mb-3 text-xl transition-all duration-300 ${
+                          paymentChoice === 'online'
+                            ? 'bg-primary-100 text-primary-600'
+                            : 'bg-background-100 text-foreground-400'
+                        }`}>
+                          <i className="ri-secure-payment-line"></i>
+                        </span>
+                        <span className="text-sm font-semibold text-foreground-950 mb-2 whitespace-nowrap">
+                          {t('cart.payment_online')}
+                        </span>
+                        <span className="text-[11px] text-foreground-400 leading-relaxed whitespace-normal max-w-[160px]">
+                          {t('cart.payment_online_desc')}
+                        </span>
+                      </button>
+                    </div>
+                    {validationErrors.paymentMethod && (
+                      <p className="text-xs text-red-500 mt-2 ml-0.5 flex items-center gap-1.5 animate-fadeIn">
+                        <span className="w-3.5 h-3.5 flex items-center justify-center">
+                          <i className="ri-error-warning-line text-xs"></i>
+                        </span>
+                        {validationErrors.paymentMethod}
+                      </p>
+                    )}
                   </div>
 
                   {/* === DELIVERY METHOD === */}
@@ -1657,60 +1744,17 @@ export default function CartDrawer({
               {/* ── Cloudflare Turnstile placeholder (hidden when disabled) ── */}
               <TurnstileWidget onTokenReceived={turnstile.onTokenReceived} />
 
-              {/* Payment method choice — local (pay when you get it) vs online
-                  (charged now, then a card/Bizum sub-choice). This exists
-                  because "Confirmar pedido" used to read as the one and only
-                  action, so people who actually wanted to pay online tapped
-                  it, sent the WhatsApp order, and only then looked for a way
-                  to pay — the two paths need to fork before either CTA shows. */}
-              {!isEmpty && (
-                <>
-                  <h3 className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-0.5">
-                    {t('cart.payment_method_title')}
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      aria-pressed={paymentChoice === 'local'}
-                      onClick={() => setPaymentChoice('local')}
-                      className={`flex flex-col items-center text-center gap-1 p-3 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${
-                        paymentChoice === 'local'
-                          ? 'border-primary-500 bg-primary-50/50'
-                          : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
-                      }`}
-                    >
-                      <span className={`w-8 h-8 flex items-center justify-center rounded-full text-base transition-all duration-200 ${
-                        paymentChoice === 'local' ? 'bg-primary-100 text-primary-600' : 'bg-background-100 text-foreground-400'
-                      }`}>
-                        <i className="ri-store-2-line"></i>
-                      </span>
-                      <span className="text-xs font-semibold text-foreground-950">{t('cart.payment_local')}</span>
-                      <span className="text-[10px] text-foreground-400 leading-snug">{t('cart.payment_local_desc')}</span>
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={paymentChoice === 'online'}
-                      onClick={() => setPaymentChoice('online')}
-                      className={`flex flex-col items-center text-center gap-1 p-3 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${
-                        paymentChoice === 'online'
-                          ? 'border-primary-500 bg-primary-50/50'
-                          : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
-                      }`}
-                    >
-                      <span className={`w-8 h-8 flex items-center justify-center rounded-full text-base transition-all duration-200 ${
-                        paymentChoice === 'online' ? 'bg-primary-100 text-primary-600' : 'bg-background-100 text-foreground-400'
-                      }`}>
-                        <i className="ri-secure-payment-line"></i>
-                      </span>
-                      <span className="text-xs font-semibold text-foreground-950">{t('cart.payment_online')}</span>
-                      <span className="text-[10px] text-foreground-400 leading-snug">{t('cart.payment_online_desc')}</span>
-                    </button>
-                  </div>
-                </>
-              )}
+              {/* The local/online choice itself lives up in the scrollable
+                  form (id="checkout-field-paymentMethod"), next to the other
+                  checkout questions — same treatment as delivery method, date
+                  and time. Keeping it there instead of pinned here is what
+                  keeps this footer down to one action's worth of height. */}
 
-              {/* Local: single WhatsApp-order CTA, pay when it arrives */}
-              {(isEmpty || paymentChoice === 'local') && (
+              {/* Default action: WhatsApp order. Shown until "online" is
+                  chosen above; if payment method wasn't chosen at all yet,
+                  validateOrder() catches it and scrolls up to that field,
+                  same as any other required field. */}
+              {paymentChoice !== 'online' && (
                 <button
                   type="button"
                   disabled={isEmpty || (isTurnstileEnabled() && !turnstile.verified)}
@@ -1732,7 +1776,7 @@ export default function CartDrawer({
                 </button>
               )}
 
-              {/* Online: card / Bizum sub-choice, side by side to save vertical space */}
+              {/* Online chosen: card / Bizum sub-choice, side by side */}
               {!isEmpty && paymentChoice === 'online' && (
                 <div className="grid grid-cols-2 gap-2.5">
                   <button
@@ -1762,13 +1806,6 @@ export default function CartDrawer({
                     {payingWithBizum ? t('cart.bizum_payment_loading') : t('cart.bizum_payment_button')}
                   </button>
                 </div>
-              )}
-
-              {/* Nothing picked yet — light nudge instead of no feedback at all */}
-              {!isEmpty && paymentChoice === null && (
-                <p className="text-[11px] text-foreground-400 text-center -mt-1">
-                  {t('cart.payment_method_hint')}
-                </p>
               )}
 
               {/* Utility links — preview & clear, kept lightweight on purpose */}
