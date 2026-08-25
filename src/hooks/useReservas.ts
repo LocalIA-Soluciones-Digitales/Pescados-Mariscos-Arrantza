@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useRealtimeTable } from './useRealtimeTable';
 import type { Reserva, ReservaEstado } from '@/types/reserva';
 
 const MAX_ROWS = 5_000;
@@ -22,6 +23,8 @@ export function useReservas() {
   useEffect(() => {
     fetchReservas();
   }, [fetchReservas]);
+
+  useRealtimeTable('reservas', fetchReservas);
 
   const setEstado = useCallback(async (id: string, estado: ReservaEstado) => {
     const { error } = await supabase.from('reservas').update({ estado }).eq('id', id);

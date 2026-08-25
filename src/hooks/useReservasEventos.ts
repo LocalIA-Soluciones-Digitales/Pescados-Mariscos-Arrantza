@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getMiClienteId } from '@/lib/clienteContext';
+import { useRealtimeTable } from './useRealtimeTable';
 import type { ReservaEvento } from '@/types/reserva';
 
 export interface NewReservaEventoInput {
@@ -34,6 +35,8 @@ export function useReservasEventos() {
   useEffect(() => {
     fetchEventos();
   }, [fetchEventos]);
+
+  useRealtimeTable('reservas_eventos', fetchEventos);
 
   const crearEvento = useCallback(async (input: NewReservaEventoInput) => {
     const cliente_id = await getMiClienteId();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useRealtimeTable } from './useRealtimeTable';
 import type { Resena, ResenaEstado } from '@/types/resena';
 
 // Vista de administración: trae todas las reseñas (pendientes incluidas)
@@ -21,6 +22,8 @@ export function useResenas() {
   useEffect(() => {
     fetchResenas();
   }, [fetchResenas]);
+
+  useRealtimeTable('resenas', fetchResenas);
 
   const setEstado = useCallback(async (id: string, estado: ResenaEstado) => {
     const { error } = await supabase.from('resenas').update({ estado }).eq('id', id);

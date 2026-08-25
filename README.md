@@ -28,7 +28,7 @@ src/
 ├── lib/               # Clientes de servicios externos y logs (Supabase, newsletter, pedidos, reseñas, visitas)
 ├── mocks/             # Datos de ejemplo de productos
 ├── pages/
-│   ├── admin/          # Panel de administración (login, dashboard, pedidos, reseñas, newsletter, stock, informes)
+│   ├── admin/          # Panel de administración (login, hoy, pedidos, reservas, reseñas, clientes, newsletter, stock, informes)
 │   ├── home/           # Página principal (Hero, About, Gallery, FAQ, Contact...)
 │   ├── legal/           # Aviso legal y política de cookies
 │   ├── newsletter/       # Confirmación y baja de suscripción por token
@@ -53,6 +53,8 @@ npm run dev
 ```
 
 Las credenciales de Supabase nunca se escriben en el código: se leen de variables de entorno con prefijo `VITE_` (ver `.env.example`). Los secretos de las Edge Functions (`RESEND_API_KEY`, `STOCK_ALERT_SECRET`, `PEDIDO_ESTADO_SECRET`, etc.) se configuran aparte con `supabase secrets set` — ver los `.env.example` de cada función en `supabase/functions/{newsletter-confirm,pedido-estado,stock-alert}/`.
+
+El panel de gestión (`/admin`) se refresca solo cuando cambian pedidos, reservas, reseñas, stock o suscriptores (Supabase Realtime / Postgres Changes) y es instalable como app (PWA) — pensado para usarlo desde el móvil o tablet del mostrador. **Importante:** el bloque `do $$ ... alter publication supabase_realtime add table ...` al final de `supabase/schema.sql` hay que ejecutarlo a mano en el SQL Editor de Supabase; sin él, Postgres Changes no emite ningún evento y el panel deja de refrescarse solo (sigue funcionando, solo que como antes: hay que recargar).
 
 ## Scripts
 

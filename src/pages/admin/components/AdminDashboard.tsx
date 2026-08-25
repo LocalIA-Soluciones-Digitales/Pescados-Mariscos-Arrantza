@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useProductos } from '@/hooks/useProductos';
 import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
@@ -7,13 +7,17 @@ import PedidosPanel from './PedidosPanel';
 import ResenasPanel from './ResenasPanel';
 import StockPanel from './StockPanel';
 import ReservasPanel from './ReservasPanel';
+import HoyPanel from './HoyPanel';
+import ClientesPanel from './ClientesPanel';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
 import { useReservas } from '@/hooks/useReservas';
+import { usePulse } from '@/hooks/usePulse';
+import { useOrderAlertSound } from '@/hooks/useOrderAlertSound';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import ViewSwitcher from './ViewSwitcher';
 
-type Tab = 'productos' | 'pedidos' | 'resenas' | 'stock' | 'reservas';
+type Tab = 'hoy' | 'productos' | 'pedidos' | 'resenas' | 'stock' | 'reservas' | 'clientes';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -173,23 +177,26 @@ function ProductoCard({
 }
 
 const TABS: { value: Tab; label: string }[] = [
+  { value: 'hoy', label: 'Hoy' },
   { value: 'productos', label: 'Productos' },
   { value: 'stock', label: 'Stock' },
   { value: 'pedidos', label: 'Pedidos' },
   { value: 'reservas', label: 'Reservas' },
   { value: 'resenas', label: 'Reseñas' },
+  { value: 'clientes', label: 'Clientes' },
 ];
 
 type ViewSwitch = { label: string; onClick: () => void };
 
 export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: () => void; viewSwitch?: ViewSwitch }) {
-  const { productos, loading, patchLocal, removeLocal, addLocal } = useProductos();
+  const { productos, loading: loadingProductos, patchLocal, removeLocal, addLocal } = useProductos();
+  const loading = loadingProductos;
   const [editing, setEditing] = useState<Producto | null | 'new'>(null);
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
   const [soloAgotados, setSoloAgotados] = useState(false);
   const [soloDestacados, setSoloDestacados] = useState(false);
-  const [tab, setTab] = useState<Tab>('productos');
+  const [tab, setTab] = useState<Tab>('hoy');
   const tabsScroll = useHorizontalWheelScroll<HTMLDivElement>();
   const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
   const headerRef = useRef<HTMLElement>(null);
@@ -203,13 +210,39 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
     return () => observer.disconnect();
   }, []);
 
-  // Solo para el contador de la pestaña — cada panel trae sus propios datos.
-  const { pedidos } = usePedidos();
-  const { resenas } = useResenas();
-  const { reservas } = useReservas();
+  // Se cargan aquí (y no solo dentro de cada panel) para las insignias de las
+  // pestañas y para alimentar Hoy/Clientes, que cruzan datos de varias
+  // tablas. Con Realtime activo (useRealtimeTable dentro de cada hook) se
+  // mantienen al día solas, sin recargar la página.
+  const { pedidos, loading: loadingPedidos } = usePedidos();
+  const { resenas, loading: loadingResenas } = useResenas();
+  const { reservas, loading: loadingReservas } = useReservas();
   const pedidosNuevos = useMemo(() => pedidos.filter((p) => p.estado === 'nuevo').length, [pedidos]);
   const resenasPendientes = useMemo(() => resenas.filter((r) => r.estado === 'pendiente').length, [resenas]);
   const reservasPendientes = useMemo(() => reservas.filter((r) => r.estado === 'pendiente').length, [reservas]);
+
+  // Resalta visualmente la pestaña correspondiente durante unos segundos
+  // cuando entra algo nuevo, y avisa con un sonido en el caso de pedidos
+  // (el más urgente: implica dinero y una preparación con fecha).
+  const pedidosPulse = usePulse(pedidosNuevos);
+  const reservasPulse = usePulse(reservasPendientes);
+  const resenasPulse = usePulse(resenasPendientes);
+
+  const { playNewOrderSound, unlock } = useOrderAlertSound();
+  const pedidosNuevosPrevRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const handler = () => unlock();
+    window.addEventListener('pointerdown', handler, { once: true });
+    return () => window.removeEventListener('pointerdown', handler);
+  }, [unlock]);
+
+  useEffect(() => {
+    if (pedidosNuevosPrevRef.current !== null && pedidosNuevos > pedidosNuevosPrevRef.current) {
+      playNewOrderSound();
+    }
+    pedidosNuevosPrevRef.current = pedidosNuevos;
+  }, [pedidosNuevos, playNewOrderSound]);
 
   const agotadosCount = useMemo(() => productos.filter((p) => !p.disponible).length, [productos]);
   const destacadosCount = useMemo(() => productos.filter((p) => p.destacado).length, [productos]);
@@ -254,7 +287,19 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   const tabsNav = (
     <div ref={tabsScroll.ref} onWheel={tabsScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
       {TABS.map((t) => {
-        const badge = t.value === 'pedidos' ? pedidosNuevos : t.value === 'resenas' ? resenasPendientes : t.value === 'stock' ? stockBajoCount : t.value === 'reservas' ? reservasPendientes : 0;
+        const badge =
+          t.value === 'hoy'
+            ? pedidosNuevos + reservasPendientes
+            : t.value === 'pedidos'
+              ? pedidosNuevos
+              : t.value === 'resenas'
+                ? resenasPendientes
+                : t.value === 'stock'
+                  ? stockBajoCount
+                  : t.value === 'reservas'
+                    ? reservasPendientes
+                    : 0;
+        const pulse = t.value === 'hoy' ? pedidosPulse || reservasPulse : t.value === 'pedidos' ? pedidosPulse : t.value === 'reservas' ? reservasPulse : t.value === 'resenas' ? resenasPulse : false;
         return (
           <button
             key={t.value}
@@ -266,7 +311,9 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
           >
             {t.label}
             {badge > 0 && (
-              <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-none ${tab === t.value ? 'bg-background-50/20' : 'bg-red-100 text-red-600'}`}>
+              <span
+                className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-none ${pulse ? 'animate-pulse' : ''} ${tab === t.value ? 'bg-background-50/20' : 'bg-red-100 text-red-600'}`}
+              >
                 {badge}
               </span>
             )}
@@ -309,12 +356,23 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         <div className="md:hidden mt-3">{tabsNav}</div>
       </header>
 
-      {tab === 'pedidos' ? (
+      {tab === 'hoy' ? (
+        <HoyPanel
+          pedidos={pedidos}
+          reservas={reservas}
+          resenas={resenas}
+          productos={productos}
+          loading={loadingPedidos || loadingReservas || loadingResenas || loadingProductos}
+          onNavigate={setTab}
+        />
+      ) : tab === 'pedidos' ? (
         <PedidosPanel />
       ) : tab === 'resenas' ? (
         <ResenasPanel />
       ) : tab === 'reservas' ? (
         <ReservasPanel />
+      ) : tab === 'clientes' ? (
+        <ClientesPanel pedidos={pedidos} reservas={reservas} loading={loadingPedidos || loadingReservas} />
       ) : tab === 'stock' ? (
         <StockPanel productos={productos} loading={loading} onPatch={patchLocal} />
       ) : (

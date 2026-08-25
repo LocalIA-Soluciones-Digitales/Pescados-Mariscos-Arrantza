@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useRealtimeTable } from './useRealtimeTable';
 
 export interface NewsletterSubscriber {
   id: string;
@@ -24,6 +25,8 @@ export function useNewsletter() {
   useEffect(() => {
     fetchSubscribers();
   }, [fetchSubscribers]);
+
+  useRealtimeTable('newsletter_subscribers', fetchSubscribers);
 
   const remove = useCallback(
     async (id: string) => {

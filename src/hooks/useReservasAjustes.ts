@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getMiClienteId } from '@/lib/clienteContext';
+import { useRealtimeTable } from './useRealtimeTable';
 import type { ReservaAjuste } from '@/types/reserva';
 
 export function useReservasAjustes() {
@@ -20,6 +21,8 @@ export function useReservasAjustes() {
   useEffect(() => {
     fetchAjustes();
   }, [fetchAjustes]);
+
+  useRealtimeTable('reservas_ajustes', fetchAjustes);
 
   const registrarAjuste = useCallback(
     async (input: { evento_id: string; producto_id: string | null; producto_nombre: string; kg: number; nota?: string | null }) => {

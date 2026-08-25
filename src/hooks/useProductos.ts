@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { useRealtimeTable } from './useRealtimeTable';
 import type { Producto } from '@/types/producto';
 
 export function useProductos() {
@@ -27,6 +28,8 @@ export function useProductos() {
   useEffect(() => {
     fetchProductos();
   }, [fetchProductos]);
+
+  useRealtimeTable('productos', fetchProductos);
 
   const patchLocal = useCallback((id: string, patch: Partial<Producto>) => {
     setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));

@@ -1107,3 +1107,33 @@ create policy "reservas_ajustes_delete_admin"
   using (is_developer() or cliente_id = mi_cliente_id());
 
 create index if not exists idx_reservas_ajustes_evento_id on public.reservas_ajustes (evento_id);
+
+-- ============================================================
+-- Realtime: el panel de gestión (usePedidos, useReservas, useResenas,
+-- useProductos, useNewsletter, useReservasEventos, useReservasAjustes) se
+-- suscribe a estas tablas con Postgres Changes para refrescarse solo en
+-- cuanto cambian, sin recargar la página. Postgres Changes solo emite
+-- eventos de una tabla si está añadida a la publicación `supabase_realtime`
+-- — no ocurre automáticamente al crear la tabla, hay que añadirla a mano.
+-- El envío a cada cliente conectado sigue filtrado por sus policies de
+-- select (RLS), igual que una query normal: un cliente_id no ve cambios de
+-- otro. Bloque idempotente: solo añade las que falten.
+-- ============================================================
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'pedidos', 'reservas', 'reservas_eventos', 'reservas_ajustes',
+    'resenas', 'newsletter_subscribers', 'productos'
+  ]
+  loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
