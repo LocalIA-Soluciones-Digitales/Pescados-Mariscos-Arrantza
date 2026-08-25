@@ -600,6 +600,7 @@ export default function CartDrawer({
   const [bizumConfirmed, setBizumConfirmed] = useState(false);
   const [bizumAmountToShow, setBizumAmountToShow] = useState<number | null>(null);
   const [payingWithBizum, setPayingWithBizum] = useState(false);
+  const [paymentChoice, setPaymentChoice] = useState<'local' | 'online' | null>(null);
   const hasLastOrder = orderHistory.length > 0;
 
   // ── Turnstile verification (currently always passes) ──
@@ -629,6 +630,7 @@ export default function CartDrawer({
     setAnimating(false);
     setOrderConfirmed(false);
     setBizumConfirmed(false);
+    setPaymentChoice(null);
     setTimeout(onClose, 200);
   }, [onClose]);
 
@@ -1655,29 +1657,83 @@ export default function CartDrawer({
               {/* ── Cloudflare Turnstile placeholder (hidden when disabled) ── */}
               <TurnstileWidget onTokenReceived={turnstile.onTokenReceived} />
 
-              {/* Primary action — WhatsApp order */}
-              <button
-                type="button"
-                disabled={isEmpty || (isTurnstileEnabled() && !turnstile.verified)}
-                onClick={handleSendOrder}
-                className={`w-full py-3 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 ${
-                  isEmpty || (isTurnstileEnabled() && !turnstile.verified)
-                    ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
-                    : 'bg-primary-500 text-background-50 hover:bg-primary-600 active:scale-[0.98]'
-                }`}
-              >
-                {isEmpty ? (
-                  t('cart.confirm_order')
-                ) : (
-                  <span className="inline-flex items-center gap-1 overflow-hidden">
-                    <span>{t('cart.confirm_order')} · </span>
-                    <RollingNumber value={formatPrice(estimatedTotal)} />
-                  </span>
-                )}
-              </button>
-
-              {/* Secondary payment methods — side by side to save vertical space */}
+              {/* Payment method choice — local (pay when you get it) vs online
+                  (charged now, then a card/Bizum sub-choice). This exists
+                  because "Confirmar pedido" used to read as the one and only
+                  action, so people who actually wanted to pay online tapped
+                  it, sent the WhatsApp order, and only then looked for a way
+                  to pay — the two paths need to fork before either CTA shows. */}
               {!isEmpty && (
+                <>
+                  <h3 className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-0.5">
+                    {t('cart.payment_method_title')}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      aria-pressed={paymentChoice === 'local'}
+                      onClick={() => setPaymentChoice('local')}
+                      className={`flex flex-col items-center text-center gap-1 p-3 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${
+                        paymentChoice === 'local'
+                          ? 'border-primary-500 bg-primary-50/50'
+                          : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
+                      }`}
+                    >
+                      <span className={`w-8 h-8 flex items-center justify-center rounded-full text-base transition-all duration-200 ${
+                        paymentChoice === 'local' ? 'bg-primary-100 text-primary-600' : 'bg-background-100 text-foreground-400'
+                      }`}>
+                        <i className="ri-store-2-line"></i>
+                      </span>
+                      <span className="text-xs font-semibold text-foreground-950">{t('cart.payment_local')}</span>
+                      <span className="text-[10px] text-foreground-400 leading-snug">{t('cart.payment_local_desc')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={paymentChoice === 'online'}
+                      onClick={() => setPaymentChoice('online')}
+                      className={`flex flex-col items-center text-center gap-1 p-3 rounded-2xl border-2 cursor-pointer transition-all duration-200 ${
+                        paymentChoice === 'online'
+                          ? 'border-primary-500 bg-primary-50/50'
+                          : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
+                      }`}
+                    >
+                      <span className={`w-8 h-8 flex items-center justify-center rounded-full text-base transition-all duration-200 ${
+                        paymentChoice === 'online' ? 'bg-primary-100 text-primary-600' : 'bg-background-100 text-foreground-400'
+                      }`}>
+                        <i className="ri-secure-payment-line"></i>
+                      </span>
+                      <span className="text-xs font-semibold text-foreground-950">{t('cart.payment_online')}</span>
+                      <span className="text-[10px] text-foreground-400 leading-snug">{t('cart.payment_online_desc')}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Local: single WhatsApp-order CTA, pay when it arrives */}
+              {(isEmpty || paymentChoice === 'local') && (
+                <button
+                  type="button"
+                  disabled={isEmpty || (isTurnstileEnabled() && !turnstile.verified)}
+                  onClick={handleSendOrder}
+                  className={`w-full py-3 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 ${
+                    isEmpty || (isTurnstileEnabled() && !turnstile.verified)
+                      ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
+                      : 'bg-primary-500 text-background-50 hover:bg-primary-600 active:scale-[0.98]'
+                  }`}
+                >
+                  {isEmpty ? (
+                    t('cart.confirm_order')
+                  ) : (
+                    <span className="inline-flex items-center gap-1 overflow-hidden">
+                      <span>{t('cart.confirm_order')} · </span>
+                      <RollingNumber value={formatPrice(estimatedTotal)} />
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {/* Online: card / Bizum sub-choice, side by side to save vertical space */}
+              {!isEmpty && paymentChoice === 'online' && (
                 <div className="grid grid-cols-2 gap-2.5">
                   <button
                     type="button"
@@ -1706,6 +1762,13 @@ export default function CartDrawer({
                     {payingWithBizum ? t('cart.bizum_payment_loading') : t('cart.bizum_payment_button')}
                   </button>
                 </div>
+              )}
+
+              {/* Nothing picked yet — light nudge instead of no feedback at all */}
+              {!isEmpty && paymentChoice === null && (
+                <p className="text-[11px] text-foreground-400 text-center -mt-1">
+                  {t('cart.payment_method_hint')}
+                </p>
               )}
 
               {/* Utility links — preview & clear, kept lightweight on purpose */}
