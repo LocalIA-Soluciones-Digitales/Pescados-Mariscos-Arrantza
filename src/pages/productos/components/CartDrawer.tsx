@@ -11,6 +11,7 @@ import { isTurnstileEnabled } from '@/config/turnstile';
 import { logConversion } from '@/lib/visitLog';
 import { logPedido } from '@/lib/pedidosLog';
 import { getDeviceId } from '@/lib/deviceId';
+import { crearSesionPagoStripe } from '@/lib/pagoStripe';
 
 /* ------------------------------------------------------------------ */
 /*  Badge style — same muted palette as catalogue                     */
@@ -617,6 +618,8 @@ export default function CartDrawer({
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [viewOrderId, setViewOrderId] = useState<string | null>(null);
   const [orderConfirmed, setOrderConfirmed] = useState(false);
+  const [payingWithCard, setPayingWithCard] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const hasLastOrder = orderHistory.length > 0;
 
   // ── Turnstile verification (currently always passes) ──
@@ -816,6 +819,24 @@ export default function CartDrawer({
     onClearCart();
     setValidationErrors({});
     setOrderConfirmed(true);
+  };
+
+  // Mismas validaciones que el pedido por WhatsApp; a diferencia de aquel,
+  // aquí un fallo sí debe detener el flujo (sin sesión de pago no hay nada
+  // que cobrar), así que no se limpia el carrito hasta que Stripe confirme.
+  const handlePayWithCard = async () => {
+    if (!validateOrder()) return;
+    if (isTurnstileEnabled() && !turnstile.verified) return;
+
+    setPaymentError(null);
+    setPayingWithCard(true);
+    try {
+      const url = await crearSesionPagoStripe(items, customer, getDeviceId());
+      window.location.href = url;
+    } catch {
+      setPaymentError(t('cart.card_payment_error'));
+      setPayingWithCard(false);
+    }
   };
 
   if (!open) return null;
@@ -1551,6 +1572,15 @@ export default function CartDrawer({
                 </p>
               )}
 
+              {paymentError && (
+                <p className="text-xs text-red-500 text-center leading-relaxed flex items-center justify-center gap-1.5">
+                  <span className="w-3.5 h-3.5 flex items-center justify-center">
+                    <i className="ri-error-warning-line text-xs"></i>
+                  </span>
+                  {paymentError}
+                </p>
+              )}
+
               <p className="text-[10px] text-foreground-400 text-center leading-relaxed px-2">
                 {t('cart.privacy_notice_pre')}{' '}
                 <a
@@ -1586,6 +1616,24 @@ export default function CartDrawer({
                   </span>
                 )}
               </button>
+
+              {!isEmpty && (
+                <button
+                  type="button"
+                  disabled={payingWithCard || (isTurnstileEnabled() && !turnstile.verified)}
+                  onClick={handlePayWithCard}
+                  className={`w-full py-3 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 flex items-center justify-center gap-2 ${
+                    payingWithCard || (isTurnstileEnabled() && !turnstile.verified)
+                      ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
+                      : 'bg-foreground-950 text-background-50 hover:bg-foreground-800 active:scale-[0.98]'
+                  }`}
+                >
+                  <span className="w-4 h-4 flex items-center justify-center">
+                    <i className={payingWithCard ? 'ri-loader-4-line animate-spin' : 'ri-bank-card-line'}></i>
+                  </span>
+                  {payingWithCard ? t('cart.card_payment_loading') : t('cart.card_payment_button')}
+                </button>
+              )}
 
               {!isEmpty && (
                 <>

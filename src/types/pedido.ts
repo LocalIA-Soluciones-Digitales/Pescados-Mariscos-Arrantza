@@ -1,5 +1,7 @@
 export type PedidoEstado = 'nuevo' | 'confirmado' | 'completado' | 'cancelado';
 export type PedidoMetodoEntrega = 'home' | 'pickup';
+export type PedidoMetodoPago = 'whatsapp' | 'stripe';
+export type PedidoEstadoPago = 'no_aplica' | 'pendiente' | 'pagado' | 'fallido';
 
 export interface PedidoItem {
   productoId: string;
@@ -28,6 +30,10 @@ export interface Pedido {
   hora_preferida: string | null;
   notas: string | null;
   estado: PedidoEstado;
+  metodo_pago: PedidoMetodoPago;
+  estado_pago: PedidoEstadoPago;
+  stripe_session_id: string | null;
+  stripe_payment_intent_id: string | null;
   device_id: string | null;
   created_at: string;
 }

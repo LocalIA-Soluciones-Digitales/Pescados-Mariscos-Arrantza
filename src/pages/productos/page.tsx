@@ -1214,10 +1214,18 @@ export default function Productos() {
     () => searchParams.get('producto'),
   );
 
+  // Stripe redirige aquí con ?pago=cancelado si el cliente abandona el
+  // Checkout — el carrito sigue intacto (nunca se limpió), así que solo hace
+  // falta avisar de que el pago no se completó.
+  const [showPaymentCancelledBanner, setShowPaymentCancelledBanner] = useState(
+    () => searchParams.get('pago') === 'cancelado',
+  );
+
   useEffect(() => {
-    if (searchParams.has('producto')) {
+    if (searchParams.has('producto') || searchParams.has('pago')) {
       setSearchParams((prev) => {
         prev.delete('producto');
+        prev.delete('pago');
         return prev;
       }, { replace: true });
     }
@@ -1504,6 +1512,19 @@ export default function Productos() {
   return (
     <>
       <Navbar />
+      {showPaymentCancelledBanner && (
+        <div className="bg-amber-50 border-b border-amber-200/70 px-4 py-2.5 text-center relative">
+          <p className="text-xs text-amber-700 pr-6">{t('products.payment_cancelled_notice')}</p>
+          <button
+            type="button"
+            onClick={() => setShowPaymentCancelledBanner(false)}
+            aria-label={t('cart.close_label')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-amber-500 hover:text-amber-700 cursor-pointer"
+          >
+            <i className="ri-close-line text-sm"></i>
+          </button>
+        </div>
+      )}
       <main>
         <CompactHero />
         <StickyToolbar

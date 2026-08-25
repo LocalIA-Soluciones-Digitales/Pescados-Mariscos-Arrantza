@@ -105,6 +105,7 @@ const common = {
   "products.catalog_subtitle": "Actualizado cada mañana según la llegada de la lonja.",
   "products.search_placeholder": "Buscar producto...",
   "products.filter_all": "Todos",
+  "products.payment_cancelled_notice": "El pago se ha cancelado. Tu carrito sigue intacto — puedes volver a intentarlo cuando quieras.",
   "products.filter_fish": "Pescado",
   "products.filter_seafood": "Marisco",
   "products.filter_seasonal": "Temporada",
@@ -536,6 +537,9 @@ const common = {
   "cart.privacy_notice_pre": "Al enviar tu pedido, tratamos tus datos para gestionarlo y los compartimos con WhatsApp para contactarte. Más información en nuestra",
   "cart.privacy_notice_link": "Política de Privacidad",
   "cart.confirm_order": "Confirmar pedido",
+  "cart.card_payment_button": "Pagar ahora con tarjeta",
+  "cart.card_payment_loading": "Abriendo pago seguro...",
+  "cart.card_payment_error": "No se pudo iniciar el pago. Inténtalo de nuevo o pide por WhatsApp.",
   "cart.customer_title": "Tus datos",
   "cart.customer_name": "Nombre",
   "cart.customer_name_placeholder": "Tu nombre...",
@@ -772,6 +776,15 @@ const common = {
   "newsletter.baja.invalid.title": "Enlace no válido",
   "newsletter.baja.invalid.body": "Este enlace de baja no es válido o ya se ha usado.",
   "newsletter.back": "Volver a la web",
+
+  "pedido_confirmado.checking": "Comprobando el pago...",
+  "pedido_confirmado.success_title": "¡Pago confirmado!",
+  "pedido_confirmado.success_body": "Hemos recibido tu pago y tu pedido ya está confirmado. Te avisaremos por email cuando esté listo.",
+  "pedido_confirmado.pending_title": "Pago en proceso",
+  "pedido_confirmado.pending_body": "Tu pago se está procesando todavía. En cuanto se confirme te avisaremos por email — no hace falta que hagas nada más.",
+  "pedido_confirmado.invalid_title": "No hemos podido confirmar el pago",
+  "pedido_confirmado.invalid_body": "Si has pagado y ves este mensaje, contáctanos por WhatsApp o teléfono y lo revisamos contigo.",
+  "pedido_confirmado.back": "Volver a la web",
 
   // Footer
   "footer.rights": "Todos los derechos reservados.",

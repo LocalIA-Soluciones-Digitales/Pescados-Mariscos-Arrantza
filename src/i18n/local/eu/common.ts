@@ -125,6 +125,7 @@ const common = {
   "products.catalog_subtitle": "Goizero eguneratua lonjako iritsieraren arabera.",
   "products.search_placeholder": "Produktua bilatu...",
   "products.filter_all": "Denak",
+  "products.payment_cancelled_notice": "Ordainketa bertan behera utzi da. Zure saskia osorik dago — nahi duzunean berriro saia zaitezke.",
   "products.filter_fish": "Arraina",
   "products.filter_seafood": "Itsaskia",
   "products.filter_seasonal": "Sasoia",
@@ -533,6 +534,9 @@ const common = {
   "cart.privacy_notice_pre": "Zure eskaera bidaltzean, zure datuak tratatzen ditugu kudeatzeko eta WhatsApp-ekin partekatzen ditugu zurekin harremanetan jartzeko. Informazio gehiago gure",
   "cart.privacy_notice_link": "Pribatutasun Politikan",
   "cart.confirm_order": "Eskaera berretsi",
+  "cart.card_payment_button": "Orain ordaindu txartelarekin",
+  "cart.card_payment_loading": "Ordainketa segurua irekitzen...",
+  "cart.card_payment_error": "Ezin izan da ordainketa hasi. Saiatu berriro edo eskatu WhatsApp bidez.",
   "cart.customer_title": "Zure datuak",
   "cart.customer_name": "Izena",
   "cart.customer_name_placeholder": "Zure izena...",
@@ -773,6 +777,15 @@ const common = {
   "newsletter.baja.invalid.title": "Esteka ez da baliozkoa",
   "newsletter.baja.invalid.body": "Baja emateko esteka hau ez da baliozkoa edo dagoeneko erabili da.",
   "newsletter.back": "Webgunera itzuli",
+
+  "pedido_confirmado.checking": "Ordainketa egiaztatzen...",
+  "pedido_confirmado.success_title": "Ordainketa berretsi da!",
+  "pedido_confirmado.success_body": "Zure ordainketa jaso dugu eta eskaera berretsita dago jada. Prest dagoenean emailez abisatuko dizugu.",
+  "pedido_confirmado.pending_title": "Ordainketa prozesatzen",
+  "pedido_confirmado.pending_body": "Zure ordainketa oraindik prozesatzen ari da. Berretsi bezain laster emailez abisatuko dizugu — ez duzu ezer gehiago egin behar.",
+  "pedido_confirmado.invalid_title": "Ezin izan dugu ordainketa berretsi",
+  "pedido_confirmado.invalid_body": "Ordaindu baduzu eta mezu hau ikusten baduzu, jarri gurekin harremanetan WhatsApp edo telefonoz eta zurekin berrikusiko dugu.",
+  "pedido_confirmado.back": "Webgunera itzuli",
 
   // Footer
   "footer.rights": "Eskubide guztiak erreserbatuta.",

@@ -1,6 +1,20 @@
 import { useMemo, useState } from 'react';
 import { usePedidos } from '@/hooks/usePedidos';
-import type { Pedido, PedidoEstado } from '@/types/pedido';
+import type { Pedido, PedidoEstado, PedidoEstadoPago } from '@/types/pedido';
+
+const ESTADO_PAGO_LABELS: Record<PedidoEstadoPago, string> = {
+  no_aplica: '',
+  pendiente: 'Pago pendiente',
+  pagado: 'Pagado con tarjeta',
+  fallido: 'Pago fallido',
+};
+
+const ESTADO_PAGO_STYLES: Record<PedidoEstadoPago, string> = {
+  no_aplica: '',
+  pendiente: 'bg-amber-100/80 text-amber-700',
+  pagado: 'bg-emerald-100/80 text-emerald-700',
+  fallido: 'bg-red-100/80 text-red-700',
+};
 
 const ESTADO_LABELS: Record<PedidoEstado, string> = {
   nuevo: 'Nuevo',
@@ -53,6 +67,11 @@ function PedidoCard({ pedido, onSetEstado, onDelete }: { pedido: Pedido; onSetEs
             <span className="text-[10px] text-foreground-400">
               {pedido.metodo_entrega === 'home' ? 'A domicilio' : 'Recogida en tienda'}
             </span>
+            {pedido.estado_pago !== 'no_aplica' && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${ESTADO_PAGO_STYLES[pedido.estado_pago]}`}>
+                {ESTADO_PAGO_LABELS[pedido.estado_pago]}
+              </span>
+            )}
           </div>
           <p className="text-sm font-medium text-foreground-950 mt-1">
             {pedido.cliente_nombre || 'Sin nombre'}

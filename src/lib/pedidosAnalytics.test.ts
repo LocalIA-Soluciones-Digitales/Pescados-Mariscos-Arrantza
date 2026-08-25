@@ -21,6 +21,11 @@ function pedido(overrides: Partial<Pedido>): Pedido {
     hora_preferida: null,
     notas: null,
     estado: 'nuevo',
+    metodo_pago: 'whatsapp',
+    estado_pago: 'no_aplica',
+    stripe_session_id: null,
+    stripe_payment_intent_id: null,
+    device_id: null,
     created_at: '2026-01-01T10:00:00.000Z',
     ...overrides,
   };

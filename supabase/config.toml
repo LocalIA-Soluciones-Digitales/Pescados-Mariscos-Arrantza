@@ -6,3 +6,9 @@ verify_jwt = false
 
 [functions.newsletter-confirm]
 verify_jwt = false
+
+[functions.crear-sesion-pago-stripe]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false

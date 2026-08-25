@@ -371,9 +371,30 @@ create table if not exists public.pedidos (
   hora_preferida text,
   notas text,
   estado text not null default 'nuevo' check (estado in ('nuevo', 'confirmado', 'completado', 'cancelado')),
+  -- Cómo se envió el pedido y en qué punto está su cobro online. 'no_aplica'
+  -- cubre el flujo histórico por WhatsApp, donde el cobro ocurre fuera de la
+  -- web (en tienda o por transferencia) y nunca pasa por Stripe.
+  metodo_pago text not null default 'whatsapp' check (metodo_pago in ('whatsapp', 'stripe')),
+  estado_pago text not null default 'no_aplica' check (estado_pago in ('no_aplica', 'pendiente', 'pagado', 'fallido')),
+  stripe_session_id text,
+  stripe_payment_intent_id text,
   device_id uuid,
   created_at timestamptz not null default now()
 );
+
+-- La tabla ya existe en producción sin estas columnas (se añadieron para el
+-- cobro online con Stripe, después de la reconstrucción de este fichero del
+-- 2026-08-15). `add column if not exists` es idempotente: en una instalación
+-- nueva es un no-op porque el create table de arriba ya las incluye; en la
+-- base real, ejecutar este bloque en el SQL Editor de Supabase es lo que
+-- realmente las añade.
+alter table public.pedidos
+  add column if not exists metodo_pago text not null default 'whatsapp' check (metodo_pago in ('whatsapp', 'stripe')),
+  add column if not exists estado_pago text not null default 'no_aplica' check (estado_pago in ('no_aplica', 'pendiente', 'pagado', 'fallido')),
+  add column if not exists stripe_session_id text,
+  add column if not exists stripe_payment_intent_id text;
+
+create unique index if not exists idx_pedidos_stripe_session_id on public.pedidos (stripe_session_id) where stripe_session_id is not null;
 
 alter table public.pedidos enable row level security;
 
@@ -409,7 +430,8 @@ create or replace function public.crear_pedido(
   p_importe_estimado numeric, p_metodo_entrega text, p_cliente_nombre text,
   p_cliente_negocio text, p_cliente_telefono text, p_cliente_email text,
   p_cliente_direccion text, p_cliente_ciudad text, p_cliente_cp text,
-  p_fecha_preferida text, p_hora_preferida text, p_notas text, p_device_id uuid
+  p_fecha_preferida text, p_hora_preferida text, p_notas text, p_device_id uuid,
+  p_metodo_pago text default 'whatsapp'
 )
 returns uuid
 language plpgsql security definer set search_path = public
@@ -426,16 +448,32 @@ begin
   insert into public.pedidos (
     cliente_id, items, total_productos, peso_total, importe_estimado, metodo_entrega,
     cliente_nombre, cliente_negocio, cliente_telefono, cliente_email,
-    cliente_direccion, cliente_ciudad, cliente_cp, fecha_preferida, hora_preferida, notas, device_id
+    cliente_direccion, cliente_ciudad, cliente_cp, fecha_preferida, hora_preferida, notas, device_id,
+    metodo_pago, estado_pago
   ) values (
     v_cliente_id, p_items, p_total_productos, p_peso_total, p_importe_estimado, p_metodo_entrega,
     p_cliente_nombre, p_cliente_negocio, p_cliente_telefono, p_cliente_email,
-    p_cliente_direccion, p_cliente_ciudad, p_cliente_cp, p_fecha_preferida, p_hora_preferida, p_notas, p_device_id
+    p_cliente_direccion, p_cliente_ciudad, p_cliente_cp, p_fecha_preferida, p_hora_preferida, p_notas, p_device_id,
+    p_metodo_pago, case when p_metodo_pago = 'stripe' then 'pendiente' else 'no_aplica' end
   ) returning id into v_id;
 
   return v_id;
 end;
 $$;
+
+-- Consulta de un pedido por su Stripe Checkout Session id, usada por la
+-- página de confirmación tras el redirect de pago (sin login: el session id
+-- de Stripe es impredecible y funciona como token de acceso, igual que
+-- confirm_token/baja_token en newsletter_subscribers).
+create or replace function public.get_pedido_by_stripe_session(p_session_id text)
+returns setof pedidos
+language sql stable security definer set search_path = public
+as $$
+  select * from public.pedidos where stripe_session_id = p_session_id limit 1;
+$$;
+
+revoke all on function public.get_pedido_by_stripe_session(text) from public;
+grant execute on function public.get_pedido_by_stripe_session(text) to anon, authenticated;
 
 -- Historial de pedidos por dispositivo, sin login. device_id es un
 -- UUID aleatorio generado en el navegador (localStorage + cookie) que
