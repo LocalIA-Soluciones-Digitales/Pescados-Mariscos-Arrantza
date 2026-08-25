@@ -23,13 +23,31 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 const CALLMEBOT_APIKEY = Deno.env.get('CALLMEBOT_APIKEY') ?? '';
 const CALLMEBOT_PHONE = Deno.env.get('CALLMEBOT_PHONE') ?? '34619609888';
-const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://arrantza.es';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+// Lista separada por comas de orígenes permitidos — por defecto cubre
+// arrantza.es y el dominio de Vercel mientras el propio no esté conectado
+// (ver mismo mecanismo en crear-sesion-pago-stripe).
+const ALLOWED_ORIGINS = (
+  Deno.env.get('ALLOWED_ORIGIN') ??
+  'https://arrantza.es,https://www.arrantza.es,https://pescados-mariscos-arrantza-main.vercel.app'
+)
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+function resolveOrigin(req: Request): string {
+  const origin = req.headers.get('Origin') ?? '';
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+}
+
+function corsHeadersFor(req: Request) {
+  return {
+    'Access-Control-Allow-Origin': resolveOrigin(req),
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  };
+}
 
 interface CartItemInput {
   productId: string;
@@ -79,7 +97,7 @@ function formatPrice(n: number): string {
   return `${n.toFixed(2)} €`;
 }
 
-function jsonResponse(body: unknown, status = 200) {
+function jsonResponse(body: unknown, corsHeaders: Record<string, string>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -98,23 +116,25 @@ async function enviarAvisoWhatsApp(mensaje: string): Promise<boolean> {
 }
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = corsHeadersFor(req);
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
   if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method not allowed' }, 405);
+    return jsonResponse({ error: 'Method not allowed' }, corsHeaders, 405);
   }
 
   let body: RequestBody;
   try {
     body = await req.json();
   } catch {
-    return jsonResponse({ error: 'JSON inválido' }, 400);
+    return jsonResponse({ error: 'JSON inválido' }, corsHeaders, 400);
   }
 
   const { siteKey, items, customer, deviceId } = body;
   if (!siteKey || !Array.isArray(items) || items.length === 0 || !customer) {
-    return jsonResponse({ error: 'Pedido incompleto' }, 400);
+    return jsonResponse({ error: 'Pedido incompleto' }, corsHeaders, 400);
   }
 
   const productosRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_productos_publico`, {
@@ -127,7 +147,7 @@ Deno.serve(async (req: Request) => {
     body: JSON.stringify({ p_site_key: siteKey }),
   });
   if (!productosRes.ok) {
-    return jsonResponse({ error: 'No se pudo validar el catálogo' }, 502);
+    return jsonResponse({ error: 'No se pudo validar el catálogo' }, corsHeaders, 502);
   }
   const productos = (await productosRes.json()) as Producto[];
   const productMap = new Map(productos.map((p) => [p.id, p]));
@@ -142,7 +162,7 @@ Deno.serve(async (req: Request) => {
     lineasPedido.push({ nombre: producto.nombre_es, kg: item.kg, subtotal });
   }
   if (lineasPedido.length === 0) {
-    return jsonResponse({ error: 'El carrito no tiene productos válidos' }, 400);
+    return jsonResponse({ error: 'El carrito no tiene productos válidos' }, corsHeaders, 400);
   }
 
   const deliveryCost = customer.deliveryMethod === 'home' ? DELIVERY_COST_EUR : 0;
@@ -186,7 +206,7 @@ Deno.serve(async (req: Request) => {
   });
   if (!crearPedidoRes.ok) {
     const detail = await crearPedidoRes.text();
-    return jsonResponse({ error: 'No se pudo registrar el pedido', detail }, 502);
+    return jsonResponse({ error: 'No se pudo registrar el pedido', detail }, corsHeaders, 502);
   }
 
   const isHomeDelivery = customer.deliveryMethod === 'home';
@@ -207,5 +227,5 @@ Deno.serve(async (req: Request) => {
 
   const whatsappSent = await enviarAvisoWhatsApp(mensaje);
 
-  return jsonResponse({ whatsappSent, importeEstimado });
+  return jsonResponse({ whatsappSent, importeEstimado }, corsHeaders);
 });
