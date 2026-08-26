@@ -50,6 +50,45 @@ function formatFecha(iso: string | null): string {
   return `${d}/${m}/${y}`;
 }
 
+// Fecha larga en español para las cabeceras de grupo, p.ej. "Lunes, 10 de agosto".
+function formatFechaLarga(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const texto = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+// Días de diferencia entre hoy y la fecha deseada, para destacar visualmente
+// qué día de recogida es más urgente (el pescadero compra el mismo día).
+function diasHasta(iso: string): number {
+  const [y, m, d] = iso.split('-').map(Number);
+  const target = new Date(y, m - 1, d);
+  target.setHours(0, 0, 0, 0);
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - hoy.getTime()) / 86_400_000);
+}
+
+function EtiquetaUrgencia({ fecha }: { fecha: string }) {
+  const dias = diasHasta(fecha);
+  let texto: string;
+  let estilo: string;
+  if (dias < 0) {
+    texto = 'Vencido';
+    estilo = 'bg-red-100/80 text-red-700';
+  } else if (dias === 0) {
+    texto = 'Hoy';
+    estilo = 'bg-red-100/80 text-red-700';
+  } else if (dias === 1) {
+    texto = 'Mañana';
+    estilo = 'bg-amber-100/80 text-amber-700';
+  } else {
+    texto = `En ${dias} días`;
+    estilo = 'bg-background-200/70 text-foreground-500';
+  }
+  return <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${estilo}`}>{texto}</span>;
+}
+
 function formatKg(n: number): string {
   const rounded = Math.round(n * 100) / 100;
   return `${rounded} kg`;
@@ -177,6 +216,57 @@ function ResumenRowCard({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Resumen agrupado por día de recogida — lo primero que mira el      */
+/*  pescadero: qué tiene que comprar HOY en la lonja, no la suma de    */
+/*  todo el pescado de la campaña mezclado entre fechas distintas.     */
+/* ------------------------------------------------------------------ */
+interface ResumenFechaGroup {
+  key: string;
+  fecha: string | null;
+  clientes: number;
+  totalKg: number;
+  productos: ResumenRow[];
+}
+
+function ResumenFechaCard({ grupo }: { grupo: ResumenFechaGroup }) {
+  return (
+    <div className="bg-background-50 border border-background-200/70 rounded-xl shadow-card p-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <i className="ri-calendar-check-line text-primary-600"></i>
+          <h4 className="text-sm font-heading font-semibold text-foreground-950">
+            {grupo.fecha ? formatFechaLarga(grupo.fecha) : 'Sin fecha indicada'}
+          </h4>
+          {grupo.fecha && <EtiquetaUrgencia fecha={grupo.fecha} />}
+        </div>
+        <p className="text-xs text-foreground-400">
+          {grupo.clientes} cliente{grupo.clientes === 1 ? '' : 's'} · {formatKg(grupo.totalKg)} en total
+        </p>
+      </div>
+
+      <div className="divide-y divide-background-200/50">
+        {grupo.productos.map((row) => {
+          const completo = row.pendiente <= 0 && row.reservado > 0;
+          return (
+            <div key={row.key} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
+              <p className="text-sm text-foreground-800 truncate">{row.nombre}</p>
+              <div className="text-right flex-shrink-0">
+                <p className={`text-sm font-bold tabular-nums ${completo ? 'text-emerald-600' : 'text-foreground-950'}`}>
+                  {completo ? '✓ Entregado' : formatKg(row.pendiente)}
+                </p>
+                {!completo && row.entregado > 0 && (
+                  <p className="text-[10px] text-foreground-400">de {formatKg(row.reservado)} reservado</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -409,6 +499,75 @@ export default function ReservasPanel() {
       .sort((a, b) => b.pendiente - a.pendiente || b.reservado - a.reservado || a.nombre.localeCompare(b.nombre, 'es'));
   }, [reservasDelEvento, ajustesDelEvento]);
 
+  // Mismo cálculo que `resumen`, pero agrupado primero por fecha_deseada:
+  // sumar el bacalao de dos clientes que lo recogen en días distintos no
+  // sirve de nada, el pescadero compra en la lonja el mismo día que se recoge.
+  const resumenPorFecha = useMemo<ResumenFechaGroup[]>(() => {
+    const map = new Map<string, { fecha: string | null; reservaIds: Set<string>; productos: Map<string, ResumenRow> }>();
+    reservasDelEvento
+      .filter((r) => r.estado !== 'cancelada')
+      .forEach((r) => {
+        const groupKey = r.fecha_deseada || '__sin_fecha__';
+        if (!map.has(groupKey)) {
+          map.set(groupKey, { fecha: r.fecha_deseada, reservaIds: new Set(), productos: new Map() });
+        }
+        const group = map.get(groupKey)!;
+        group.reservaIds.add(r.id);
+        r.items.forEach((item) => {
+          const key = item.productoId || item.nombre;
+          const row = group.productos.get(key) ?? {
+            key,
+            nombre: item.nombre,
+            productoId: item.productoId || null,
+            reservado: 0,
+            entregado: 0,
+            pendiente: 0,
+          };
+          row.reservado += item.kg;
+          if (r.estado === 'entregada') row.entregado += item.kg;
+          group.productos.set(key, row);
+        });
+      });
+
+    return Array.from(map.values())
+      .map((g) => {
+        const productos = Array.from(g.productos.values())
+          .map((row) => ({ ...row, pendiente: Math.max(row.reservado - row.entregado, 0) }))
+          .sort((a, b) => b.pendiente - a.pendiente || a.nombre.localeCompare(b.nombre, 'es'));
+        return {
+          key: g.fecha ?? '__sin_fecha__',
+          fecha: g.fecha,
+          clientes: g.reservaIds.size,
+          totalKg: productos.reduce((sum, row) => sum + row.reservado, 0),
+          productos,
+        };
+      })
+      .sort((a, b) => {
+        if (!a.fecha && !b.fecha) return 0;
+        if (!a.fecha) return 1;
+        if (!b.fecha) return -1;
+        return a.fecha.localeCompare(b.fecha);
+      });
+  }, [reservasDelEvento]);
+
+  const visiblesPorFecha = useMemo(() => {
+    const map = new Map<string, Reserva[]>();
+    visibles.forEach((r) => {
+      const key = r.fecha_deseada || '__sin_fecha__';
+      const arr = map.get(key) ?? [];
+      arr.push(r);
+      map.set(key, arr);
+    });
+    return Array.from(map.entries())
+      .map(([key, lista]) => ({ key, fecha: lista[0].fecha_deseada, reservas: lista }))
+      .sort((a, b) => {
+        if (!a.fecha && !b.fecha) return 0;
+        if (!a.fecha) return 1;
+        if (!b.fecha) return -1;
+        return a.fecha.localeCompare(b.fecha);
+      });
+  }, [visibles]);
+
   const totalPendienteKg = useMemo(() => resumen.reduce((sum, r) => sum + r.pendiente, 0), [resumen]);
   const clientesUnicos = useMemo(
     () => new Set(reservasDelEvento.filter((r) => r.estado !== 'cancelada').map((r) => r.cliente_nombre.trim().toLowerCase())).size,
@@ -448,9 +607,9 @@ export default function ReservasPanel() {
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
       <p className="text-xs text-foreground-400 mb-4">
-        Crea una campaña por cada fecha especial (Navidad, Nochevieja...). Los clientes reservan productos y cantidades
-        desde la web para esa fecha; aquí ves cuánto llevas reservado de cada producto, para saber qué pedir en la lonja.
-        Al marcar una reserva como "Entregada" (o registrar una entrega manual) se descuenta automáticamente del pendiente.
+        Crea una campaña por cada fecha especial (Navidad, Nochevieja...). Los clientes reservan productos, cantidades
+        y su día de recogida desde la web; aquí lo ves agrupado por ese día, para saber qué comprar en la lonja cada
+        jornada. Al marcar una reserva como "Entregada" se descuenta automáticamente del pendiente de ese día.
       </p>
 
       {eventos.length === 0 ? (
@@ -553,29 +712,47 @@ export default function ReservasPanel() {
               </div>
 
               {vista === 'resumen' ? (
-                resumen.length === 0 ? (
+                resumenPorFecha.length === 0 ? (
                   <p className="text-sm text-foreground-400 mt-6">Todavía no hay reservas para esta campaña.</p>
                 ) : (
-                  <div className="space-y-2 mt-2">
-                    {resumen.map((row) => (
-                      <ResumenRowCard
-                        key={row.key}
-                        row={row}
-                        ajustes={ajustesDelEvento.filter((a) => (a.producto_id || a.producto_nombre) === row.key)}
-                        onRegistrarEntrega={async (kg) => {
-                          await registrarAjuste({
-                            evento_id: eventoActivo.id,
-                            producto_id: row.productoId,
-                            producto_nombre: row.nombre,
-                            kg,
-                          });
-                        }}
-                        onDeshacerAjuste={async (id) => {
-                          await eliminarAjuste(id);
-                        }}
-                      />
-                    ))}
-                  </div>
+                  <>
+                    <div className="space-y-3 mt-2">
+                      {resumenPorFecha.map((grupo) => (
+                        <ResumenFechaCard key={grupo.key} grupo={grupo} />
+                      ))}
+                    </div>
+
+                    <details className="mt-5 group">
+                      <summary className="cursor-pointer text-xs font-medium text-foreground-500 hover:text-foreground-950 select-none">
+                        <i className="ri-add-box-line mr-1"></i>
+                        Total de toda la campaña y entregas manuales por teléfono
+                      </summary>
+                      <p className="text-[11px] text-foreground-400 mt-2 mb-2">
+                        Vista agregada de todas las fechas juntas — útil solo para registrar una entrega que no está
+                        ligada a ninguna reserva concreta (p. ej. gestionada por teléfono).
+                      </p>
+                      <div className="space-y-2">
+                        {resumen.map((row) => (
+                          <ResumenRowCard
+                            key={row.key}
+                            row={row}
+                            ajustes={ajustesDelEvento.filter((a) => (a.producto_id || a.producto_nombre) === row.key)}
+                            onRegistrarEntrega={async (kg) => {
+                              await registrarAjuste({
+                                evento_id: eventoActivo.id,
+                                producto_id: row.productoId,
+                                producto_nombre: row.nombre,
+                                kg,
+                              });
+                            }}
+                            onDeshacerAjuste={async (id) => {
+                              await eliminarAjuste(id);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </details>
+                  </>
                 )
               ) : (
                 <>
@@ -611,9 +788,25 @@ export default function ReservasPanel() {
                   {visibles.length === 0 ? (
                     <p className="text-sm text-foreground-400">No hay reservas que coincidan con el filtro.</p>
                   ) : (
-                    <div className="space-y-2">
-                      {visibles.map((reserva) => (
-                        <ReservaCard key={reserva.id} reserva={reserva} onSetEstado={setEstado} onDelete={deleteReserva} />
+                    <div className="space-y-4">
+                      {visiblesPorFecha.map((grupo) => (
+                        <div key={grupo.key}>
+                          <div className="flex items-center gap-2 flex-wrap mb-2">
+                            <i className="ri-calendar-check-line text-primary-600 text-sm"></i>
+                            <h4 className="text-xs font-semibold text-foreground-700">
+                              {grupo.fecha ? formatFechaLarga(grupo.fecha) : 'Sin fecha indicada'}
+                            </h4>
+                            {grupo.fecha && <EtiquetaUrgencia fecha={grupo.fecha} />}
+                            <span className="text-[10px] text-foreground-400">
+                              {grupo.reservas.length} reserva{grupo.reservas.length === 1 ? '' : 's'}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {grupo.reservas.map((reserva) => (
+                              <ReservaCard key={reserva.id} reserva={reserva} onSetEstado={setEstado} onDelete={deleteReserva} />
+                            ))}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   )}
