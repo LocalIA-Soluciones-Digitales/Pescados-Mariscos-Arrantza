@@ -69,24 +69,19 @@ function diasHasta(iso: string): number {
   return Math.round((target.getTime() - hoy.getTime()) / 86_400_000);
 }
 
-function EtiquetaUrgencia({ fecha }: { fecha: string }) {
+// Centraliza el texto y los colores de urgencia para reutilizarlos tanto en
+// la insignia como en el acento de la cabecera del día (icono).
+function urgenciaInfo(fecha: string): { texto: string; badge: string; acento: string } {
   const dias = diasHasta(fecha);
-  let texto: string;
-  let estilo: string;
-  if (dias < 0) {
-    texto = 'Vencido';
-    estilo = 'bg-red-100/80 text-red-700';
-  } else if (dias === 0) {
-    texto = 'Hoy';
-    estilo = 'bg-red-100/80 text-red-700';
-  } else if (dias === 1) {
-    texto = 'Mañana';
-    estilo = 'bg-amber-100/80 text-amber-700';
-  } else {
-    texto = `En ${dias} días`;
-    estilo = 'bg-background-200/70 text-foreground-500';
-  }
-  return <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${estilo}`}>{texto}</span>;
+  if (dias < 0) return { texto: 'Vencido', badge: 'bg-red-100/80 text-red-700', acento: 'bg-red-500' };
+  if (dias === 0) return { texto: 'Hoy', badge: 'bg-red-100/80 text-red-700', acento: 'bg-red-500' };
+  if (dias === 1) return { texto: 'Mañana', badge: 'bg-amber-100/80 text-amber-700', acento: 'bg-amber-500' };
+  return { texto: `En ${dias} días`, badge: 'bg-background-200/70 text-foreground-500', acento: 'bg-foreground-300' };
+}
+
+function EtiquetaUrgencia({ fecha }: { fecha: string }) {
+  const { texto, badge } = urgenciaInfo(fecha);
+  return <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${badge}`}>{texto}</span>;
 }
 
 function PedidoCard({
@@ -276,26 +271,33 @@ export default function PedidosPanel() {
       ) : visibles.length === 0 ? (
         <p className="text-sm text-foreground-400">No hay pedidos que coincidan con el filtro.</p>
       ) : (
-        <div className="space-y-4">
-          {visiblesPorFecha.map((grupo) => (
-            <div key={grupo.key}>
-              <div className="flex items-center gap-2 flex-wrap mb-2">
-                <i className="ri-calendar-check-line text-primary-600 text-sm"></i>
-                <h4 className="text-xs font-semibold text-foreground-700">
-                  {grupo.fecha ? formatFechaLarga(grupo.fecha) : 'Sin fecha indicada'}
-                </h4>
-                {grupo.fecha && <EtiquetaUrgencia fecha={grupo.fecha} />}
-                <span className="text-[10px] text-foreground-400">
-                  {grupo.pedidos.length} pedido{grupo.pedidos.length === 1 ? '' : 's'}
-                </span>
+        <div className="space-y-5">
+          {visiblesPorFecha.map((grupo) => {
+            const urgencia = grupo.fecha ? urgenciaInfo(grupo.fecha) : null;
+            return (
+              <div key={grupo.key} className="rounded-2xl border border-background-200/70 bg-background-100/50 p-2.5 md:p-3">
+                <div className="flex items-center gap-2.5 flex-wrap mb-2.5 px-1 py-1">
+                  <span
+                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-background-50 ${urgencia?.acento ?? 'bg-primary-500'}`}
+                  >
+                    <i className="ri-calendar-check-line text-sm"></i>
+                  </span>
+                  <h4 className="text-sm md:text-base font-heading font-bold text-foreground-950">
+                    {grupo.fecha ? formatFechaLarga(grupo.fecha) : 'Sin fecha indicada'}
+                  </h4>
+                  {grupo.fecha && <EtiquetaUrgencia fecha={grupo.fecha} />}
+                  <span className="text-[11px] font-medium text-foreground-500 ml-auto">
+                    {grupo.pedidos.length} pedido{grupo.pedidos.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {grupo.pedidos.map((pedido) => (
+                    <PedidoCard key={pedido.id} pedido={pedido} onSetEstado={setEstado} onSetEstadoPago={setEstadoPago} onDelete={deletePedido} />
+                  ))}
+                </div>
               </div>
-              <div className="space-y-2">
-                {grupo.pedidos.map((pedido) => (
-                  <PedidoCard key={pedido.id} pedido={pedido} onSetEstado={setEstado} onSetEstadoPago={setEstadoPago} onDelete={deletePedido} />
-                ))}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
