@@ -50,6 +50,45 @@ function formatPrecio(n: number | null): string {
   return `${n.toFixed(2)} €`;
 }
 
+// Fecha larga en español para las cabeceras de grupo, p.ej. "Lunes, 10 de agosto".
+function formatFechaLarga(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const texto = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+// Días de diferencia entre hoy y la fecha preferida, para destacar visualmente
+// qué pedidos son más urgentes de preparar.
+function diasHasta(iso: string): number {
+  const [y, m, d] = iso.split('-').map(Number);
+  const target = new Date(y, m - 1, d);
+  target.setHours(0, 0, 0, 0);
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - hoy.getTime()) / 86_400_000);
+}
+
+function EtiquetaUrgencia({ fecha }: { fecha: string }) {
+  const dias = diasHasta(fecha);
+  let texto: string;
+  let estilo: string;
+  if (dias < 0) {
+    texto = 'Vencido';
+    estilo = 'bg-red-100/80 text-red-700';
+  } else if (dias === 0) {
+    texto = 'Hoy';
+    estilo = 'bg-red-100/80 text-red-700';
+  } else if (dias === 1) {
+    texto = 'Mañana';
+    estilo = 'bg-amber-100/80 text-amber-700';
+  } else {
+    texto = `En ${dias} días`;
+    estilo = 'bg-background-200/70 text-foreground-500';
+  }
+  return <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${estilo}`}>{texto}</span>;
+}
+
 function PedidoCard({
   pedido,
   onSetEstado,
@@ -73,10 +112,16 @@ function PedidoCard({
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${ESTADO_STYLES[pedido.estado]}`}>
               {ESTADO_LABELS[pedido.estado]}
             </span>
-            <span className="text-[10px] text-foreground-400">{new Date(pedido.created_at).toLocaleString('es-ES')}</span>
+            {pedido.hora_preferida && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary-100/70 text-primary-700">
+                <i className="ri-time-line"></i>
+                {pedido.hora_preferida}
+              </span>
+            )}
             <span className="text-[10px] text-foreground-400">
               {pedido.metodo_entrega === 'home' ? 'A domicilio' : 'Recogida en tienda'}
             </span>
+            <span className="text-[10px] text-foreground-400">Pedido: {new Date(pedido.created_at).toLocaleString('es-ES')}</span>
             {pedido.estado_pago !== 'no_aplica' && (
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${ESTADO_PAGO_STYLES[pedido.estado_pago]}`}>
                 {ESTADO_PAGO_LABELS[pedido.estado_pago]}
@@ -112,11 +157,6 @@ function PedidoCard({
           {pedido.metodo_entrega === 'home' && (
             <p className="text-xs text-foreground-500 mt-1">
               {pedido.cliente_direccion}, {pedido.cliente_ciudad} {pedido.cliente_cp}
-            </p>
-          )}
-          {(pedido.fecha_preferida || pedido.hora_preferida) && (
-            <p className="text-xs text-foreground-500">
-              Preferencia: {pedido.fecha_preferida} {pedido.hora_preferida}
             </p>
           )}
         </div>
@@ -191,6 +231,26 @@ export default function PedidosPanel() {
     [pedidos, filtro],
   );
 
+  // Agrupar por fecha preferida de recogida/entrega, igual que en Reservas,
+  // para ver de un vistazo qué hay que preparar cada día.
+  const visiblesPorFecha = useMemo(() => {
+    const map = new Map<string, Pedido[]>();
+    visibles.forEach((p) => {
+      const key = p.fecha_preferida || '__sin_fecha__';
+      const arr = map.get(key) ?? [];
+      arr.push(p);
+      map.set(key, arr);
+    });
+    return Array.from(map.entries())
+      .map(([key, lista]) => ({ key, fecha: lista[0].fecha_preferida, pedidos: lista }))
+      .sort((a, b) => {
+        if (!a.fecha && !b.fecha) return 0;
+        if (!a.fecha) return 1;
+        if (!b.fecha) return -1;
+        return a.fecha.localeCompare(b.fecha);
+      });
+  }, [visibles]);
+
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide mb-4">
@@ -216,9 +276,25 @@ export default function PedidosPanel() {
       ) : visibles.length === 0 ? (
         <p className="text-sm text-foreground-400">No hay pedidos que coincidan con el filtro.</p>
       ) : (
-        <div className="space-y-2">
-          {visibles.map((pedido) => (
-            <PedidoCard key={pedido.id} pedido={pedido} onSetEstado={setEstado} onSetEstadoPago={setEstadoPago} onDelete={deletePedido} />
+        <div className="space-y-4">
+          {visiblesPorFecha.map((grupo) => (
+            <div key={grupo.key}>
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <i className="ri-calendar-check-line text-primary-600 text-sm"></i>
+                <h4 className="text-xs font-semibold text-foreground-700">
+                  {grupo.fecha ? formatFechaLarga(grupo.fecha) : 'Sin fecha indicada'}
+                </h4>
+                {grupo.fecha && <EtiquetaUrgencia fecha={grupo.fecha} />}
+                <span className="text-[10px] text-foreground-400">
+                  {grupo.pedidos.length} pedido{grupo.pedidos.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {grupo.pedidos.map((pedido) => (
+                  <PedidoCard key={pedido.id} pedido={pedido} onSetEstado={setEstado} onSetEstadoPago={setEstadoPago} onDelete={deletePedido} />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
