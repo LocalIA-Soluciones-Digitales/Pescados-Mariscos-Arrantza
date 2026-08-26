@@ -83,7 +83,7 @@ export default function Hero() {
         <div className="max-w-[800px] w-full flex flex-col items-center text-center">
 
           {/* ── 1. Title ── */}
-          <h1 className="animate-fade-up-1 opacity-0 text-3xl md:text-5xl lg:text-7xl font-heading font-semibold text-background-50 leading-[1.08] md:leading-[1.06] text-balance mb-4 md:mb-5 tracking-tight">
+          <h1 className="animate-fade-up-1 opacity-0 text-3xl md:text-5xl lg:text-7xl font-heading font-semibold text-yellow-400 leading-[1.08] md:leading-[1.06] text-balance mb-4 md:mb-5 tracking-tight">
             {(() => {
               const [first, ...rest] = t('hero.title').split(', ');
               return (
