@@ -10,13 +10,23 @@ export function useRealtimeTable(table: string, onChange: () => void) {
   onChangeRef.current = onChange;
 
   useEffect(() => {
-    const channel = supabase
-      .channel(`admin-${table}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table }, () => onChangeRef.current())
-      .subscribe();
+    // supabase-js puede lanzar de forma síncrona al abrir el WebSocket (p.ej.
+    // "WebSocket not available: The operation is insecure." en navegadores o
+    // redes que lo bloquean). Sin este try/catch, ese fallo tumba TODA la app
+    // vía el ErrorBoundary global en vez de limitarse a desactivar el
+    // autorefresco en vivo de este panel.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel(`admin-${table}-${Math.random().toString(36).slice(2)}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table }, () => onChangeRef.current())
+        .subscribe();
+    } catch (error) {
+      console.error(`No se pudo suscribir a cambios en tiempo real de "${table}":`, error);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
     };
   }, [table]);
 }
