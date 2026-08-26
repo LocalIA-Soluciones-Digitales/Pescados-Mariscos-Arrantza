@@ -70,13 +70,13 @@ export default function ReservasPopup() {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`relative w-full sm:max-w-md bg-background-50 rounded-2xl shadow-2xl overflow-hidden transition-all duration-200 ${
+        className={`relative w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-background-50 rounded-2xl shadow-2xl overflow-hidden transition-all duration-200 ${
           entered ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-3 scale-95'
         }`}
       >
-        <div className="relative overflow-hidden bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 px-6 pt-6 pb-7 sm:px-8 sm:pt-7 sm:pb-8">
-          <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-accent-400/20 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-16 -left-10 w-40 h-40 rounded-full bg-primary-300/10 blur-3xl pointer-events-none" />
+        <div className="relative overflow-hidden bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 px-6 pt-6 pb-7 sm:px-8 sm:pt-7 sm:pb-8 lg:px-11 lg:pt-10 lg:pb-11">
+          <div className="absolute -top-10 -right-10 w-40 h-40 lg:w-56 lg:h-56 rounded-full bg-accent-400/20 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-16 -left-10 w-40 h-40 lg:w-56 lg:h-56 rounded-full bg-primary-300/10 blur-3xl pointer-events-none" />
           <div
             className="absolute inset-0 opacity-[0.05] pointer-events-none"
             style={{
@@ -88,34 +88,34 @@ export default function ReservasPopup() {
             type="button"
             onClick={close}
             aria-label={t('reservas.popup_close')}
-            className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-full text-background-50/70 hover:text-background-50 hover:bg-background-50/10 transition-colors cursor-pointer"
+            className="absolute top-3 right-3 lg:top-4 lg:right-4 z-10 w-8 h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full text-background-50/70 hover:text-background-50 hover:bg-background-50/10 transition-colors cursor-pointer"
           >
-            <i className="ri-close-line text-xl"></i>
+            <i className="ri-close-line text-xl lg:text-2xl"></i>
           </button>
 
           <div className="relative z-10">
-            <span className="w-11 h-11 flex items-center justify-center rounded-full bg-background-50/10 ring-1 ring-background-50/15 text-accent-300 text-lg mb-4">
+            <span className="w-11 h-11 lg:w-14 lg:h-14 flex items-center justify-center rounded-full bg-background-50/10 ring-1 ring-background-50/15 text-accent-300 text-lg lg:text-2xl mb-4 lg:mb-5">
               <i className="ri-calendar-event-line"></i>
             </span>
-            <span className="text-[10px] sm:text-xs uppercase tracking-[0.2em] text-accent-300 mb-2 inline-block">
+            <span className="text-[10px] sm:text-xs lg:text-sm uppercase tracking-[0.2em] text-accent-300 mb-2 inline-block">
               {t('reservas.hero_label')}
             </span>
-            <h2 className="font-heading text-xl sm:text-2xl font-semibold text-background-50 leading-[1.2] pr-8">
+            <h2 className="font-heading text-xl sm:text-2xl lg:text-3xl font-semibold text-background-50 leading-[1.2] pr-8 lg:pr-10">
               {t('reservas.popup_title', { evento: eventoNombre(evento.nombre_es, evento.nombre_eu, i18n.language) })}
             </h2>
           </div>
         </div>
 
-        <div className="px-6 py-6 sm:px-8 sm:py-7">
-          <p className="text-sm text-foreground-950/70 leading-relaxed mb-4">{t('reservas.popup_body')}</p>
+        <div className="px-6 py-6 sm:px-8 sm:py-7 lg:px-11 lg:py-9">
+          <p className="text-sm lg:text-base text-foreground-950/70 leading-relaxed mb-4 lg:mb-5">{t('reservas.popup_body')}</p>
 
-          <div className="flex flex-wrap items-center gap-2 mb-6">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background-100 text-foreground-700 text-xs font-medium">
+          <div className="flex flex-wrap items-center gap-2 lg:gap-3 mb-6 lg:mb-8">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 lg:px-4 lg:py-2 rounded-full bg-background-100 text-foreground-700 text-xs lg:text-sm font-medium">
               <i className="ri-calendar-check-line"></i>
               {formatFecha(evento.fecha_entrega, i18n.language)}
             </span>
             {dias !== null && dias >= 0 && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent-100 text-accent-700 text-xs font-semibold">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 lg:px-4 lg:py-2 rounded-full bg-accent-100 text-accent-700 text-xs lg:text-sm font-semibold">
                 <i className="ri-time-line"></i>
                 {dias === 0
                   ? t('reservas.popup_urgency_today')
@@ -126,11 +126,11 @@ export default function ReservasPopup() {
             )}
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2.5">
+          <div className="flex flex-col sm:flex-row gap-2.5 lg:gap-3">
             <Link
               to="/reservas"
               onClick={close}
-              className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary-500 text-background-50 text-sm font-semibold hover:bg-primary-600 transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 lg:px-7 lg:py-3.5 rounded-full bg-primary-500 text-background-50 text-sm lg:text-base font-semibold hover:bg-primary-600 transition-colors"
             >
               <i className="ri-calendar-check-line"></i>
               {t('reservas.reserve_now')}
@@ -138,7 +138,7 @@ export default function ReservasPopup() {
             <button
               type="button"
               onClick={close}
-              className="px-6 py-3 rounded-full text-sm font-medium border border-background-200 text-foreground-950/70 hover:bg-background-100 transition-colors cursor-pointer"
+              className="px-6 py-3 lg:px-7 lg:py-3.5 rounded-full text-sm lg:text-base font-medium border border-background-200 text-foreground-950/70 hover:bg-background-100 transition-colors cursor-pointer"
             >
               {t('reservas.popup_dismiss')}
             </button>
