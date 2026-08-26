@@ -444,6 +444,7 @@ export default function Reservas() {
                         type="date"
                         value={fechaDeseada}
                         min={evento.fecha_entrega}
+                        max={evento.fecha_limite ?? undefined}
                         onChange={(e) => setFechaDeseada(e.target.value)}
                         className="w-full px-3 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm focus:outline-none focus:border-foreground-300/60"
                       />
