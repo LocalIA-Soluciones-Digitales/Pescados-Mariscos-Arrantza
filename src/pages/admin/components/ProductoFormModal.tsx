@@ -11,6 +11,7 @@ const CATEGORIAS: { value: ProductoCategoria; label: string }[] = [
   { value: 'especial', label: 'Especial' },
   { value: 'raciones', label: 'Raciones' },
   { value: 'marisco', label: 'Marisco' },
+  { value: 'congelados', label: 'Congelados' },
 ];
 
 const SUBCATEGORIAS: { value: string; label: string }[] = [

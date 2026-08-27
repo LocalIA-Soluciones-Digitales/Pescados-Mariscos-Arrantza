@@ -24,6 +24,7 @@ type CategoryFilter =
   | 'especial'
   | 'raciones'
   | 'marisco'
+  | 'congelados'
   | 'suministro'
   | 'azul'
   | 'blanco'
@@ -42,6 +43,7 @@ const categories: { key: CategoryFilter; labelKey: string }[] = [
   { key: 'especial', labelKey: 'products.filter_special' },
   { key: 'raciones', labelKey: 'products.filter_portions' },
   { key: 'marisco', labelKey: 'products.filter_seafood' },
+  { key: 'congelados', labelKey: 'products.filter_frozen' },
   { key: 'suministro', labelKey: 'products.filter_suministro' },
   { key: 'azul', labelKey: 'products.filter_blue_fish' },
   { key: 'blanco', labelKey: 'products.filter_white_fish' },
@@ -60,7 +62,7 @@ const alwaysVisibleFilters: CategoryFilter[] = ['todos', 'agotado'];
 /* ------------------------------------------------------------------ */
 function computeCategoryCounts(productos: Producto[]): Record<CategoryFilter, number> {
   const counts: Partial<Record<CategoryFilter, number>> = {};
-  const mainCats = ['pescado', 'especial', 'raciones', 'marisco'] as CategoryFilter[];
+  const mainCats = ['pescado', 'especial', 'raciones', 'marisco', 'congelados'] as CategoryFilter[];
 
   counts.todos = productos.length;
   counts.agotado = productos.filter((p) => !p.disponible).length;
@@ -482,6 +484,7 @@ function StickyToolbar({
                     {renderChip('todos')}
                     {visibleKeys.has('especial') && renderChip('especial')}
                     {visibleKeys.has('raciones') && renderChip('raciones')}
+                    {visibleKeys.has('congelados') && renderChip('congelados')}
                     {visibleKeys.has('suministro') && renderChip('suministro')}
                   </div>
 
@@ -1362,7 +1365,7 @@ export default function Productos() {
     if (activeCategory === 'agotado') {
       result = result.filter(p => !p.disponible);
     } else if (activeCategory !== 'todos') {
-      const mainCategories = ['pescado', 'especial', 'raciones', 'marisco'];
+      const mainCategories = ['pescado', 'especial', 'raciones', 'marisco', 'congelados'];
       if (mainCategories.includes(activeCategory)) {
         result = result.filter(p => p.categoria === activeCategory);
       } else {

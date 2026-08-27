@@ -1,4 +1,4 @@
-export type ProductoCategoria = 'pescado' | 'especial' | 'raciones' | 'marisco';
+export type ProductoCategoria = 'pescado' | 'especial' | 'raciones' | 'marisco' | 'congelados';
 export type ProductoEstado = 'available' | 'new' | 'premium' | 'seasonal';
 
 export interface Producto {

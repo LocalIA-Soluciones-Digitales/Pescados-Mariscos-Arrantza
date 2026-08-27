@@ -112,6 +112,7 @@ const common = {
   "products.filter_specialties": "Especialidades",
   "products.filter_special": "Especial",
   "products.filter_portions": "Raciones",
+  "products.filter_frozen": "Congelados",
   "products.filter_blue_fish": "Pescado Azul",
   "products.filter_white_fish": "Pescado Blanco",
   "products.filter_cephalopods": "Cefalópodos",

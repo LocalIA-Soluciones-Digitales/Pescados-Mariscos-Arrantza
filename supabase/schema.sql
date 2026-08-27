@@ -83,7 +83,7 @@ create table if not exists public.productos (
   origen_es text,
   origen_eu text,
   precio text not null,
-  categoria text not null check (categoria in ('pescado', 'especial', 'raciones', 'marisco')),
+  categoria text not null check (categoria in ('pescado', 'especial', 'raciones', 'marisco', 'congelados')),
   subcategoria text,
   imagen_url text,
   estado text not null default 'available' check (estado in ('available', 'new', 'premium', 'seasonal')),

@@ -37,6 +37,7 @@ const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categor
   { value: 'especial', label: 'Especial', tipo: 'categoria' },
   { value: 'raciones', label: 'Raciones', tipo: 'categoria' },
   { value: 'marisco', label: 'Marisco', tipo: 'categoria' },
+  { value: 'congelados', label: 'Congelados', tipo: 'categoria' },
   { value: 'azul', label: 'Pescado Azul', tipo: 'subcategoria' },
   { value: 'blanco', label: 'Pescado Blanco', tipo: 'subcategoria' },
   { value: 'cefalopodos', label: 'Cefalópodos', tipo: 'subcategoria' },
