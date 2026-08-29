@@ -13,6 +13,7 @@ export async function crearSesionPagoStripe(
   items: CartItem[],
   customer: CartCustomerInfo,
   deviceId: string,
+  metodoPago: 'card' | 'bizum' = 'card',
 ): Promise<string> {
   const { data, error } = await supabase.functions.invoke<CrearSesionPagoResult>('crear-sesion-pago-stripe', {
     body: {
@@ -25,11 +26,12 @@ export async function crearSesionPagoStripe(
       })),
       customer,
       deviceId,
+      metodoPago,
     },
   });
 
   if (error || !data?.url) {
-    throw new Error('No se pudo iniciar el pago con tarjeta');
+    throw new Error(metodoPago === 'bizum' ? 'No se pudo iniciar el pago con Bizum' : 'No se pudo iniciar el pago con tarjeta');
   }
 
   return data.url;

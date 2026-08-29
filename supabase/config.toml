@@ -12,6 +12,3 @@ verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
-
-[functions.crear-pedido-bizum]
-verify_jwt = false

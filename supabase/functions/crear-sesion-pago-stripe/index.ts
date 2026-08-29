@@ -1,8 +1,11 @@
 // Crea un pedido "pendiente de pago" y una Stripe Checkout Session para
-// cobrar tarjeta (y, si el dominio está verificado en el Dashboard de
-// Stripe, Apple Pay / Google Pay automáticamente) desde el carrito de la
-// web. Llamada por el frontend vía supabase.functions.invoke — no requiere
-// sesión de usuario, igual que crear_pedido.
+// cobrar tarjeta o Bizum (y, si el dominio está verificado / el wallet está
+// activado en el Dashboard de Stripe, Apple Pay / Google Pay automáticamente
+// en el caso de tarjeta) desde el carrito de la web. Llamada por el frontend
+// vía supabase.functions.invoke — no requiere sesión de usuario, igual que
+// crear_pedido. El método concreto (tarjeta o Bizum) lo elige el cliente con
+// el botón que pulsa; ambos pasan por Stripe, así que el webhook confirma el
+// pago igual en los dos casos.
 //
 // Secretos requeridos (supabase secrets set ...):
 //   STRIPE_SECRET_KEY   — clave secreta de la cuenta de Stripe (sk_live_/sk_test_)
@@ -73,6 +76,7 @@ interface RequestBody {
   items: CartItemInput[];
   customer: CustomerInput;
   deviceId: string;
+  metodoPago?: 'card' | 'bizum';
 }
 
 interface Producto {
@@ -120,7 +124,7 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'JSON inválido' }, corsHeaders, 400);
   }
 
-  const { siteKey, items, customer, deviceId } = body;
+  const { siteKey, items, customer, deviceId, metodoPago = 'card' } = body;
   if (!siteKey || !Array.isArray(items) || items.length === 0 || !customer) {
     return jsonResponse({ error: 'Pedido incompleto' }, corsHeaders, 400);
   }
@@ -210,7 +214,7 @@ Deno.serve(async (req: Request) => {
   params.set('metadata[pedido_id]', pedidoId);
   params.set('locale', 'es');
   if (customer.email) params.set('customer_email', customer.email);
-  params.append('payment_method_types[0]', 'card');
+  params.append('payment_method_types[0]', metodoPago === 'bizum' ? 'bizum' : 'card');
 
   lineItems.forEach((li, idx) => {
     params.set(`line_items[${idx}][quantity]`, '1');

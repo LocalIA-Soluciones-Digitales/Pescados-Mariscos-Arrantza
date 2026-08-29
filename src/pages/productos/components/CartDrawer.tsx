@@ -12,7 +12,6 @@ import { logConversion } from '@/lib/visitLog';
 import { logPedido } from '@/lib/pedidosLog';
 import { getDeviceId } from '@/lib/deviceId';
 import { crearSesionPagoStripe } from '@/lib/pagoStripe';
-import { crearPedidoBizum } from '@/lib/pedidoBizum';
 
 /* ------------------------------------------------------------------ */
 /*  Badge style — same muted palette as catalogue                     */
@@ -74,9 +73,8 @@ function generateWhatsAppMessage(params: {
   getProductName: (productId: string) => string;
   getPreparationLabel: (prep: string) => string;
   productMap: Map<string, Producto>;
-  metodoPago?: 'whatsapp' | 'bizum';
 }): string {
-  const { customer, items, totalProducts, totalWeight, subTotalAmount, deliveryCost, getProductName, getPreparationLabel, productMap, metodoPago } = params;
+  const { customer, items, totalProducts, totalWeight, subTotalAmount, deliveryCost, getProductName, getPreparationLabel, productMap } = params;
   const sep = '━━━━━━━━━━━━━━━━━━━━━━';
   const isHomeDelivery = customer.deliveryMethod === 'home';
   const finalTotal = subTotalAmount + deliveryCost;
@@ -87,14 +85,6 @@ function generateWhatsAppMessage(params: {
   lines.push('🦞 NUEVO PEDIDO');
   lines.push('');
   lines.push(sep);
-
-  // ══════════════════ PAGO POR BIZUM (si aplica) ══════════════════
-  if (metodoPago === 'bizum') {
-    lines.push('');
-    lines.push('📲 PAGO POR BIZUM — pendiente de confirmar');
-    lines.push(`El cliente va a enviar ${formatPrice(finalTotal)} por Bizum a este número.`);
-    lines.push(sep);
-  }
 
   // ══════════════════ CUSTOMER INFO ══════════════════
   lines.push('');
@@ -250,7 +240,6 @@ const TIME_SLOTS = [
 ] as const;
 
 const DELIVERY_COST = 3.50;
-const BIZUM_PHONE_DISPLAY = '619 60 98 88';
 const BIZUM_PHONE_WA = '34619609888';
 
 /* ------------------------------------------------------------------ */
@@ -581,8 +570,6 @@ export default function CartDrawer({
   const [orderConfirmed, setOrderConfirmed] = useState(false);
   const [payingWithCard, setPayingWithCard] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [bizumConfirmed, setBizumConfirmed] = useState(false);
-  const [bizumAmountToShow, setBizumAmountToShow] = useState<number | null>(null);
   const [payingWithBizum, setPayingWithBizum] = useState(false);
   const [paymentChoice, setPaymentChoice] = useState<'local' | 'online' | null>(null);
   const hasLastOrder = orderHistory.length > 0;
@@ -613,7 +600,6 @@ export default function CartDrawer({
   const handleClose = useCallback(() => {
     setAnimating(false);
     setOrderConfirmed(false);
-    setBizumConfirmed(false);
     setPaymentChoice(null);
     setTimeout(onClose, 200);
   }, [onClose]);
@@ -814,94 +800,23 @@ export default function CartDrawer({
     }
   };
 
-  // Bizum sin comisión: el cliente paga a mano al número del negocio, igual
-  // que hoy por WhatsApp, pero registrado como "pendiente de pago" para que
-  // el pescadero lo marque como pagado desde el panel en cuanto lo reciba.
-  //
-  // El aviso a David intenta salir automático (CallMeBot, vía Edge Function)
-  // para que el cliente no tenga que abrir su WhatsApp y pulsar enviar. Si
-  // eso falla por lo que sea (servicio no configurado, caído, sin red...) se
-  // cae al mismo wa.me manual de siempre — nunca se pierde el aviso.
+  // Bizum vía Stripe Checkout: mismo flujo que la tarjeta (misma Edge
+  // Function, mismo webhook de confirmación), forzando 'bizum' como método
+  // en la sesión. A diferencia del pago manual de antes, aquí Stripe
+  // confirma el pago solo — no hace falta que el pescadero lo marque a mano.
   const handlePayWithBizum = async () => {
     if (!validateOrder()) return;
     if (isTurnstileEnabled() && !turnstile.verified) return;
 
-    const subTotalAmount = items.reduce((sum, item) => {
-      const product = productMap.get(item.productId);
-      if (!product) return sum;
-      return sum + extractPricePerKg(product.precio) * item.kg;
-    }, 0);
-
-    const buildFallbackWhatsappUrl = () => {
-      const message = generateWhatsAppMessage({
-        customer,
-        items,
-        totalProducts,
-        totalWeight,
-        subTotalAmount,
-        deliveryCost,
-        getProductName: (productId) => {
-          const product = productMap.get(productId);
-          return product ? pickLang(product, 'nombre', i18n.language) : productId;
-        },
-        getPreparationLabel: (prep) => t(`cart.prep_${prep}` as any),
-        productMap,
-        metodoPago: 'bizum',
-      });
-      return `https://wa.me/${BIZUM_PHONE_WA}?text=${encodeURIComponent(message)}`;
-    };
-
+    setPaymentError(null);
     setPayingWithBizum(true);
     try {
-      const result = await crearPedidoBizum(items, customer, getDeviceId());
-      onSaveLastOrder();
-      if (!result.whatsappSent) {
-        window.open(buildFallbackWhatsappUrl(), '_blank');
-      }
-      setBizumAmountToShow(result.importeEstimado);
+      const url = await crearSesionPagoStripe(items, customer, getDeviceId(), 'bizum');
+      window.location.href = url;
     } catch {
-      // La Edge Function falló por completo: registro local (como siempre
-      // hacía este botón) y abre WhatsApp a mano, para no perder el pedido.
-      onSaveLastOrder();
-      void logPedido({
-        items: items.map((item) => {
-          const product = productMap.get(item.productId);
-          return {
-            productoId: item.productId,
-            nombre: product ? pickLang(product, 'nombre', i18n.language) : item.productId,
-            kg: item.kg,
-            preparacion: item.preparation,
-            nota: item.note,
-            precioKg: product ? extractPricePerKg(product.precio) : 0,
-          };
-        }),
-        totalProductos: totalProducts,
-        pesoTotal: totalWeight,
-        importeEstimado: subTotalAmount + deliveryCost,
-        metodoEntrega: customer.deliveryMethod,
-        clienteNombre: customer.name,
-        clienteNegocio: customer.business,
-        clienteTelefono: customer.phone,
-        clienteEmail: customer.email,
-        clienteDireccion: customer.address,
-        clienteCiudad: customer.city,
-        clienteCp: customer.postalCode,
-        fechaPreferida: customer.preferredDate,
-        horaPreferida: customer.preferredTime,
-        notas: customer.notes,
-        deviceId: getDeviceId(),
-        metodoPago: 'bizum',
-      });
-      window.open(buildFallbackWhatsappUrl(), '_blank');
-      setBizumAmountToShow(subTotalAmount + deliveryCost);
-    } finally {
+      setPaymentError(t('cart.bizum_payment_error'));
       setPayingWithBizum(false);
     }
-
-    onClearCart();
-    setValidationErrors({});
-    setPaymentChoice(null);
-    setBizumConfirmed(true);
   };
 
   if (!open) return null;
@@ -2139,40 +2054,6 @@ export default function CartDrawer({
           </div>
         )}
 
-        {/* === BIZUM PAYMENT INSTRUCTIONS POPUP === */}
-        {bizumConfirmed && (
-          <div
-            className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-background-50 px-6 text-center"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('cart.bizum_confirmation_title')}
-          >
-            <span className="w-14 h-14 flex items-center justify-center rounded-full bg-sky-100 text-sky-600 mb-5 animate-[scaleIn_0.3s_ease-out]">
-              <i className="ri-smartphone-line text-3xl"></i>
-            </span>
-            <h3 className="text-lg font-heading font-semibold text-foreground-950 mb-2">
-              {t('cart.bizum_confirmation_title')}
-            </h3>
-            <p className="text-sm text-foreground-500 mb-5 max-w-[300px] leading-relaxed">
-              {t('cart.bizum_confirmation_text')}
-            </p>
-            <div className="w-full max-w-[280px] rounded-lg bg-sky-50/70 border border-sky-200/70 px-5 py-4 mb-6">
-              <p className="text-[10px] uppercase tracking-wider text-sky-700/80 mb-1">{t('cart.bizum_amount_label')}</p>
-              <p className="text-2xl font-semibold text-sky-900 mb-3 tabular-nums">
-                {bizumAmountToShow !== null ? formatPrice(bizumAmountToShow) : ''}
-              </p>
-              <p className="text-[10px] uppercase tracking-wider text-sky-700/80 mb-1">{t('cart.bizum_phone_label')}</p>
-              <p className="text-lg font-semibold text-sky-900 tabular-nums">{BIZUM_PHONE_DISPLAY}</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-6 py-2.5 rounded-full text-sm font-medium text-background-50 bg-sky-500 hover:bg-sky-600 cursor-pointer whitespace-nowrap transition-all duration-200 active:scale-[0.98]"
-            >
-              {t('cart.confirmation_close')}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
