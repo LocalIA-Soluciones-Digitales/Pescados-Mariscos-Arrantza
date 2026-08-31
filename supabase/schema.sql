@@ -773,6 +773,15 @@ create policy "bascula_ventas_select_admin"
   to authenticated
   using (is_developer() or cliente_id = mi_cliente_id());
 
+-- Permite borrar una línea desde Caja si se coló una venta errónea (ver
+-- comentario en useBasculaVentas.ts sobre por qué es seguro: la
+-- sincronización no la vuelve a traer).
+drop policy if exists "bascula_ventas_delete_admin" on public.bascula_ventas;
+create policy "bascula_ventas_delete_admin"
+  on public.bascula_ventas for delete
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
 create index if not exists idx_bascula_ventas_fecha on public.bascula_ventas (cliente_id, fecha);
 
 -- Facturación diaria (importe de línea, IVA incluido, tal como lo

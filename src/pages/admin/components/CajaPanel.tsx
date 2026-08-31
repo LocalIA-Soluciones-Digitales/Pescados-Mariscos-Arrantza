@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCaja, type NewCajaMovimientoInput } from '@/hooks/useCaja';
-import { useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
+import { deleteBasculaVenta, fetchBasculaVentasDelDia, useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
+import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
 import InfoHint from '@/components/base/InfoHint';
 
@@ -8,8 +9,17 @@ const INFO_ITEMS = [
   { icon: 'ri-scales-3-line', text: 'Los ingresos se calculan solos desde las ventas de la báscula — normalmente no hay que tocar nada.' },
   { icon: 'ri-add-circle-line', text: 'Si un día falla la báscula o se escapa una venta, añade un ingreso a mano y se sumará al automático.' },
   { icon: 'ri-file-list-3-line', text: 'Los gastos (facturas y gastos extra) siempre se registran a mano.' },
+  { icon: 'ri-delete-bin-line', text: 'Si una venta de báscula está mal, bórrala directamente desde su lista.' },
   { icon: 'ri-calculator-line', text: 'El total de día, mes y año se calcula solo.' },
 ];
+
+const ICONO_POR_TIPO: Record<CajaMovimientoTipo, string> = {
+  ingreso_tarjeta: 'ri-bank-card-line',
+  ingreso_efectivo: 'ri-money-euro-circle-line',
+  ingreso_bares: 'ri-store-2-line',
+  gasto_factura: 'ri-file-list-3-line',
+  gasto_extra: 'ri-receipt-line',
+};
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -163,23 +173,71 @@ function FormNuevoMovimiento({
   );
 }
 
-function FilaMovimiento({ m, onEliminar }: { m: CajaMovimiento; onEliminar: (m: CajaMovimiento) => void }) {
-  const ingreso = esCajaIngreso(m.tipo);
+function FilaCaja({
+  icon,
+  titulo,
+  subtitulo,
+  importe,
+  ingreso,
+  onEliminar,
+}: {
+  icon: string;
+  titulo: string;
+  subtitulo?: string | null;
+  importe: number;
+  ingreso: boolean;
+  onEliminar: () => void;
+}) {
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-background-200/50 last:border-b-0">
-      <div className="min-w-0">
-        <p className="text-sm text-foreground-950">{CAJA_TIPO_LABELS[m.tipo]}</p>
-        {m.concepto && <p className="text-xs text-foreground-400 truncate">{m.concepto}</p>}
+    <div className="flex items-center gap-3 px-3 py-2.5 border-b border-background-200/50 last:border-b-0">
+      <span
+        className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm ${
+          ingreso ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+        }`}
+      >
+        <i className={icon}></i>
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-foreground-950 truncate">{titulo}</p>
+        {subtitulo && <p className="text-xs text-foreground-400 truncate">{subtitulo}</p>}
       </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <span className={`text-sm font-medium ${ingreso ? 'text-emerald-700' : 'text-red-600'}`}>
-          {ingreso ? '+' : '-'}{formatEUR(m.importe)}
-        </span>
-        <button type="button" onClick={() => onEliminar(m)} className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-400 hover:bg-red-50 hover:text-red-600">
-          <i className="ri-delete-bin-line text-sm"></i>
-        </button>
-      </div>
+      <span className={`text-sm font-medium flex-shrink-0 tabular-nums ${ingreso ? 'text-emerald-700' : 'text-red-600'}`}>
+        {ingreso ? '+' : '-'}{formatEUR(importe)}
+      </span>
+      <button
+        type="button"
+        onClick={onEliminar}
+        className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full text-foreground-400 hover:bg-red-50 hover:text-red-600"
+      >
+        <i className="ri-delete-bin-line text-sm"></i>
+      </button>
     </div>
+  );
+}
+
+function FilaMovimiento({ m, onEliminar }: { m: CajaMovimiento; onEliminar: (m: CajaMovimiento) => void }) {
+  return (
+    <FilaCaja
+      icon={ICONO_POR_TIPO[m.tipo]}
+      titulo={CAJA_TIPO_LABELS[m.tipo]}
+      subtitulo={m.concepto}
+      importe={m.importe}
+      ingreso={esCajaIngreso(m.tipo)}
+      onEliminar={() => onEliminar(m)}
+    />
+  );
+}
+
+function FilaBascula({ l, onEliminar }: { l: BasculaVenta; onEliminar: (l: BasculaVenta) => void }) {
+  return (
+    <FilaCaja
+      icon="ri-scales-3-line"
+      titulo={l.designacion}
+      subtitulo={`Báscula · ${l.hora?.slice(0, 5) ?? '—'} · ${l.cantidad} ${l.unidad}`}
+      importe={l.importe}
+      ingreso
+      onEliminar={() => onEliminar(l)}
+    />
   );
 }
 
@@ -205,11 +263,42 @@ function VistaDia({
   const totalIngresosManuales = ingresosManuales.reduce((n, m) => n + Number(m.importe), 0);
   const totalGastosDia = gastos.reduce((n, m) => n + Number(m.importe), 0);
   const totalIngresosDia = basculaHoy + totalIngresosManuales;
+  const netoDia = totalIngresosDia - totalGastosDia;
+
+  const [lineasBascula, setLineasBascula] = useState<BasculaVenta[]>([]);
+  const [cargandoBascula, setCargandoBascula] = useState(true);
+
+  useEffect(() => {
+    let cancelado = false;
+    setCargandoBascula(true);
+    fetchBasculaVentasDelDia(fecha).then((data) => {
+      if (cancelado) return;
+      setLineasBascula(data);
+      setCargandoBascula(false);
+    });
+    return () => {
+      cancelado = true;
+    };
+    // basculaHoy cambia (por Realtime) cada vez que se sincroniza o se borra
+    // una venta de báscula de este día, así que también refresca las líneas.
+  }, [fecha, basculaHoy]);
 
   const eliminar = async (m: CajaMovimiento) => {
     if (!confirm(`¿Eliminar este movimiento de ${formatEUR(m.importe)}?`)) return;
     await onEliminar(m.id);
   };
+
+  const eliminarBascula = async (l: BasculaVenta) => {
+    if (!confirm(`¿Eliminar esta venta de báscula de ${formatEUR(l.importe)}? No se puede deshacer.`)) return;
+    const ok = await deleteBasculaVenta(l.id);
+    if (!ok) {
+      alert('No se pudo eliminar la venta.');
+      return;
+    }
+    setLineasBascula((prev) => prev.filter((x) => x.id !== l.id));
+  };
+
+  const sinIngresos = !cargandoBascula && lineasBascula.length === 0 && ingresosManuales.length === 0;
 
   return (
     <div className="space-y-4">
@@ -217,20 +306,39 @@ function VistaDia({
 
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
-          <p className="text-[11px] text-foreground-400 mb-1">Ingresos</p>
-          <p className="text-lg font-semibold text-emerald-700">{formatEUR(totalIngresosDia)}</p>
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-emerald-50 text-emerald-600 text-[11px]">
+              <i className="ri-arrow-up-line"></i>
+            </span>
+            <p className="text-[11px] text-foreground-400">Ingresos</p>
+          </div>
+          <p className="text-lg font-semibold text-emerald-700 tabular-nums">{formatEUR(totalIngresosDia)}</p>
           <p className="text-[11px] text-foreground-400 mt-0.5">
             {ticketsHoy > 0 ? `${ticketsHoy} ticket${ticketsHoy === 1 ? '' : 's'} de báscula` : 'Sin ventas de báscula'}
             {totalIngresosManuales > 0 && ` · ${formatEUR(totalIngresosManuales)} a mano`}
           </p>
         </div>
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
-          <p className="text-[11px] text-foreground-400 mb-1">Gastos</p>
-          <p className="text-lg font-semibold text-red-600">{formatEUR(totalGastosDia)}</p>
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-red-50 text-red-500 text-[11px]">
+              <i className="ri-arrow-down-line"></i>
+            </span>
+            <p className="text-[11px] text-foreground-400">Gastos</p>
+          </div>
+          <p className="text-lg font-semibold text-red-600 tabular-nums">{formatEUR(totalGastosDia)}</p>
         </div>
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
-          <p className="text-[11px] text-foreground-400 mb-1">Neto del día</p>
-          <p className="text-lg"><NetoBadge valor={totalIngresosDia - totalGastosDia} /></p>
+          <div className="flex items-center gap-1.5 mb-1">
+            <span
+              className={`w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full text-[11px] ${
+                netoDia >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+              }`}
+            >
+              <i className="ri-scales-3-line"></i>
+            </span>
+            <p className="text-[11px] text-foreground-400">Neto del día</p>
+          </div>
+          <p className="text-lg tabular-nums"><NetoBadge valor={netoDia} /></p>
         </div>
       </div>
 
@@ -238,21 +346,34 @@ function VistaDia({
 
       <div className="grid sm:grid-cols-2 gap-3">
         <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
-          <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500 px-3 pt-2.5 pb-1.5">Ingresos</p>
-          {basculaHoy > 0 && (
-            <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-background-200/50 bg-background-100/50">
-              <p className="text-sm text-foreground-700">Ventas báscula ({ticketsHoy} ticket{ticketsHoy === 1 ? '' : 's'})</p>
-              <span className="text-sm font-medium text-emerald-700">+{formatEUR(basculaHoy)}</span>
-            </div>
-          )}
-          {ingresosManuales.length === 0 && basculaHoy === 0 ? (
+          <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500">Ingresos</p>
+            <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] bg-emerald-50 text-emerald-600">
+              {lineasBascula.length + ingresosManuales.length}
+            </span>
+          </div>
+          {cargandoBascula ? (
+            <p className="text-xs text-foreground-400 px-3 py-3">Cargando…</p>
+          ) : sinIngresos ? (
             <p className="text-xs text-foreground-400 px-3 py-3">Sin ingresos registrados.</p>
           ) : (
-            ingresosManuales.map((m) => <FilaMovimiento key={m.id} m={m} onEliminar={eliminar} />)
+            <>
+              {lineasBascula.map((l) => (
+                <FilaBascula key={l.id} l={l} onEliminar={eliminarBascula} />
+              ))}
+              {ingresosManuales.map((m) => (
+                <FilaMovimiento key={m.id} m={m} onEliminar={eliminar} />
+              ))}
+            </>
           )}
         </div>
         <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
-          <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500 px-3 pt-2.5 pb-1.5">Gastos</p>
+          <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500">Gastos</p>
+            <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] bg-red-50 text-red-500">
+              {gastos.length}
+            </span>
+          </div>
           {gastos.length === 0 ? (
             <p className="text-xs text-foreground-400 px-3 pb-3">Sin gastos registrados.</p>
           ) : (

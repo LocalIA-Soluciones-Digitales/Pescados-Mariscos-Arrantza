@@ -32,3 +32,12 @@ export async function fetchBasculaVentasDelDia(fecha: string): Promise<BasculaVe
   const { data } = await supabase.from('bascula_ventas').select('*').eq('fecha', fecha).order('hora', { ascending: true });
   return data ?? [];
 }
+
+// Borra una línea de venta sincronizada de la báscula (p.ej. si se coló una
+// venta errónea) sin riesgo de que la sincronización la vuelva a traer: esa
+// función solo mira si el oid es mayor que el último visto, no si la fila
+// sigue existiendo en bascula_ventas.
+export async function deleteBasculaVenta(id: string): Promise<boolean> {
+  const { error } = await supabase.from('bascula_ventas').delete().eq('id', id);
+  return !error;
+}
