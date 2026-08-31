@@ -101,7 +101,7 @@ function FormNuevoMovimiento({
       <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
         <div className="flex flex-col gap-1 sm:w-36">
           <label className="text-[11px] text-foreground-400">Fecha</label>
-          <input type="date" value={fecha} onChange={(e) => onFechaChange(e.target.value)} className={campo} />
+          <input type="date" value={fecha} onChange={(e) => onFechaChange(e.target.value)} className={`${campo} appearance-none leading-[2.25rem] py-0`} />
         </div>
 
         <div className="flex flex-col gap-1 sm:w-44">
