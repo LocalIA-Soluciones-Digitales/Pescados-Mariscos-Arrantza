@@ -161,20 +161,18 @@ export default function SolicitudesStockPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <div className="flex items-center gap-2 mb-4">
-        <InfoHint items={INFO_ITEMS} />
-        <span className="text-xs text-foreground-400">Cómo funcionan las solicitudes</span>
-      </div>
-
-      <div className="relative max-w-[280px] mb-3">
-        <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por producto o cliente…"
-          className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
-        />
+      <div className="flex items-center gap-2 mb-3 sm:max-w-[280px]">
+        <div className="relative flex-1">
+          <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por producto o cliente…"
+            className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
+          />
+        </div>
+        <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
       </div>
 
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide mb-4">

@@ -267,7 +267,6 @@ export default function PedidosPanel() {
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
       <div className="flex items-center gap-2 mb-4">
-        <InfoHint items={INFO_ITEMS} />
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1 min-w-0">
           {ESTADO_FILTROS.map((f) => (
             <button
@@ -285,6 +284,7 @@ export default function PedidosPanel() {
             </button>
           ))}
         </div>
+        <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
       </div>
 
       {loading ? (

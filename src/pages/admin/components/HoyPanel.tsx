@@ -177,12 +177,13 @@ export default function HoyPanel({
   }
 
   return (
-    <div className="px-4 md:px-8 py-6 pb-28 space-y-9">
-      <div className="flex items-center gap-2">
+    <div className="px-4 md:px-8 py-6 pb-28">
+      <div className="flex items-center gap-1.5 mb-3">
         <InfoHint items={INFO_ITEMS} />
-        <span className="text-xs text-foreground-400">Cómo funciona el resumen de hoy</span>
+        <span className="text-[11px] text-foreground-400">Cómo funciona el resumen de hoy</span>
       </div>
 
+      <div className="space-y-9">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatTile label="Pedidos nuevos" value={pedidosNuevos.length} icon="ri-shopping-bag-3-line" urgent onClick={() => onNavigate('ventas')} />
         <StatTile label="Reservas pendientes" value={reservasPendientes.length} icon="ri-calendar-check-line" urgent onClick={() => onNavigate('reservas')} />
@@ -290,6 +291,7 @@ export default function HoyPanel({
             </div>
           )}
         </section>
+      </div>
       </div>
     </div>
   );

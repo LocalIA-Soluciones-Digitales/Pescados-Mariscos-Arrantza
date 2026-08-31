@@ -424,7 +424,6 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
         <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px]">
-          <InfoHint items={PRODUCTOS_INFO_ITEMS} className="flex-shrink-0" />
           <div className="relative flex-1">
             <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
             <input
@@ -435,6 +434,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
               className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
             />
           </div>
+          <InfoHint items={PRODUCTOS_INFO_ITEMS} align="right" className="flex-shrink-0" />
         </div>
 
         <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">

@@ -87,9 +87,8 @@ export default function VentasTiendaPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <div className="flex items-center gap-2 mb-4">
-        <InfoHint items={INFO_ITEMS} />
-        <span className="text-xs text-foreground-400">Cómo funcionan las ventas de tienda</span>
+      <div className="flex items-center justify-end mb-4">
+        <InfoHint items={INFO_ITEMS} align="right" />
       </div>
 
       {loading ? (
