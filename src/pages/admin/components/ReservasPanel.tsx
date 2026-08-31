@@ -220,6 +220,69 @@ function ResumenRowCard({
   );
 }
 
+function escapeHtml(str: string): string {
+  const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  return str.replace(/[&<>"']/g, (c) => map[c]);
+}
+
+// Abre una ventana aparte con el resumen de compra formateado para papel y
+// lanza el diálogo de impresión, sin tocar los estilos del panel de gestión.
+function imprimirResumenCompra(evento: ReservaEvento, grupos: ResumenFechaGroup[]) {
+  const fechaGenerado = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+  const secciones = grupos
+    .map((g) => {
+      const filas = g.productos
+        .map((row) => {
+          const completo = row.pendiente <= 0 && row.reservado > 0;
+          return `<tr><td>${escapeHtml(row.nombre)}</td><td class="cantidad">${completo ? 'Completado' : formatKg(row.pendiente)}</td></tr>`;
+        })
+        .join('');
+      return `
+      <section>
+        <h2>${g.fecha ? escapeHtml(formatFechaLarga(g.fecha)) : 'Sin fecha indicada'}</h2>
+        <p class="meta">${g.clientes} cliente${g.clientes === 1 ? '' : 's'} · ${formatKg(g.totalKg)} en total</p>
+        <table><tbody>${filas}</tbody></table>
+      </section>`;
+    })
+    .join('');
+
+  const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Lista de compra — ${escapeHtml(evento.nombre_es)}</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 24px; }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .subtitulo { font-size: 12px; color: #555; margin: 0 0 20px; }
+  section { margin-bottom: 22px; page-break-inside: avoid; }
+  h2 { font-size: 15px; margin: 0 0 2px; border-bottom: 2px solid #111; padding-bottom: 4px; }
+  .meta { font-size: 11px; color: #555; margin: 2px 0 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 4px; border-bottom: 1px solid #ddd; font-size: 13px; }
+  td.cantidad { text-align: right; font-weight: bold; white-space: nowrap; width: 110px; }
+  @media print { body { margin: 0.5cm; } }
+</style>
+</head>
+<body>
+  <h1>Lista de compra — ${escapeHtml(evento.nombre_es)}</h1>
+  <p class="subtitulo">Generado el ${fechaGenerado} · Recogidas desde ${formatFecha(evento.fecha_entrega)}</p>
+  ${secciones || '<p>No hay reservas pendientes.</p>'}
+</body>
+</html>`;
+
+  const ventana = window.open('', '_blank', 'width=800,height=900');
+  if (!ventana) {
+    alert('El navegador ha bloqueado la ventana de impresión. Permite las ventanas emergentes para este sitio.');
+    return;
+  }
+  ventana.document.open();
+  ventana.document.write(html);
+  ventana.document.close();
+  ventana.focus();
+  setTimeout(() => ventana.print(), 250);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Resumen agrupado por día de recogida — lo primero que mira el      */
 /*  pescadero: qué tiene que comprar HOY en la lonja, no la suma de    */
@@ -692,7 +755,7 @@ export default function ReservasPanel() {
               </div>
 
               {/* Cambio de vista */}
-              <div className="flex items-center gap-1.5 mt-4 mb-3">
+              <div className="flex items-center gap-1.5 mt-4 mb-3 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setVista('resumen')}
@@ -709,6 +772,16 @@ export default function ReservasPanel() {
                   <i className="ri-list-check-2 mr-1"></i>
                   Reservas ({counts.todas})
                 </button>
+                {vista === 'resumen' && resumenPorFecha.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => imprimirResumenCompra(eventoActivo, resumenPorFecha)}
+                    className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70"
+                  >
+                    <i className="ri-printer-line"></i>
+                    Imprimir lista de compra
+                  </button>
+                )}
               </div>
 
               {vista === 'resumen' ? (
