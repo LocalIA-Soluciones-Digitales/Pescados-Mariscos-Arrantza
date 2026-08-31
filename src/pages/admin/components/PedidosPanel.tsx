@@ -292,16 +292,20 @@ export default function PedidosPanel() {
                   onClick={() => toggleColapsado(grupo.key)}
                   className="flex items-center justify-between gap-2.5 mb-2.5 px-1 py-1 w-full text-left"
                 >
-                  <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
                     <span
                       className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-background-50 ${urgencia?.acento ?? 'bg-primary-500'}`}
                     >
                       <i className="ri-calendar-check-line text-sm"></i>
                     </span>
-                    <h4 className="text-sm md:text-base font-heading font-bold text-foreground-950">
+                    <h4 className="text-sm md:text-base font-heading font-bold text-foreground-950 truncate min-w-0">
                       {grupo.fecha ? formatFechaLarga(grupo.fecha) : 'Sin fecha indicada'}
                     </h4>
-                    {grupo.fecha && <EtiquetaUrgencia fecha={grupo.fecha} />}
+                    {grupo.fecha && (
+                      <span className="flex-shrink-0">
+                        <EtiquetaUrgencia fecha={grupo.fecha} />
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <span className="text-[11px] font-medium text-foreground-500 whitespace-nowrap">
