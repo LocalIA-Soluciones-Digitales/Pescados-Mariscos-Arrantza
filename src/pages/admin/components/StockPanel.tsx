@@ -34,6 +34,7 @@ const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categor
 function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: Partial<Producto>) => void }) {
   const [entrada, setEntrada] = useState('');
   const [stockMinimo, setStockMinimo] = useState(producto.stock_minimo);
+  const [codigoBascula, setCodigoBascula] = useState(producto.codigo_bascula ?? '');
   const [saving, setSaving] = useState(false);
   const stockBajo = producto.stock_kg <= producto.stock_minimo;
 
@@ -63,6 +64,19 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
       return;
     }
     onPatch({ stock_minimo: v });
+  };
+
+  const guardarCodigoBascula = async (v: string) => {
+    const valor = v.trim() || null;
+    setSaving(true);
+    const { error } = await supabase.from('productos').update({ codigo_bascula: valor }).eq('id', producto.id);
+    setSaving(false);
+    if (error) {
+      alert('No se pudo guardar el código de báscula: ' + error.message);
+      setCodigoBascula(producto.codigo_bascula ?? '');
+      return;
+    }
+    onPatch({ codigo_bascula: valor });
   };
 
   return (
@@ -131,6 +145,24 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
             className="w-16 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
           />
           <span className="text-xs text-foreground-400">kg</span>
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <label className="text-[11px] text-foreground-400">Código báscula</label>
+          <input
+            type="text"
+            placeholder="ej. 338"
+            value={codigoBascula}
+            onChange={(e) => setCodigoBascula(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+            onBlur={() => {
+              if (codigoBascula.trim() !== (producto.codigo_bascula ?? '')) guardarCodigoBascula(codigoBascula);
+            }}
+            disabled={saving}
+            className="w-20 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
+          />
         </div>
       </div>
     </div>
@@ -201,8 +233,10 @@ export default function StockPanel({
         <p className="text-xs text-foreground-400 mb-4">
           Cada mañana, indica en "Entrada de hoy" únicamente los kg recibidos: se suman automáticamente al stock
           actual, sin necesidad de calcular el total. Usa un valor negativo para descontar kg (por ejemplo, si ha
-          llegado producto en mal estado). El stock también se descuenta con cada pedido de un cliente; si baja del
-          mínimo, se envía un aviso por correo automáticamente.
+          llegado producto en mal estado). El stock también se descuenta con cada pedido de un cliente y, si el
+          producto se pesa en la báscula de la tienda, con cada venta en mostrador; si baja del mínimo, se envía un
+          aviso por correo automáticamente. Para que la báscula descuente el producto correcto, indica en "Código
+          báscula" el código con el que está dado de alta en el terminal de pesaje.
         </p>
       </div>
 

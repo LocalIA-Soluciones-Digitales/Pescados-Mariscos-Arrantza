@@ -5,7 +5,7 @@ import type { Resena } from '@/types/resena';
 import type { Producto } from '@/types/producto';
 import { normalizePhone, telHref, whatsappHref } from '@/lib/phone';
 
-type Tab = 'hoy' | 'productos' | 'stock' | 'pedidos' | 'reservas' | 'resenas' | 'clientes';
+type Tab = 'hoy' | 'productos' | 'stock' | 'ventas' | 'reservas' | 'resenas' | 'clientes';
 
 function todayISO(): string {
   const d = new Date();
@@ -172,7 +172,7 @@ export default function HoyPanel({
   return (
     <div className="px-4 md:px-8 py-6 pb-28 space-y-9">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatTile label="Pedidos nuevos" value={pedidosNuevos.length} icon="ri-shopping-bag-3-line" urgent onClick={() => onNavigate('pedidos')} />
+        <StatTile label="Pedidos nuevos" value={pedidosNuevos.length} icon="ri-shopping-bag-3-line" urgent onClick={() => onNavigate('ventas')} />
         <StatTile label="Reservas pendientes" value={reservasPendientes.length} icon="ri-calendar-check-line" urgent onClick={() => onNavigate('reservas')} />
         <StatTile label="Reseñas por moderar" value={resenasPendientes.length} icon="ri-star-line" onClick={() => onNavigate('resenas')} />
         <StatTile label="Productos bajo mínimo" value={stockBajo.length} icon="ri-alert-line" urgent onClick={() => onNavigate('stock')} />
@@ -225,7 +225,7 @@ export default function HoyPanel({
             kicker="Recogidas de hoy"
             title="Pedidos"
             action={
-              <button type="button" onClick={() => onNavigate('pedidos')} className="text-xs text-foreground-500 hover:text-foreground-950 flex-shrink-0">
+              <button type="button" onClick={() => onNavigate('ventas')} className="text-xs text-foreground-500 hover:text-foreground-950 flex-shrink-0">
                 Ver todos
               </button>
             }

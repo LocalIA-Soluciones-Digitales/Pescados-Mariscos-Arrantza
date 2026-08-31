@@ -716,6 +716,81 @@ create trigger trg_productos_stock_bajo
   before update of stock_kg, stock_minimo on public.productos
   for each row execute function public.notificar_stock_bajo();
 
+-- Descuenta stock automáticamente a partir de las pesadas registradas en
+-- la báscula BM5 (Balanzas Marques). La Edge Function bascula-sync (ver
+-- supabase/functions/bascula-sync) consulta cada pocos minutos el API
+-- ETWS del terminal y llama a esta función por cada línea de ticket
+-- vendida a peso, identificando el producto por productos.codigo_bascula
+-- (el "codigo" que usa el propio terminal, distinto del id de Supabase).
+alter table public.productos add column if not exists codigo_bascula text;
+
+create unique index if not exists idx_productos_codigo_bascula
+  on public.productos (cliente_id, codigo_bascula)
+  where codigo_bascula is not null;
+
+create or replace function public.descontar_stock_bascula(
+  p_cliente_id uuid, p_codigo_bascula text, p_kg numeric
+)
+returns numeric as $$
+  update public.productos
+  set stock_kg = greatest(stock_kg - p_kg, 0)
+  where cliente_id = p_cliente_id and codigo_bascula = p_codigo_bascula
+  returning stock_kg;
+$$ language sql set search_path = public;
+
+revoke all on function public.descontar_stock_bascula(uuid, text, numeric) from public;
+grant execute on function public.descontar_stock_bascula(uuid, text, numeric) to service_role;
+
+-- Registro de cada línea de venta procesada desde la báscula BM5, para
+-- poder sacar la facturación diaria además de descontar stock. Se
+-- guarda igual aunque el producto no tenga codigo_bascula mapeado
+-- todavía (producto_id queda null en ese caso) — el cierre de caja no
+-- debe depender de que el mapeo de stock esté completo.
+create table if not exists public.bascula_ventas (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  producto_id uuid references public.productos (id) on delete set null,
+  linea_oid bigint not null unique,
+  ticket_tipo_doc integer not null,
+  ticket_posto integer not null,
+  ticket_numero integer not null,
+  fecha date not null,
+  hora time,
+  codigo_bascula text not null,
+  designacion text not null,
+  unidad text not null,
+  cantidad numeric not null,
+  precio_unit numeric not null,
+  importe numeric not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.bascula_ventas enable row level security;
+
+drop policy if exists "bascula_ventas_select_admin" on public.bascula_ventas;
+create policy "bascula_ventas_select_admin"
+  on public.bascula_ventas for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_bascula_ventas_fecha on public.bascula_ventas (cliente_id, fecha);
+
+-- Facturación diaria (importe de línea, IVA incluido, tal como lo
+-- registra la báscula) y kg vendidos a peso, para el cierre de caja.
+-- security_invoker: la vista respeta la RLS de bascula_ventas para
+-- quien la consulte, en vez de correr con los permisos de quien la creó.
+create or replace view public.bascula_ventas_diarias
+with (security_invoker = true) as
+select
+  cliente_id,
+  fecha,
+  count(distinct (ticket_tipo_doc, ticket_posto, ticket_numero)) as num_tickets,
+  sum(importe) as total_importe,
+  sum(cantidad) filter (where unidad = 'kg') as total_peso_kg
+from public.bascula_ventas
+group by cliente_id, fecha
+order by fecha desc;
+
 -- ============================================================
 -- Caja: registro manual de ingresos y gastos del día a día (sustituye la
 -- hoja de cálculo que llevaba antes el pescadero). Cada fila es un
@@ -940,6 +1015,26 @@ create trigger trg_newsletter_confirmacion
 --   ('<CLIENTE_ID>', 'newsletter_confirm_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/newsletter-confirm"'),
 --   ('<CLIENTE_ID>', 'newsletter_confirm_secret', '"<UN_SECRETO_ALEATORIO>"')
 -- on conflict (key, cliente_id) do update set value = excluded.value;
+
+-- Sincronización de stock con la báscula BM5 (Balanzas Marques): a
+-- diferencia de las notificaciones anteriores, bascula-sync no la
+-- invoca un trigger sobre una fila (no hay "new"/"old" del que leer
+-- cliente_id), sino un cron. Sus credenciales del API ETWS y el
+-- cliente_id al que pertenece van como secretos de la propia function
+-- (ver supabase/functions/bascula-sync/.env.example), no en `settings`.
+-- Tras desplegarla y fijar sus secretos con `supabase secrets set`,
+-- programa su ejecución cada 5 minutos:
+-- create extension if not exists pg_cron with schema extensions;
+-- select cron.schedule(
+--   'bascula-sync-5min',
+--   '*/5 * * * *',
+--   $$
+--   select net.http_post(
+--     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/bascula-sync',
+--     headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', '<UN_SECRETO_ALEATORIO>')
+--   );
+--   $$
+-- );
 
 -- ============================================================
 -- Reservas para fechas especiales (Navidad, Nochevieja...). El
@@ -1277,6 +1372,7 @@ begin
   foreach t in array array[
     'pedidos', 'reservas', 'reservas_eventos', 'reservas_ajustes',
     'resenas', 'newsletter_subscribers', 'productos', 'solicitudes_stock',
+    'bascula_ventas',
     'caja_movimientos'
   ]
   loop

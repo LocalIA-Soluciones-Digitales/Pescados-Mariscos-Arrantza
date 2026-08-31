@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useProductos } from '@/hooks/useProductos';
 import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
 import ProductoFormModal from './ProductoFormModal';
-import PedidosPanel from './PedidosPanel';
+import VentasPanel from './VentasPanel';
 import ResenasPanel from './ResenasPanel';
 import StockPanel from './StockPanel';
 import CajaPanel from './CajaPanel';
@@ -20,7 +20,7 @@ import { useOrderAlertSound } from '@/hooks/useOrderAlertSound';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import ViewSwitcher from './ViewSwitcher';
 
-type Tab = 'hoy' | 'productos' | 'pedidos' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes';
+type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -184,7 +184,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'hoy', label: 'Hoy' },
   { value: 'productos', label: 'Productos' },
   { value: 'stock', label: 'Stock' },
-  { value: 'pedidos', label: 'Pedidos' },
+  { value: 'ventas', label: 'Ventas' },
   { value: 'caja', label: 'Caja' },
   { value: 'reservas', label: 'Reservas' },
   { value: 'solicitudes', label: 'Solicitudes' },
@@ -299,7 +299,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         const badge =
           t.value === 'hoy'
             ? pedidosNuevos + reservasPendientes
-            : t.value === 'pedidos'
+            : t.value === 'ventas'
               ? pedidosNuevos
               : t.value === 'resenas'
                 ? resenasPendientes
@@ -313,7 +313,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         const pulse =
           t.value === 'hoy'
             ? pedidosPulse || reservasPulse
-            : t.value === 'pedidos'
+            : t.value === 'ventas'
               ? pedidosPulse
               : t.value === 'reservas'
                 ? reservasPulse
@@ -394,8 +394,8 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
           loading={loadingPedidos || loadingReservas || loadingResenas || loadingProductos}
           onNavigate={setTab}
         />
-      ) : tab === 'pedidos' ? (
-        <PedidosPanel />
+      ) : tab === 'ventas' ? (
+        <VentasPanel />
       ) : tab === 'caja' ? (
         <CajaPanel />
       ) : tab === 'resenas' ? (
