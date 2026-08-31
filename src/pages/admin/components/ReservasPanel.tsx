@@ -306,23 +306,24 @@ interface ResumenFechaGroup {
 
 function ResumenFechaCard({ grupo, evento }: { grupo: ResumenFechaGroup; evento: ReservaEvento }) {
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-xl shadow-card p-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+    <div className="relative bg-background-50 border border-background-200/70 rounded-xl shadow-card p-4">
+      <button
+        type="button"
+        onClick={() => imprimirResumenCompra(evento, [grupo])}
+        title="Imprimir lista de compra de este día"
+        aria-label="Imprimir lista de compra de este día"
+        className="absolute top-3 right-3 flex items-center justify-center text-2xl leading-none hover:scale-110 transition-transform"
+      >
+        🖨️
+      </button>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-3 pr-10">
         <div className="flex items-center gap-2 flex-wrap">
           <i className="ri-calendar-check-line text-primary-600"></i>
           <h4 className="text-sm font-heading font-semibold text-foreground-950">
             {grupo.fecha ? formatFechaLarga(grupo.fecha) : 'Sin fecha indicada'}
           </h4>
           {grupo.fecha && <EtiquetaUrgencia fecha={grupo.fecha} />}
-          <button
-            type="button"
-            onClick={() => imprimirResumenCompra(evento, [grupo])}
-            title="Imprimir lista de compra de este día"
-            aria-label="Imprimir lista de compra de este día"
-            className="text-xl leading-none hover:scale-110 transition-transform"
-          >
-            🖨️
-          </button>
         </div>
         <p className="text-xs text-foreground-400">
           {grupo.clientes} cliente{grupo.clientes === 1 ? '' : 's'} · {formatKg(grupo.totalKg)} en total
