@@ -212,6 +212,16 @@ function PedidoCard({
 export default function PedidosPanel() {
   const { pedidos, loading, setEstado, setEstadoPago, deletePedido } = usePedidos();
   const [filtro, setFiltro] = useState<'todos' | PedidoEstado>('todos');
+  const [colapsados, setColapsados] = useState<Set<string>>(new Set());
+
+  const toggleColapsado = (key: string) => {
+    setColapsados((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { todos: pedidos.length };
@@ -274,9 +284,14 @@ export default function PedidosPanel() {
         <div className="space-y-5">
           {visiblesPorFecha.map((grupo) => {
             const urgencia = grupo.fecha ? urgenciaInfo(grupo.fecha) : null;
+            const colapsado = colapsados.has(grupo.key);
             return (
               <div key={grupo.key} className="rounded-2xl border border-background-200/70 bg-background-100/50 p-2.5 md:p-3">
-                <div className="flex items-center gap-2.5 flex-wrap mb-2.5 px-1 py-1">
+                <button
+                  type="button"
+                  onClick={() => toggleColapsado(grupo.key)}
+                  className="flex items-center gap-2.5 flex-wrap mb-2.5 px-1 py-1 w-full text-left"
+                >
                   <span
                     className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-background-50 ${urgencia?.acento ?? 'bg-primary-500'}`}
                   >
@@ -289,12 +304,15 @@ export default function PedidosPanel() {
                   <span className="text-[11px] font-medium text-foreground-500 ml-auto">
                     {grupo.pedidos.length} pedido{grupo.pedidos.length === 1 ? '' : 's'}
                   </span>
-                </div>
-                <div className="space-y-2">
-                  {grupo.pedidos.map((pedido) => (
-                    <PedidoCard key={pedido.id} pedido={pedido} onSetEstado={setEstado} onSetEstadoPago={setEstadoPago} onDelete={deletePedido} />
-                  ))}
-                </div>
+                  <i className={`ri-arrow-down-s-line text-foreground-400 text-lg transition-transform ${colapsado ? '-rotate-90' : ''}`}></i>
+                </button>
+                {!colapsado && (
+                  <div className="space-y-2">
+                    {grupo.pedidos.map((pedido) => (
+                      <PedidoCard key={pedido.id} pedido={pedido} onSetEstado={setEstado} onSetEstadoPago={setEstadoPago} onDelete={deletePedido} />
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
