@@ -717,6 +717,64 @@ create trigger trg_productos_stock_bajo
   for each row execute function public.notificar_stock_bajo();
 
 -- ============================================================
+-- Caja: registro manual de ingresos y gastos del día a día (sustituye la
+-- hoja de cálculo que llevaba antes el pescadero). Cada fila es un
+-- movimiento suelto, no un total diario ya sumado, para poder registrar
+-- varias facturas o entradas el mismo día sin tener que sumarlas a mano
+-- antes de escribirlas. 'ingreso_bares' es un ingreso (venta a hostelería
+-- facturada aparte de tarjeta/efectivo de mostrador), no un gasto — así lo
+-- trataba ya la hoja de cálculo original (se sumaba al total, no se
+-- restaba). foto_url queda preparado desde ya para adjuntar la foto de la
+-- factura/albarán en una fase posterior, sin necesitar otra migración.
+create table if not exists public.caja_movimientos (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  fecha date not null default current_date,
+  tipo text not null check (
+    tipo in ('ingreso_tarjeta', 'ingreso_efectivo', 'ingreso_bares', 'gasto_factura', 'gasto_extra')
+  ),
+  concepto text,
+  importe numeric(10, 2) not null check (importe >= 0),
+  foto_url text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_caja_movimientos_updated_at on public.caja_movimientos;
+create trigger trg_caja_movimientos_updated_at
+  before update on public.caja_movimientos
+  for each row execute function public.set_updated_at();
+
+alter table public.caja_movimientos enable row level security;
+
+drop policy if exists "caja_movimientos_select_admin" on public.caja_movimientos;
+create policy "caja_movimientos_select_admin"
+  on public.caja_movimientos for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "caja_movimientos_insert_admin" on public.caja_movimientos;
+create policy "caja_movimientos_insert_admin"
+  on public.caja_movimientos for insert
+  to authenticated
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "caja_movimientos_update_admin" on public.caja_movimientos;
+create policy "caja_movimientos_update_admin"
+  on public.caja_movimientos for update
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "caja_movimientos_delete_admin" on public.caja_movimientos;
+create policy "caja_movimientos_delete_admin"
+  on public.caja_movimientos for delete
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_caja_movimientos_fecha on public.caja_movimientos (cliente_id, fecha);
+
+-- ============================================================
 -- Suscriptores del newsletter, con doble confirmación (double opt-in)
 -- y baja sin login vía token.
 -- ============================================================
@@ -1202,7 +1260,7 @@ $$;
 -- ============================================================
 -- Realtime: el panel de gestión (usePedidos, useReservas, useResenas,
 -- useProductos, useNewsletter, useReservasEventos, useReservasAjustes,
--- useSolicitudesStock) se suscribe a estas tablas con Postgres Changes
+-- useSolicitudesStock, useCaja) se suscribe a estas tablas con Postgres Changes
 -- para refrescarse solo en cuanto cambian, sin recargar la página.
 -- Postgres Changes solo emite eventos de una tabla si está añadida a la
 -- publicación `supabase_realtime` — no ocurre automáticamente al crear la
@@ -1218,7 +1276,8 @@ declare
 begin
   foreach t in array array[
     'pedidos', 'reservas', 'reservas_eventos', 'reservas_ajustes',
-    'resenas', 'newsletter_subscribers', 'productos', 'solicitudes_stock'
+    'resenas', 'newsletter_subscribers', 'productos', 'solicitudes_stock',
+    'caja_movimientos'
   ]
   loop
     if not exists (

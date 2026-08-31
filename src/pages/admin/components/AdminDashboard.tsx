@@ -6,6 +6,7 @@ import ProductoFormModal from './ProductoFormModal';
 import PedidosPanel from './PedidosPanel';
 import ResenasPanel from './ResenasPanel';
 import StockPanel from './StockPanel';
+import CajaPanel from './CajaPanel';
 import ReservasPanel from './ReservasPanel';
 import SolicitudesStockPanel from './SolicitudesStockPanel';
 import HoyPanel from './HoyPanel';
@@ -19,7 +20,7 @@ import { useOrderAlertSound } from '@/hooks/useOrderAlertSound';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import ViewSwitcher from './ViewSwitcher';
 
-type Tab = 'hoy' | 'productos' | 'pedidos' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes';
+type Tab = 'hoy' | 'productos' | 'pedidos' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -184,6 +185,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'productos', label: 'Productos' },
   { value: 'stock', label: 'Stock' },
   { value: 'pedidos', label: 'Pedidos' },
+  { value: 'caja', label: 'Caja' },
   { value: 'reservas', label: 'Reservas' },
   { value: 'solicitudes', label: 'Solicitudes' },
   { value: 'resenas', label: 'Reseñas' },
@@ -394,6 +396,8 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         />
       ) : tab === 'pedidos' ? (
         <PedidosPanel />
+      ) : tab === 'caja' ? (
+        <CajaPanel />
       ) : tab === 'resenas' ? (
         <ResenasPanel />
       ) : tab === 'reservas' ? (
