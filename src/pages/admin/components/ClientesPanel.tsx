@@ -2,6 +2,13 @@ import { useMemo, useState } from 'react';
 import type { Pedido } from '@/types/pedido';
 import type { Reserva } from '@/types/reserva';
 import { normalizePhone, telHref, whatsappHref } from '@/lib/phone';
+import InfoHint from '@/components/base/InfoHint';
+
+const INFO_ITEMS = [
+  { icon: 'ri-database-2-line', text: 'Se construye solo a partir del histórico de pedidos y reservas.' },
+  { icon: 'ri-phone-line', text: 'Se agrupa por teléfono, para juntar todo bajo el mismo cliente.' },
+  { icon: 'ri-star-fill', text: 'Con 3 o más pedidos/reservas, el cliente lleva la insignia "Habitual".' },
+];
 
 interface HistorialEntrada {
   tipo: 'pedido' | 'reserva';
@@ -143,21 +150,19 @@ export default function ClientesPanel({
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <p className="text-xs text-foreground-400 mb-4">
-        Se construye automáticamente a partir del histórico de pedidos y reservas, agrupado por teléfono. Los clientes
-        con 3 o más pedidos/reservas llevan la insignia "Habitual".
-      </p>
-
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-4">
-        <div className="relative flex-1 min-w-[200px] max-w-[280px]">
-          <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre o teléfono…"
-            className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
-          />
+        <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px]">
+          <InfoHint items={INFO_ITEMS} className="flex-shrink-0" />
+          <div className="relative flex-1">
+            <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre o teléfono…"
+              className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
+            />
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           <button

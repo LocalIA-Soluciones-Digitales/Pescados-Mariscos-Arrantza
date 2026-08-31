@@ -4,6 +4,13 @@ import type { Reserva } from '@/types/reserva';
 import type { Resena } from '@/types/resena';
 import type { Producto } from '@/types/producto';
 import { normalizePhone, telHref, whatsappHref } from '@/lib/phone';
+import InfoHint from '@/components/base/InfoHint';
+
+const INFO_ITEMS = [
+  { icon: 'ri-dashboard-3-line', text: 'Resumen del día: pedidos nuevos, reservas pendientes, reseñas por moderar y productos bajo mínimo.' },
+  { icon: 'ri-bar-chart-2-line', text: '"Para preparar" suma todo lo pendiente de entregar, para saber qué comprar en la lonja.' },
+  { icon: 'ri-calendar-check-line', text: 'Abajo se ven los pedidos y reservas con recogida marcada para hoy, con acceso rápido a llamar o escribir por WhatsApp.' },
+];
 
 type Tab = 'hoy' | 'productos' | 'stock' | 'ventas' | 'reservas' | 'resenas' | 'clientes';
 
@@ -171,6 +178,11 @@ export default function HoyPanel({
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28 space-y-9">
+      <div className="flex items-center gap-2">
+        <InfoHint items={INFO_ITEMS} />
+        <span className="text-xs text-foreground-400">Cómo funciona el resumen de hoy</span>
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatTile label="Pedidos nuevos" value={pedidosNuevos.length} icon="ri-shopping-bag-3-line" urgent onClick={() => onNavigate('ventas')} />
         <StatTile label="Reservas pendientes" value={reservasPendientes.length} icon="ri-calendar-check-line" urgent onClick={() => onNavigate('reservas')} />

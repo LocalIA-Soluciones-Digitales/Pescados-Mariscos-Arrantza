@@ -1,6 +1,14 @@
 import { useMemo, useState } from 'react';
 import { usePedidos } from '@/hooks/usePedidos';
 import type { Pedido, PedidoEstado, PedidoEstadoPago } from '@/types/pedido';
+import InfoHint from '@/components/base/InfoHint';
+
+const INFO_ITEMS = [
+  { icon: 'ri-shopping-bag-3-line', text: 'Pedidos hechos desde la web, para recoger en tienda o entrega a domicilio.' },
+  { icon: 'ri-calendar-check-line', text: 'Agrupados por fecha de recogida, para ver de un vistazo qué preparar cada día.' },
+  { icon: 'ri-arrow-right-circle-line', text: 'Marca "Confirmado" y luego "Completado" a medida que avanza el pedido.' },
+  { icon: 'ri-bank-card-line', text: 'Si el pago es por Bizum, márcalo pagado a mano cuando lo recibas.' },
+];
 
 const ESTADO_PAGO_LABELS: Record<PedidoEstadoPago, string> = {
   no_aplica: '',
@@ -258,22 +266,25 @@ export default function PedidosPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide mb-4">
-        {ESTADO_FILTROS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            onClick={() => setFiltro(f.value)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
-              filtro === f.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
-            }`}
-          >
-            {f.label}
-            <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${filtro === f.value ? 'bg-background-50/20' : 'bg-background-200/60 text-foreground-400'}`}>
-              {counts[f.value] ?? 0}
-            </span>
-          </button>
-        ))}
+      <div className="flex items-center gap-2 mb-4">
+        <InfoHint items={INFO_ITEMS} />
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1 min-w-0">
+          {ESTADO_FILTROS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setFiltro(f.value)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+                filtro === f.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              {f.label}
+              <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${filtro === f.value ? 'bg-background-50/20' : 'bg-background-200/60 text-foreground-400'}`}>
+                {counts[f.value] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (

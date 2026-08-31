@@ -19,8 +19,16 @@ import { usePulse } from '@/hooks/usePulse';
 import { useOrderAlertSound } from '@/hooks/useOrderAlertSound';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import ViewSwitcher from './ViewSwitcher';
+import InfoHint from '@/components/base/InfoHint';
 
 type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes';
+
+const PRODUCTOS_INFO_ITEMS = [
+  { icon: 'ri-toggle-line', text: 'Marca "Disponible"/"Agotado" para que se refleje al instante en la web.' },
+  { icon: 'ri-star-line', text: 'La estrella añade el producto a la Selección del día en la portada.' },
+  { icon: 'ri-price-tag-3-line', text: 'La etiqueta (Novedad, Especialidad, Temporada) se muestra como distintivo en la web.' },
+  { icon: 'ri-alert-line', text: 'Si el stock baja del mínimo, aquí se avisa con un icono de alerta.' },
+];
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -415,15 +423,18 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center"
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
-        <div className="relative flex-1 min-w-[200px] max-w-[280px]">
-          <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar producto…"
-            className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
-          />
+        <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px]">
+          <InfoHint items={PRODUCTOS_INFO_ITEMS} className="flex-shrink-0" />
+          <div className="relative flex-1">
+            <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar producto…"
+              className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
+            />
+          </div>
         </div>
 
         <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">

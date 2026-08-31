@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useResenas } from '@/hooks/useResenas';
 import type { ResenaEstado } from '@/types/resena';
+import InfoHint from '@/components/base/InfoHint';
+
+const INFO_ITEMS = [
+  { icon: 'ri-chat-3-line', text: 'Las reseñas las escriben los clientes desde la web.' },
+  { icon: 'ri-shield-check-line', text: 'Apruébalas para que aparezcan en público — nada se publica solo.' },
+  { icon: 'ri-delete-bin-line', text: 'Puedes rechazarlas o eliminarlas si no proceden.' },
+];
 
 const ESTADO_LABELS: Record<ResenaEstado, string> = {
   pendiente: 'Pendiente',
@@ -51,26 +58,25 @@ export default function ResenasPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <p className="text-xs text-foreground-400 mb-4">
-        Las reseñas las escriben los clientes desde la web. Apruébalas para que aparezcan en público — nada se publica automáticamente.
-      </p>
-
-      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide mb-4">
-        {FILTROS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            onClick={() => setFiltro(f.value)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
-              filtro === f.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
-            }`}
-          >
-            {f.label}
-            <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${filtro === f.value ? 'bg-background-50/20' : 'bg-background-200/60 text-foreground-400'}`}>
-              {counts[f.value] ?? 0}
-            </span>
-          </button>
-        ))}
+      <div className="flex items-center gap-2 mb-4">
+        <InfoHint items={INFO_ITEMS} />
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1 min-w-0">
+          {FILTROS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setFiltro(f.value)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+                filtro === f.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              {f.label}
+              <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${filtro === f.value ? 'bg-background-50/20' : 'bg-background-200/60 text-foreground-400'}`}>
+                {counts[f.value] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (

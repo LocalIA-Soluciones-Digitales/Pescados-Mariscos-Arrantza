@@ -242,7 +242,7 @@ export default function StockPanel({
         className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center"
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-[320px]">
+        <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px]">
           <div className="relative flex-1">
             <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
             <input
