@@ -1,9 +1,9 @@
 {
-  "name": "Arrantza — Panel de gestión",
+  "name": "Pescados y Mariscos Arrantza",
   "short_name": "Arrantza",
-  "description": "Panel de gestión para Pescados y Mariscos Arrantza: pedidos, reservas, stock y reseñas.",
-  "id": "/admin",
-  "start_url": "/admin",
+  "description": "Pescados y Mariscos Arrantza: productos, reservas y pedidos.",
+  "id": "/",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
