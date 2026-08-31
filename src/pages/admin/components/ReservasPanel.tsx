@@ -4,6 +4,14 @@ import { useReservas } from '@/hooks/useReservas';
 import { useReservasAjustes } from '@/hooks/useReservasAjustes';
 import ReservaEventoModal from './ReservaEventoModal';
 import type { Reserva, ReservaAjuste, ReservaEstado, ReservaEvento } from '@/types/reserva';
+import InfoHint from '@/components/base/InfoHint';
+
+const INFO_ITEMS = [
+  { icon: 'ri-calendar-event-line', text: 'Crea una campaña por cada fecha especial (Navidad, Nochevieja...).' },
+  { icon: 'ri-shopping-bag-line', text: 'Los clientes reservan productos, cantidades y su día de recogida desde la web.' },
+  { icon: 'ri-list-check-2', text: 'Aquí se ve agrupado por día, para saber qué comprar en la lonja cada jornada.' },
+  { icon: 'ri-check-double-line', text: 'Al marcar una reserva como "Entregada" se descuenta sola del pendiente de ese día.' },
+];
 
 const ESTADO_LABELS: Record<ReservaEstado, string> = {
   pendiente: 'Pendiente',
@@ -296,7 +304,7 @@ interface ResumenFechaGroup {
   productos: ResumenRow[];
 }
 
-function ResumenFechaCard({ grupo }: { grupo: ResumenFechaGroup }) {
+function ResumenFechaCard({ grupo, evento }: { grupo: ResumenFechaGroup; evento: ReservaEvento }) {
   return (
     <div className="bg-background-50 border border-background-200/70 rounded-xl shadow-card p-4">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
@@ -306,6 +314,15 @@ function ResumenFechaCard({ grupo }: { grupo: ResumenFechaGroup }) {
             {grupo.fecha ? formatFechaLarga(grupo.fecha) : 'Sin fecha indicada'}
           </h4>
           {grupo.fecha && <EtiquetaUrgencia fecha={grupo.fecha} />}
+          <button
+            type="button"
+            onClick={() => imprimirResumenCompra(evento, [grupo])}
+            title="Imprimir lista de compra de este día"
+            aria-label="Imprimir lista de compra de este día"
+            className="text-xl leading-none hover:scale-110 transition-transform"
+          >
+            🖨️
+          </button>
         </div>
         <p className="text-xs text-foreground-400">
           {grupo.clientes} cliente{grupo.clientes === 1 ? '' : 's'} · {formatKg(grupo.totalKg)} en total
@@ -669,11 +686,10 @@ export default function ReservasPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <p className="text-xs text-foreground-400 mb-4">
-        Crea una campaña por cada fecha especial (Navidad, Nochevieja...). Los clientes reservan productos, cantidades
-        y su día de recogida desde la web; aquí lo ves agrupado por ese día, para saber qué comprar en la lonja cada
-        jornada. Al marcar una reserva como "Entregada" se descuenta automáticamente del pendiente de ese día.
-      </p>
+      <div className="flex items-center gap-2 mb-4">
+        <InfoHint items={INFO_ITEMS} />
+        <span className="text-xs text-foreground-400">Cómo funcionan las reservas</span>
+      </div>
 
       {eventos.length === 0 ? (
         <div className="text-center py-16">
@@ -772,16 +788,6 @@ export default function ReservasPanel() {
                   <i className="ri-list-check-2 mr-1"></i>
                   Reservas ({counts.todas})
                 </button>
-                {vista === 'resumen' && resumenPorFecha.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => imprimirResumenCompra(eventoActivo, resumenPorFecha)}
-                    className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70"
-                  >
-                    <i className="ri-printer-line"></i>
-                    Imprimir lista de compra
-                  </button>
-                )}
               </div>
 
               {vista === 'resumen' ? (
@@ -791,7 +797,7 @@ export default function ReservasPanel() {
                   <>
                     <div className="space-y-3 mt-2">
                       {resumenPorFecha.map((grupo) => (
-                        <ResumenFechaCard key={grupo.key} grupo={grupo} />
+                        <ResumenFechaCard key={grupo.key} grupo={grupo} evento={eventoActivo} />
                       ))}
                     </div>
 
