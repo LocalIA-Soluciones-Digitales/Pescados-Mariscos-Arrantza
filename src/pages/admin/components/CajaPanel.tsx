@@ -94,14 +94,14 @@ function FormNuevoMovimiento({
     setImporte('');
   };
 
-  const campo = 'h-9 w-full px-2.5 bg-background-100 border border-background-200/70 rounded-md text-sm';
+  const campo = 'h-11 w-full px-2.5 bg-background-100 border border-background-200/70 rounded-md text-sm';
 
   return (
     <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
       <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
         <div className="flex flex-col gap-1 sm:w-36">
           <label className="text-[11px] text-foreground-400">Fecha</label>
-          <input type="date" value={fecha} onChange={(e) => onFechaChange(e.target.value)} className={`${campo} appearance-none leading-[2.25rem] py-0`} />
+          <input type="date" value={fecha} onChange={(e) => onFechaChange(e.target.value)} className={campo} />
         </div>
 
         <div className="flex flex-col gap-1 sm:w-44">
@@ -154,7 +154,7 @@ function FormNuevoMovimiento({
           type="button"
           onClick={submit}
           disabled={saving || !importe}
-          className="h-9 px-4 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 self-end sm:flex-shrink-0"
+          className="h-11 px-4 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 self-end sm:flex-shrink-0"
         >
           {saving ? 'Guardando…' : 'Añadir'}
         </button>
@@ -456,31 +456,29 @@ export default function CajaPanel() {
 
   return (
     <>
-      <div className="px-4 md:px-8 pt-6 pb-4 flex items-center gap-2">
-        <InfoHint items={INFO_ITEMS} />
-        <span className="text-xs text-foreground-400">Cómo funciona la caja</span>
-      </div>
-
       <div
-        className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex items-center gap-1.5"
+        className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex items-center justify-between gap-1.5"
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
-        {([
-          { value: 'dia', label: 'Día' },
-          { value: 'mes', label: 'Mes' },
-          { value: 'anio', label: 'Año' },
-        ] as { value: Vista; label: string }[]).map((v) => (
-          <button
-            key={v.value}
-            type="button"
-            onClick={() => setVista(v.value)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              vista === v.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
-            }`}
-          >
-            {v.label}
-          </button>
-        ))}
+        <div className="flex items-center gap-1.5">
+          {([
+            { value: 'dia', label: 'Día' },
+            { value: 'mes', label: 'Mes' },
+            { value: 'anio', label: 'Año' },
+          ] as { value: Vista; label: string }[]).map((v) => (
+            <button
+              key={v.value}
+              type="button"
+              onClick={() => setVista(v.value)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                vista === v.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+        <InfoHint items={INFO_ITEMS} align="right" />
       </div>
 
       <div className="px-4 md:px-8 py-6 pb-28">

@@ -8,9 +8,10 @@ interface InfoHintItem {
 interface InfoHintProps {
   items: InfoHintItem[];
   className?: string;
+  align?: 'left' | 'right';
 }
 
-export default function InfoHint({ items, className = '' }: InfoHintProps) {
+export default function InfoHint({ items, className = '', align = 'left' }: InfoHintProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -45,7 +46,9 @@ export default function InfoHint({ items, className = '' }: InfoHintProps) {
       </button>
 
       {open && (
-        <div className="absolute z-20 top-full left-0 mt-2 w-72 max-w-[85vw] rounded-xl border border-background-200/70 bg-background-50 shadow-card-hover p-3 animate-fadeIn">
+        <div
+          className={`absolute z-20 top-full ${align === 'right' ? 'right-0' : 'left-0'} mt-2 w-72 max-w-[85vw] rounded-xl border border-background-200/70 bg-background-50 shadow-card-hover p-3 animate-fadeIn`}
+        >
           <ul className="space-y-2.5">
             {items.map((item, i) => (
               <li key={i} className="flex items-start gap-2.5">
