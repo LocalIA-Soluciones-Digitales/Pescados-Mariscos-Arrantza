@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useCaja, type NewCajaMovimientoInput } from '@/hooks/useCaja';
-import { CAJA_TIPO_LABELS, CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
+import { useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
+import { CAJA_TIPO_LABELS, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
+const TIPOS_GASTO: CajaMovimientoTipo[] = ['gasto_factura', 'gasto_extra'];
+
 const CONCEPTO_PLACEHOLDER: Record<CajaMovimientoTipo, string> = {
-  ingreso_tarjeta: 'Nota (opcional)',
-  ingreso_efectivo: 'Nota (opcional)',
-  ingreso_bares: 'Bar o cliente (opcional)',
   gasto_factura: 'Proveedor (opcional)',
   gasto_extra: 'Motivo (opcional)',
 };
@@ -25,7 +25,8 @@ function formatEUR(n: number): string {
 
 function formatFechaLarga(fecha: string): string {
   const [y, m, d] = fecha.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  const texto = new Date(y, m - 1, d).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 function formatFechaCorta(fecha: string): string {
@@ -34,23 +35,13 @@ function formatFechaCorta(fecha: string): string {
 }
 
 interface Totales {
-  ingreso_tarjeta: number;
-  ingreso_efectivo: number;
-  ingreso_bares: number;
+  ingresos: number;
   gasto_factura: number;
   gasto_extra: number;
 }
 
 function totalesVacios(): Totales {
-  return { ingreso_tarjeta: 0, ingreso_efectivo: 0, ingreso_bares: 0, gasto_factura: 0, gasto_extra: 0 };
-}
-
-function acumular(t: Totales, m: CajaMovimiento): Totales {
-  return { ...t, [m.tipo]: t[m.tipo] + Number(m.importe) };
-}
-
-function totalIngresos(t: Totales): number {
-  return t.ingreso_tarjeta + t.ingreso_efectivo + t.ingreso_bares;
+  return { ingresos: 0, gasto_factura: 0, gasto_extra: 0 };
 }
 
 function totalGastos(t: Totales): number {
@@ -58,14 +49,12 @@ function totalGastos(t: Totales): number {
 }
 
 function totalNeto(t: Totales): number {
-  return totalIngresos(t) - totalGastos(t);
+  return t.ingresos - totalGastos(t);
 }
 
 function NetoBadge({ valor }: { valor: number }) {
   const positivo = valor >= 0;
-  return (
-    <span className={`font-semibold ${positivo ? 'text-emerald-700' : 'text-red-600'}`}>{formatEUR(valor)}</span>
-  );
+  return <span className={`font-semibold ${positivo ? 'text-emerald-700' : 'text-red-600'}`}>{formatEUR(valor)}</span>;
 }
 
 function FormNuevoMovimiento({
@@ -77,7 +66,7 @@ function FormNuevoMovimiento({
   onFechaChange: (fecha: string) => void;
   onCrear: (input: NewCajaMovimientoInput) => Promise<CajaMovimiento | null>;
 }) {
-  const [tipo, setTipo] = useState<CajaMovimientoTipo>('ingreso_tarjeta');
+  const [tipo, setTipo] = useState<CajaMovimientoTipo>('gasto_factura');
   const [concepto, setConcepto] = useState('');
   const [importe, setImporte] = useState('');
   const [saving, setSaving] = useState(false);
@@ -89,57 +78,48 @@ function FormNuevoMovimiento({
     const creado = await onCrear({ fecha, tipo, concepto: concepto.trim() || null, importe: valor });
     setSaving(false);
     if (!creado) {
-      alert('No se pudo guardar el movimiento.');
+      alert('No se pudo guardar el gasto.');
       return;
     }
     setConcepto('');
     setImporte('');
   };
 
+  const campo = 'h-9 px-2.5 bg-background-100 border border-background-200/70 rounded-md text-sm';
+
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card flex flex-wrap items-end gap-2">
-      <div className="flex flex-col gap-1">
+    <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card flex flex-wrap items-end gap-3">
+      <div className="flex flex-col gap-1 w-36">
         <label className="text-[11px] text-foreground-400">Fecha</label>
         <input
           type="date"
           value={fecha}
           onChange={(e) => onFechaChange(e.target.value)}
-          className="px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm"
+          className={`${campo} w-full`}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label className="text-[11px] text-foreground-400">Tipo</label>
-        <select
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value as CajaMovimientoTipo)}
-          className="px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm"
-        >
-          <optgroup label="Ingreso">
-            {CAJA_TIPOS_INGRESO.map((t) => (
-              <option key={t} value={t}>{CAJA_TIPO_LABELS[t]}</option>
-            ))}
-          </optgroup>
-          <optgroup label="Gasto">
-            {CAJA_TIPOS_GASTO.map((t) => (
-              <option key={t} value={t}>{CAJA_TIPO_LABELS[t]}</option>
-            ))}
-          </optgroup>
+      <div className="flex flex-col gap-1 w-40">
+        <label className="text-[11px] text-foreground-400">Tipo de gasto</label>
+        <select value={tipo} onChange={(e) => setTipo(e.target.value as CajaMovimientoTipo)} className={`${campo} w-full`}>
+          {TIPOS_GASTO.map((t) => (
+            <option key={t} value={t}>{CAJA_TIPO_LABELS[t]}</option>
+          ))}
         </select>
       </div>
 
-      <div className="flex flex-col gap-1 flex-1 min-w-[140px]">
+      <div className="flex flex-col gap-1 flex-1 min-w-[160px] max-w-xs">
         <label className="text-[11px] text-foreground-400">Concepto</label>
         <input
           type="text"
           value={concepto}
           onChange={(e) => setConcepto(e.target.value)}
           placeholder={CONCEPTO_PLACEHOLDER[tipo]}
-          className="w-full px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm"
+          className={`${campo} w-full`}
         />
       </div>
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 w-32">
         <label className="text-[11px] text-foreground-400">Importe</label>
         <div className="relative">
           <input
@@ -152,9 +132,9 @@ function FormNuevoMovimiento({
               if (e.key === 'Enter') submit();
             }}
             placeholder="0,00"
-            className="w-28 pl-2 pr-6 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
+            className={`${campo} w-full pr-6 text-right`}
           />
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-foreground-400">€</span>
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-foreground-400">€</span>
         </div>
       </div>
 
@@ -162,9 +142,9 @@ function FormNuevoMovimiento({
         type="button"
         onClick={submit}
         disabled={saving || !importe}
-        className="px-4 py-2 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50"
+        className="h-9 px-4 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 flex-shrink-0"
       >
-        {saving ? 'Guardando…' : 'Añadir'}
+        {saving ? 'Guardando…' : 'Añadir gasto'}
       </button>
     </div>
   );
@@ -173,41 +153,26 @@ function FormNuevoMovimiento({
 function VistaDia({
   fecha,
   onFechaChange,
-  movimientosDelDia,
+  ingresosHoy,
+  ticketsHoy,
+  gastosDelDia,
   onCrear,
   onEliminar,
 }: {
   fecha: string;
   onFechaChange: (fecha: string) => void;
-  movimientosDelDia: CajaMovimiento[];
+  ingresosHoy: number;
+  ticketsHoy: number;
+  gastosDelDia: CajaMovimiento[];
   onCrear: (input: NewCajaMovimientoInput) => Promise<CajaMovimiento | null>;
   onEliminar: (id: string) => Promise<boolean>;
 }) {
-  const ingresos = movimientosDelDia.filter((m) => esCajaIngreso(m.tipo));
-  const gastos = movimientosDelDia.filter((m) => !esCajaIngreso(m.tipo));
-  const totales = movimientosDelDia.reduce(acumular, totalesVacios());
+  const totalGastosDia = gastosDelDia.reduce((n, m) => n + Number(m.importe), 0);
 
   const eliminar = async (m: CajaMovimiento) => {
-    if (!confirm(`¿Eliminar este movimiento de ${formatEUR(m.importe)}?`)) return;
+    if (!confirm(`¿Eliminar este gasto de ${formatEUR(m.importe)}?`)) return;
     await onEliminar(m.id);
   };
-
-  const Fila = ({ m }: { m: CajaMovimiento }) => (
-    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-background-200/50 last:border-b-0">
-      <div className="min-w-0">
-        <p className="text-sm text-foreground-950">{CAJA_TIPO_LABELS[m.tipo]}</p>
-        {m.concepto && <p className="text-xs text-foreground-400 truncate">{m.concepto}</p>}
-      </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <span className={`text-sm font-medium ${esCajaIngreso(m.tipo) ? 'text-emerald-700' : 'text-red-600'}`}>
-          {esCajaIngreso(m.tipo) ? '+' : '-'}{formatEUR(m.importe)}
-        </span>
-        <button type="button" onClick={() => eliminar(m)} className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-400 hover:bg-red-50 hover:text-red-600">
-          <i className="ri-delete-bin-line text-sm"></i>
-        </button>
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-4">
@@ -215,43 +180,43 @@ function VistaDia({
 
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
-          <p className="text-[11px] text-foreground-400 mb-1">Ingresos</p>
-          <p className="text-lg font-semibold text-emerald-700">{formatEUR(totalIngresos(totales))}</p>
+          <p className="text-[11px] text-foreground-400 mb-1">Ingresos (báscula)</p>
+          <p className="text-lg font-semibold text-emerald-700">{formatEUR(ingresosHoy)}</p>
+          {ticketsHoy > 0 && <p className="text-[11px] text-foreground-400 mt-0.5">{ticketsHoy} ticket{ticketsHoy === 1 ? '' : 's'}</p>}
         </div>
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
           <p className="text-[11px] text-foreground-400 mb-1">Gastos</p>
-          <p className="text-lg font-semibold text-red-600">{formatEUR(totalGastos(totales))}</p>
+          <p className="text-lg font-semibold text-red-600">{formatEUR(totalGastosDia)}</p>
         </div>
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
           <p className="text-[11px] text-foreground-400 mb-1">Neto del día</p>
-          <p className="text-lg"><NetoBadge valor={totalNeto(totales)} /></p>
+          <p className="text-lg"><NetoBadge valor={ingresosHoy - totalGastosDia} /></p>
         </div>
       </div>
 
-      <p className="text-sm font-medium text-foreground-950 capitalize">{formatFechaLarga(fecha)}</p>
+      <p className="text-sm font-medium text-foreground-950">{formatFechaLarga(fecha)}</p>
 
-      {movimientosDelDia.length === 0 ? (
-        <p className="text-sm text-foreground-400">Todavía no hay movimientos este día.</p>
-      ) : (
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
-            <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500 px-3 pt-2.5 pb-1.5">Ingresos</p>
-            {ingresos.length === 0 ? (
-              <p className="text-xs text-foreground-400 px-3 pb-3">Sin ingresos registrados.</p>
-            ) : (
-              ingresos.map((m) => <Fila key={m.id} m={m} />)
-            )}
-          </div>
-          <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
-            <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500 px-3 pt-2.5 pb-1.5">Gastos</p>
-            {gastos.length === 0 ? (
-              <p className="text-xs text-foreground-400 px-3 pb-3">Sin gastos registrados.</p>
-            ) : (
-              gastos.map((m) => <Fila key={m.id} m={m} />)
-            )}
-          </div>
-        </div>
-      )}
+      <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
+        <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500 px-3 pt-2.5 pb-1.5">Gastos del día</p>
+        {gastosDelDia.length === 0 ? (
+          <p className="text-xs text-foreground-400 px-3 pb-3">Todavía no hay gastos registrados este día.</p>
+        ) : (
+          gastosDelDia.map((m) => (
+            <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-background-200/50 last:border-b-0">
+              <div className="min-w-0">
+                <p className="text-sm text-foreground-950">{CAJA_TIPO_LABELS[m.tipo]}</p>
+                {m.concepto && <p className="text-xs text-foreground-400 truncate">{m.concepto}</p>}
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span className="text-sm font-medium text-red-600">-{formatEUR(m.importe)}</span>
+                <button type="button" onClick={() => eliminar(m)} className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-400 hover:bg-red-50 hover:text-red-600">
+                  <i className="ri-delete-bin-line text-sm"></i>
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -268,9 +233,7 @@ function TablaTotales({
   const Row = ({ label, totales, onClick, bold }: { label: string; totales: Totales; onClick?: () => void; bold?: boolean }) => (
     <tr onClick={onClick} className={`${onClick ? 'cursor-pointer hover:bg-background-100' : ''} ${bold ? 'font-semibold border-t-2 border-background-200' : 'border-b border-background-200/50'}`}>
       <td className="px-3 py-2 whitespace-nowrap">{label}</td>
-      <td className="px-3 py-2 text-right whitespace-nowrap">{formatEUR(totales.ingreso_tarjeta)}</td>
-      <td className="px-3 py-2 text-right whitespace-nowrap">{formatEUR(totales.ingreso_efectivo)}</td>
-      <td className="px-3 py-2 text-right whitespace-nowrap">{formatEUR(totales.ingreso_bares)}</td>
+      <td className="px-3 py-2 text-right whitespace-nowrap text-emerald-700">{formatEUR(totales.ingresos)}</td>
       <td className="px-3 py-2 text-right whitespace-nowrap text-red-600">{formatEUR(totales.gasto_factura)}</td>
       <td className="px-3 py-2 text-right whitespace-nowrap text-red-600">{formatEUR(totales.gasto_extra)}</td>
       <td className="px-3 py-2 text-right whitespace-nowrap"><NetoBadge valor={totalNeto(totales)} /></td>
@@ -279,13 +242,11 @@ function TablaTotales({
 
   return (
     <div className="overflow-x-auto bg-background-50 border border-background-200/70 rounded-xl shadow-card">
-      <table className="w-full text-sm min-w-[640px]">
+      <table className="w-full text-sm min-w-[520px]">
         <thead>
           <tr className="text-[11px] uppercase tracking-wide text-foreground-400 border-b border-background-200/70">
             <th className="px-3 py-2 text-left font-medium"></th>
-            <th className="px-3 py-2 text-right font-medium">Tarjeta</th>
-            <th className="px-3 py-2 text-right font-medium">Efectivo</th>
-            <th className="px-3 py-2 text-right font-medium">Bares</th>
+            <th className="px-3 py-2 text-right font-medium">Ingresos</th>
             <th className="px-3 py-2 text-right font-medium">Facturas</th>
             <th className="px-3 py-2 text-right font-medium">Gastos extra</th>
             <th className="px-3 py-2 text-right font-medium">Neto</th>
@@ -294,7 +255,7 @@ function TablaTotales({
         <tbody>
           {filas.length === 0 ? (
             <tr>
-              <td colSpan={7} className="px-3 py-4 text-center text-foreground-400">Sin movimientos.</td>
+              <td colSpan={5} className="px-3 py-4 text-center text-foreground-400">Sin movimientos.</td>
             </tr>
           ) : (
             filas.map((f) => <Row key={f.key} label={f.label} totales={f.totales} onClick={onFilaClick ? () => onFilaClick(f.key) : undefined} />)
@@ -311,6 +272,7 @@ function VistaMes({
   mes,
   onAnioChange,
   onMesChange,
+  ingresosPorFecha,
   movimientos,
   onIrADia,
 }: {
@@ -318,26 +280,37 @@ function VistaMes({
   mes: number;
   onAnioChange: (anio: number) => void;
   onMesChange: (mes: number) => void;
+  ingresosPorFecha: Map<string, number>;
   movimientos: CajaMovimiento[];
   onIrADia: (fecha: string) => void;
 }) {
-  const delMes = useMemo(
-    () => movimientos.filter((m) => {
-      const [y, mo] = m.fecha.split('-').map(Number);
-      return y === anio && mo - 1 === mes;
-    }),
-    [movimientos, anio, mes],
-  );
+  const prefijo = `${anio}-${String(mes + 1).padStart(2, '0')}`;
 
   const porDia = useMemo(() => {
     const map = new Map<string, Totales>();
-    delMes.forEach((m) => map.set(m.fecha, acumular(map.get(m.fecha) ?? totalesVacios(), m)));
+    ingresosPorFecha.forEach((importe, fecha) => {
+      if (!fecha.startsWith(prefijo)) return;
+      map.set(fecha, { ...(map.get(fecha) ?? totalesVacios()), ingresos: importe });
+    });
+    movimientos
+      .filter((m) => m.fecha.startsWith(prefijo))
+      .forEach((m) => {
+        const t = map.get(m.fecha) ?? totalesVacios();
+        map.set(m.fecha, { ...t, [m.tipo]: t[m.tipo] + Number(m.importe) });
+      });
     return [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([fecha, totales]) => ({ key: fecha, label: formatFechaCorta(fecha), totales }));
-  }, [delMes]);
+  }, [ingresosPorFecha, movimientos, prefijo]);
 
-  const totalMes = delMes.reduce(acumular, totalesVacios());
+  const totalMes = porDia.reduce(
+    (acc, f) => ({
+      ingresos: acc.ingresos + f.totales.ingresos,
+      gasto_factura: acc.gasto_factura + f.totales.gasto_factura,
+      gasto_extra: acc.gasto_extra + f.totales.gasto_extra,
+    }),
+    totalesVacios(),
+  );
 
   return (
     <div className="space-y-4">
@@ -358,26 +331,40 @@ function VistaMes({
 function VistaAnio({
   anio,
   onAnioChange,
+  ingresosPorFecha,
   movimientos,
   onIrAMes,
 }: {
   anio: number;
   onAnioChange: (anio: number) => void;
+  ingresosPorFecha: Map<string, number>;
   movimientos: CajaMovimiento[];
   onIrAMes: (mes: number) => void;
 }) {
-  const delAnio = useMemo(() => movimientos.filter((m) => m.fecha.startsWith(String(anio))), [movimientos, anio]);
-
   const porMes = useMemo(() => {
     const totalesPorMes: Totales[] = Array.from({ length: 12 }, totalesVacios);
-    delAnio.forEach((m) => {
-      const mes = Number(m.fecha.split('-')[1]) - 1;
-      totalesPorMes[mes] = acumular(totalesPorMes[mes], m);
+    ingresosPorFecha.forEach((importe, fecha) => {
+      if (!fecha.startsWith(String(anio))) return;
+      const mes = Number(fecha.split('-')[1]) - 1;
+      totalesPorMes[mes].ingresos += importe;
     });
+    movimientos
+      .filter((m) => m.fecha.startsWith(String(anio)))
+      .forEach((m) => {
+        const mes = Number(m.fecha.split('-')[1]) - 1;
+        totalesPorMes[mes][m.tipo] += Number(m.importe);
+      });
     return totalesPorMes.map((totales, i) => ({ key: String(i), label: MESES[i], totales }));
-  }, [delAnio]);
+  }, [ingresosPorFecha, movimientos, anio]);
 
-  const totalAnio = delAnio.reduce(acumular, totalesVacios());
+  const totalAnio = porMes.reduce(
+    (acc, f) => ({
+      ingresos: acc.ingresos + f.totales.ingresos,
+      gasto_factura: acc.gasto_factura + f.totales.gasto_factura,
+      gasto_extra: acc.gasto_extra + f.totales.gasto_extra,
+    }),
+    totalesVacios(),
+  );
 
   return (
     <div className="space-y-4">
@@ -386,7 +373,7 @@ function VistaAnio({
       </select>
 
       <TablaTotales
-        filas={porMes.filter((f) => totalIngresos(f.totales) > 0 || totalGastos(f.totales) > 0)}
+        filas={porMes.filter((f) => f.totales.ingresos > 0 || totalGastos(f.totales) > 0)}
         totalRow={{ label: 'Total del año', totales: totalAnio }}
         onFilaClick={(key) => onIrAMes(Number(key))}
       />
@@ -397,13 +384,26 @@ function VistaAnio({
 type Vista = 'dia' | 'mes' | 'anio';
 
 export default function CajaPanel() {
-  const { movimientos, loading, crearMovimiento, eliminarMovimiento } = useCaja();
+  const { movimientos, loading: loadingMovimientos, crearMovimiento, eliminarMovimiento } = useCaja();
+  const { dias, loading: loadingBascula } = useBasculaVentasDiarias();
   const [vista, setVista] = useState<Vista>('dia');
   const [fecha, setFecha] = useState(hoyISO());
   const [mes, setMes] = useState(new Date().getMonth());
   const [anio, setAnio] = useState(new Date().getFullYear());
 
-  const movimientosDelDia = useMemo(() => movimientos.filter((m) => m.fecha === fecha), [movimientos, fecha]);
+  const ingresosPorFecha = useMemo(() => {
+    const map = new Map<string, number>();
+    dias.forEach((d) => map.set(d.fecha, d.total_importe));
+    return map;
+  }, [dias]);
+
+  const ticketsPorFecha = useMemo(() => {
+    const map = new Map<string, number>();
+    dias.forEach((d) => map.set(d.fecha, d.num_tickets));
+    return map;
+  }, [dias]);
+
+  const gastosDelDia = useMemo(() => movimientos.filter((m) => m.fecha === fecha), [movimientos, fecha]);
 
   const irADia = (nuevaFecha: string) => {
     setFecha(nuevaFecha);
@@ -415,13 +415,15 @@ export default function CajaPanel() {
     setVista('mes');
   };
 
+  const loading = loadingMovimientos || loadingBascula;
+
   return (
     <>
       <div className="px-4 md:px-8 pt-6">
         <p className="text-xs text-foreground-400 mb-4">
-          Registra aquí cada ingreso (tarjeta, efectivo o venta a bares) y cada gasto (facturas de proveedor o gastos
-          extra) del día. El total de ingresos, gastos y el neto se calculan solos, tanto por día como por mes y por
-          año — no hace falta sumar nada a mano.
+          Los ingresos se calculan solos a partir de las ventas de la báscula (Factura Simplificada y Factura), igual
+          que en la pestaña Ventas › Tienda — no hace falta añadirlos a mano. Aquí solo se registran los gastos:
+          facturas de proveedor y gastos extra. El total de día, mes y año se calcula automáticamente.
         </p>
       </div>
 
@@ -454,14 +456,24 @@ export default function CajaPanel() {
           <VistaDia
             fecha={fecha}
             onFechaChange={setFecha}
-            movimientosDelDia={movimientosDelDia}
+            ingresosHoy={ingresosPorFecha.get(fecha) ?? 0}
+            ticketsHoy={ticketsPorFecha.get(fecha) ?? 0}
+            gastosDelDia={gastosDelDia}
             onCrear={crearMovimiento}
             onEliminar={eliminarMovimiento}
           />
         ) : vista === 'mes' ? (
-          <VistaMes anio={anio} mes={mes} onAnioChange={setAnio} onMesChange={setMes} movimientos={movimientos} onIrADia={irADia} />
+          <VistaMes
+            anio={anio}
+            mes={mes}
+            onAnioChange={setAnio}
+            onMesChange={setMes}
+            ingresosPorFecha={ingresosPorFecha}
+            movimientos={movimientos}
+            onIrADia={irADia}
+          />
         ) : (
-          <VistaAnio anio={anio} onAnioChange={setAnio} movimientos={movimientos} onIrAMes={irAMes} />
+          <VistaAnio anio={anio} onAnioChange={setAnio} ingresosPorFecha={ingresosPorFecha} movimientos={movimientos} onIrAMes={irAMes} />
         )}
       </div>
     </>
