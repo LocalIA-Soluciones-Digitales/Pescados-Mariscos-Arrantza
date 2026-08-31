@@ -2,6 +2,15 @@ import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Producto, ProductoCategoria } from '@/types/producto';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
+import InfoHint from '@/components/base/InfoHint';
+
+const INFO_ITEMS = [
+  { icon: 'ri-add-circle-line', text: '"Entrada de hoy" suma los kg recibidos al stock actual — no hace falta calcular el total.' },
+  { icon: 'ri-subtract-line', text: 'Usa un valor negativo para descontar kg, por ejemplo si llega producto en mal estado.' },
+  { icon: 'ri-shopping-basket-line', text: 'El stock también baja solo con cada pedido y con cada venta pesada en la báscula de la tienda.' },
+  { icon: 'ri-mail-line', text: 'Si baja del aviso mínimo, se envía un correo automáticamente.' },
+  { icon: 'ri-barcode-line', text: '"Código báscula" debe coincidir con el código dado de alta en el terminal de pesaje.' },
+];
 
 const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
   pescado: 'Pescado',
@@ -229,15 +238,9 @@ export default function StockPanel({
 
   return (
     <>
-      <div className="px-4 md:px-8 pt-6">
-        <p className="text-xs text-foreground-400 mb-4">
-          Cada mañana, indica en "Entrada de hoy" únicamente los kg recibidos: se suman automáticamente al stock
-          actual, sin necesidad de calcular el total. Usa un valor negativo para descontar kg (por ejemplo, si ha
-          llegado producto en mal estado). El stock también se descuenta con cada pedido de un cliente y, si el
-          producto se pesa en la báscula de la tienda, con cada venta en mostrador; si baja del mínimo, se envía un
-          aviso por correo automáticamente. Para que la báscula descuente el producto correcto, indica en "Código
-          báscula" el código con el que está dado de alta en el terminal de pesaje.
-        </p>
+      <div className="px-4 md:px-8 pt-6 pb-4 flex items-center gap-2">
+        <InfoHint items={INFO_ITEMS} />
+        <span className="text-xs text-foreground-400">Cómo funciona el stock</span>
       </div>
 
       <div

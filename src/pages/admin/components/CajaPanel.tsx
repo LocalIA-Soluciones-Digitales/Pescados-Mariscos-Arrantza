@@ -2,6 +2,14 @@ import { useMemo, useState } from 'react';
 import { useCaja, type NewCajaMovimientoInput } from '@/hooks/useCaja';
 import { useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
+import InfoHint from '@/components/base/InfoHint';
+
+const INFO_ITEMS = [
+  { icon: 'ri-scales-3-line', text: 'Los ingresos se calculan solos desde las ventas de la báscula — normalmente no hay que tocar nada.' },
+  { icon: 'ri-add-circle-line', text: 'Si un día falla la báscula o se escapa una venta, añade un ingreso a mano y se sumará al automático.' },
+  { icon: 'ri-file-list-3-line', text: 'Los gastos (facturas y gastos extra) siempre se registran a mano.' },
+  { icon: 'ri-calculator-line', text: 'El total de día, mes y año se calcula solo.' },
+];
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -86,69 +94,71 @@ function FormNuevoMovimiento({
     setImporte('');
   };
 
-  const campo = 'h-9 px-2.5 bg-background-100 border border-background-200/70 rounded-md text-sm';
+  const campo = 'h-9 w-full px-2.5 bg-background-100 border border-background-200/70 rounded-md text-sm';
 
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card flex flex-wrap items-end gap-3">
-      <div className="flex flex-col gap-1 w-36">
-        <label className="text-[11px] text-foreground-400">Fecha</label>
-        <input type="date" value={fecha} onChange={(e) => onFechaChange(e.target.value)} className={`${campo} w-full`} />
-      </div>
-
-      <div className="flex flex-col gap-1 w-40">
-        <label className="text-[11px] text-foreground-400">Tipo</label>
-        <select value={tipo} onChange={(e) => setTipo(e.target.value as CajaMovimientoTipo)} className={`${campo} w-full`}>
-          <optgroup label="Ingreso (manual, de respaldo)">
-            {CAJA_TIPOS_INGRESO.map((t) => (
-              <option key={t} value={t}>{CAJA_TIPO_LABELS[t]}</option>
-            ))}
-          </optgroup>
-          <optgroup label="Gasto">
-            {CAJA_TIPOS_GASTO.map((t) => (
-              <option key={t} value={t}>{CAJA_TIPO_LABELS[t]}</option>
-            ))}
-          </optgroup>
-        </select>
-      </div>
-
-      <div className="flex flex-col gap-1 flex-1 min-w-[160px] max-w-xs">
-        <label className="text-[11px] text-foreground-400">Concepto</label>
-        <input
-          type="text"
-          value={concepto}
-          onChange={(e) => setConcepto(e.target.value)}
-          placeholder={CONCEPTO_PLACEHOLDER[tipo]}
-          className={`${campo} w-full`}
-        />
-      </div>
-
-      <div className="flex flex-col gap-1 w-32">
-        <label className="text-[11px] text-foreground-400">Importe</label>
-        <div className="relative">
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={importe}
-            onChange={(e) => setImporte(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submit();
-            }}
-            placeholder="0,00"
-            className={`${campo} w-full pr-6 text-right`}
-          />
-          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-foreground-400">€</span>
+    <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
+      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+        <div className="flex flex-col gap-1 sm:w-36">
+          <label className="text-[11px] text-foreground-400">Fecha</label>
+          <input type="date" value={fecha} onChange={(e) => onFechaChange(e.target.value)} className={campo} />
         </div>
-      </div>
 
-      <button
-        type="button"
-        onClick={submit}
-        disabled={saving || !importe}
-        className="h-9 px-4 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 flex-shrink-0"
-      >
-        {saving ? 'Guardando…' : 'Añadir'}
-      </button>
+        <div className="flex flex-col gap-1 sm:w-44">
+          <label className="text-[11px] text-foreground-400">Tipo</label>
+          <select value={tipo} onChange={(e) => setTipo(e.target.value as CajaMovimientoTipo)} className={campo}>
+            <optgroup label="Ingreso (manual, de respaldo)">
+              {CAJA_TIPOS_INGRESO.map((t) => (
+                <option key={t} value={t}>{CAJA_TIPO_LABELS[t]}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Gasto">
+              {CAJA_TIPOS_GASTO.map((t) => (
+                <option key={t} value={t}>{CAJA_TIPO_LABELS[t]}</option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1 col-span-2 sm:col-span-1 sm:flex-1 sm:min-w-[160px] sm:max-w-xs">
+          <label className="text-[11px] text-foreground-400">Concepto</label>
+          <input
+            type="text"
+            value={concepto}
+            onChange={(e) => setConcepto(e.target.value)}
+            placeholder={CONCEPTO_PLACEHOLDER[tipo]}
+            className={campo}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1 sm:w-32">
+          <label className="text-[11px] text-foreground-400">Importe</label>
+          <div className="relative">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={importe}
+              onChange={(e) => setImporte(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') submit();
+              }}
+              placeholder="0,00"
+              className={`${campo} pr-6 text-right`}
+            />
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-foreground-400">€</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={submit}
+          disabled={saving || !importe}
+          className="h-9 px-4 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 self-end sm:flex-shrink-0"
+        >
+          {saving ? 'Guardando…' : 'Añadir'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -446,13 +456,9 @@ export default function CajaPanel() {
 
   return (
     <>
-      <div className="px-4 md:px-8 pt-6">
-        <p className="text-xs text-foreground-400 mb-4">
-          Los ingresos se calculan solos a partir de las ventas de la báscula (Factura Simplificada y Factura), igual
-          que en Ventas › Tienda — normalmente no hace falta tocar nada. Si algún día falla la báscula o se escapa una
-          venta, puedes añadir un ingreso a mano desde aquí y se sumará al automático. Los gastos (facturas y gastos
-          extra) siempre se registran a mano. El total de día, mes y año se calcula solo.
-        </p>
+      <div className="px-4 md:px-8 pt-6 pb-4 flex items-center gap-2">
+        <InfoHint items={INFO_ITEMS} />
+        <span className="text-xs text-foreground-400">Cómo funciona la caja</span>
       </div>
 
       <div

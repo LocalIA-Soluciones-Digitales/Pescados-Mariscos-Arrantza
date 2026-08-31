@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useSolicitudesStock } from '@/hooks/useSolicitudesStock';
 import type { SolicitudStock, SolicitudStockEstado } from '@/types/solicitudStock';
+import InfoHint from '@/components/base/InfoHint';
+
+const INFO_ITEMS = [
+  { icon: 'ri-notification-3-line', text: 'Aparece cuando un cliente pide en la web que le avisen de un producto agotado.' },
+  { icon: 'ri-check-line', text: 'Marca "Atendida" al reponerlo o contactar con el cliente.' },
+  { icon: 'ri-close-line', text: 'O "Descartar" si no procede.' },
+];
 
 const ESTADO_LABELS: Record<SolicitudStockEstado, string> = {
   pendiente: 'Pendiente',
@@ -154,10 +161,10 @@ export default function SolicitudesStockPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <p className="text-xs text-foreground-400 mb-4">
-        Cuando un cliente pide en la web que se le avise de un producto agotado, aparece aquí. Marca "Atendida" al
-        reponerlo o contactar con el cliente, o "Descartar" si no procede.
-      </p>
+      <div className="flex items-center gap-2 mb-4">
+        <InfoHint items={INFO_ITEMS} />
+        <span className="text-xs text-foreground-400">Cómo funcionan las solicitudes</span>
+      </div>
 
       <div className="relative max-w-[280px] mb-3">
         <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>

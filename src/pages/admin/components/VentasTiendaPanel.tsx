@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { useBasculaVentasDiarias, fetchBasculaVentasDelDia } from '@/hooks/useBasculaVentas';
 import type { BasculaVenta } from '@/types/basculaVenta';
+import InfoHint from '@/components/base/InfoHint';
+
+const INFO_ITEMS = [
+  { icon: 'ri-scales-3-line', text: 'Ventas cobradas en el mostrador, sincronizadas solas desde la báscula (Factura Simplificada y Factura).' },
+  { icon: 'ri-file-list-3-line', text: 'No incluye los Albaranes — se facturan a fin de mes junto con su Factura.' },
+  { icon: 'ri-cursor-line', text: 'Pincha un día para ver el detalle de cada venta.' },
+];
 
 function formatFechaLarga(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -80,11 +87,10 @@ export default function VentasTiendaPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <p className="text-xs text-foreground-400 mb-4 max-w-2xl">
-        Ventas cobradas en el mostrador de la tienda, sincronizadas automáticamente desde la báscula (Factura Simplificada y
-        Factura). No incluye los Albaranes, que se facturan a fin de mes junto con la Factura correspondiente. Pincha un día
-        para ver el detalle de cada venta.
-      </p>
+      <div className="flex items-center gap-2 mb-4">
+        <InfoHint items={INFO_ITEMS} />
+        <span className="text-xs text-foreground-400">Cómo funcionan las ventas de tienda</span>
+      </div>
 
       {loading ? (
         <p className="text-sm text-foreground-400">Cargando…</p>
