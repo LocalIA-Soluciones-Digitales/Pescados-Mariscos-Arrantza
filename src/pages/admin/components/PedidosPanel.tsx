@@ -290,21 +290,25 @@ export default function PedidosPanel() {
                 <button
                   type="button"
                   onClick={() => toggleColapsado(grupo.key)}
-                  className="flex items-center gap-2.5 flex-wrap mb-2.5 px-1 py-1 w-full text-left"
+                  className="flex items-center justify-between gap-2.5 mb-2.5 px-1 py-1 w-full text-left"
                 >
-                  <span
-                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-background-50 ${urgencia?.acento ?? 'bg-primary-500'}`}
-                  >
-                    <i className="ri-calendar-check-line text-sm"></i>
-                  </span>
-                  <h4 className="text-sm md:text-base font-heading font-bold text-foreground-950">
-                    {grupo.fecha ? formatFechaLarga(grupo.fecha) : 'Sin fecha indicada'}
-                  </h4>
-                  {grupo.fecha && <EtiquetaUrgencia fecha={grupo.fecha} />}
-                  <span className="text-[11px] font-medium text-foreground-500 ml-auto">
-                    {grupo.pedidos.length} pedido{grupo.pedidos.length === 1 ? '' : 's'}
-                  </span>
-                  <i className={`ri-arrow-down-s-line text-foreground-400 text-lg transition-transform ${colapsado ? '-rotate-90' : ''}`}></i>
+                  <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+                    <span
+                      className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-background-50 ${urgencia?.acento ?? 'bg-primary-500'}`}
+                    >
+                      <i className="ri-calendar-check-line text-sm"></i>
+                    </span>
+                    <h4 className="text-sm md:text-base font-heading font-bold text-foreground-950">
+                      {grupo.fecha ? formatFechaLarga(grupo.fecha) : 'Sin fecha indicada'}
+                    </h4>
+                    {grupo.fecha && <EtiquetaUrgencia fecha={grupo.fecha} />}
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className="text-[11px] font-medium text-foreground-500 whitespace-nowrap">
+                      {grupo.pedidos.length} pedido{grupo.pedidos.length === 1 ? '' : 's'}
+                    </span>
+                    <i className={`ri-arrow-down-s-line text-foreground-400 text-lg transition-transform ${colapsado ? '-rotate-90' : ''}`}></i>
+                  </div>
                 </button>
                 {!colapsado && (
                   <div className="space-y-2">
