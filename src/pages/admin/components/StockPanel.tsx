@@ -238,24 +238,22 @@ export default function StockPanel({
 
   return (
     <>
-      <div className="px-4 md:px-8 pt-6 pb-4 flex items-center gap-2">
-        <InfoHint items={INFO_ITEMS} />
-        <span className="text-xs text-foreground-400">Cómo funciona el stock</span>
-      </div>
-
       <div
         className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center"
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
-        <div className="relative flex-1 min-w-[200px] max-w-[280px]">
-          <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar producto…"
-            className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
-          />
+        <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-[320px]">
+          <div className="relative flex-1">
+            <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar producto…"
+              className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
+            />
+          </div>
+          <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
         </div>
         <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
           {CATEGORIA_FILTROS.map((c) => (

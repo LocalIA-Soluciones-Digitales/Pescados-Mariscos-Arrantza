@@ -687,11 +687,6 @@ export default function ReservasPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <div className="flex items-center gap-2 mb-4">
-        <InfoHint items={INFO_ITEMS} />
-        <span className="text-xs text-foreground-400">Cómo funcionan las reservas</span>
-      </div>
-
       {eventos.length === 0 ? (
         <div className="text-center py-16">
           <span className="w-14 h-14 flex items-center justify-center mx-auto mb-4 rounded-full bg-background-100 text-foreground-400 text-2xl">
@@ -710,7 +705,12 @@ export default function ReservasPanel() {
         </div>
       ) : (
         <>
-          <EventoTabs eventos={eventos} selectedId={eventoActivo?.id ?? null} onSelect={setSelectedEventoId} onNuevo={() => setModalEvento('new')} />
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <EventoTabs eventos={eventos} selectedId={eventoActivo?.id ?? null} onSelect={setSelectedEventoId} onNuevo={() => setModalEvento('new')} />
+            </div>
+            <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
+          </div>
 
           {eventoActivo && (
             <>
