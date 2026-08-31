@@ -1,7 +1,9 @@
-// Los ingresos ya no se registran a mano: se calculan a partir de
-// bascula_ventas (Factura Simplificada y Factura, sincronizadas por
-// bascula-sync). El pescadero solo da de alta gastos aquí.
-export type CajaMovimientoTipo = 'gasto_factura' | 'gasto_extra';
+export type CajaMovimientoTipo =
+  | 'ingreso_tarjeta'
+  | 'ingreso_efectivo'
+  | 'ingreso_bares'
+  | 'gasto_factura'
+  | 'gasto_extra';
 
 export interface CajaMovimiento {
   id: string;
@@ -16,6 +18,19 @@ export interface CajaMovimiento {
 }
 
 export const CAJA_TIPO_LABELS: Record<CajaMovimientoTipo, string> = {
+  ingreso_tarjeta: 'Tarjeta',
+  ingreso_efectivo: 'Efectivo',
+  ingreso_bares: 'Bares',
   gasto_factura: 'Factura',
   gasto_extra: 'Gasto extra',
 };
+
+// El ingreso normal se coge solo de bascula_ventas (ver CajaPanel); estos
+// tipos son la vía manual de respaldo por si la báscula falla algún día o
+// se le escapa una venta, no la forma habitual de registrar ingresos.
+export const CAJA_TIPOS_INGRESO: CajaMovimientoTipo[] = ['ingreso_tarjeta', 'ingreso_efectivo', 'ingreso_bares'];
+export const CAJA_TIPOS_GASTO: CajaMovimientoTipo[] = ['gasto_factura', 'gasto_extra'];
+
+export function esCajaIngreso(tipo: CajaMovimientoTipo): boolean {
+  return (CAJA_TIPOS_INGRESO as string[]).includes(tipo);
+}

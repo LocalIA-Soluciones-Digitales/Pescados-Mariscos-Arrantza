@@ -1,16 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useCaja, type NewCajaMovimientoInput } from '@/hooks/useCaja';
 import { useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
-import { CAJA_TIPO_LABELS, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
+import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
-const TIPOS_GASTO: CajaMovimientoTipo[] = ['gasto_factura', 'gasto_extra'];
-
 const CONCEPTO_PLACEHOLDER: Record<CajaMovimientoTipo, string> = {
+  ingreso_tarjeta: 'Nota (opcional)',
+  ingreso_efectivo: 'Nota (opcional)',
+  ingreso_bares: 'Bar o cliente (opcional)',
   gasto_factura: 'Proveedor (opcional)',
   gasto_extra: 'Motivo (opcional)',
 };
@@ -78,7 +79,7 @@ function FormNuevoMovimiento({
     const creado = await onCrear({ fecha, tipo, concepto: concepto.trim() || null, importe: valor });
     setSaving(false);
     if (!creado) {
-      alert('No se pudo guardar el gasto.');
+      alert('No se pudo guardar el movimiento.');
       return;
     }
     setConcepto('');
@@ -91,20 +92,22 @@ function FormNuevoMovimiento({
     <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1 w-36">
         <label className="text-[11px] text-foreground-400">Fecha</label>
-        <input
-          type="date"
-          value={fecha}
-          onChange={(e) => onFechaChange(e.target.value)}
-          className={`${campo} w-full`}
-        />
+        <input type="date" value={fecha} onChange={(e) => onFechaChange(e.target.value)} className={`${campo} w-full`} />
       </div>
 
       <div className="flex flex-col gap-1 w-40">
-        <label className="text-[11px] text-foreground-400">Tipo de gasto</label>
+        <label className="text-[11px] text-foreground-400">Tipo</label>
         <select value={tipo} onChange={(e) => setTipo(e.target.value as CajaMovimientoTipo)} className={`${campo} w-full`}>
-          {TIPOS_GASTO.map((t) => (
-            <option key={t} value={t}>{CAJA_TIPO_LABELS[t]}</option>
-          ))}
+          <optgroup label="Ingreso (manual, de respaldo)">
+            {CAJA_TIPOS_INGRESO.map((t) => (
+              <option key={t} value={t}>{CAJA_TIPO_LABELS[t]}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Gasto">
+            {CAJA_TIPOS_GASTO.map((t) => (
+              <option key={t} value={t}>{CAJA_TIPO_LABELS[t]}</option>
+            ))}
+          </optgroup>
         </select>
       </div>
 
@@ -144,8 +147,28 @@ function FormNuevoMovimiento({
         disabled={saving || !importe}
         className="h-9 px-4 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 flex-shrink-0"
       >
-        {saving ? 'Guardando…' : 'Añadir gasto'}
+        {saving ? 'Guardando…' : 'Añadir'}
       </button>
+    </div>
+  );
+}
+
+function FilaMovimiento({ m, onEliminar }: { m: CajaMovimiento; onEliminar: (m: CajaMovimiento) => void }) {
+  const ingreso = esCajaIngreso(m.tipo);
+  return (
+    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-background-200/50 last:border-b-0">
+      <div className="min-w-0">
+        <p className="text-sm text-foreground-950">{CAJA_TIPO_LABELS[m.tipo]}</p>
+        {m.concepto && <p className="text-xs text-foreground-400 truncate">{m.concepto}</p>}
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <span className={`text-sm font-medium ${ingreso ? 'text-emerald-700' : 'text-red-600'}`}>
+          {ingreso ? '+' : '-'}{formatEUR(m.importe)}
+        </span>
+        <button type="button" onClick={() => onEliminar(m)} className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-400 hover:bg-red-50 hover:text-red-600">
+          <i className="ri-delete-bin-line text-sm"></i>
+        </button>
+      </div>
     </div>
   );
 }
@@ -153,24 +176,28 @@ function FormNuevoMovimiento({
 function VistaDia({
   fecha,
   onFechaChange,
-  ingresosHoy,
+  basculaHoy,
   ticketsHoy,
-  gastosDelDia,
+  movimientosDelDia,
   onCrear,
   onEliminar,
 }: {
   fecha: string;
   onFechaChange: (fecha: string) => void;
-  ingresosHoy: number;
+  basculaHoy: number;
   ticketsHoy: number;
-  gastosDelDia: CajaMovimiento[];
+  movimientosDelDia: CajaMovimiento[];
   onCrear: (input: NewCajaMovimientoInput) => Promise<CajaMovimiento | null>;
   onEliminar: (id: string) => Promise<boolean>;
 }) {
-  const totalGastosDia = gastosDelDia.reduce((n, m) => n + Number(m.importe), 0);
+  const ingresosManuales = movimientosDelDia.filter((m) => esCajaIngreso(m.tipo));
+  const gastos = movimientosDelDia.filter((m) => !esCajaIngreso(m.tipo));
+  const totalIngresosManuales = ingresosManuales.reduce((n, m) => n + Number(m.importe), 0);
+  const totalGastosDia = gastos.reduce((n, m) => n + Number(m.importe), 0);
+  const totalIngresosDia = basculaHoy + totalIngresosManuales;
 
   const eliminar = async (m: CajaMovimiento) => {
-    if (!confirm(`¿Eliminar este gasto de ${formatEUR(m.importe)}?`)) return;
+    if (!confirm(`¿Eliminar este movimiento de ${formatEUR(m.importe)}?`)) return;
     await onEliminar(m.id);
   };
 
@@ -180,9 +207,12 @@ function VistaDia({
 
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
-          <p className="text-[11px] text-foreground-400 mb-1">Ingresos (báscula)</p>
-          <p className="text-lg font-semibold text-emerald-700">{formatEUR(ingresosHoy)}</p>
-          {ticketsHoy > 0 && <p className="text-[11px] text-foreground-400 mt-0.5">{ticketsHoy} ticket{ticketsHoy === 1 ? '' : 's'}</p>}
+          <p className="text-[11px] text-foreground-400 mb-1">Ingresos</p>
+          <p className="text-lg font-semibold text-emerald-700">{formatEUR(totalIngresosDia)}</p>
+          <p className="text-[11px] text-foreground-400 mt-0.5">
+            {ticketsHoy > 0 ? `${ticketsHoy} ticket${ticketsHoy === 1 ? '' : 's'} de báscula` : 'Sin ventas de báscula'}
+            {totalIngresosManuales > 0 && ` · ${formatEUR(totalIngresosManuales)} a mano`}
+          </p>
         </div>
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
           <p className="text-[11px] text-foreground-400 mb-1">Gastos</p>
@@ -190,32 +220,35 @@ function VistaDia({
         </div>
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
           <p className="text-[11px] text-foreground-400 mb-1">Neto del día</p>
-          <p className="text-lg"><NetoBadge valor={ingresosHoy - totalGastosDia} /></p>
+          <p className="text-lg"><NetoBadge valor={totalIngresosDia - totalGastosDia} /></p>
         </div>
       </div>
 
       <p className="text-sm font-medium text-foreground-950">{formatFechaLarga(fecha)}</p>
 
-      <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
-        <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500 px-3 pt-2.5 pb-1.5">Gastos del día</p>
-        {gastosDelDia.length === 0 ? (
-          <p className="text-xs text-foreground-400 px-3 pb-3">Todavía no hay gastos registrados este día.</p>
-        ) : (
-          gastosDelDia.map((m) => (
-            <div key={m.id} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-background-200/50 last:border-b-0">
-              <div className="min-w-0">
-                <p className="text-sm text-foreground-950">{CAJA_TIPO_LABELS[m.tipo]}</p>
-                {m.concepto && <p className="text-xs text-foreground-400 truncate">{m.concepto}</p>}
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <span className="text-sm font-medium text-red-600">-{formatEUR(m.importe)}</span>
-                <button type="button" onClick={() => eliminar(m)} className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-400 hover:bg-red-50 hover:text-red-600">
-                  <i className="ri-delete-bin-line text-sm"></i>
-                </button>
-              </div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500 px-3 pt-2.5 pb-1.5">Ingresos</p>
+          {basculaHoy > 0 && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-background-200/50 bg-background-100/50">
+              <p className="text-sm text-foreground-700">Ventas báscula ({ticketsHoy} ticket{ticketsHoy === 1 ? '' : 's'})</p>
+              <span className="text-sm font-medium text-emerald-700">+{formatEUR(basculaHoy)}</span>
             </div>
-          ))
-        )}
+          )}
+          {ingresosManuales.length === 0 && basculaHoy === 0 ? (
+            <p className="text-xs text-foreground-400 px-3 py-3">Sin ingresos registrados.</p>
+          ) : (
+            ingresosManuales.map((m) => <FilaMovimiento key={m.id} m={m} onEliminar={eliminar} />)
+          )}
+        </div>
+        <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500 px-3 pt-2.5 pb-1.5">Gastos</p>
+          {gastos.length === 0 ? (
+            <p className="text-xs text-foreground-400 px-3 pb-3">Sin gastos registrados.</p>
+          ) : (
+            gastos.map((m) => <FilaMovimiento key={m.id} m={m} onEliminar={eliminar} />)
+          )}
+        </div>
       </div>
     </div>
   );
@@ -267,6 +300,17 @@ function TablaTotales({
   );
 }
 
+// Suma el ingreso automático de báscula de ese día más cualquier ingreso
+// manual (de respaldo) registrado, y acumula los gastos por tipo.
+function acumularTotales(t: Totales, m: CajaMovimiento): Totales {
+  if (esCajaIngreso(m.tipo)) return { ...t, ingresos: t.ingresos + Number(m.importe) };
+  return { ...t, [m.tipo]: t[m.tipo] + Number(m.importe) };
+}
+
+function sumarTotales(a: Totales, b: Totales): Totales {
+  return { ingresos: a.ingresos + b.ingresos, gasto_factura: a.gasto_factura + b.gasto_factura, gasto_extra: a.gasto_extra + b.gasto_extra };
+}
+
 function VistaMes({
   anio,
   mes,
@@ -294,23 +338,13 @@ function VistaMes({
     });
     movimientos
       .filter((m) => m.fecha.startsWith(prefijo))
-      .forEach((m) => {
-        const t = map.get(m.fecha) ?? totalesVacios();
-        map.set(m.fecha, { ...t, [m.tipo]: t[m.tipo] + Number(m.importe) });
-      });
+      .forEach((m) => map.set(m.fecha, acumularTotales(map.get(m.fecha) ?? totalesVacios(), m)));
     return [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([fecha, totales]) => ({ key: fecha, label: formatFechaCorta(fecha), totales }));
   }, [ingresosPorFecha, movimientos, prefijo]);
 
-  const totalMes = porDia.reduce(
-    (acc, f) => ({
-      ingresos: acc.ingresos + f.totales.ingresos,
-      gasto_factura: acc.gasto_factura + f.totales.gasto_factura,
-      gasto_extra: acc.gasto_extra + f.totales.gasto_extra,
-    }),
-    totalesVacios(),
-  );
+  const totalMes = porDia.reduce((acc, f) => sumarTotales(acc, f.totales), totalesVacios());
 
   return (
     <div className="space-y-4">
@@ -352,19 +386,12 @@ function VistaAnio({
       .filter((m) => m.fecha.startsWith(String(anio)))
       .forEach((m) => {
         const mes = Number(m.fecha.split('-')[1]) - 1;
-        totalesPorMes[mes][m.tipo] += Number(m.importe);
+        totalesPorMes[mes] = acumularTotales(totalesPorMes[mes], m);
       });
     return totalesPorMes.map((totales, i) => ({ key: String(i), label: MESES[i], totales }));
   }, [ingresosPorFecha, movimientos, anio]);
 
-  const totalAnio = porMes.reduce(
-    (acc, f) => ({
-      ingresos: acc.ingresos + f.totales.ingresos,
-      gasto_factura: acc.gasto_factura + f.totales.gasto_factura,
-      gasto_extra: acc.gasto_extra + f.totales.gasto_extra,
-    }),
-    totalesVacios(),
-  );
+  const totalAnio = porMes.reduce((acc, f) => sumarTotales(acc, f.totales), totalesVacios());
 
   return (
     <div className="space-y-4">
@@ -403,7 +430,7 @@ export default function CajaPanel() {
     return map;
   }, [dias]);
 
-  const gastosDelDia = useMemo(() => movimientos.filter((m) => m.fecha === fecha), [movimientos, fecha]);
+  const movimientosDelDia = useMemo(() => movimientos.filter((m) => m.fecha === fecha), [movimientos, fecha]);
 
   const irADia = (nuevaFecha: string) => {
     setFecha(nuevaFecha);
@@ -422,8 +449,9 @@ export default function CajaPanel() {
       <div className="px-4 md:px-8 pt-6">
         <p className="text-xs text-foreground-400 mb-4">
           Los ingresos se calculan solos a partir de las ventas de la báscula (Factura Simplificada y Factura), igual
-          que en la pestaña Ventas › Tienda — no hace falta añadirlos a mano. Aquí solo se registran los gastos:
-          facturas de proveedor y gastos extra. El total de día, mes y año se calcula automáticamente.
+          que en Ventas › Tienda — normalmente no hace falta tocar nada. Si algún día falla la báscula o se escapa una
+          venta, puedes añadir un ingreso a mano desde aquí y se sumará al automático. Los gastos (facturas y gastos
+          extra) siempre se registran a mano. El total de día, mes y año se calcula solo.
         </p>
       </div>
 
@@ -456,9 +484,9 @@ export default function CajaPanel() {
           <VistaDia
             fecha={fecha}
             onFechaChange={setFecha}
-            ingresosHoy={ingresosPorFecha.get(fecha) ?? 0}
+            basculaHoy={ingresosPorFecha.get(fecha) ?? 0}
             ticketsHoy={ticketsPorFecha.get(fecha) ?? 0}
-            gastosDelDia={gastosDelDia}
+            movimientosDelDia={movimientosDelDia}
             onCrear={crearMovimiento}
             onEliminar={eliminarMovimiento}
           />
