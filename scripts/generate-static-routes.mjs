@@ -17,7 +17,7 @@ import { createClient } from '@supabase/supabase-js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const OUT_DIR = join(ROOT, 'out');
-const SITE = 'https://arrantza.es';
+const SITE = 'https://pescaderiaarrantza.com';
 
 // Vercel injects VITE_* build env vars into process.env already. For local
 // `npm run build` testing, fall back to reading .env.local directly.

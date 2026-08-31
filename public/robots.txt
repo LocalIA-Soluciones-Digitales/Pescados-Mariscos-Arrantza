@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /admin/
 
-Sitemap: https://arrantza.es/sitemap.xml
+Sitemap: https://pescaderiaarrantza.com/sitemap.xml

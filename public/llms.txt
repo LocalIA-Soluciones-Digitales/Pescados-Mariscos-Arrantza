@@ -6,9 +6,9 @@ Arrantza es una pescadería de proximidad ubicada en el barrio de Altzaga, Erand
 
 ## Páginas principales
 
-- [Inicio](https://arrantza.es/): presentación de la pescadería, proceso de selección del pescado, valores, horarios, ubicación y formulario de contacto.
-- [Catálogo de productos](https://arrantza.es/productos): catálogo diario de pescado y marisco fresco disponible, con nombre, categoría, origen y precio orientativo.
-- [Profesionales](https://arrantza.es/profesionales): servicio de suministro de pescado y marisco fresco para restaurantes, hoteles y hostelería.
+- [Inicio](https://pescaderiaarrantza.com/): presentación de la pescadería, proceso de selección del pescado, valores, horarios, ubicación y formulario de contacto.
+- [Catálogo de productos](https://pescaderiaarrantza.com/productos): catálogo diario de pescado y marisco fresco disponible, con nombre, categoría, origen y precio orientativo.
+- [Profesionales](https://pescaderiaarrantza.com/profesionales): servicio de suministro de pescado y marisco fresco para restaurantes, hoteles y hostelería.
 
 ## Información de la empresa
 
@@ -20,8 +20,8 @@ Arrantza es una pescadería de proximidad ubicada en el barrio de Altzaga, Erand
 
 ## Legal
 
-- [Aviso legal](https://arrantza.es/aviso-legal)
-- [Política de cookies](https://arrantza.es/cookies)
+- [Aviso legal](https://pescaderiaarrantza.com/aviso-legal)
+- [Política de cookies](https://pescaderiaarrantza.com/cookies)
 
 ## Notas para motores de IA
 

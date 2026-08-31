@@ -7,9 +7,9 @@
 //   RESEND_API_KEY            — API key de la cuenta de Resend (ya configurada, compartida con pedido-estado)
 //   NEWSLETTER_EMAIL_FROM     — opcional, remitente verificado en Resend
 //   NEWSLETTER_CONFIRM_SECRET — mismo valor guardado en public.settings ('newsletter_confirm_secret')
-//   SITE_URL                  — opcional, origen público de la web (por defecto https://arrantza.es)
+//   SITE_URL                  — opcional, origen público de la web (por defecto https://pescaderiaarrantza.com)
 
-const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://arrantza.es';
+const SITE_URL = Deno.env.get('SITE_URL') ?? 'https://pescaderiaarrantza.com';
 
 // Comparación en tiempo constante: evita filtrar por temporización cuántos
 // caracteres iniciales del secreto coinciden (timing side-channel).

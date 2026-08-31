@@ -8,10 +8,10 @@
 //   PEDIDO_EMAIL_FROM    — opcional, remitente verificado en Resend
 //   PEDIDO_ESTADO_SECRET — mismo valor guardado en public.settings ('pedido_estado_secret')
 //   ALLOWED_ORIGIN       — opcional, origen permitido para llamadas desde el navegador
-//                          (por defecto https://arrantza.es); el trigger de Postgres
+//                          (por defecto https://pescaderiaarrantza.com); el trigger de Postgres
 //                          que la invoca normalmente no envía Origin.
 
-const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://arrantza.es';
+const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://pescaderiaarrantza.com';
 
 // Comparación en tiempo constante: evita filtrar por temporización cuántos
 // caracteres iniciales del secreto coinciden (timing side-channel).
@@ -135,7 +135,7 @@ function buildEmail(pedido: PedidoPayload): { subject: string; html: string } {
         <p style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#6b6459;line-height:1.5;margin:0 0 18px;">
           Si te ha gustado, nos encantaría leer tu opinión.
         </p>
-        <a href="https://arrantza.es/#testimonials" style="display:inline-block;background:#16233a;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 22px;border-radius:8px;">
+        <a href="https://pescaderiaarrantza.com/#testimonials" style="display:inline-block;background:#16233a;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 22px;border-radius:8px;">
           Dejar una reseña →
         </a>
       </td>

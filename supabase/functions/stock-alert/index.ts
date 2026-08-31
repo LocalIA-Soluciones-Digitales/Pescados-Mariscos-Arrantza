@@ -8,10 +8,10 @@
 //   STOCK_ALERT_SECRET — mismo valor guardado en public.settings ('stock_alert_secret')
 //   ALERT_EMAIL_FROM   — opcional, remitente verificado en Resend
 //   ALLOWED_ORIGIN      — opcional, origen permitido para llamadas desde el navegador
-//                         (por defecto https://arrantza.es); el trigger de Postgres
+//                         (por defecto https://pescaderiaarrantza.com); el trigger de Postgres
 //                         que la invoca normalmente no envía Origin.
 
-const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://arrantza.es';
+const ALLOWED_ORIGIN = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://pescaderiaarrantza.com';
 
 // Comparación en tiempo constante: evita filtrar por temporización cuántos
 // caracteres iniciales del secreto coinciden (timing side-channel).
@@ -93,7 +93,7 @@ Deno.serve(async (req: Request) => {
           Repón este producto cuanto antes para no quedarte sin género.
         </p>
 
-        <a href="https://arrantza.es/admin" style="display:inline-block;background:#16233a;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 22px;border-radius:8px;">
+        <a href="https://pescaderiaarrantza.com/admin" style="display:inline-block;background:#16233a;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 22px;border-radius:8px;">
           Ver panel de stock →
         </a>
       </td>

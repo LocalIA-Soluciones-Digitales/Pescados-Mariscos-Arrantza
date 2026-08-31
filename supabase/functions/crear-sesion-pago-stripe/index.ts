@@ -10,7 +10,7 @@
 // Secretos requeridos (supabase secrets set ...):
 //   STRIPE_SECRET_KEY   — clave secreta de la cuenta de Stripe (sk_live_/sk_test_)
 //   ALLOWED_ORIGIN       — opcional, lista separada por comas de orígenes permitidos
-//                          (por defecto cubre arrantza.es y el dominio de Vercel
+//                          (por defecto cubre pescaderiaarrantza.com y el dominio de Vercel
 //                          mientras el propio no esté conectado). El primero de
 //                          la lista es el que se usa como fallback para el
 //                          success_url/cancel_url si la petición no trae Origin.
@@ -20,13 +20,13 @@
 
 const ALLOWED_ORIGINS = (
   Deno.env.get('ALLOWED_ORIGIN') ??
-  'https://arrantza.es,https://www.arrantza.es,https://pescados-mariscos-arrantza-main.vercel.app'
+  'https://pescaderiaarrantza.com,https://www.pescaderiaarrantza.com,https://pescados-mariscos-arrantza-main.vercel.app'
 )
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
 
-// El origen real de la pestaña que llama (Vercel hoy, arrantza.es cuando el
+// El origen real de la pestaña que llama (Vercel hoy, pescaderiaarrantza.com cuando el
 // dominio propio esté conectado) — CORS exige que el header devuelto
 // coincida exactamente con el que envía el navegador, así que se refleja
 // solo si está en la lista de permitidos.
