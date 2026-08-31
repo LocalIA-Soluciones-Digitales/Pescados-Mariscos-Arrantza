@@ -152,7 +152,6 @@ export default function ClientesPanel({
     <div className="px-4 md:px-8 py-6 pb-28">
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-4">
         <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px]">
-          <InfoHint items={INFO_ITEMS} className="flex-shrink-0" />
           <div className="relative flex-1">
             <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
             <input
@@ -163,6 +162,7 @@ export default function ClientesPanel({
               className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
             />
           </div>
+          <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
         </div>
         <div className="flex items-center gap-1.5">
           <button
