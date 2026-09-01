@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useProductos } from '@/hooks/useProductos';
-import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
+import { CATEGORIA_FILTROS, type CategoriaFiltro, type Producto, type ProductoEstado } from '@/types/producto';
+import CategoryFilterDropdown from '@/components/base/CategoryFilterDropdown';
 import ProductoFormModal from './ProductoFormModal';
 import VentasPanel from './VentasPanel';
 import ResenasPanel from './ResenasPanel';
@@ -37,24 +38,6 @@ const ESTADO_LABELS: Record<ProductoEstado, string> = {
   premium: 'Especialidad',
   seasonal: 'Temporada',
 };
-
-type CategoriaFiltro = 'todos' | ProductoCategoria | string;
-
-// Mismo listado y orden que el filtro del catálogo público (categorías + subcategorías de pescado)
-const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categoria' | 'subcategoria' }[] = [
-  { value: 'todos', label: 'Todos', tipo: 'categoria' },
-  { value: 'pescado', label: 'Pescado', tipo: 'categoria' },
-  { value: 'especial', label: 'Especial', tipo: 'categoria' },
-  { value: 'raciones', label: 'Raciones', tipo: 'categoria' },
-  { value: 'marisco', label: 'Marisco', tipo: 'categoria' },
-  { value: 'congelados', label: 'Congelados', tipo: 'categoria' },
-  { value: 'azul', label: 'Pescado Azul', tipo: 'subcategoria' },
-  { value: 'blanco', label: 'Pescado Blanco', tipo: 'subcategoria' },
-  { value: 'cefalopodos', label: 'Cefalópodos', tipo: 'subcategoria' },
-  { value: 'bivalvos', label: 'Bivalvos / Moluscos', tipo: 'subcategoria' },
-  { value: 'crustaceos_grandes', label: 'Crustáceos Grandes', tipo: 'subcategoria' },
-  { value: 'gambas_langostinos', label: 'Gambas y Langostinos', tipo: 'subcategoria' },
-];
 
 function ProductoCard({
   producto,
@@ -441,29 +424,16 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         </div>
 
         <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-          {CATEGORIA_FILTROS.map((c) => (
-            <button
-              key={c.value}
-              type="button"
-              onClick={() => {
-                setCategoria(c.value);
-                setSoloAgotados(false);
-                setSoloDestacados(false);
-              }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
-                categoria === c.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
-              }`}
-            >
-              {c.label}
-              <span
-                className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-none ${
-                  categoria === c.value ? 'bg-background-50/20 text-background-50' : 'bg-background-200/60 text-foreground-400'
-                }`}
-              >
-                {categoriaCounts[c.value] ?? 0}
-              </span>
-            </button>
-          ))}
+          <CategoryFilterDropdown
+            categorias={CATEGORIA_FILTROS}
+            counts={categoriaCounts}
+            value={categoria}
+            onChange={(v) => {
+              setCategoria(v);
+              setSoloAgotados(false);
+              setSoloDestacados(false);
+            }}
+          />
 
           <button
             type="button"

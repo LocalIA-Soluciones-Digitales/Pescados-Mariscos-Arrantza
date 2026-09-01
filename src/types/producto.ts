@@ -1,6 +1,25 @@
 export type ProductoCategoria = 'pescado' | 'especial' | 'raciones' | 'marisco' | 'congelados';
 export type ProductoEstado = 'available' | 'new' | 'premium' | 'seasonal';
 
+export type CategoriaFiltro = 'todos' | ProductoCategoria | string;
+
+// Mismo listado y orden que el filtro del catálogo público (categorías + subcategorías de pescado).
+// Compartido por los filtros de Productos y Stock en el panel de gestión.
+export const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categoria' | 'subcategoria' }[] = [
+  { value: 'todos', label: 'Todos', tipo: 'categoria' },
+  { value: 'pescado', label: 'Pescado', tipo: 'categoria' },
+  { value: 'especial', label: 'Especial', tipo: 'categoria' },
+  { value: 'raciones', label: 'Raciones', tipo: 'categoria' },
+  { value: 'marisco', label: 'Marisco', tipo: 'categoria' },
+  { value: 'congelados', label: 'Congelados', tipo: 'categoria' },
+  { value: 'azul', label: 'Pescado Azul', tipo: 'subcategoria' },
+  { value: 'blanco', label: 'Pescado Blanco', tipo: 'subcategoria' },
+  { value: 'cefalopodos', label: 'Cefalópodos', tipo: 'subcategoria' },
+  { value: 'bivalvos', label: 'Bivalvos / Moluscos', tipo: 'subcategoria' },
+  { value: 'crustaceos_grandes', label: 'Crustáceos Grandes', tipo: 'subcategoria' },
+  { value: 'gambas_langostinos', label: 'Gambas y Langostinos', tipo: 'subcategoria' },
+];
+
 export interface Producto {
   id: string;
   nombre_es: string;

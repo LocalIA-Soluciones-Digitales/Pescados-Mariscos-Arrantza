@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import type { Producto, ProductoCategoria } from '@/types/producto';
+import { CATEGORIA_FILTROS, type CategoriaFiltro, type Producto, type ProductoCategoria } from '@/types/producto';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import { useProductosCodigosBascula } from '@/hooks/useProductosCodigosBascula';
 import { ORIGENES, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
+import CategoryFilterDropdown from '@/components/base/CategoryFilterDropdown';
 
 const INFO_ITEMS = [
   { icon: 'ri-add-circle-line', text: '"Entrada de hoy" suma los kg recibidos al stock actual — no hace falta calcular el total.' },
@@ -24,24 +25,6 @@ const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
 };
 
 const CATEGORIA_ORDEN: ProductoCategoria[] = ['pescado', 'especial', 'raciones', 'marisco', 'congelados'];
-
-type CategoriaFiltro = 'todos' | ProductoCategoria | string;
-
-// Mismo listado y orden que el filtro de la pestaña Productos
-const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categoria' | 'subcategoria' }[] = [
-  { value: 'todos', label: 'Todos', tipo: 'categoria' },
-  { value: 'pescado', label: 'Pescado', tipo: 'categoria' },
-  { value: 'especial', label: 'Especial', tipo: 'categoria' },
-  { value: 'raciones', label: 'Raciones', tipo: 'categoria' },
-  { value: 'marisco', label: 'Marisco', tipo: 'categoria' },
-  { value: 'congelados', label: 'Congelados', tipo: 'categoria' },
-  { value: 'azul', label: 'Pescado Azul', tipo: 'subcategoria' },
-  { value: 'blanco', label: 'Pescado Blanco', tipo: 'subcategoria' },
-  { value: 'cefalopodos', label: 'Cefalópodos', tipo: 'subcategoria' },
-  { value: 'bivalvos', label: 'Bivalvos / Moluscos', tipo: 'subcategoria' },
-  { value: 'crustaceos_grandes', label: 'Crustáceos Grandes', tipo: 'subcategoria' },
-  { value: 'gambas_langostinos', label: 'Gambas y Langostinos', tipo: 'subcategoria' },
-];
 
 function StockRow({
   producto,
@@ -283,25 +266,7 @@ export default function StockPanel({
           <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
         </div>
         <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-          {CATEGORIA_FILTROS.map((c) => (
-            <button
-              key={c.value}
-              type="button"
-              onClick={() => setCategoria(c.value)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
-                categoria === c.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
-              }`}
-            >
-              {c.label}
-              <span
-                className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] leading-none ${
-                  categoria === c.value ? 'bg-background-50/20 text-background-50' : 'bg-background-200/60 text-foreground-400'
-                }`}
-              >
-                {categoriaCounts[c.value] ?? 0}
-              </span>
-            </button>
-          ))}
+          <CategoryFilterDropdown categorias={CATEGORIA_FILTROS} counts={categoriaCounts} value={categoria} onChange={setCategoria} />
 
           <button
             type="button"
