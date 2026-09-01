@@ -92,45 +92,48 @@ export default function InfoHint({ items, className = '', align = 'left', size =
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label="Cómo funciona"
-        className={`flex items-center justify-center rounded-full border transition-colors flex-shrink-0 ${
-          size === 'sm' ? 'w-[18px] h-[18px] text-[11px]' : 'w-6 h-6 text-sm'
+        className={`flex items-center justify-center rounded-full transition-colors flex-shrink-0 ${
+          size === 'sm' ? 'w-[18px] h-[18px] text-xs' : 'w-6 h-6 text-base'
         } ${
           tone === 'onPrimary'
             ? open
-              ? 'bg-background-50 text-primary-500 border-background-50'
-              : 'bg-background-50/30 text-background-50 border-background-50/60 hover:bg-background-50/45'
+              ? 'bg-background-50/25 text-background-50'
+              : 'text-background-50/55 hover:text-background-50 hover:bg-background-50/15'
             : open
-              ? 'bg-primary-500 text-background-50 border-primary-500'
-              : 'bg-background-50 text-foreground-500 border-background-300/70 hover:bg-background-200 hover:text-foreground-700'
+              ? 'bg-primary-50 text-primary-600'
+              : 'text-foreground-400 hover:text-foreground-700 hover:bg-background-200/70'
         }`}
       >
         <i className="ri-information-line"></i>
       </button>
 
       {open && (
-        <div
-          ref={popupRef}
-          style={popupStyle}
-          className="z-20 w-72 max-w-[85vw] rounded-xl border border-background-200/70 bg-background-50 shadow-xl ring-1 ring-black/5 p-3 animate-fadeIn"
-        >
-          <span
-            style={{ left: arrowLeft }}
-            className={`absolute w-3.5 h-3.5 -translate-x-1/2 rotate-45 bg-background-50 ${
-              placement === 'bottom' ? '-top-[7px] border-l border-t border-background-200/70' : '-bottom-[7px] border-r border-b border-background-200/70'
-            }`}
-          ></span>
-          {title && <p className="relative text-xs font-semibold text-foreground-950 mb-2 pb-2 border-b border-background-200/70">{title}</p>}
-          <ul className="relative space-y-2.5">
-            {items.map((item, i) => (
-              <li key={i} className="flex items-start gap-2.5">
-                <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full bg-primary-50 text-primary-500 text-sm">
-                  <i className={item.icon}></i>
-                </span>
-                <span className="text-xs text-foreground-600 leading-snug pt-0.5">{item.text}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <>
+          <div className="fixed inset-0 z-40 bg-foreground-950/10" onClick={() => setOpen(false)}></div>
+          <div
+            ref={popupRef}
+            style={popupStyle}
+            className="z-50 w-72 max-w-[85vw] rounded-xl border border-background-200/70 bg-background-50 shadow-xl p-3 animate-fadeIn"
+          >
+            <span
+              style={{ left: arrowLeft }}
+              className={`absolute w-3.5 h-3.5 -translate-x-1/2 rotate-45 bg-background-50 ${
+                placement === 'bottom' ? '-top-[7px] border-l border-t border-background-200/70' : '-bottom-[7px] border-r border-b border-background-200/70'
+              }`}
+            ></span>
+            {title && <p className="relative text-xs font-semibold text-foreground-950 mb-2 pb-2 border-b border-background-200/70">{title}</p>}
+            <ul className="relative space-y-2.5">
+              {items.map((item, i) => (
+                <li key={i} className="flex items-start gap-2.5">
+                  <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full bg-primary-50 text-primary-500 text-sm">
+                    <i className={item.icon}></i>
+                  </span>
+                  <span className="text-xs text-foreground-600 leading-snug pt-0.5">{item.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
       )}
     </div>
   );
