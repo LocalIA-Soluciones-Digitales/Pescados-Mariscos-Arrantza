@@ -48,6 +48,13 @@ export default function InfoHint({ items, className = '', align = 'left', size =
   // barra de pestañas, que necesita overflow-x-auto para el scroll horizontal
   // y por spec CSS eso también activa el recorte vertical). De paso se
   // reajusta para que siempre quepa dentro de la ventana.
+  //
+  // Se recalcula en cada frame (no solo al abrir, ni solo en resize/scroll)
+  // porque la pestaña ancla puede moverse por causas que no son ni resize ni
+  // scroll: los contadores de aviso llegan de forma asíncrona (empiezan en 0
+  // y cambian de ancho al llegar los datos reales), y eso desplaza el resto
+  // de pestañas a su derecha. Si solo midiéramos una vez al abrir, un popup
+  // abierto justo en ese momento se quedaría anclado a la posición vieja.
   useLayoutEffect(() => {
     if (!open) return;
     const container = containerRef.current;
@@ -56,6 +63,9 @@ export default function InfoHint({ items, className = '', align = 'left', size =
 
     const margin = 12;
     const gap = 5;
+    let rafId = 0;
+    let lastKey = '';
+
     const reposition = () => {
       // Ancla el popup al campo completo de la pestaña (p. ej. la pastilla
       // "Hoy" entera), no solo al iconito, para que visualmente salga "de"
@@ -77,19 +87,22 @@ export default function InfoHint({ items, className = '', align = 'left', size =
         placement = 'top';
       }
 
-      setPopupStyle({ position: 'fixed', top: `${top}px`, left: `${left}px` });
-      setPlacement(placement);
       const iconCenter = iconRect.left + iconRect.width / 2;
-      setArrowLeft(Math.min(Math.max(iconCenter - left, 16), width - 16));
+      const nextArrowLeft = Math.min(Math.max(iconCenter - left, 16), width - 16);
+
+      const key = `${left}|${top}|${placement}|${nextArrowLeft}`;
+      if (key !== lastKey) {
+        lastKey = key;
+        setPopupStyle({ position: 'fixed', top: `${top}px`, left: `${left}px` });
+        setPlacement(placement);
+        setArrowLeft(nextArrowLeft);
+      }
+
+      rafId = requestAnimationFrame(reposition);
     };
 
     reposition();
-    window.addEventListener('resize', reposition);
-    window.addEventListener('scroll', reposition, true);
-    return () => {
-      window.removeEventListener('resize', reposition);
-      window.removeEventListener('scroll', reposition, true);
-    };
+    return () => cancelAnimationFrame(rafId);
   }, [open, align, anchorSelector]);
 
   return (
