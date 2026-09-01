@@ -429,7 +429,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center"
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
-        <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px] md:max-w-md">
+        <div className="flex items-center gap-2 w-full sm:w-[280px] md:w-[420px] flex-shrink-0">
           <SearchInput
             value={search}
             onChange={setSearch}
