@@ -172,7 +172,7 @@ export default function SolicitudesStockPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <div className="flex items-center gap-2 mb-3 sm:max-w-[280px]">
+      <div className="flex items-center gap-2 mb-3 sm:max-w-[280px] md:max-w-md">
         <SearchInput
           value={search}
           onChange={setSearch}

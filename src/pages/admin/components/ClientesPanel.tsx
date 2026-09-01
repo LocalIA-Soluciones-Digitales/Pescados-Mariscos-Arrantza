@@ -154,7 +154,7 @@ export default function ClientesPanel({
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-4">
-        <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px]">
+        <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px] md:max-w-md">
           <SearchInput
             value={search}
             onChange={setSearch}

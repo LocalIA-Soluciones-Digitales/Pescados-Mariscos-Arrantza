@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 
 interface InfoHintItem {
   icon: string;
@@ -13,7 +13,9 @@ interface InfoHintProps {
 
 export default function InfoHint({ items, className = '', align = 'left' }: InfoHintProps) {
   const [open, setOpen] = useState(false);
+  const [popupStyle, setPopupStyle] = useState<CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -31,6 +33,36 @@ export default function InfoHint({ items, className = '', align = 'left' }: Info
     };
   }, [open]);
 
+  // Reposiciona el popup para que siempre quepa dentro de la ventana,
+  // en vez de fiarse solo de left-0/right-0 (que se corta cuando el botón
+  // está cerca del borde de una pantalla ancha de ordenador).
+  useLayoutEffect(() => {
+    if (!open) return;
+    const container = containerRef.current;
+    const popup = popupRef.current;
+    if (!container || !popup) return;
+
+    const margin = 12;
+    const reposition = () => {
+      const containerRect = container.getBoundingClientRect();
+      const width = popup.offsetWidth;
+      let left = align === 'right' ? containerRect.width - width : 0;
+      const viewportRight = containerRect.left + left + width;
+      if (viewportRight > window.innerWidth - margin) {
+        left -= viewportRight - (window.innerWidth - margin);
+      }
+      const viewportLeft = containerRect.left + left;
+      if (viewportLeft < margin) {
+        left += margin - viewportLeft;
+      }
+      setPopupStyle({ left: `${left}px`, right: 'auto' });
+    };
+
+    reposition();
+    window.addEventListener('resize', reposition);
+    return () => window.removeEventListener('resize', reposition);
+  }, [open, align]);
+
   return (
     <div ref={containerRef} className={`relative inline-block ${className}`}>
       <button
@@ -47,7 +79,9 @@ export default function InfoHint({ items, className = '', align = 'left' }: Info
 
       {open && (
         <div
-          className={`absolute z-20 top-full ${align === 'right' ? 'right-0' : 'left-0'} mt-2 w-72 max-w-[85vw] rounded-xl border border-background-200/70 bg-background-50 shadow-card-hover p-3 animate-fadeIn`}
+          ref={popupRef}
+          style={popupStyle}
+          className="absolute z-20 top-full mt-2 w-72 max-w-[85vw] rounded-xl border border-background-200/70 bg-background-50 shadow-card-hover p-3 animate-fadeIn"
         >
           <ul className="space-y-2.5">
             {items.map((item, i) => (

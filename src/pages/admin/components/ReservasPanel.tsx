@@ -847,7 +847,7 @@ export default function ReservasPanel() {
                     onChange={setSearch}
                     suggestions={sugerenciasClientes}
                     placeholder="Buscar por cliente o teléfono…"
-                    className="max-w-[280px] mb-3"
+                    className="max-w-[280px] md:max-w-md mb-3"
                   />
 
                   <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide mb-3">
