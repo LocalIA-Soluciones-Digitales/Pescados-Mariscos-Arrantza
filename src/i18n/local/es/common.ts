@@ -612,6 +612,7 @@ const common = {
   "cart.prep_butterflied": "En mariposa",
   "cart.prep_oven_ready": "Listo para horno",
   "cart.prep_vacuum_packed": "Envasado al vacío",
+  "cart.prep_cooked": "Cocido",
   "cart.prep_other": "Otro (especificar en notas)",
   "cart.item_note_label": "Toque personal",
   "cart.item_note_tooltip": "Instrucciones para este producto específico. Si necesitas indicar algo para todo el pedido, usa el campo de observaciones generales al final.",

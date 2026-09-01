@@ -229,6 +229,7 @@ const PREPARATIONS = [
   { key: 'butterflied',     labelKey: 'cart.prep_butterflied' },
   { key: 'oven_ready',      labelKey: 'cart.prep_oven_ready' },
   { key: 'vacuum_packed',   labelKey: 'cart.prep_vacuum_packed' },
+  { key: 'cooked',          labelKey: 'cart.prep_cooked' },
   { key: 'other',           labelKey: 'cart.prep_other' },
 ] as const;
 

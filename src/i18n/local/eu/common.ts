@@ -609,6 +609,7 @@ const common = {
   "cart.prep_butterflied": "Tximeleta eran",
   "cart.prep_oven_ready": "Laberako prest",
   "cart.prep_vacuum_packed": "Hutsean ontziratua",
+  "cart.prep_cooked": "Egosia",
   "cart.prep_other": "Beste bat (oharretan zehaztu)",
   "cart.item_note_label": "Ukitu pertsonala",
   "cart.item_note_tooltip": "Produktu zehatz honentzako argibideak. Eskaera osorako zerbait adierazi behar baduzu, erabili amaierako ohar orokorren eremua.",
