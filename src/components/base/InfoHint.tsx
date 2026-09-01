@@ -118,7 +118,7 @@ export default function InfoHint({ items, className = '', align = 'left', size =
         <>
           {/* pointer-events-none: es solo un velo visual — el cierre al hacer clic fuera ya lo gestiona
               el listener de pointerdown de arriba, y así no bloquea el clic directo sobre otro icono. */}
-          <div className="fixed inset-0 z-40 bg-foreground-950/10 pointer-events-none"></div>
+          <div className="fixed inset-0 z-40 bg-foreground-950/40 backdrop-blur-[2px] pointer-events-none"></div>
           <div
             ref={popupRef}
             style={popupStyle}
