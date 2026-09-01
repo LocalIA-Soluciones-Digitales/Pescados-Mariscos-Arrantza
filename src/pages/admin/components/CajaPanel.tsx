@@ -3,7 +3,7 @@ import { useCaja, type NewCajaMovimientoInput } from '@/hooks/useCaja';
 import { deleteBasculaVenta, fetchBasculaVentasDelDia, useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
 import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
-import { ORIGENES, ORIGEN_LABELS, type Origen } from '@/types/origen';
+import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import OrigenBadge from '@/components/base/OrigenBadge';
 import InfoHint from '@/components/base/InfoHint';
 
@@ -340,32 +340,29 @@ function VistaDia({
     <div className="space-y-4">
       <FormNuevoMovimiento fecha={fecha} onFechaChange={onFechaChange} onCrear={onCrear} />
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-emerald-50 text-emerald-600 text-[11px]">
-              <i className="ri-arrow-up-line"></i>
-            </span>
-            <p className="text-[11px] text-foreground-400">Ingresos</p>
-          </div>
-          <p className="text-lg font-semibold text-emerald-700 tabular-nums">{formatEUR(totalIngresosDia)}</p>
-          <p className="text-[11px] text-foreground-400 mt-0.5">
-            {ticketsHoy > 0 ? `${ticketsHoy} ticket${ticketsHoy === 1 ? '' : 's'} de báscula` : 'Sin ventas de báscula'}
-            {totalIngresosManuales > 0 && ` · ${formatEUR(totalIngresosManuales)} a mano`}
-          </p>
-          {ORIGENES.some((o) => ingresosPorTiendaDia[o]) && (
-            <div className="flex flex-wrap gap-x-2.5 gap-y-1 mt-1.5">
-              {ORIGENES.map((o) =>
-                ingresosPorTiendaDia[o] ? (
-                  <span key={o} className="inline-flex items-center gap-1 text-[11px]">
-                    <OrigenBadge origen={o} />
-                    <span className="font-medium text-foreground-600">{formatEUR(ingresosPorTiendaDia[o] ?? 0)}</span>
-                  </span>
-                ) : null,
-              )}
+      <div className="mb-1.5 flex items-center gap-1.5">
+        <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-emerald-50 text-emerald-600 text-[11px]">
+          <i className="ri-arrow-up-line"></i>
+        </span>
+        <p className="text-[11px] text-foreground-400">
+          Ingresos del día por tienda — {formatEUR(totalIngresosDia)} en total
+          {ticketsHoy > 0 && ` · ${ticketsHoy} ticket${ticketsHoy === 1 ? '' : 's'} de báscula`}
+          {totalIngresosManuales > 0 && ` · ${formatEUR(totalIngresosManuales)} a mano`}
+        </p>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {ORIGENES.map((o) => {
+          const c = ORIGEN_COLORS[o];
+          return (
+            <div key={o} className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`}></span>
+                <p className="text-[11px] text-foreground-400 truncate">{ORIGEN_LABELS[o]}</p>
+              </div>
+              <p className={`text-lg font-semibold tabular-nums ${c.text}`}>{formatEUR(ingresosPorTiendaDia[o] ?? 0)}</p>
             </div>
-          )}
-        </div>
+          );
+        })}
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
           <div className="flex items-center gap-1.5 mb-1">
             <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-red-50 text-red-500 text-[11px]">
