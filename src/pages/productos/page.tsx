@@ -509,14 +509,34 @@ function StickyToolbar({
                     )}
                   </div>
 
-                  {/* Top-level families — Todos + families without subtypes */}
+                  {/* Todos — reset chip, kept apart since it's not a family of its own */}
                   <div className="flex flex-wrap gap-1.5">
                     {renderChip('todos')}
-                    {visibleKeys.has('especial') && renderChip('especial')}
-                    {visibleKeys.has('raciones') && renderChip('raciones')}
-                    {visibleKeys.has('congelados') && renderChip('congelados')}
-                    {visibleKeys.has('suministro') && renderChip('suministro')}
                   </div>
+
+                  {/* Top-level families without subtypes — same header treatment as
+                      Pescado/Marisco below, so it reads as a sibling section rather
+                      than a lesser flat filter. */}
+                  {visibleKeys.has('especial') && (
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {renderGroupHeader('especial', 'ri-award-line')}
+                    </div>
+                  )}
+                  {visibleKeys.has('raciones') && (
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {renderGroupHeader('raciones', 'ri-scales-line')}
+                    </div>
+                  )}
+                  {visibleKeys.has('congelados') && (
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {renderGroupHeader('congelados', 'ri-snowflake-line')}
+                    </div>
+                  )}
+                  {visibleKeys.has('suministro') && (
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {renderGroupHeader('suministro', 'ri-truck-line')}
+                    </div>
+                  )}
 
                   {/* Pescado — main chip plus its subtypes, nested so it's clear
                       "Azul"/"Blanco"/"Cefalópodos" are kinds of pescado, not

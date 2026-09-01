@@ -85,6 +85,12 @@ function Chip({
   );
 }
 
+const OTRAS_ICONS: Record<string, string> = {
+  especial: 'ri-award-line',
+  raciones: 'ri-scales-line',
+  congelados: 'ri-snowflake-line',
+};
+
 export default function CategoryFilterDropdown({ categorias, counts, value, onChange, className = '' }: CategoryFilterDropdownProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -158,12 +164,23 @@ export default function CategoryFilterDropdown({ categorias, counts, value, onCh
             )}
           </div>
 
-          <div className="flex flex-wrap gap-1.5">
-            {todos && <Chip label={todos.label} count={counts[todos.value] ?? 0} active={value === todos.value} onClick={() => elegir(todos.value)} />}
-            {otras.map((c) => (
-              <Chip key={c.value} label={c.label} count={counts[c.value] ?? 0} active={value === c.value} onClick={() => elegir(c.value)} />
-            ))}
-          </div>
+          {todos && (
+            <div className="flex flex-wrap gap-1.5">
+              <Chip label={todos.label} count={counts[todos.value] ?? 0} active={value === todos.value} onClick={() => elegir(todos.value)} />
+            </div>
+          )}
+
+          {otras.map((c) => (
+            <div key={c.value} className="mt-2.5 pt-2 border-t border-background-200/60">
+              <GroupHeader
+                label={c.label}
+                count={counts[c.value] ?? 0}
+                icon={OTRAS_ICONS[c.value as string] ?? 'ri-price-tag-3-line'}
+                active={value === c.value}
+                onClick={() => elegir(c.value)}
+              />
+            </div>
+          ))}
 
           {pescado && (
             <div className="mt-2.5 pt-2 border-t border-background-200/60">
