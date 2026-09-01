@@ -9,14 +9,16 @@ import InfoHint from '@/components/base/InfoHint';
 const INFO_ITEMS = [
   { icon: 'ri-dashboard-3-line', text: 'Resumen del día: pedidos nuevos, reservas pendientes, reseñas por moderar y productos bajo mínimo.' },
   { icon: 'ri-bar-chart-2-line', text: '"Para preparar" suma todo lo pendiente de entregar, para saber qué comprar en la lonja.' },
-  { icon: 'ri-calendar-check-line', text: 'Abajo se ven los pedidos y reservas con recogida marcada para hoy, con acceso rápido a llamar o escribir por WhatsApp.' },
+  { icon: 'ri-alarm-warning-line', text: 'Abajo se listan los pedidos y reservas que necesitan confirmación, y los productos bajo mínimo, con acceso rápido a llamar o escribir por WhatsApp.' },
 ];
 
 type Tab = 'hoy' | 'productos' | 'stock' | 'ventas' | 'reservas' | 'resenas' | 'clientes';
 
-function todayISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function formatFecha(fechaISO: string | null, hoy: string): string | null {
+  if (!fechaISO) return null;
+  if (fechaISO === hoy) return 'Hoy';
+  const [, mes, dia] = fechaISO.split('-');
+  return `${dia}/${mes}`;
 }
 
 function formatKg(n: number): string {
@@ -126,22 +128,25 @@ export default function HoyPanel({
   loading: boolean;
   onNavigate: (tab: Tab) => void;
 }) {
-  const hoy = todayISO();
+  const hoy = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
 
-  const pedidosNuevos = useMemo(() => pedidos.filter((p) => p.estado === 'nuevo'), [pedidos]);
+  const pedidosNuevos = useMemo(
+    () => pedidos.filter((p) => p.estado === 'nuevo').sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    [pedidos],
+  );
   const pedidosActivos = useMemo(() => pedidos.filter((p) => p.estado === 'nuevo' || p.estado === 'confirmado'), [pedidos]);
-  const reservasPendientes = useMemo(() => reservas.filter((r) => r.estado === 'pendiente'), [reservas]);
+  const reservasPendientes = useMemo(
+    () => reservas.filter((r) => r.estado === 'pendiente').sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    [reservas],
+  );
   const reservasActivas = useMemo(() => reservas.filter((r) => r.estado === 'pendiente' || r.estado === 'confirmada'), [reservas]);
   const resenasPendientes = useMemo(() => resenas.filter((r) => r.estado === 'pendiente'), [resenas]);
-  const stockBajo = useMemo(() => productos.filter((p) => p.stock_kg <= p.stock_minimo), [productos]);
-
-  const pedidosDeHoy = useMemo(
-    () => pedidosActivos.filter((p) => p.fecha_preferida === hoy).sort((a, b) => a.created_at.localeCompare(b.created_at)),
-    [pedidosActivos, hoy],
-  );
-  const reservasDeHoy = useMemo(
-    () => reservasActivas.filter((r) => r.fecha_deseada === hoy).sort((a, b) => a.created_at.localeCompare(b.created_at)),
-    [reservasActivas, hoy],
+  const stockBajo = useMemo(
+    () => productos.filter((p) => p.stock_kg <= p.stock_minimo).sort((a, b) => (a.stock_kg - a.stock_minimo) - (b.stock_kg - b.stock_minimo)),
+    [productos],
   );
 
   const paraPreparar = useMemo(() => {
@@ -233,63 +238,100 @@ export default function HoyPanel({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-9">
         <section>
           <SectionHeading
-            kicker="Recogidas de hoy"
-            title="Pedidos"
+            kicker="Requieren tu atención"
+            title="Pedidos nuevos"
             action={
               <button type="button" onClick={() => onNavigate('ventas')} className="text-xs text-foreground-500 hover:text-foreground-950 flex-shrink-0">
                 Ver todos
               </button>
             }
           />
-          {pedidosDeHoy.length === 0 ? (
-            <p className="text-sm text-foreground-400">Ningún pedido con recogida marcada para hoy.</p>
+          {pedidosNuevos.length === 0 ? (
+            <p className="text-sm text-foreground-400">No hay pedidos nuevos por confirmar.</p>
           ) : (
             <div className="space-y-2">
-              {pedidosDeHoy.map((p) => (
-                <div key={p.id} className="bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 p-3 flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground-950 truncate">{p.cliente_nombre || 'Sin nombre'}</p>
-                    <p className="text-xs text-foreground-400 mt-0.5">
-                      {p.total_productos} producto{p.total_productos === 1 ? '' : 's'} · {p.peso_total} kg
-                      {p.hora_preferida ? ` · ${p.hora_preferida}` : ''}
-                    </p>
+              {pedidosNuevos.map((p) => {
+                const fecha = formatFecha(p.fecha_preferida, hoy);
+                return (
+                  <div key={p.id} className="bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 p-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground-950 truncate">{p.cliente_nombre || 'Sin nombre'}</p>
+                      <p className="text-xs text-foreground-400 mt-0.5">
+                        {p.total_productos} producto{p.total_productos === 1 ? '' : 's'} · {p.peso_total} kg
+                        {fecha ? ` · ${fecha}${p.hora_preferida ? ` ${p.hora_preferida}` : ''}` : ''}
+                      </p>
+                    </div>
+                    <ContactoRapido telefono={p.cliente_telefono} />
                   </div>
-                  <ContactoRapido telefono={p.cliente_telefono} />
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
 
         <section>
           <SectionHeading
-            kicker="Recogidas de hoy"
-            title="Reservas"
+            kicker="Requieren tu atención"
+            title="Reservas pendientes"
             action={
               <button type="button" onClick={() => onNavigate('reservas')} className="text-xs text-foreground-500 hover:text-foreground-950 flex-shrink-0">
                 Ver todas
               </button>
             }
           />
-          {reservasDeHoy.length === 0 ? (
-            <p className="text-sm text-foreground-400">Ninguna reserva marcada para recoger hoy.</p>
+          {reservasPendientes.length === 0 ? (
+            <p className="text-sm text-foreground-400">No hay reservas pendientes de confirmar.</p>
           ) : (
             <div className="space-y-2">
-              {reservasDeHoy.map((r) => (
-                <div key={r.id} className="bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 p-3 flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground-950 truncate">{r.cliente_nombre}</p>
-                    <p className="text-xs text-foreground-400 mt-0.5">
-                      {r.total_productos} producto{r.total_productos === 1 ? '' : 's'} · {r.peso_total} kg
-                    </p>
+              {reservasPendientes.map((r) => {
+                const fecha = formatFecha(r.fecha_deseada, hoy);
+                return (
+                  <div key={r.id} className="bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 p-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground-950 truncate">{r.cliente_nombre}</p>
+                      <p className="text-xs text-foreground-400 mt-0.5">
+                        {r.total_productos} producto{r.total_productos === 1 ? '' : 's'} · {r.peso_total} kg
+                        {fecha ? ` · ${fecha}` : ''}
+                      </p>
+                    </div>
+                    <ContactoRapido telefono={r.cliente_telefono} />
                   </div>
-                  <ContactoRapido telefono={r.cliente_telefono} />
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
       </div>
+
+      <section>
+        <SectionHeading
+          kicker="Requieren tu atención"
+          title="Stock bajo mínimo"
+          action={
+            <button type="button" onClick={() => onNavigate('stock')} className="text-xs text-foreground-500 hover:text-foreground-950 flex-shrink-0">
+              Ver stock
+            </button>
+          }
+        />
+        {stockBajo.length === 0 ? (
+          <p className="text-sm text-foreground-400">Todos los productos están por encima de su mínimo.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {stockBajo.map((p) => (
+              <div
+                key={p.id}
+                className="bg-red-50/60 border border-red-200 border-l-4 border-l-red-400 rounded-lg shadow-card px-3 py-2.5 flex items-center justify-between gap-3"
+              >
+                <p className="text-sm text-foreground-800 truncate">{p.nombre_es}</p>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <span className="text-[11px] text-foreground-400">mínimo {p.stock_minimo} kg</span>
+                  <span className="text-sm font-semibold text-red-700 tabular-nums">{p.stock_kg} kg</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
       </div>
     </div>
   );
