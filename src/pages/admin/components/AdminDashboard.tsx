@@ -12,6 +12,17 @@ import ReservasPanel from './ReservasPanel';
 import SolicitudesStockPanel from './SolicitudesStockPanel';
 import HoyPanel from './HoyPanel';
 import ClientesPanel from './ClientesPanel';
+import {
+  HOY_INFO_ITEMS,
+  VENTAS_INFO_ITEMS,
+  CAJA_INFO_ITEMS,
+  RESERVAS_INFO_ITEMS,
+  SOLICITUDES_INFO_ITEMS,
+  PRODUCTOS_INFO_ITEMS,
+  STOCK_INFO_ITEMS,
+  CLIENTES_INFO_ITEMS,
+  RESENAS_INFO_ITEMS,
+} from './infoItems';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
 import { useReservas } from '@/hooks/useReservas';
@@ -24,13 +35,6 @@ import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
 
 type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes';
-
-const PRODUCTOS_INFO_ITEMS = [
-  { icon: 'ri-toggle-line', text: 'Marca "Disponible"/"Agotado" para que se refleje al instante en la web.' },
-  { icon: 'ri-star-line', text: 'La estrella añade el producto a la Selección del día en la portada.' },
-  { icon: 'ri-price-tag-3-line', text: 'La etiqueta (Novedad, Especialidad, Temporada) se muestra como distintivo en la web.' },
-  { icon: 'ri-alert-line', text: 'Si el stock baja del mínimo, aquí se avisa con un icono de alerta.' },
-];
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -172,16 +176,16 @@ function ProductoCard({
   );
 }
 
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'hoy', label: 'Hoy' },
-  { value: 'ventas', label: 'Ventas' },
-  { value: 'caja', label: 'Caja' },
-  { value: 'reservas', label: 'Reservas' },
-  { value: 'solicitudes', label: 'Solicitudes' },
-  { value: 'productos', label: 'Productos' },
-  { value: 'stock', label: 'Stock' },
-  { value: 'clientes', label: 'Clientes' },
-  { value: 'resenas', label: 'Reseñas' },
+const TABS: { value: Tab; label: string; info: { icon: string; text: string }[] }[] = [
+  { value: 'hoy', label: 'Hoy', info: HOY_INFO_ITEMS },
+  { value: 'ventas', label: 'Ventas', info: VENTAS_INFO_ITEMS },
+  { value: 'caja', label: 'Caja', info: CAJA_INFO_ITEMS },
+  { value: 'reservas', label: 'Reservas', info: RESERVAS_INFO_ITEMS },
+  { value: 'solicitudes', label: 'Solicitudes', info: SOLICITUDES_INFO_ITEMS },
+  { value: 'productos', label: 'Productos', info: PRODUCTOS_INFO_ITEMS },
+  { value: 'stock', label: 'Stock', info: STOCK_INFO_ITEMS },
+  { value: 'clientes', label: 'Clientes', info: CLIENTES_INFO_ITEMS },
+  { value: 'resenas', label: 'Reseñas', info: RESENAS_INFO_ITEMS },
 ];
 
 type ViewSwitch = { label: string; onClick: () => void };
@@ -319,31 +323,37 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
                   : t.value === 'solicitudes'
                     ? solicitudesPulse
                     : false;
+        const active = tab === t.value;
         return (
-          <button
+          <div
             key={t.value}
-            type="button"
-            onClick={() => setTab(t.value)}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-all duration-200 ${
-              tab === t.value ? 'bg-primary-500 text-background-50 shadow-card' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+            className={`inline-flex items-center gap-1 rounded-full whitespace-nowrap flex-shrink-0 transition-all duration-200 ${
+              active ? 'bg-primary-500 text-background-50 shadow-card' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
             }`}
           >
-            {t.label}
-            {badge > 0 && (
-              <span className="relative inline-flex flex-shrink-0">
-                {pulse && (
-                  <span className="absolute inset-0 rounded-full bg-red-400 animate-ping"></span>
-                )}
-                <span
-                  className={`relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-semibold leading-none ${
-                    tab === t.value ? 'bg-background-50/25' : 'bg-red-500 text-background-50'
-                  }`}
-                >
-                  {badge}
+            <button
+              type="button"
+              onClick={() => setTab(t.value)}
+              className="inline-flex items-center gap-1.5 pl-3.5 py-2 text-xs font-medium"
+            >
+              {t.label}
+              {badge > 0 && (
+                <span className="relative inline-flex flex-shrink-0">
+                  {pulse && (
+                    <span className="absolute inset-0 rounded-full bg-red-400 animate-ping"></span>
+                  )}
+                  <span
+                    className={`relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-semibold leading-none ${
+                      active ? 'bg-background-50/25' : 'bg-red-500 text-background-50'
+                    }`}
+                  >
+                    {badge}
+                  </span>
                 </span>
-              </span>
-            )}
-          </button>
+              )}
+            </button>
+            <InfoHint items={t.info} align="right" size="sm" tone={active ? 'onPrimary' : 'neutral'} className="mr-2.5" />
+          </div>
         );
       })}
     </div>
@@ -412,16 +422,13 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center"
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
-        <div className="flex items-center gap-2 w-full sm:w-[280px] md:w-[420px] flex-shrink-0">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            suggestions={nombresSugeridos}
-            placeholder="Buscar producto…"
-            className="flex-1"
-          />
-          <InfoHint items={PRODUCTOS_INFO_ITEMS} align="right" className="flex-shrink-0" />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          suggestions={nombresSugeridos}
+          placeholder="Buscar producto…"
+          className="w-full sm:w-[280px] md:w-[420px] flex-shrink-0"
+        />
 
         <CategoryFilterDropdown
           categorias={CATEGORIA_FILTROS}

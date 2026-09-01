@@ -5,16 +5,6 @@ import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import OrigenBadge from '@/components/base/OrigenBadge';
-import InfoHint from '@/components/base/InfoHint';
-
-const INFO_ITEMS = [
-  { icon: 'ri-scales-3-line', text: 'Los ingresos se calculan solos desde las ventas de la báscula — normalmente no hay que tocar nada.' },
-  { icon: 'ri-add-circle-line', text: 'Si un día falla la báscula o se escapa una venta, añade un ingreso a mano y se sumará al automático.' },
-  { icon: 'ri-store-2-line', text: 'Los ingresos se desglosan por pescadería; los gastos (facturas y extras) son generales para el negocio conjunto.' },
-  { icon: 'ri-file-list-3-line', text: 'Los gastos siempre se registran a mano.' },
-  { icon: 'ri-delete-bin-line', text: 'Si una venta de báscula está mal, bórrala directamente desde su lista.' },
-  { icon: 'ri-calculator-line', text: 'El total de día, mes y año se calcula solo.' },
-];
 
 const ICONO_POR_TIPO: Record<CajaMovimientoTipo, string> = {
   ingreso_tarjeta: 'ri-bank-card-line',
@@ -685,7 +675,6 @@ export default function CajaPanel() {
             </button>
           ))}
         </div>
-        <InfoHint items={INFO_ITEMS} align="right" />
       </div>
 
       <div className="px-4 md:px-8 py-6 pb-28">

@@ -4,15 +4,7 @@ import { useReservas } from '@/hooks/useReservas';
 import { useReservasAjustes } from '@/hooks/useReservasAjustes';
 import ReservaEventoModal from './ReservaEventoModal';
 import type { Reserva, ReservaAjuste, ReservaEstado, ReservaEvento } from '@/types/reserva';
-import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
-
-const INFO_ITEMS = [
-  { icon: 'ri-calendar-event-line', text: 'Crea una campaña por cada fecha especial (Navidad, Nochevieja...).' },
-  { icon: 'ri-shopping-bag-line', text: 'Los clientes reservan productos, cantidades y su día de recogida desde la web.' },
-  { icon: 'ri-list-check-2', text: 'Aquí se ve agrupado por día, para saber qué comprar en la lonja cada jornada.' },
-  { icon: 'ri-check-double-line', text: 'Al marcar una reserva como "Entregada" se descuenta sola del pendiente de ese día.' },
-];
 
 const ESTADO_LABELS: Record<ReservaEstado, string> = {
   pendiente: 'Pendiente',
@@ -711,12 +703,7 @@ export default function ReservasPanel() {
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <EventoTabs eventos={eventos} selectedId={eventoActivo?.id ?? null} onSelect={setSelectedEventoId} onNuevo={() => setModalEvento('new')} />
-            </div>
-            <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
-          </div>
+          <EventoTabs eventos={eventos} selectedId={eventoActivo?.id ?? null} onSelect={setSelectedEventoId} onNuevo={() => setModalEvento('new')} />
 
           {eventoActivo && (
             <>

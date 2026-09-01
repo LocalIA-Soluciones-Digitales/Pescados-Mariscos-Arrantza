@@ -4,13 +4,6 @@ import type { Reserva } from '@/types/reserva';
 import type { Resena } from '@/types/resena';
 import type { Producto } from '@/types/producto';
 import { normalizePhone, telHref, whatsappHref } from '@/lib/phone';
-import InfoHint from '@/components/base/InfoHint';
-
-const INFO_ITEMS = [
-  { icon: 'ri-dashboard-3-line', text: 'Resumen del día: pedidos nuevos, reservas pendientes, reseñas por moderar y productos bajo mínimo.' },
-  { icon: 'ri-bar-chart-2-line', text: '"Para preparar" suma todo lo pendiente de entregar, para saber qué comprar en la lonja.' },
-  { icon: 'ri-alarm-warning-line', text: 'Abajo se listan los pedidos y reservas que necesitan confirmación, y los productos bajo mínimo, con acceso rápido a llamar o escribir por WhatsApp.' },
-];
 
 type Tab = 'hoy' | 'productos' | 'stock' | 'ventas' | 'reservas' | 'resenas' | 'clientes';
 
@@ -196,12 +189,7 @@ export default function HoyPanel({
           kicker="Compromiso vivo con clientes"
           title="Para preparar"
           action={
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {paraPreparar.length > 0 && (
-                <span className="text-xs text-foreground-400">{formatKg(totalPreparar)} en total</span>
-              )}
-              <InfoHint items={INFO_ITEMS} align="right" />
-            </div>
+            paraPreparar.length > 0 ? <span className="text-xs text-foreground-400 flex-shrink-0">{formatKg(totalPreparar)} en total</span> : undefined
           }
         />
         <p className="text-xs text-foreground-400 mb-3 max-w-2xl">

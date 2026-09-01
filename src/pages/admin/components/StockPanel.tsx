@@ -4,17 +4,8 @@ import { CATEGORIA_FILTROS, type CategoriaFiltro, type Producto, type ProductoCa
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import { useProductosCodigosBascula } from '@/hooks/useProductosCodigosBascula';
 import { ORIGENES, ORIGEN_LABELS, type Origen } from '@/types/origen';
-import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
 import CategoryFilterDropdown from '@/components/base/CategoryFilterDropdown';
-
-const INFO_ITEMS = [
-  { icon: 'ri-add-circle-line', text: '"Entrada de hoy" suma los kg recibidos al stock actual — no hace falta calcular el total.' },
-  { icon: 'ri-subtract-line', text: 'Usa un valor negativo para descontar kg, por ejemplo si llega producto en mal estado.' },
-  { icon: 'ri-shopping-basket-line', text: 'El stock también baja solo con cada pedido y con cada venta pesada en cualquiera de las dos básculas.' },
-  { icon: 'ri-mail-line', text: 'Si baja del aviso mínimo, se envía un correo automáticamente.' },
-  { icon: 'ri-barcode-line', text: 'Cada báscula tiene su propio catálogo de códigos: indica el código de cada terminal donde se venda este producto.' },
-];
 
 const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
   pescado: 'Pescado',
@@ -255,16 +246,13 @@ export default function StockPanel({
         className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row gap-2 sm:items-center"
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
-        <div className="flex items-center gap-2 w-full sm:w-[280px] md:w-[420px] flex-shrink-0">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            suggestions={nombresSugeridos}
-            placeholder="Buscar producto…"
-            className="flex-1"
-          />
-          <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          suggestions={nombresSugeridos}
+          placeholder="Buscar producto…"
+          className="w-full sm:w-[280px] md:w-[420px] flex-shrink-0"
+        />
         <CategoryFilterDropdown categorias={CATEGORIA_FILTROS} counts={categoriaCounts} value={categoria} onChange={setCategoria} />
 
         <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">

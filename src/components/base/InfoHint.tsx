@@ -9,9 +9,13 @@ interface InfoHintProps {
   items: InfoHintItem[];
   className?: string;
   align?: 'left' | 'right';
+  /** 'sm' = insignia compacta de 17px, pensada para ir junto a un badge de aviso (pestañas de navegación). */
+  size?: 'sm' | 'md';
+  /** 'onPrimary' = variante para fondos oscuros (p. ej. la pestaña activa), con blanco translúcido en vez del gris habitual. */
+  tone?: 'neutral' | 'onPrimary';
 }
 
-export default function InfoHint({ items, className = '', align = 'left' }: InfoHintProps) {
+export default function InfoHint({ items, className = '', align = 'left', size = 'md', tone = 'neutral' }: InfoHintProps) {
   const [open, setOpen] = useState(false);
   const [popupStyle, setPopupStyle] = useState<CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,9 +37,11 @@ export default function InfoHint({ items, className = '', align = 'left' }: Info
     };
   }, [open]);
 
-  // Reposiciona el popup para que siempre quepa dentro de la ventana,
-  // en vez de fiarse solo de left-0/right-0 (que se corta cuando el botón
-  // está cerca del borde de una pantalla ancha de ordenador).
+  // Posiciona el popup con position:fixed (coordenadas de viewport) en vez de
+  // absolute/top-full: así no lo recorta un ancestro con overflow (como la
+  // barra de pestañas, que necesita overflow-x-auto para el scroll horizontal
+  // y por spec CSS eso también activa el recorte vertical). De paso se
+  // reajusta para que siempre quepa dentro de la ventana.
   useLayoutEffect(() => {
     if (!open) return;
     const container = containerRef.current;
@@ -43,24 +49,31 @@ export default function InfoHint({ items, className = '', align = 'left' }: Info
     if (!container || !popup) return;
 
     const margin = 12;
+    const gap = 8;
     const reposition = () => {
       const containerRect = container.getBoundingClientRect();
       const width = popup.offsetWidth;
-      let left = align === 'right' ? containerRect.width - width : 0;
-      const viewportRight = containerRect.left + left + width;
-      if (viewportRight > window.innerWidth - margin) {
-        left -= viewportRight - (window.innerWidth - margin);
+      const height = popup.offsetHeight;
+
+      let left = align === 'right' ? containerRect.right - width : containerRect.left;
+      left = Math.min(left, window.innerWidth - margin - width);
+      left = Math.max(left, margin);
+
+      let top = containerRect.bottom + gap;
+      if (top + height > window.innerHeight - margin) {
+        top = containerRect.top - height - gap;
       }
-      const viewportLeft = containerRect.left + left;
-      if (viewportLeft < margin) {
-        left += margin - viewportLeft;
-      }
-      setPopupStyle({ left: `${left}px`, right: 'auto' });
+
+      setPopupStyle({ position: 'fixed', top: `${top}px`, left: `${left}px` });
     };
 
     reposition();
     window.addEventListener('resize', reposition);
-    return () => window.removeEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
   }, [open, align]);
 
   return (
@@ -70,8 +83,16 @@ export default function InfoHint({ items, className = '', align = 'left' }: Info
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label="Cómo funciona"
-        className={`w-6 h-6 flex items-center justify-center rounded-full text-sm transition-colors flex-shrink-0 ${
-          open ? 'bg-primary-500 text-background-50' : 'bg-background-200/70 text-foreground-400 hover:bg-background-200'
+        className={`flex items-center justify-center rounded-full transition-colors flex-shrink-0 ${
+          size === 'sm' ? 'w-[17px] h-[17px] text-[10px]' : 'w-6 h-6 text-sm'
+        } ${
+          tone === 'onPrimary'
+            ? open
+              ? 'bg-background-50 text-primary-500'
+              : 'bg-background-50/25 text-background-50 hover:bg-background-50/40'
+            : open
+              ? 'bg-primary-500 text-background-50'
+              : 'bg-background-200/70 text-foreground-400 hover:bg-background-200'
         }`}
       >
         <i className="ri-information-line"></i>
@@ -81,7 +102,7 @@ export default function InfoHint({ items, className = '', align = 'left' }: Info
         <div
           ref={popupRef}
           style={popupStyle}
-          className="absolute z-20 top-full mt-2 w-72 max-w-[85vw] rounded-xl border border-background-200/70 bg-background-50 shadow-card-hover p-3 animate-fadeIn"
+          className="z-20 w-72 max-w-[85vw] rounded-xl border border-background-200/70 bg-background-50 shadow-card-hover p-3 animate-fadeIn"
         >
           <ul className="space-y-2.5">
             {items.map((item, i) => (

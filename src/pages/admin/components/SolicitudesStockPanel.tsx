@@ -1,14 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSolicitudesStock } from '@/hooks/useSolicitudesStock';
 import type { SolicitudStock, SolicitudStockEstado } from '@/types/solicitudStock';
-import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
-
-const INFO_ITEMS = [
-  { icon: 'ri-notification-3-line', text: 'Aparece cuando un cliente pide en la web que le avisen de un producto agotado.' },
-  { icon: 'ri-check-line', text: 'Marca "Atendida" al reponerlo o contactar con el cliente.' },
-  { icon: 'ri-close-line', text: 'O "Descartar" si no procede.' },
-];
 
 const ESTADO_LABELS: Record<SolicitudStockEstado, string> = {
   pendiente: 'Pendiente',
@@ -172,16 +165,13 @@ export default function SolicitudesStockPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <div className="flex items-center gap-2 mb-3 sm:max-w-[280px] md:max-w-md">
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          suggestions={sugerencias}
-          placeholder="Buscar por producto o cliente…"
-          className="flex-1"
-        />
-        <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
-      </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        suggestions={sugerencias}
+        placeholder="Buscar por producto o cliente…"
+        className="mb-3 sm:max-w-[280px] md:max-w-md"
+      />
 
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide mb-4">
         {ESTADO_FILTROS.map((f) => (

@@ -2,14 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Pedido } from '@/types/pedido';
 import type { Reserva } from '@/types/reserva';
 import { normalizePhone, telHref, whatsappHref } from '@/lib/phone';
-import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
-
-const INFO_ITEMS = [
-  { icon: 'ri-database-2-line', text: 'Se construye solo a partir del histórico de pedidos y reservas.' },
-  { icon: 'ri-phone-line', text: 'Se agrupa por teléfono, para juntar todo bajo el mismo cliente.' },
-  { icon: 'ri-star-fill', text: 'Con 3 o más pedidos/reservas, el cliente lleva la insignia "Habitual".' },
-];
 
 interface HistorialEntrada {
   tipo: 'pedido' | 'reserva';
@@ -154,16 +147,13 @@ export default function ClientesPanel({
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-4">
-        <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px] md:max-w-md">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            suggestions={sugerencias}
-            placeholder="Buscar por nombre o teléfono…"
-            className="flex-1"
-          />
-          <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          suggestions={sugerencias}
+          placeholder="Buscar por nombre o teléfono…"
+          className="flex-1 min-w-[200px] sm:max-w-[280px] md:max-w-md"
+        />
         <div className="flex items-center gap-1.5">
           <button
             type="button"

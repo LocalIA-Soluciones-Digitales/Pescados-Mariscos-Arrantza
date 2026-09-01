@@ -3,17 +3,6 @@ import { useBasculaVentasDiarias, fetchBasculaVentasDelDia } from '@/hooks/useBa
 import type { BasculaVenta, BasculaVentaDiariaPorTienda } from '@/types/basculaVenta';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import OrigenBadge from '@/components/base/OrigenBadge';
-import InfoHint from '@/components/base/InfoHint';
-
-const INFO_ITEMS = [
-  {
-    icon: 'ri-scales-3-line',
-    text: 'Ventas cobradas en el mostrador de ambas pescaderías, sincronizadas automáticamente desde sus básculas (Factura Simplificada y Factura).',
-  },
-  { icon: 'ri-file-list-3-line', text: 'No incluye los Albaranes, que se facturan a fin de mes junto con la Factura correspondiente.' },
-  { icon: 'ri-store-2-line', text: 'Filtra por tienda para ver solo los datos de una pescadería, o deja "Todas" para ver el total combinado.' },
-  { icon: 'ri-cursor-line', text: 'Pincha un día para ver el detalle de cada venta.' },
-];
 
 type Filtro = 'todas' | Origen;
 
@@ -189,36 +178,33 @@ export default function VentasTiendaPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setFiltro('todas')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              filtro === 'todas' ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70 border border-background-200/70'
-            }`}
-          >
-            Todas las tiendas
-          </button>
-          {ORIGENES.map((origen) => {
-            const c = ORIGEN_COLORS[origen];
-            const activo = filtro === origen;
-            return (
-              <button
-                key={origen}
-                type="button"
-                onClick={() => setFiltro(origen)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                  activo ? `${c.bg} ${c.text} border-transparent ring-1 ${c.ring}` : 'bg-background-50 text-foreground-500 hover:bg-background-200/70 border-background-200/70'
-                }`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`}></span>
-                {ORIGEN_LABELS[origen]}
-              </button>
-            );
-          })}
-        </div>
-        <InfoHint items={INFO_ITEMS} align="right" />
+      <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setFiltro('todas')}
+          className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            filtro === 'todas' ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70 border border-background-200/70'
+          }`}
+        >
+          Todas las tiendas
+        </button>
+        {ORIGENES.map((origen) => {
+          const c = ORIGEN_COLORS[origen];
+          const activo = filtro === origen;
+          return (
+            <button
+              key={origen}
+              type="button"
+              onClick={() => setFiltro(origen)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                activo ? `${c.bg} ${c.text} border-transparent ring-1 ${c.ring}` : 'bg-background-50 text-foreground-500 hover:bg-background-200/70 border-background-200/70'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`}></span>
+              {ORIGEN_LABELS[origen]}
+            </button>
+          );
+        })}
       </div>
 
       {!loading && diasVisibles.length > 0 && (
