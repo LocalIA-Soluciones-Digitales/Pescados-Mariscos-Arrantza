@@ -7,6 +7,7 @@ const INFO_ITEMS = [
   { icon: 'ri-shopping-bag-3-line', text: 'Pedidos hechos desde la web, para recoger en tienda o entrega a domicilio.' },
   { icon: 'ri-calendar-check-line', text: 'Agrupados por fecha de recogida, para ver de un vistazo qué preparar cada día.' },
   { icon: 'ri-arrow-right-circle-line', text: 'Marca "Confirmado" y luego "Completado" a medida que avanza el pedido.' },
+  { icon: 'ri-whatsapp-line', text: 'Al confirmar, se abre WhatsApp con un mensaje ya escrito para el cliente — solo hay que enviarlo.' },
   { icon: 'ri-bank-card-line', text: 'Si el pago es por Bizum, márcalo pagado a mano cuando lo recibas.' },
 ];
 
@@ -90,6 +91,44 @@ function urgenciaInfo(fecha: string): { texto: string; badge: string; acento: st
 function EtiquetaUrgencia({ fecha }: { fecha: string }) {
   const { texto, badge } = urgenciaInfo(fecha);
   return <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${badge}`}>{texto}</span>;
+}
+
+// Mensaje que recibe el cliente por WhatsApp al confirmar su pedido — se abre
+// ya redactado, David solo tiene que revisar y pulsar enviar.
+function buildMensajeConfirmacion(pedido: Pedido): string {
+  const nombre = pedido.cliente_nombre?.trim().split(' ')[0] || '';
+  const isHome = pedido.metodo_entrega === 'home';
+  const lines: string[] = [];
+
+  lines.push(`Hola${nombre ? ` ${nombre}` : ''} 👋`);
+  lines.push('');
+  lines.push('Le confirmamos su pedido en *Pescados y Mariscos Arrantza* ✅');
+  lines.push('');
+  lines.push(`📅 Fecha: ${pedido.fecha_preferida ? formatFechaLarga(pedido.fecha_preferida) : 'A confirmar'}`);
+  lines.push(`🕒 Hora: ${pedido.hora_preferida || 'A confirmar'}`);
+  lines.push('');
+
+  if (isHome) {
+    lines.push('🚚 Se lo entregaremos a domicilio en:');
+    lines.push(`${pedido.cliente_direccion || ''}, ${pedido.cliente_ciudad || ''} ${pedido.cliente_cp || ''}`.trim());
+  } else {
+    lines.push('🏪 Podrá recogerlo en tienda:');
+    lines.push('Calle Jesús Aramburu, 1, 48950 Erandio, Bizkaia');
+  }
+
+  lines.push('');
+  lines.push(`🛒 ${pedido.total_productos} producto${pedido.total_productos === 1 ? '' : 's'} · ${pedido.peso_total} kg`);
+  if (pedido.importe_estimado !== null) {
+    lines.push(`💶 Total estimado: ${formatPrecio(pedido.importe_estimado)}`);
+  }
+
+  lines.push('');
+  lines.push('Si necesita cambiar algo, puede responder a este mensaje.');
+  lines.push('');
+  lines.push('¡Gracias por su confianza! 🐟');
+  lines.push('Pescados y Mariscos Arrantza');
+
+  return lines.join('\n');
 }
 
 function PedidoCard({
@@ -188,7 +227,13 @@ function PedidoCard({
         {next && (
           <button
             type="button"
-            onClick={() => onSetEstado(pedido.id, next)}
+            onClick={() => {
+              onSetEstado(pedido.id, next);
+              if (next === 'confirmado' && telefono) {
+                const mensaje = buildMensajeConfirmacion(pedido);
+                window.open(`https://api.whatsapp.com/send?phone=34${telefono}&text=${encodeURIComponent(mensaje)}`, '_blank');
+              }
+            }}
             className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-primary-500 text-background-50 hover:bg-primary-600"
           >
             Marcar {ESTADO_LABELS[next].toLowerCase()}
