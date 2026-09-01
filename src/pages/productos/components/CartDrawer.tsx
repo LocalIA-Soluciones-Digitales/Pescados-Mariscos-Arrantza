@@ -735,8 +735,12 @@ export default function CartDrawer({
       productMap,
     });
 
+    // api.whatsapp.com en vez de wa.me: wa.me es un acortador que redirige
+    // (hop adicional que en algunos dispositivos/navegadores llega a
+    // corromper los emojis de textos largos); api.whatsapp.com/send es el
+    // endpoint documentado por Meta y evita esa redirección.
     const encoded = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/${BIZUM_PHONE_WA}?text=${encoded}`;
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${BIZUM_PHONE_WA}&text=${encoded}`;
 
     // ── Save as last order for Buy Again ──
     onSaveLastOrder();

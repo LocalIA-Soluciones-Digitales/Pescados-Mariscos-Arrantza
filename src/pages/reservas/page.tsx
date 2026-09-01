@@ -247,7 +247,10 @@ export default function Reservas() {
     });
 
     const message = buildWhatsAppMessage({ evento, items, totalWeight, nombre, telefono, email, fechaDeseada, notas, lang: i18n.language });
-    const whatsappUrl = `https://wa.me/34619609888?text=${encodeURIComponent(message)}`;
+    // api.whatsapp.com en vez de wa.me: evita el hop de redirección del
+    // acortador que en algunos dispositivos corrompe los emojis de textos
+    // largos (ver CartDrawer.tsx).
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=34619609888&text=${encodeURIComponent(message)}`;
 
     setSending(false);
     if (!result.ok) {
