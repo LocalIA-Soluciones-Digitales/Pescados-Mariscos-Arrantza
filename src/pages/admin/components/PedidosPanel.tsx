@@ -122,6 +122,24 @@ function buildMensajeConfirmacion(pedido: Pedido): string {
   return lines.join('\n');
 }
 
+// Mensaje que recibe el cliente por WhatsApp al completar su pedido —
+// agradece la compra y anima a que vuelva.
+function buildMensajeAgradecimiento(pedido: Pedido): string {
+  const nombre = pedido.cliente_nombre?.trim().split(' ')[0] || '';
+  const lines: string[] = [];
+
+  lines.push(`Hola${nombre ? ` ${nombre}` : ''} 👋`);
+  lines.push('');
+  lines.push('Su pedido en *Pescados y Mariscos Arrantza* ya está completado ✅');
+  lines.push('');
+  lines.push('Muchas gracias por su confianza. Esperamos que disfrute del producto y estaremos encantados de atenderle de nuevo en su próxima compra.');
+  lines.push('');
+  lines.push('¡Hasta pronto! 🐟');
+  lines.push('Pescados y Mariscos Arrantza');
+
+  return lines.join('\n');
+}
+
 function PedidoCard({
   pedido,
   onSetEstado,
@@ -220,8 +238,8 @@ function PedidoCard({
             type="button"
             onClick={() => {
               onSetEstado(pedido.id, next);
-              if (next === 'confirmado' && telefono) {
-                const mensaje = buildMensajeConfirmacion(pedido);
+              if (telefono && (next === 'confirmado' || next === 'completado')) {
+                const mensaje = next === 'confirmado' ? buildMensajeConfirmacion(pedido) : buildMensajeAgradecimiento(pedido);
                 window.open(`https://api.whatsapp.com/send?phone=34${telefono}&text=${encodeURIComponent(mensaje)}`, '_blank');
               }
             }}
