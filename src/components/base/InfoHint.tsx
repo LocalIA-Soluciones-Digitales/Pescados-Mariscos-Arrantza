@@ -122,7 +122,7 @@ export default function InfoHint({ items, className = '', align = 'left', size =
           <div
             ref={popupRef}
             style={popupStyle}
-            className="z-50 w-max min-w-[200px] max-w-[min(320px,85vw)] rounded-xl border border-background-200/70 bg-background-50 shadow-xl p-3 animate-fadeIn"
+            className="z-50 w-max min-w-[220px] max-w-[min(460px,90vw)] rounded-xl border border-background-200/70 bg-background-50 shadow-xl p-3 animate-fadeIn"
           >
             <span
               style={{ left: arrowLeft }}
