@@ -174,14 +174,14 @@ function ProductoCard({
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'hoy', label: 'Hoy' },
-  { value: 'productos', label: 'Productos' },
-  { value: 'stock', label: 'Stock' },
   { value: 'ventas', label: 'Ventas' },
   { value: 'caja', label: 'Caja' },
   { value: 'reservas', label: 'Reservas' },
   { value: 'solicitudes', label: 'Solicitudes' },
-  { value: 'resenas', label: 'Reseñas' },
+  { value: 'productos', label: 'Productos' },
+  { value: 'stock', label: 'Stock' },
   { value: 'clientes', label: 'Clientes' },
+  { value: 'resenas', label: 'Reseñas' },
 ];
 
 type ViewSwitch = { label: string; onClick: () => void };
