@@ -2,6 +2,17 @@ import { useMemo, useState } from 'react';
 import { useBasculaVentasDiarias, fetchBasculaVentasDelDia } from '@/hooks/useBasculaVentas';
 import type { BasculaVenta, BasculaVentaDiariaPorTienda } from '@/types/basculaVenta';
 import { ORIGEN_LABELS, type Origen } from '@/types/origen';
+import InfoHint from '@/components/base/InfoHint';
+
+const INFO_ITEMS = [
+  {
+    icon: 'ri-scales-3-line',
+    text: 'Ventas cobradas en el mostrador de ambas pescaderías, sincronizadas automáticamente desde sus básculas (Factura Simplificada y Factura).',
+  },
+  { icon: 'ri-file-list-3-line', text: 'No incluye los Albaranes, que se facturan a fin de mes junto con la Factura correspondiente.' },
+  { icon: 'ri-store-2-line', text: 'El total del día suma las dos tiendas; debajo se ve el desglose de ingresos por cada una.' },
+  { icon: 'ri-cursor-line', text: 'Pincha un día para ver el detalle de cada venta.' },
+];
 
 function formatFechaLarga(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -121,12 +132,9 @@ export default function VentasTiendaPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <p className="text-xs text-foreground-400 mb-4 max-w-2xl">
-        Ventas cobradas en el mostrador de ambas pescaderías, sincronizadas automáticamente desde sus básculas (Factura
-        Simplificada y Factura). No incluye los Albaranes, que se facturan a fin de mes junto con la Factura correspondiente.
-        El total del día suma las dos tiendas; debajo se ve el desglose de ingresos por cada una. Pincha un día para ver el
-        detalle de cada venta.
-      </p>
+      <div className="flex justify-end mb-4">
+        <InfoHint items={INFO_ITEMS} align="right" />
+      </div>
 
       {loading ? (
         <p className="text-sm text-foreground-400">Cargando…</p>
