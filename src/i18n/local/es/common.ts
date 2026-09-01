@@ -809,6 +809,8 @@ const common = {
   "pedido_confirmado.invalid_title": "No hemos podido confirmar el pago",
   "pedido_confirmado.invalid_body": "Si has pagado y ves este mensaje, contáctanos por WhatsApp o teléfono y lo revisamos contigo.",
   "pedido_confirmado.back": "Volver a la web",
+  "pedido_confirmado.whatsapp_button": "Avisar a David por WhatsApp",
+  "pedido_confirmado.whatsapp_button_sent": "Abierto en WhatsApp ✓",
 
   // Footer
   "footer.rights": "Todos los derechos reservados.",

@@ -810,6 +810,8 @@ const common = {
   "pedido_confirmado.invalid_title": "Ezin izan dugu ordainketa berretsi",
   "pedido_confirmado.invalid_body": "Ordaindu baduzu eta mezu hau ikusten baduzu, jarri gurekin harremanetan WhatsApp edo telefonoz eta zurekin berrikusiko dugu.",
   "pedido_confirmado.back": "Webgunera itzuli",
+  "pedido_confirmado.whatsapp_button": "Davidi WhatsApp bidez abisatu",
+  "pedido_confirmado.whatsapp_button_sent": "WhatsApp-en irekita ✓",
 
   // Footer
   "footer.rights": "Eskubide guztiak erreserbatuta.",
