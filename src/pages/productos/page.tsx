@@ -392,6 +392,36 @@ function StickyToolbar({
     );
   };
 
+  const renderGroupHeader = (key: CategoryFilter, icon: string) => {
+    const cat = categories.find((c) => c.key === key);
+    if (!cat) return null;
+    const isActive = activeCategory === key;
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          onCategoryChange(key);
+          setFilterOpen(false);
+        }}
+        className={`w-full flex items-center gap-2 rounded-lg px-1.5 py-1.5 cursor-pointer transition-colors ${
+          isActive ? 'bg-primary-50' : 'hover:bg-background-100'
+        }`}
+      >
+        <span
+          className={`w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
+            isActive ? 'bg-primary-500 text-background-50' : 'bg-primary-100/70 text-primary-600'
+          }`}
+        >
+          <i className={`${icon} text-xs`}></i>
+        </span>
+        <span className={`text-[13px] md:text-sm font-semibold ${isActive ? 'text-primary-700' : 'text-foreground-800'}`}>
+          {t(cat.labelKey)}
+        </span>
+        <span className="text-[11px] md:text-xs text-foreground-400 font-normal">{filterCounts[key]}</span>
+      </button>
+    );
+  };
+
   useEffect(() => {
     if (!filterOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -492,12 +522,10 @@ function StickyToolbar({
                       "Azul"/"Blanco"/"Cefalópodos" are kinds of pescado, not
                       separate families sitting next to it. */}
                   {(visibleKeys.has('pescado') || fishSubcats.length > 0) && (
-                    <div className="mt-2.5 pl-0.5 border-l-2 border-background-200/70">
-                      <div className="pl-2.5 flex flex-wrap gap-1.5">
-                        {visibleKeys.has('pescado') && renderChip('pescado')}
-                      </div>
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {visibleKeys.has('pescado') && renderGroupHeader('pescado', 'ri-water-flash-line')}
                       {fishSubcats.length > 0 && (
-                        <div className="pl-6 mt-1.5 flex flex-wrap gap-1.5">
+                        <div className="pl-8 mt-1.5 flex flex-wrap gap-1.5">
                           {fishSubcats.map((key) => renderChip(key, true))}
                         </div>
                       )}
@@ -506,12 +534,10 @@ function StickyToolbar({
 
                   {/* Marisco — same nesting for its subtypes */}
                   {(visibleKeys.has('marisco') || seafoodSubcats.length > 0) && (
-                    <div className="mt-2.5 pl-0.5 border-l-2 border-background-200/70">
-                      <div className="pl-2.5 flex flex-wrap gap-1.5">
-                        {visibleKeys.has('marisco') && renderChip('marisco')}
-                      </div>
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {visibleKeys.has('marisco') && renderGroupHeader('marisco', 'ri-restaurant-2-line')}
                       {seafoodSubcats.length > 0 && (
-                        <div className="pl-6 mt-1.5 flex flex-wrap gap-1.5">
+                        <div className="pl-8 mt-1.5 flex flex-wrap gap-1.5">
                           {seafoodSubcats.map((key) => renderChip(key, true))}
                         </div>
                       )}

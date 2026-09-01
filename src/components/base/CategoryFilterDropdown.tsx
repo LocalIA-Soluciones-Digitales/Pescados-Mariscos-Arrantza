@@ -16,6 +16,42 @@ interface CategoryFilterDropdownProps {
   className?: string;
 }
 
+function GroupHeader({
+  label,
+  count,
+  icon,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  icon: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full flex items-center gap-2 rounded-lg px-1.5 py-1.5 transition-colors ${
+        active ? 'bg-primary-50' : 'hover:bg-background-100'
+      }`}
+    >
+      <span
+        className={`w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
+          active ? 'bg-primary-500 text-background-50' : 'bg-primary-100/70 text-primary-600'
+        }`}
+      >
+        <i className={`${icon} text-xs`}></i>
+      </span>
+      <span className={`text-[13px] font-semibold ${active ? 'text-primary-700' : 'text-foreground-800'}`}>
+        {label}
+      </span>
+      <span className="text-[11px] text-foreground-400 font-normal">{count}</span>
+    </button>
+  );
+}
+
 function Chip({
   label,
   count,
@@ -130,17 +166,16 @@ export default function CategoryFilterDropdown({ categorias, counts, value, onCh
           </div>
 
           {pescado && (
-            <div className="mt-2.5 pl-0.5 border-l-2 border-background-200/70">
-              <div className="pl-2.5 flex flex-wrap gap-1.5">
-                <Chip
-                  label={pescado.label}
-                  count={counts[pescado.value] ?? 0}
-                  active={value === pescado.value}
-                  onClick={() => elegir(pescado.value)}
-                />
-              </div>
+            <div className="mt-2.5 pt-2 border-t border-background-200/60">
+              <GroupHeader
+                label={pescado.label}
+                count={counts[pescado.value] ?? 0}
+                icon="ri-water-flash-line"
+                active={value === pescado.value}
+                onClick={() => elegir(pescado.value)}
+              />
               {subPescado.length > 0 && (
-                <div className="pl-6 mt-1.5 flex flex-wrap gap-1.5">
+                <div className="pl-8 mt-1.5 flex flex-wrap gap-1.5">
                   {subPescado.map((c) => (
                     <Chip key={c.value} label={c.label} count={counts[c.value] ?? 0} active={value === c.value} small onClick={() => elegir(c.value)} />
                   ))}
@@ -150,17 +185,16 @@ export default function CategoryFilterDropdown({ categorias, counts, value, onCh
           )}
 
           {marisco && (
-            <div className="mt-2.5 pl-0.5 border-l-2 border-background-200/70">
-              <div className="pl-2.5 flex flex-wrap gap-1.5">
-                <Chip
-                  label={marisco.label}
-                  count={counts[marisco.value] ?? 0}
-                  active={value === marisco.value}
-                  onClick={() => elegir(marisco.value)}
-                />
-              </div>
+            <div className="mt-2.5 pt-2 border-t border-background-200/60">
+              <GroupHeader
+                label={marisco.label}
+                count={counts[marisco.value] ?? 0}
+                icon="ri-restaurant-2-line"
+                active={value === marisco.value}
+                onClick={() => elegir(marisco.value)}
+              />
               {subMarisco.length > 0 && (
-                <div className="pl-6 mt-1.5 flex flex-wrap gap-1.5">
+                <div className="pl-8 mt-1.5 flex flex-wrap gap-1.5">
                   {subMarisco.map((c) => (
                     <Chip key={c.value} label={c.label} count={counts[c.value] ?? 0} active={value === c.value} small onClick={() => elegir(c.value)} />
                   ))}
