@@ -265,9 +265,9 @@ export default function StockPanel({
           />
           <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
         </div>
-        <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
-          <CategoryFilterDropdown categorias={CATEGORIA_FILTROS} counts={categoriaCounts} value={categoria} onChange={setCategoria} />
+        <CategoryFilterDropdown categorias={CATEGORIA_FILTROS} counts={categoriaCounts} value={categoria} onChange={setCategoria} />
 
+        <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
           <button
             type="button"
             onClick={() => setSoloBajo((v) => !v)}
