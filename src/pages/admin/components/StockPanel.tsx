@@ -2,15 +2,17 @@ import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { Producto, ProductoCategoria } from '@/types/producto';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
+import { useProductosCodigosBascula } from '@/hooks/useProductosCodigosBascula';
+import { ORIGENES, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
 
 const INFO_ITEMS = [
   { icon: 'ri-add-circle-line', text: '"Entrada de hoy" suma los kg recibidos al stock actual — no hace falta calcular el total.' },
   { icon: 'ri-subtract-line', text: 'Usa un valor negativo para descontar kg, por ejemplo si llega producto en mal estado.' },
-  { icon: 'ri-shopping-basket-line', text: 'El stock también baja solo con cada pedido y con cada venta pesada en la báscula de la tienda.' },
+  { icon: 'ri-shopping-basket-line', text: 'El stock también baja solo con cada pedido y con cada venta pesada en cualquiera de las dos básculas.' },
   { icon: 'ri-mail-line', text: 'Si baja del aviso mínimo, se envía un correo automáticamente.' },
-  { icon: 'ri-barcode-line', text: '"Código báscula" debe coincidir con el código dado de alta en el terminal de pesaje.' },
+  { icon: 'ri-barcode-line', text: 'Cada báscula tiene su propio catálogo de códigos: indica el código de cada terminal donde se venda este producto.' },
 ];
 
 const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
@@ -41,10 +43,20 @@ const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categor
   { value: 'gambas_langostinos', label: 'Gambas y Langostinos', tipo: 'subcategoria' },
 ];
 
-function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: Partial<Producto>) => void }) {
+function StockRow({
+  producto,
+  onPatch,
+  codigosBascula,
+  onGuardarCodigoBascula,
+}: {
+  producto: Producto;
+  onPatch: (patch: Partial<Producto>) => void;
+  codigosBascula: Partial<Record<Origen, string>>;
+  onGuardarCodigoBascula: (origen: Origen, valor: string) => Promise<boolean>;
+}) {
   const [entrada, setEntrada] = useState('');
   const [stockMinimo, setStockMinimo] = useState(producto.stock_minimo);
-  const [codigoBascula, setCodigoBascula] = useState(producto.codigo_bascula ?? '');
+  const [codigosLocal, setCodigosLocal] = useState<Partial<Record<Origen, string>>>(codigosBascula);
   const [saving, setSaving] = useState(false);
   const stockBajo = producto.stock_kg <= producto.stock_minimo;
 
@@ -76,17 +88,14 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
     onPatch({ stock_minimo: v });
   };
 
-  const guardarCodigoBascula = async (v: string) => {
-    const valor = v.trim() || null;
+  const guardarCodigo = async (origen: Origen, valor: string) => {
     setSaving(true);
-    const { error } = await supabase.from('productos').update({ codigo_bascula: valor }).eq('id', producto.id);
+    const ok = await onGuardarCodigoBascula(origen, valor);
     setSaving(false);
-    if (error) {
-      alert('No se pudo guardar el código de báscula: ' + error.message);
-      setCodigoBascula(producto.codigo_bascula ?? '');
-      return;
+    if (!ok) {
+      alert('No se pudo guardar el código de báscula.');
+      setCodigosLocal((prev) => ({ ...prev, [origen]: codigosBascula[origen] ?? '' }));
     }
-    onPatch({ codigo_bascula: valor });
   };
 
   return (
@@ -157,23 +166,26 @@ function StockRow({ producto, onPatch }: { producto: Producto; onPatch: (patch: 
           <span className="text-xs text-foreground-400">kg</span>
         </div>
 
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <label className="text-[11px] text-foreground-400">Código báscula</label>
-          <input
-            type="text"
-            placeholder="ej. 338"
-            value={codigoBascula}
-            onChange={(e) => setCodigoBascula(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur();
-            }}
-            onBlur={() => {
-              if (codigoBascula.trim() !== (producto.codigo_bascula ?? '')) guardarCodigoBascula(codigoBascula);
-            }}
-            disabled={saving}
-            className="w-20 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
-          />
-        </div>
+        {ORIGENES.map((origen) => (
+          <div key={origen} className="flex items-center gap-1.5 flex-shrink-0">
+            <label className="text-[11px] text-foreground-400">Código {ORIGEN_LABELS[origen]}</label>
+            <input
+              type="text"
+              placeholder="ej. 338"
+              value={codigosLocal[origen] ?? ''}
+              onChange={(e) => setCodigosLocal((prev) => ({ ...prev, [origen]: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+              }}
+              onBlur={() => {
+                const valor = codigosLocal[origen] ?? '';
+                if (valor.trim() !== (codigosBascula[origen] ?? '')) guardarCodigo(origen, valor);
+              }}
+              disabled={saving}
+              className="w-20 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -191,7 +203,19 @@ export default function StockPanel({
   const [search, setSearch] = useState('');
   const [soloBajo, setSoloBajo] = useState(false);
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
+  const [colapsados, setColapsados] = useState<Set<ProductoCategoria>>(new Set());
+
+  const toggleColapsado = (cat: ProductoCategoria) => {
+    setColapsados((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
   const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
+  const { codigos: codigosBascula, loading: loadingCodigos, guardarCodigo } = useProductosCodigosBascula();
+  const cargando = loading || loadingCodigos;
 
   const bajoCount = useMemo(() => productos.filter((p) => p.stock_kg <= p.stock_minimo).length, [productos]);
 
@@ -297,30 +321,48 @@ export default function StockPanel({
       </div>
 
       <div className="px-4 md:px-8 py-6 pb-28">
-      {loading ? (
+      {cargando ? (
         <p className="text-sm text-foreground-400">Cargando…</p>
       ) : totalVisible === 0 ? (
         <p className="text-sm text-foreground-400">No hay productos que coincidan con el filtro.</p>
       ) : (
         <div className="space-y-6">
-          {grupos.map((grupo) => (
-            <div key={grupo.categoria}>
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-500">
-                  {CATEGORIA_LABELS[grupo.categoria]}
-                </h3>
-                <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] bg-background-200/60 text-foreground-400">
-                  {grupo.productos.length}
-                </span>
-                <div className="flex-1 h-px bg-background-200/70" />
+          {grupos.map((grupo) => {
+            const colapsado = colapsados.has(grupo.categoria);
+            return (
+              <div key={grupo.categoria}>
+                <button
+                  type="button"
+                  onClick={() => toggleColapsado(grupo.categoria)}
+                  className="w-full flex items-center gap-2 mb-2 group"
+                >
+                  <i
+                    className={`ri-arrow-down-s-line text-sm text-foreground-400 transition-transform ${colapsado ? '-rotate-90' : ''}`}
+                  ></i>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-500 group-hover:text-foreground-700">
+                    {CATEGORIA_LABELS[grupo.categoria]}
+                  </h3>
+                  <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] bg-background-200/60 text-foreground-400">
+                    {grupo.productos.length}
+                  </span>
+                  <div className="flex-1 h-px bg-background-200/70" />
+                </button>
+                {!colapsado && (
+                  <div className="space-y-2">
+                    {grupo.productos.map((producto) => (
+                      <StockRow
+                        key={producto.id}
+                        producto={producto}
+                        onPatch={(patch) => onPatch(producto.id, patch)}
+                        codigosBascula={codigosBascula.get(producto.id) ?? {}}
+                        onGuardarCodigoBascula={(origen, valor) => guardarCodigo(producto.id, origen, valor)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="space-y-2">
-                {grupo.productos.map((producto) => (
-                  <StockRow key={producto.id} producto={producto} onPatch={(patch) => onPatch(producto.id, patch)} />
-                ))}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       </div>

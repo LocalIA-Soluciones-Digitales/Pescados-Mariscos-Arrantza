@@ -717,40 +717,77 @@ create trigger trg_productos_stock_bajo
   for each row execute function public.notificar_stock_bajo();
 
 -- Descuenta stock automáticamente a partir de las pesadas registradas en
--- la báscula BM5 (Balanzas Marques). La Edge Function bascula-sync (ver
+-- las básculas BM5 (Balanzas Marques) — David tiene dos pescaderías con
+-- una báscula cada una, y comparten el mismo stock y catálogo (compra en
+-- el mercado y reparte entre ambas). La Edge Function bascula-sync (ver
 -- supabase/functions/bascula-sync) consulta cada pocos minutos el API
--- ETWS del terminal y llama a esta función por cada línea de ticket
--- vendida a peso, identificando el producto por productos.codigo_bascula
--- (el "codigo" que usa el propio terminal, distinto del id de Supabase).
-alter table public.productos add column if not exists codigo_bascula text;
-
-create unique index if not exists idx_productos_codigo_bascula
-  on public.productos (cliente_id, codigo_bascula)
-  where codigo_bascula is not null;
-
+-- ETWS de cada terminal y llama a esta función por cada línea de ticket
+-- vendida a peso, identificando el producto por su código en ESE
+-- terminal concreto — cada báscula tiene su propio catálogo interno de
+-- códigos, así que el mismo producto puede tener un código distinto en
+-- cada una (ver productos_codigos_bascula, más abajo).
 create or replace function public.descontar_stock_bascula(
-  p_cliente_id uuid, p_codigo_bascula text, p_kg numeric
+  p_cliente_id uuid, p_origen text, p_codigo_bascula text, p_kg numeric
 )
 returns numeric as $$
-  update public.productos
+  update public.productos p
   set stock_kg = greatest(stock_kg - p_kg, 0)
-  where cliente_id = p_cliente_id and codigo_bascula = p_codigo_bascula
-  returning stock_kg;
+  from public.productos_codigos_bascula m
+  where m.producto_id = p.id
+    and m.cliente_id = p_cliente_id
+    and m.origen = p_origen
+    and m.codigo_bascula = p_codigo_bascula
+  returning p.stock_kg;
 $$ language sql set search_path = public;
 
-revoke all on function public.descontar_stock_bascula(uuid, text, numeric) from public;
-grant execute on function public.descontar_stock_bascula(uuid, text, numeric) to service_role;
+revoke all on function public.descontar_stock_bascula(uuid, text, text, numeric) from public;
+grant execute on function public.descontar_stock_bascula(uuid, text, text, numeric) to service_role;
 
--- Registro de cada línea de venta procesada desde la báscula BM5, para
--- poder sacar la facturación diaria además de descontar stock. Se
--- guarda igual aunque el producto no tenga codigo_bascula mapeado
--- todavía (producto_id queda null en ese caso) — el cierre de caja no
--- debe depender de que el mapeo de stock esté completo.
+-- Mapeo producto × báscula → código de ese terminal. Sustituye a un
+-- antiguo campo único productos.codigo_bascula (válido mientras solo
+-- había una báscula) — con dos terminales, un mismo producto necesita un
+-- código por cada origen.
+create table if not exists public.productos_codigos_bascula (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  producto_id uuid not null references public.productos (id) on delete cascade,
+  origen text not null,
+  codigo_bascula text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (producto_id, origen),
+  unique (cliente_id, origen, codigo_bascula)
+);
+
+drop trigger if exists trg_productos_codigos_bascula_updated_at on public.productos_codigos_bascula;
+create trigger trg_productos_codigos_bascula_updated_at
+  before update on public.productos_codigos_bascula
+  for each row execute function public.set_updated_at();
+
+alter table public.productos_codigos_bascula enable row level security;
+
+drop policy if exists "productos_codigos_bascula_admin" on public.productos_codigos_bascula;
+create policy "productos_codigos_bascula_admin"
+  on public.productos_codigos_bascula for all
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+-- Registro de cada línea de venta procesada desde cualquiera de las dos
+-- básculas (origen), para poder sacar la facturación diaria además de
+-- descontar stock. Se guarda igual aunque el producto no tenga código
+-- mapeado todavía para ese origen (producto_id queda null en ese caso)
+-- — el cierre de caja no debe depender de que el mapeo de stock esté
+-- completo. linea_oid es el contador interno de CADA báscula por
+-- separado (dos terminales pueden compartir el mismo número para
+-- tickets distintos), así que la unicidad es (origen, linea_oid), no
+-- linea_oid a secas.
 create table if not exists public.bascula_ventas (
   id uuid primary key default gen_random_uuid(),
   cliente_id uuid not null references public.clientes (id),
+  origen text not null,
   producto_id uuid references public.productos (id) on delete set null,
-  linea_oid bigint not null unique,
+  linea_oid bigint not null,
   ticket_tipo_doc integer not null,
   ticket_posto integer not null,
   ticket_numero integer not null,
@@ -762,7 +799,8 @@ create table if not exists public.bascula_ventas (
   cantidad numeric not null,
   precio_unit numeric not null,
   importe numeric not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (origen, linea_oid)
 );
 
 alter table public.bascula_ventas enable row level security;
@@ -773,9 +811,9 @@ create policy "bascula_ventas_select_admin"
   to authenticated
   using (is_developer() or cliente_id = mi_cliente_id());
 
--- Permite borrar una línea desde Caja si se coló una venta errónea (ver
--- comentario en useBasculaVentas.ts sobre por qué es seguro: la
--- sincronización no la vuelve a traer).
+-- Permite borrar una línea desde Ventas > Tienda si se coló una venta
+-- errónea (ver comentario en useBasculaVentas.ts sobre por qué es
+-- seguro: la sincronización no la vuelve a traer).
 drop policy if exists "bascula_ventas_delete_admin" on public.bascula_ventas;
 create policy "bascula_ventas_delete_admin"
   on public.bascula_ventas for delete
@@ -783,11 +821,13 @@ create policy "bascula_ventas_delete_admin"
   using (is_developer() or cliente_id = mi_cliente_id());
 
 create index if not exists idx_bascula_ventas_fecha on public.bascula_ventas (cliente_id, fecha);
+create index if not exists idx_bascula_ventas_origen_fecha on public.bascula_ventas (cliente_id, origen, fecha);
 
--- Facturación diaria (importe de línea, IVA incluido, tal como lo
--- registra la báscula) y kg vendidos a peso, para el cierre de caja.
--- security_invoker: la vista respeta la RLS de bascula_ventas para
--- quien la consulte, en vez de correr con los permisos de quien la creó.
+-- Facturación diaria combinando las dos pescaderías (importe de línea,
+-- IVA incluido, tal como lo registra la báscula) y kg vendidos a peso,
+-- para el cierre de caja. security_invoker: la vista respeta la RLS de
+-- bascula_ventas para quien la consulte, en vez de correr con los
+-- permisos de quien la creó.
 create or replace view public.bascula_ventas_diarias
 with (security_invoker = true) as
 select
@@ -799,6 +839,22 @@ select
 from public.bascula_ventas
 group by cliente_id, fecha
 order by fecha desc;
+
+-- Mismo desglose pero por tienda — los ingresos sí se quieren ver
+-- separados por pescadería (a diferencia de los gastos de Caja, que son
+-- generales para el negocio conjunto).
+create or replace view public.bascula_ventas_diarias_por_tienda
+with (security_invoker = true) as
+select
+  cliente_id,
+  fecha,
+  origen,
+  count(distinct (ticket_tipo_doc, ticket_posto, ticket_numero)) as num_tickets,
+  sum(importe) as total_importe,
+  sum(cantidad) filter (where unidad = 'kg') as total_peso_kg
+from public.bascula_ventas
+group by cliente_id, fecha, origen
+order by fecha desc, origen;
 
 -- ============================================================
 -- Caja: registro manual de ingresos y gastos del día a día (sustituye la
@@ -1025,22 +1081,37 @@ create trigger trg_newsletter_confirmacion
 --   ('<CLIENTE_ID>', 'newsletter_confirm_secret', '"<UN_SECRETO_ALEATORIO>"')
 -- on conflict (key, cliente_id) do update set value = excluded.value;
 
--- Sincronización de stock con la báscula BM5 (Balanzas Marques): a
--- diferencia de las notificaciones anteriores, bascula-sync no la
--- invoca un trigger sobre una fila (no hay "new"/"old" del que leer
--- cliente_id), sino un cron. Sus credenciales del API ETWS y el
--- cliente_id al que pertenece van como secretos de la propia function
--- (ver supabase/functions/bascula-sync/.env.example), no en `settings`.
--- Tras desplegarla y fijar sus secretos con `supabase secrets set`,
--- programa su ejecución cada 5 minutos:
+-- Sincronización de stock con las básculas BM5 (Balanzas Marques) de las
+-- dos pescaderías: a diferencia de las notificaciones anteriores,
+-- bascula-sync no la invoca un trigger sobre una fila (no hay
+-- "new"/"old" del que leer cliente_id), sino un cron — uno por cada
+-- báscula, que le indica en el body a qué "origen" (pescaderia_1 /
+-- pescaderia_2) pertenece. Sus credenciales del API ETWS (una por
+-- origen) y el cliente_id al que pertenece van como secretos de la
+-- propia function (ver supabase/functions/bascula-sync/.env.example),
+-- no en `settings`. Tras desplegarla y fijar sus secretos con
+-- `supabase secrets set`, programa su ejecución cada 5 minutos, una vez
+-- por báscula:
 -- create extension if not exists pg_cron with schema extensions;
 -- select cron.schedule(
---   'bascula-sync-5min',
+--   'bascula-sync-pescaderia-1',
 --   '*/5 * * * *',
 --   $$
 --   select net.http_post(
 --     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/bascula-sync',
---     headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', '<UN_SECRETO_ALEATORIO>')
+--     headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', '<UN_SECRETO_ALEATORIO>'),
+--     body := jsonb_build_object('origen', 'pescaderia_1')
+--   );
+--   $$
+-- );
+-- select cron.schedule(
+--   'bascula-sync-pescaderia-2',
+--   '*/5 * * * *',
+--   $$
+--   select net.http_post(
+--     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/bascula-sync',
+--     headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', '<UN_SECRETO_ALEATORIO>'),
+--     body := jsonb_build_object('origen', 'pescaderia_2')
 --   );
 --   $$
 -- );

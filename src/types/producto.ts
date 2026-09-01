@@ -19,7 +19,6 @@ export interface Producto {
   stock_kg: number;
   stock_minimo: number;
   stock_alerta_enviada: boolean;
-  codigo_bascula: string | null;
   orden: number;
   created_at: string;
   updated_at: string;

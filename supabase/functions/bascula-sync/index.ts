@@ -1,12 +1,18 @@
-// Sincroniza con las pesadas registradas en la báscula BM5 (Balanzas
-// Marques) de la pescadería. Se invoca por cron cada 5 minutos (ver el
-// bloque "Sincronización de stock con la báscula BM5" en
-// supabase/schema.sql), consulta el API ETWS del terminal a través de
-// ETPROXY (https://etproxy.etpos.pt) y, por cada línea de ticket nueva:
-//   1. la guarda en public.bascula_ventas (para la facturación diaria,
-//      independientemente de si el producto está mapeado o no), y
-//   2. si es una venta a peso ("unidade": "kg") de un producto con
-//      productos.codigo_bascula mapeado, descuenta esos kg de su stock.
+// Sincroniza con las pesadas registradas en las básculas BM5 (Balanzas
+// Marques) de las dos pescaderías (David compra en el mercado y reparte
+// género entre ambas, así que comparten stock y facturación). Se invoca
+// por cron cada 5 minutos, una vez por cada terminal — el cron indica en
+// el cuerpo de la petición de qué báscula se trata:
+//
+//   { "origen": "pescaderia_1" }   o   { "origen": "pescaderia_2" }
+//
+// (ver el bloque "Sincronización de stock con las básculas BM5" en
+// supabase/schema.sql). Por cada línea de ticket nueva de esa báscula:
+//   1. la guarda en public.bascula_ventas, con su origen — para la
+//      facturación diaria (combinada y desglosada por tienda), y
+//   2. si es una venta a peso ("unidade": "kg") de un producto con un
+//      código mapeado para ESE origen (productos_codigos_bascula),
+//      descuenta esos kg del stock compartido.
 //
 // IMPORTANTE sobre el API ETWS: las tablas /year/documentos y
 // /year/documentos_lnh están indexadas empezando por "tipo_doc" (1 =
@@ -27,6 +33,12 @@
 // Solo se procesan tipo_doc 1 (Factura Simplificada) y 2 (Factura), que
 // son los que representan la venta ya facturada.
 //
+// Cada báscula tiene su propio contador interno de _oid_, así que el
+// "último ticket procesado" se guarda en `settings` con una clave por
+// origen (bascula_last_oid_pescaderia_1 / _pescaderia_2), no una global
+// — dos terminales pueden compartir el mismo número de oid para tickets
+// completamente distintos.
+//
 // Documentación del API ETWS: la trajo el suministrador de la báscula
 // (Balanzas Marques / Merkapesaje) tras activar ETPROXY en el propio
 // terminal (menú Red > Opciones > "..." junto a "Acepta comandos desde
@@ -34,13 +46,15 @@
 // Servicio Web" > Cliente "GENERIC" en esa misma pantalla. Esas
 // credenciales pueden cambiar si alguien vuelve a pulsar "Generar" en
 // el terminal — si esta función empieza a fallar con 401, hay que
-// volver a esa pantalla y actualizar los secretos.
+// volver a esa pantalla y actualizar los secretos de ese origen.
 //
-// Secretos requeridos (supabase secrets set ...):
-//   BASCULA_PROXY_ID      — id del túnel ETPROXY (p.ej. "etws-xxxxx...")
-//   BASCULA_PUBLIC_KEY    — clave pública HMAC (hex), generada en el terminal
-//   BASCULA_PRIVATE_KEY   — clave privada HMAC (hex), generada en el terminal
-//   BASCULA_CLIENTE_ID    — uuid de public.clientes al que pertenece esta pescadería
+// Secretos requeridos (supabase secrets set ...), por cada origen (p.ej.
+// PESCADERIA_1 y PESCADERIA_2 — el nombre debe ser el "origen" en
+// mayúsculas):
+//   BASCULA_PESCADERIA_1_PROXY_ID / _PUBLIC_KEY / _PRIVATE_KEY
+//   BASCULA_PESCADERIA_2_PROXY_ID / _PUBLIC_KEY / _PRIVATE_KEY
+// Compartidos entre ambos orígenes:
+//   BASCULA_CLIENTE_ID    — uuid de public.clientes (el mismo negocio)
 //   BASCULA_SYNC_SECRET   — mismo valor guardado en el x-webhook-secret del cron
 //   SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — ya los provee Supabase automáticamente
 
@@ -49,6 +63,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 const ETPROXY_BASE = 'https://etproxy.etpos.pt';
 const LOTE_MAX = 100; // tope del propio API ETWS por consulta
 const TIPOS_DOC_A_PROCESAR = new Set([1, 2]);
+const ORIGENES_VALIDOS = ['pescaderia_1', 'pescaderia_2'];
 
 // Comparación en tiempo constante: evita filtrar por temporización cuántos
 // caracteres iniciales del secreto coinciden (timing side-channel), igual
@@ -82,6 +97,15 @@ async function firmarPeticion(privateKeyHex: string, method: string, path: strin
 }
 
 type CfgETWS = { proxyId: string; publicKey: string; privateKey: string };
+
+function leerCfgOrigen(origen: string): CfgETWS {
+  const prefijo = `BASCULA_${origen.toUpperCase()}_`;
+  return {
+    proxyId: Deno.env.get(`${prefijo}PROXY_ID`) ?? '',
+    publicKey: Deno.env.get(`${prefijo}PUBLIC_KEY`) ?? '',
+    privateKey: Deno.env.get(`${prefijo}PRIVATE_KEY`) ?? '',
+  };
+}
 
 async function obtenerPuertoActual(proxyId: string): Promise<number> {
   const res = await fetch(`${ETPROXY_BASE}/api/proxy/${proxyId}`);
@@ -154,33 +178,36 @@ Deno.serve(async (req: Request) => {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const cfg: CfgETWS = {
-    proxyId: Deno.env.get('BASCULA_PROXY_ID') ?? '',
-    publicKey: Deno.env.get('BASCULA_PUBLIC_KEY') ?? '',
-    privateKey: Deno.env.get('BASCULA_PRIVATE_KEY') ?? '',
-  };
+  const body = await req.json().catch(() => ({}));
+  const origen = typeof body.origen === 'string' ? body.origen : '';
+  if (!ORIGENES_VALIDOS.includes(origen)) {
+    return new Response(`"origen" inválido o ausente. Valores válidos: ${ORIGENES_VALIDOS.join(', ')}`, { status: 400 });
+  }
+
+  const cfg = leerCfgOrigen(origen);
   const clienteId = Deno.env.get('BASCULA_CLIENTE_ID') ?? '';
   if (!cfg.proxyId || !cfg.publicKey || !cfg.privateKey || !clienteId) {
-    return new Response('Faltan secretos de configuración de la báscula', { status: 500 });
+    return new Response(`Faltan secretos de configuración de la báscula para el origen "${origen}"`, { status: 500 });
   }
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
+  const settingKey = `bascula_last_oid_${origen}`;
   const { data: settingRow } = await supabase
     .from('settings')
     .select('value')
     .eq('cliente_id', clienteId)
-    .eq('key', 'bascula_last_oid')
+    .eq('key', settingKey)
     .maybeSingle();
   const lastOid: number = typeof settingRow?.value === 'number' ? settingRow.value : 0;
   const esPrimeraEjecucion = lastOid === 0;
 
-  const { data: productosMapeados } = await supabase
-    .from('productos')
-    .select('id, codigo_bascula')
+  const { data: codigosMapeados } = await supabase
+    .from('productos_codigos_bascula')
+    .select('producto_id, codigo_bascula')
     .eq('cliente_id', clienteId)
-    .not('codigo_bascula', 'is', null);
-  const productoIdPorCodigo = new Map((productosMapeados ?? []).map((p) => [p.codigo_bascula as string, p.id as string]));
+    .eq('origen', origen);
+  const productoIdPorCodigo = new Map((codigosMapeados ?? []).map((c) => [c.codigo_bascula as string, c.producto_id as string]));
 
   const puertoActual = await obtenerPuertoActual(cfg.proxyId);
   const tiposDoc = (await obtenerTiposDoc(cfg, puertoActual)).filter((t) => TIPOS_DOC_A_PROCESAR.has(t));
@@ -205,7 +232,7 @@ Deno.serve(async (req: Request) => {
   const nuevas = lineas.filter((l) => l._oid_ > lastOid).sort((a, b) => a._oid_ - b._oid_);
   const maxOidVisto = Math.max(...lineas.map((l) => l._oid_));
 
-  const resultado = { guardadas: 0, stock_descontado: 0, sin_mapear: [] as string[], primera_ejecucion: esPrimeraEjecucion };
+  const resultado = { origen, guardadas: 0, stock_descontado: 0, sin_mapear: [] as string[], primera_ejecucion: esPrimeraEjecucion };
 
   // En la primera ejecución no hay "último ticket procesado": solo se
   // fija el punto de partida, para no registrar de golpe todo el
@@ -222,6 +249,7 @@ Deno.serve(async (req: Request) => {
       const { error: errorInsert } = await supabase.from('bascula_ventas').upsert(
         {
           cliente_id: clienteId,
+          origen,
           producto_id: productoId,
           linea_oid: linea._oid_,
           ticket_tipo_doc: linea.tipo_doc,
@@ -236,11 +264,11 @@ Deno.serve(async (req: Request) => {
           precio_unit: linea.preco_unit,
           importe: linea.valor,
         },
-        { onConflict: 'linea_oid', ignoreDuplicates: true },
+        { onConflict: 'origen,linea_oid', ignoreDuplicates: true },
       );
 
       if (errorInsert) {
-        console.error(`Error guardando línea (ticket ${linea.numero}, código ${linea.codigo}):`, errorInsert.message);
+        console.error(`[${origen}] Error guardando línea (ticket ${linea.numero}, código ${linea.codigo}):`, errorInsert.message);
         continue;
       }
       resultado.guardadas++;
@@ -254,11 +282,12 @@ Deno.serve(async (req: Request) => {
 
       const { error: errorStock } = await supabase.rpc('descontar_stock_bascula', {
         p_cliente_id: clienteId,
+        p_origen: origen,
         p_codigo_bascula: linea.codigo,
         p_kg: linea.quantidade,
       });
       if (errorStock) {
-        console.error(`Error descontando stock (ticket ${linea.numero}, código ${linea.codigo}):`, errorStock.message);
+        console.error(`[${origen}] Error descontando stock (ticket ${linea.numero}, código ${linea.codigo}):`, errorStock.message);
         continue;
       }
       resultado.stock_descontado++;
@@ -267,7 +296,7 @@ Deno.serve(async (req: Request) => {
 
   await supabase
     .from('settings')
-    .upsert({ cliente_id: clienteId, key: 'bascula_last_oid', value: maxOidVisto }, { onConflict: 'key,cliente_id' });
+    .upsert({ cliente_id: clienteId, key: settingKey, value: maxOidVisto }, { onConflict: 'key,cliente_id' });
 
   return new Response(JSON.stringify(resultado), { status: 200, headers: { 'Content-Type': 'application/json' } });
 });

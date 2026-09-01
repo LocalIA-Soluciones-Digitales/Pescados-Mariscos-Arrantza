@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRealtimeTable } from './useRealtimeTable';
-import type { BasculaVenta, BasculaVentaDiaria } from '@/types/basculaVenta';
+import type { BasculaVenta, BasculaVentaDiaria, BasculaVentaDiariaPorTienda } from '@/types/basculaVenta';
 
-// Totales por día (vista bascula_ventas_diarias). Se suscribe a cambios en
-// la tabla base bascula_ventas, no en la vista — Postgres Changes no emite
-// eventos sobre vistas.
+// Totales por día combinando ambas pescaderías (vista bascula_ventas_diarias).
+// Se suscribe a cambios en la tabla base bascula_ventas, no en la vista —
+// Postgres Changes no emite eventos sobre vistas.
 export function useBasculaVentasDiarias() {
   const [dias, setDias] = useState<BasculaVentaDiaria[]>([]);
+  const [porTienda, setPorTienda] = useState<BasculaVentaDiariaPorTienda[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchDias = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('bascula_ventas_diarias').select('*').order('fecha', { ascending: false });
-    setDias(data ?? []);
+    const [{ data: combinado }, { data: desglose }] = await Promise.all([
+      supabase.from('bascula_ventas_diarias').select('*').order('fecha', { ascending: false }),
+      supabase.from('bascula_ventas_diarias_por_tienda').select('*').order('fecha', { ascending: false }),
+    ]);
+    setDias(combinado ?? []);
+    setPorTienda(desglose ?? []);
     setLoading(false);
   }, []);
 
@@ -23,7 +28,7 @@ export function useBasculaVentasDiarias() {
 
   useRealtimeTable('bascula_ventas', fetchDias);
 
-  return { dias, loading, refetch: fetchDias };
+  return { dias, porTienda, loading, refetch: fetchDias };
 }
 
 // Detalle de líneas de un día concreto, cargado bajo demanda al desplegar

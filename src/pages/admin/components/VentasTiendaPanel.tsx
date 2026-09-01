@@ -1,13 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useBasculaVentasDiarias, fetchBasculaVentasDelDia } from '@/hooks/useBasculaVentas';
-import type { BasculaVenta } from '@/types/basculaVenta';
-import InfoHint from '@/components/base/InfoHint';
-
-const INFO_ITEMS = [
-  { icon: 'ri-scales-3-line', text: 'Ventas cobradas en el mostrador, sincronizadas solas desde la báscula (Factura Simplificada y Factura).' },
-  { icon: 'ri-file-list-3-line', text: 'No incluye los Albaranes — se facturan a fin de mes junto con su Factura.' },
-  { icon: 'ri-cursor-line', text: 'Pincha un día para ver el detalle de cada venta.' },
-];
+import type { BasculaVenta, BasculaVentaDiariaPorTienda } from '@/types/basculaVenta';
+import { ORIGEN_LABELS, type Origen } from '@/types/origen';
 
 function formatFechaLarga(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -20,7 +14,24 @@ function formatPrecio(n: number): string {
   return `${n.toFixed(2)} €`;
 }
 
-function DiaRow({ fecha, numTickets, totalPeso, totalImporte }: { fecha: string; numTickets: number; totalPeso: number | null; totalImporte: number }) {
+function LineaVenta({ l }: { l: BasculaVenta }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-xs">
+      <div className="min-w-0 flex items-center gap-2">
+        <span className="text-foreground-400 tabular-nums flex-shrink-0">{l.hora?.slice(0, 5) ?? '—'}</span>
+        <span className="text-foreground-800 truncate">{l.designacion}</span>
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <span className="text-foreground-400 tabular-nums">
+          {l.cantidad} {l.unidad}
+        </span>
+        <span className="text-foreground-950 font-medium tabular-nums w-16 text-right">{formatPrecio(l.importe)}</span>
+      </div>
+    </div>
+  );
+}
+
+function DiaRow({ fecha, numTickets, totalPeso, totalImporte, porTienda }: { fecha: string; numTickets: number; totalPeso: number | null; totalImporte: number; porTienda: BasculaVentaDiariaPorTienda[] }) {
   const [abierto, setAbierto] = useState(false);
   const [lineas, setLineas] = useState<BasculaVenta[] | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -36,6 +47,16 @@ function DiaRow({ fecha, numTickets, totalPeso, totalImporte }: { fecha: string;
     }
   };
 
+  const lineasPorOrigen = useMemo(() => {
+    const map = new Map<Origen, BasculaVenta[]>();
+    (lineas ?? []).forEach((l) => {
+      const grupo = map.get(l.origen) ?? [];
+      grupo.push(l);
+      map.set(l.origen, grupo);
+    });
+    return map;
+  }, [lineas]);
+
   return (
     <div className="bg-background-50 border border-background-200/70 rounded-xl shadow-card overflow-hidden">
       <button type="button" onClick={toggle} className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-background-100/60 transition-colors text-left">
@@ -45,6 +66,15 @@ function DiaRow({ fecha, numTickets, totalPeso, totalImporte }: { fecha: string;
             {numTickets} ticket{numTickets === 1 ? '' : 's'}
             {totalPeso ? ` · ${totalPeso.toFixed(2)} kg vendidos a peso` : ''}
           </p>
+          {porTienda.length > 0 && (
+            <p className="text-[11px] text-foreground-400 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+              {porTienda.map((t) => (
+                <span key={t.origen}>
+                  {ORIGEN_LABELS[t.origen]}: <span className="font-medium text-foreground-600">{formatPrecio(t.total_importe)}</span>
+                </span>
+              ))}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <span className="text-sm font-semibold text-foreground-950 tabular-nums">{formatPrecio(totalImporte)}</span>
@@ -53,28 +83,22 @@ function DiaRow({ fecha, numTickets, totalPeso, totalImporte }: { fecha: string;
       </button>
 
       {abierto && (
-        <div className="border-t border-background-200/70 px-4 py-3">
+        <div className="border-t border-background-200/70 px-4 py-3 space-y-4">
           {cargando ? (
             <p className="text-xs text-foreground-400">Cargando…</p>
           ) : !lineas || lineas.length === 0 ? (
             <p className="text-xs text-foreground-400">Sin líneas de venta guardadas para este día.</p>
           ) : (
-            <div className="space-y-1.5">
-              {lineas.map((l) => (
-                <div key={l.id} className="flex items-center justify-between gap-3 text-xs">
-                  <div className="min-w-0 flex items-center gap-2">
-                    <span className="text-foreground-400 tabular-nums flex-shrink-0">{l.hora?.slice(0, 5) ?? '—'}</span>
-                    <span className="text-foreground-800 truncate">{l.designacion}</span>
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-foreground-400 tabular-nums">
-                      {l.cantidad} {l.unidad}
-                    </span>
-                    <span className="text-foreground-950 font-medium tabular-nums w-16 text-right">{formatPrecio(l.importe)}</span>
-                  </div>
+            Array.from(lineasPorOrigen.entries()).map(([origen, lineasOrigen]) => (
+              <div key={origen}>
+                <p className="text-[10px] uppercase tracking-wide text-foreground-400 mb-1.5">{ORIGEN_LABELS[origen]}</p>
+                <div className="space-y-1.5">
+                  {lineasOrigen.map((l) => (
+                    <LineaVenta key={l.id} l={l} />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))
           )}
         </div>
       )}
@@ -83,13 +107,26 @@ function DiaRow({ fecha, numTickets, totalPeso, totalImporte }: { fecha: string;
 }
 
 export default function VentasTiendaPanel() {
-  const { dias, loading } = useBasculaVentasDiarias();
+  const { dias, porTienda, loading } = useBasculaVentasDiarias();
+
+  const porTiendaPorFecha = useMemo(() => {
+    const map = new Map<string, BasculaVentaDiariaPorTienda[]>();
+    porTienda.forEach((t) => {
+      const grupo = map.get(t.fecha) ?? [];
+      grupo.push(t);
+      map.set(t.fecha, grupo);
+    });
+    return map;
+  }, [porTienda]);
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <div className="flex items-center justify-end mb-4">
-        <InfoHint items={INFO_ITEMS} align="right" />
-      </div>
+      <p className="text-xs text-foreground-400 mb-4 max-w-2xl">
+        Ventas cobradas en el mostrador de ambas pescaderías, sincronizadas automáticamente desde sus básculas (Factura
+        Simplificada y Factura). No incluye los Albaranes, que se facturan a fin de mes junto con la Factura correspondiente.
+        El total del día suma las dos tiendas; debajo se ve el desglose de ingresos por cada una. Pincha un día para ver el
+        detalle de cada venta.
+      </p>
 
       {loading ? (
         <p className="text-sm text-foreground-400">Cargando…</p>
@@ -98,7 +135,14 @@ export default function VentasTiendaPanel() {
       ) : (
         <div className="space-y-2">
           {dias.map((d) => (
-            <DiaRow key={d.fecha} fecha={d.fecha} numTickets={d.num_tickets} totalPeso={d.total_peso_kg} totalImporte={d.total_importe} />
+            <DiaRow
+              key={d.fecha}
+              fecha={d.fecha}
+              numTickets={d.num_tickets}
+              totalPeso={d.total_peso_kg}
+              totalImporte={d.total_importe}
+              porTienda={porTiendaPorFecha.get(d.fecha) ?? []}
+            />
           ))}
         </div>
       )}
