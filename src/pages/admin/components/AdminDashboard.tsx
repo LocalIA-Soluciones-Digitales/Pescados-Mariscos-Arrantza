@@ -352,7 +352,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
                 </span>
               )}
             </button>
-            <InfoHint items={t.info} align="right" size="sm" tone={active ? 'onPrimary' : 'neutral'} className="mr-2.5" />
+            <InfoHint items={t.info} title={t.label} align="right" size="sm" tone={active ? 'onPrimary' : 'neutral'} className="mr-2.5" />
           </div>
         );
       })}
