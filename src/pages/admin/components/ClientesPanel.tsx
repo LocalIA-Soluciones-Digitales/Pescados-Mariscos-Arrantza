@@ -3,6 +3,7 @@ import type { Pedido } from '@/types/pedido';
 import type { Reserva } from '@/types/reserva';
 import { normalizePhone, telHref, whatsappHref } from '@/lib/phone';
 import InfoHint from '@/components/base/InfoHint';
+import SearchInput from '@/components/base/SearchInput';
 
 const INFO_ITEMS = [
   { icon: 'ri-database-2-line', text: 'Se construye solo a partir del histórico de pedidos y reservas.' },
@@ -140,6 +141,8 @@ export default function ClientesPanel({
     );
   }, [clientes, search, orden]);
 
+  const sugerencias = useMemo(() => clientes.map((c) => c.nombre).filter(Boolean), [clientes]);
+
   if (loading) {
     return (
       <div className="px-4 md:px-8 py-6">
@@ -152,16 +155,13 @@ export default function ClientesPanel({
     <div className="px-4 md:px-8 py-6 pb-28">
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center mb-4">
         <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px]">
-          <div className="relative flex-1">
-            <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre o teléfono…"
-              className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
-            />
-          </div>
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            suggestions={sugerencias}
+            placeholder="Buscar por nombre o teléfono…"
+            className="flex-1"
+          />
           <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
         </div>
         <div className="flex items-center gap-1.5">

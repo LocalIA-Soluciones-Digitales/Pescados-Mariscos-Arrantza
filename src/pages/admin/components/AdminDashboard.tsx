@@ -20,6 +20,7 @@ import { useOrderAlertSound } from '@/hooks/useOrderAlertSound';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import ViewSwitcher from './ViewSwitcher';
 import InfoHint from '@/components/base/InfoHint';
+import SearchInput from '@/components/base/SearchInput';
 
 type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes';
 
@@ -301,6 +302,11 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
     return [...result].sort((a, b) => a.nombre_es.localeCompare(b.nombre_es, 'es'));
   }, [productos, categoria, soloAgotados, soloDestacados, search]);
 
+  const nombresSugeridos = useMemo(
+    () => Array.from(new Set(productos.flatMap((p) => [p.nombre_es, p.nombre_eu].filter((n): n is string => !!n)))),
+    [productos],
+  );
+
   const tabsNav = (
     <div ref={tabsScroll.ref} onWheel={tabsScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
       {TABS.map((t) => {
@@ -424,16 +430,13 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
         <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px]">
-          <div className="relative flex-1">
-            <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar producto…"
-              className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
-            />
-          </div>
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            suggestions={nombresSugeridos}
+            placeholder="Buscar producto…"
+            className="flex-1"
+          />
           <InfoHint items={PRODUCTOS_INFO_ITEMS} align="right" className="flex-shrink-0" />
         </div>
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSolicitudesStock } from '@/hooks/useSolicitudesStock';
 import type { SolicitudStock, SolicitudStockEstado } from '@/types/solicitudStock';
 import InfoHint from '@/components/base/InfoHint';
+import SearchInput from '@/components/base/SearchInput';
 
 const INFO_ITEMS = [
   { icon: 'ri-notification-3-line', text: 'Aparece cuando un cliente pide en la web que le avisen de un producto agotado.' },
@@ -151,6 +152,16 @@ export default function SolicitudesStockPanel() {
     return result;
   }, [solicitudes, filtroEstado, search]);
 
+  const sugerencias = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          solicitudes.flatMap((s) => [s.producto_nombre, s.cliente_nombre].filter((n): n is string => !!n)),
+        ),
+      ),
+    [solicitudes],
+  );
+
   if (loading && solicitudes.length === 0) {
     return (
       <div className="px-4 md:px-8 py-6">
@@ -162,16 +173,13 @@ export default function SolicitudesStockPanel() {
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
       <div className="flex items-center gap-2 mb-3 sm:max-w-[280px]">
-        <div className="relative flex-1">
-          <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por producto o cliente…"
-            className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
-          />
-        </div>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          suggestions={sugerencias}
+          placeholder="Buscar por producto o cliente…"
+          className="flex-1"
+        />
         <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
       </div>
 

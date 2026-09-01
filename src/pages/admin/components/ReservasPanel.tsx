@@ -5,6 +5,7 @@ import { useReservasAjustes } from '@/hooks/useReservasAjustes';
 import ReservaEventoModal from './ReservaEventoModal';
 import type { Reserva, ReservaAjuste, ReservaEstado, ReservaEvento } from '@/types/reserva';
 import InfoHint from '@/components/base/InfoHint';
+import SearchInput from '@/components/base/SearchInput';
 
 const INFO_ITEMS = [
   { icon: 'ri-calendar-event-line', text: 'Crea una campaña por cada fecha especial (Navidad, Nochevieja...).' },
@@ -556,6 +557,11 @@ export default function ReservasPanel() {
     return result;
   }, [reservasDelEvento, filtroEstado, search]);
 
+  const sugerenciasClientes = useMemo(
+    () => Array.from(new Set(reservasDelEvento.map((r) => r.cliente_nombre).filter((n): n is string => !!n))),
+    [reservasDelEvento],
+  );
+
   const resumen = useMemo(() => {
     const map = new Map<string, ResumenRow>();
     reservasDelEvento
@@ -836,16 +842,13 @@ export default function ReservasPanel() {
                 )
               ) : (
                 <>
-                  <div className="relative max-w-[280px] mb-3">
-                    <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-                    <input
-                      type="text"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Buscar por cliente o teléfono…"
-                      className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
-                    />
-                  </div>
+                  <SearchInput
+                    value={search}
+                    onChange={setSearch}
+                    suggestions={sugerenciasClientes}
+                    placeholder="Buscar por cliente o teléfono…"
+                    className="max-w-[280px] mb-3"
+                  />
 
                   <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide mb-3">
                     {ESTADO_FILTROS.map((f) => (

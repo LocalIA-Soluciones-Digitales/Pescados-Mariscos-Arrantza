@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import type { Producto, ProductoCategoria } from '@/types/producto';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import InfoHint from '@/components/base/InfoHint';
+import SearchInput from '@/components/base/SearchInput';
 
 const INFO_ITEMS = [
   { icon: 'ri-add-circle-line', text: '"Entrada de hoy" suma los kg recibidos al stock actual — no hace falta calcular el total.' },
@@ -236,6 +237,11 @@ export default function StockPanel({
 
   const totalVisible = useMemo(() => grupos.reduce((n, g) => n + g.productos.length, 0), [grupos]);
 
+  const nombresSugeridos = useMemo(
+    () => Array.from(new Set(productos.flatMap((p) => [p.nombre_es, p.nombre_eu].filter((n): n is string => !!n)))),
+    [productos],
+  );
+
   return (
     <>
       <div
@@ -243,16 +249,13 @@ export default function StockPanel({
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
         <div className="flex items-center gap-2 flex-1 min-w-[200px] sm:max-w-[280px]">
-          <div className="relative flex-1">
-            <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar producto…"
-              className="w-full pl-9 pr-3 py-2 bg-background-50 border border-background-200/70 rounded-full text-sm focus:outline-none focus:border-foreground-300/60"
-            />
-          </div>
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            suggestions={nombresSugeridos}
+            placeholder="Buscar producto…"
+            className="flex-1"
+          />
           <InfoHint items={INFO_ITEMS} align="right" className="flex-shrink-0" />
         </div>
         <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
