@@ -3,21 +3,22 @@ export type ProductoEstado = 'available' | 'new' | 'premium' | 'seasonal';
 
 export type CategoriaFiltro = 'todos' | ProductoCategoria | string;
 
-// Mismo listado y orden que el filtro del catálogo público (categorías + subcategorías de pescado).
-// Compartido por los filtros de Productos y Stock en el panel de gestión.
-export const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categoria' | 'subcategoria' }[] = [
+// Mismo listado y orden que el filtro del catálogo público (categorías + subcategorías de
+// pescado y marisco, anidadas bajo su categoría padre). Compartido por los filtros de
+// Productos y Stock en el panel de gestión.
+export const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categoria' | 'subcategoria'; parent?: ProductoCategoria }[] = [
   { value: 'todos', label: 'Todos', tipo: 'categoria' },
   { value: 'pescado', label: 'Pescado', tipo: 'categoria' },
   { value: 'especial', label: 'Especial', tipo: 'categoria' },
   { value: 'raciones', label: 'Raciones', tipo: 'categoria' },
   { value: 'marisco', label: 'Marisco', tipo: 'categoria' },
   { value: 'congelados', label: 'Congelados', tipo: 'categoria' },
-  { value: 'azul', label: 'Pescado Azul', tipo: 'subcategoria' },
-  { value: 'blanco', label: 'Pescado Blanco', tipo: 'subcategoria' },
-  { value: 'cefalopodos', label: 'Cefalópodos', tipo: 'subcategoria' },
-  { value: 'bivalvos', label: 'Bivalvos / Moluscos', tipo: 'subcategoria' },
-  { value: 'crustaceos_grandes', label: 'Crustáceos Grandes', tipo: 'subcategoria' },
-  { value: 'gambas_langostinos', label: 'Gambas y Langostinos', tipo: 'subcategoria' },
+  { value: 'azul', label: 'Pescado Azul', tipo: 'subcategoria', parent: 'pescado' },
+  { value: 'blanco', label: 'Pescado Blanco', tipo: 'subcategoria', parent: 'pescado' },
+  { value: 'cefalopodos', label: 'Cefalópodos', tipo: 'subcategoria', parent: 'pescado' },
+  { value: 'bivalvos', label: 'Bivalvos / Moluscos', tipo: 'subcategoria', parent: 'marisco' },
+  { value: 'crustaceos_grandes', label: 'Crustáceos Grandes', tipo: 'subcategoria', parent: 'marisco' },
+  { value: 'gambas_langostinos', label: 'Gambas y Langostinos', tipo: 'subcategoria', parent: 'marisco' },
 ];
 
 export interface Producto {
