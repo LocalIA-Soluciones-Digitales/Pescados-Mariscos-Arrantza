@@ -327,6 +327,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         return (
           <div
             key={t.value}
+            data-tab-pill
             className={`inline-flex items-center gap-1 rounded-full whitespace-nowrap flex-shrink-0 transition-all duration-200 ${
               active ? 'bg-primary-500 text-background-50 shadow-card' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
             }`}
@@ -352,7 +353,15 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
                 </span>
               )}
             </button>
-            <InfoHint items={t.info} title={t.label} align="right" size="sm" tone={active ? 'onPrimary' : 'neutral'} className="mr-2.5" />
+            <InfoHint
+              items={t.info}
+              title={t.label}
+              align="right"
+              size="sm"
+              tone={active ? 'onPrimary' : 'neutral'}
+              anchorSelector="[data-tab-pill]"
+              className="mr-2.5"
+            />
           </div>
         );
       })}

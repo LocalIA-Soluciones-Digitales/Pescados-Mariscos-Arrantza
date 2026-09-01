@@ -15,9 +15,11 @@ interface InfoHintProps {
   tone?: 'neutral' | 'onPrimary';
   /** Título del popup (p. ej. el nombre de la pestaña), para dejar claro a qué se refiere cuando el popup queda lejos de su icono. */
   title?: string;
+  /** Selector del ancestro (p. ej. la pastilla completa de una pestaña) al que anclar el popup, en vez de al propio icono. Así el popup sale "del campo" de la pestaña entera, no solo del iconito. */
+  anchorSelector?: string;
 }
 
-export default function InfoHint({ items, className = '', align = 'left', size = 'md', tone = 'neutral', title }: InfoHintProps) {
+export default function InfoHint({ items, className = '', align = 'left', size = 'md', tone = 'neutral', title, anchorSelector }: InfoHintProps) {
   const [open, setOpen] = useState(false);
   const [popupStyle, setPopupStyle] = useState<CSSProperties>({});
   const [arrowLeft, setArrowLeft] = useState(0);
@@ -53,26 +55,31 @@ export default function InfoHint({ items, className = '', align = 'left', size =
     if (!container || !popup) return;
 
     const margin = 12;
-    const gap = 8;
+    const gap = 5;
     const reposition = () => {
-      const containerRect = container.getBoundingClientRect();
+      // Ancla el popup al campo completo de la pestaña (p. ej. la pastilla
+      // "Hoy" entera), no solo al iconito, para que visualmente salga "de"
+      // esa pestaña en vez de aparecer como una tarjeta suelta a un lado.
+      const anchorEl = (anchorSelector ? container.closest(anchorSelector) : null) as HTMLElement | null;
+      const iconRect = container.getBoundingClientRect();
+      const anchorRect = anchorEl ? anchorEl.getBoundingClientRect() : iconRect;
       const width = popup.offsetWidth;
       const height = popup.offsetHeight;
 
-      let left = align === 'right' ? containerRect.right - width : containerRect.left;
+      let left = align === 'right' ? anchorRect.right - width : anchorRect.left;
       left = Math.min(left, window.innerWidth - margin - width);
       left = Math.max(left, margin);
 
-      let top = containerRect.bottom + gap;
+      let top = anchorRect.bottom + gap;
       let placement: 'bottom' | 'top' = 'bottom';
       if (top + height > window.innerHeight - margin) {
-        top = containerRect.top - height - gap;
+        top = anchorRect.top - height - gap;
         placement = 'top';
       }
 
       setPopupStyle({ position: 'fixed', top: `${top}px`, left: `${left}px` });
       setPlacement(placement);
-      const iconCenter = containerRect.left + containerRect.width / 2;
+      const iconCenter = iconRect.left + iconRect.width / 2;
       setArrowLeft(Math.min(Math.max(iconCenter - left, 16), width - 16));
     };
 
@@ -83,7 +90,7 @@ export default function InfoHint({ items, className = '', align = 'left', size =
       window.removeEventListener('resize', reposition);
       window.removeEventListener('scroll', reposition, true);
     };
-  }, [open, align]);
+  }, [open, align, anchorSelector]);
 
   return (
     <div ref={containerRef} className={`relative inline-block ${className}`}>
@@ -109,11 +116,13 @@ export default function InfoHint({ items, className = '', align = 'left', size =
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40 bg-foreground-950/10" onClick={() => setOpen(false)}></div>
+          {/* pointer-events-none: es solo un velo visual — el cierre al hacer clic fuera ya lo gestiona
+              el listener de pointerdown de arriba, y así no bloquea el clic directo sobre otro icono. */}
+          <div className="fixed inset-0 z-40 bg-foreground-950/10 pointer-events-none"></div>
           <div
             ref={popupRef}
             style={popupStyle}
-            className="z-50 w-72 max-w-[85vw] rounded-xl border border-background-200/70 bg-background-50 shadow-xl p-3 animate-fadeIn"
+            className="z-50 w-max min-w-[200px] max-w-[min(320px,85vw)] rounded-xl border border-background-200/70 bg-background-50 shadow-xl p-3 animate-fadeIn"
           >
             <span
               style={{ left: arrowLeft }}
@@ -128,7 +137,7 @@ export default function InfoHint({ items, className = '', align = 'left', size =
                   <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full bg-primary-50 text-primary-500 text-sm">
                     <i className={item.icon}></i>
                   </span>
-                  <span className="text-xs text-foreground-600 leading-snug pt-0.5">{item.text}</span>
+                  <span className="flex-1 min-w-0 text-xs text-foreground-600 leading-snug pt-0.5">{item.text}</span>
                 </li>
               ))}
             </ul>
