@@ -40,10 +40,10 @@ type CategoryFilter =
 const categories: { key: CategoryFilter; labelKey: string }[] = [
   { key: 'todos', labelKey: 'products.filter_all' },
   { key: 'pescado', labelKey: 'products.filter_fish' },
-  { key: 'especial', labelKey: 'products.filter_special' },
-  { key: 'raciones', labelKey: 'products.filter_portions' },
   { key: 'marisco', labelKey: 'products.filter_seafood' },
   { key: 'congelados', labelKey: 'products.filter_frozen' },
+  { key: 'raciones', labelKey: 'products.filter_portions' },
+  { key: 'especial', labelKey: 'products.filter_special' },
   { key: 'suministro', labelKey: 'products.filter_suministro' },
   { key: 'azul', labelKey: 'products.filter_blue_fish' },
   { key: 'blanco', labelKey: 'products.filter_white_fish' },
@@ -144,6 +144,10 @@ const subcategoryDisplay: Record<string, { labelKey: string; icon: string }> = {
   gambas_langostinos: { labelKey: 'products.filter_prawns_shrimp',     icon: 'ri-restaurant-line' },
   raciones_porcion:   { labelKey: 'products.subcat_raciones_porcion',  icon: 'ri-scales-line' },
   raciones_entero:    { labelKey: 'products.subcat_raciones_entero',   icon: 'ri-restaurant-2-line' },
+  // Categorías sin subcategorías propias — agrupadas por su nombre de
+  // categoría cuando se muestran junto al resto (ver `groupKey` en CatalogGrid).
+  congelados:         { labelKey: 'products.filter_frozen',            icon: 'ri-snowflake-line' },
+  especial:           { labelKey: 'products.filter_special',           icon: 'ri-award-line' },
 };
 
 /* ------------------------------------------------------------------ */
@@ -514,30 +518,6 @@ function StickyToolbar({
                     {renderChip('todos')}
                   </div>
 
-                  {/* Top-level families without subtypes — same header treatment as
-                      Pescado/Marisco below, so it reads as a sibling section rather
-                      than a lesser flat filter. */}
-                  {visibleKeys.has('especial') && (
-                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
-                      {renderGroupHeader('especial', 'ri-award-line')}
-                    </div>
-                  )}
-                  {visibleKeys.has('raciones') && (
-                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
-                      {renderGroupHeader('raciones', 'ri-scales-line')}
-                    </div>
-                  )}
-                  {visibleKeys.has('congelados') && (
-                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
-                      {renderGroupHeader('congelados', 'ri-snowflake-line')}
-                    </div>
-                  )}
-                  {visibleKeys.has('suministro') && (
-                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
-                      {renderGroupHeader('suministro', 'ri-truck-line')}
-                    </div>
-                  )}
-
                   {/* Pescado — main chip plus its subtypes, nested so it's clear
                       "Azul"/"Blanco"/"Cefalópodos" are kinds of pescado, not
                       separate families sitting next to it. */}
@@ -561,6 +541,30 @@ function StickyToolbar({
                           {seafoodSubcats.map((key) => renderChip(key, true))}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Top-level families without subtypes — same header treatment as
+                      Pescado/Marisco above, so it reads as a sibling section rather
+                      than a lesser flat filter. */}
+                  {visibleKeys.has('congelados') && (
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {renderGroupHeader('congelados', 'ri-snowflake-line')}
+                    </div>
+                  )}
+                  {visibleKeys.has('raciones') && (
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {renderGroupHeader('raciones', 'ri-scales-line')}
+                    </div>
+                  )}
+                  {visibleKeys.has('especial') && (
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {renderGroupHeader('especial', 'ri-award-line')}
+                    </div>
+                  )}
+                  {visibleKeys.has('suministro') && (
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {renderGroupHeader('suministro', 'ri-truck-line')}
                     </div>
                   )}
 
@@ -939,7 +943,11 @@ function ProductCard({
 /*  Catalog grid — supports optional subcategory grouping            */
 /* ------------------------------------------------------------------ */
 
-/** Subcategory display order for grouping (fish subcategories first) */
+/** Group display order — mirrors the family order used by the category filter:
+ *  Pescado (its subcategories), Marisco (its subcategories), Congelados,
+ *  Raciones (its subcategories), Especial. `congelados` and `especial` have no
+ *  subcategorías of their own, so they group directly by category name — see
+ *  `groupKey` in CatalogGrid. */
 const subcategoryOrder: string[] = [
   'azul',
   'semigraso',
@@ -951,8 +959,10 @@ const subcategoryOrder: string[] = [
   'bivalvos',
   'crustaceos_grandes',
   'gambas_langostinos',
+  'congelados',
   'raciones_porcion',
   'raciones_entero',
+  'especial',
 ];
 
 function CatalogGrid({
@@ -1012,13 +1022,18 @@ function CatalogGrid({
   }
 
   /* ---- Grouped mode ---- */
+  // Group by subcategoría when present; categorías without their own
+  // subcategorías (congelados, especial) group by categoría instead, so
+  // every product ends up under a visible section header — never dumped
+  // unsorted into "ungrouped".
   const grouped: Record<string, Producto[]> = {};
   const ungrouped: Producto[] = [];
 
   products.forEach((p) => {
-    if (p.subcategoria) {
-      if (!grouped[p.subcategoria]) grouped[p.subcategoria] = [];
-      grouped[p.subcategoria].push(p);
+    const groupKey = p.subcategoria ?? p.categoria;
+    if (groupKey) {
+      if (!grouped[groupKey]) grouped[groupKey] = [];
+      grouped[groupKey].push(p);
     } else {
       ungrouped.push(p);
     }

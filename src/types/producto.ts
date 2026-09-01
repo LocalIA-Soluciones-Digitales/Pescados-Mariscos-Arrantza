@@ -9,10 +9,10 @@ export type CategoriaFiltro = 'todos' | ProductoCategoria | string;
 export const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: 'categoria' | 'subcategoria'; parent?: ProductoCategoria }[] = [
   { value: 'todos', label: 'Todos', tipo: 'categoria' },
   { value: 'pescado', label: 'Pescado', tipo: 'categoria' },
-  { value: 'especial', label: 'Especial', tipo: 'categoria' },
-  { value: 'raciones', label: 'Raciones', tipo: 'categoria' },
   { value: 'marisco', label: 'Marisco', tipo: 'categoria' },
   { value: 'congelados', label: 'Congelados', tipo: 'categoria' },
+  { value: 'raciones', label: 'Raciones', tipo: 'categoria' },
+  { value: 'especial', label: 'Especial', tipo: 'categoria' },
   { value: 'azul', label: 'Pescado Azul', tipo: 'subcategoria', parent: 'pescado' },
   { value: 'blanco', label: 'Pescado Blanco', tipo: 'subcategoria', parent: 'pescado' },
   { value: 'cefalopodos', label: 'Cefalópodos', tipo: 'subcategoria', parent: 'pescado' },

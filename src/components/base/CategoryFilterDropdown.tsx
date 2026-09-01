@@ -170,18 +170,6 @@ export default function CategoryFilterDropdown({ categorias, counts, value, onCh
             </div>
           )}
 
-          {otras.map((c) => (
-            <div key={c.value} className="mt-2.5 pt-2 border-t border-background-200/60">
-              <GroupHeader
-                label={c.label}
-                count={counts[c.value] ?? 0}
-                icon={OTRAS_ICONS[c.value as string] ?? 'ri-price-tag-3-line'}
-                active={value === c.value}
-                onClick={() => elegir(c.value)}
-              />
-            </div>
-          ))}
-
           {pescado && (
             <div className="mt-2.5 pt-2 border-t border-background-200/60">
               <GroupHeader
@@ -219,6 +207,18 @@ export default function CategoryFilterDropdown({ categorias, counts, value, onCh
               )}
             </div>
           )}
+
+          {otras.map((c) => (
+            <div key={c.value} className="mt-2.5 pt-2 border-t border-background-200/60">
+              <GroupHeader
+                label={c.label}
+                count={counts[c.value] ?? 0}
+                icon={OTRAS_ICONS[c.value as string] ?? 'ri-price-tag-3-line'}
+                active={value === c.value}
+                onClick={() => elegir(c.value)}
+              />
+            </div>
+          ))}
         </div>
       )}
     </div>
