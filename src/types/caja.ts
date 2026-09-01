@@ -1,3 +1,5 @@
+import type { Origen } from './origen';
+
 export type CajaMovimientoTipo =
   | 'ingreso_tarjeta'
   | 'ingreso_efectivo'
@@ -13,6 +15,9 @@ export interface CajaMovimiento {
   concepto: string | null;
   importe: number;
   foto_url: string | null;
+  // Solo los ingresos llevan tienda — los gastos son generales para el
+  // negocio conjunto (David compra una vez y reparte entre las dos).
+  origen: Origen | null;
   created_at: string;
   updated_at: string;
 }

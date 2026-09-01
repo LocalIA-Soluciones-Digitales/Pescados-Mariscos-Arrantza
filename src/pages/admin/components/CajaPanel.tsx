@@ -3,12 +3,15 @@ import { useCaja, type NewCajaMovimientoInput } from '@/hooks/useCaja';
 import { deleteBasculaVenta, fetchBasculaVentasDelDia, useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
 import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
+import { ORIGENES, ORIGEN_LABELS, type Origen } from '@/types/origen';
+import OrigenBadge from '@/components/base/OrigenBadge';
 import InfoHint from '@/components/base/InfoHint';
 
 const INFO_ITEMS = [
   { icon: 'ri-scales-3-line', text: 'Los ingresos se calculan solos desde las ventas de la báscula — normalmente no hay que tocar nada.' },
   { icon: 'ri-add-circle-line', text: 'Si un día falla la báscula o se escapa una venta, añade un ingreso a mano y se sumará al automático.' },
-  { icon: 'ri-file-list-3-line', text: 'Los gastos (facturas y gastos extra) siempre se registran a mano.' },
+  { icon: 'ri-store-2-line', text: 'Los ingresos se desglosan por pescadería; los gastos (facturas y extras) son generales para el negocio conjunto.' },
+  { icon: 'ri-file-list-3-line', text: 'Los gastos siempre se registran a mano.' },
   { icon: 'ri-delete-bin-line', text: 'Si una venta de báscula está mal, bórrala directamente desde su lista.' },
   { icon: 'ri-calculator-line', text: 'El total de día, mes y año se calcula solo.' },
 ];
@@ -55,12 +58,13 @@ function formatFechaCorta(fecha: string): string {
 
 interface Totales {
   ingresos: number;
+  ingresos_por_tienda: Partial<Record<Origen, number>>;
   gasto_factura: number;
   gasto_extra: number;
 }
 
 function totalesVacios(): Totales {
-  return { ingresos: 0, gasto_factura: 0, gasto_extra: 0 };
+  return { ingresos: 0, ingresos_por_tienda: {}, gasto_factura: 0, gasto_extra: 0 };
 }
 
 function totalGastos(t: Totales): number {
@@ -86,15 +90,17 @@ function FormNuevoMovimiento({
   onCrear: (input: NewCajaMovimientoInput) => Promise<CajaMovimiento | null>;
 }) {
   const [tipo, setTipo] = useState<CajaMovimientoTipo>('gasto_factura');
+  const [origen, setOrigen] = useState<Origen>(ORIGENES[0]);
   const [concepto, setConcepto] = useState('');
   const [importe, setImporte] = useState('');
   const [saving, setSaving] = useState(false);
+  const esIngreso = esCajaIngreso(tipo);
 
   const submit = async () => {
     const valor = Number(importe.replace(',', '.'));
     if (!Number.isFinite(valor) || valor <= 0) return;
     setSaving(true);
-    const creado = await onCrear({ fecha, tipo, concepto: concepto.trim() || null, importe: valor });
+    const creado = await onCrear({ fecha, tipo, concepto: concepto.trim() || null, importe: valor, origen: esIngreso ? origen : null });
     setSaving(false);
     if (!creado) {
       alert('No se pudo guardar el movimiento.');
@@ -129,6 +135,17 @@ function FormNuevoMovimiento({
             </optgroup>
           </select>
         </div>
+
+        {esIngreso && (
+          <div className="flex flex-col gap-1 sm:w-40">
+            <label className="text-[11px] text-foreground-400">Tienda</label>
+            <select value={origen} onChange={(e) => setOrigen(e.target.value as Origen)} className={campo}>
+              {ORIGENES.map((o) => (
+                <option key={o} value={o}>{ORIGEN_LABELS[o]}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="flex flex-col gap-1 col-span-2 sm:col-span-1 sm:flex-1 sm:min-w-[160px] sm:max-w-xs">
           <label className="text-[11px] text-foreground-400">Concepto</label>
@@ -177,6 +194,7 @@ function FilaCaja({
   icon,
   titulo,
   subtitulo,
+  origen,
   importe,
   ingreso,
   onEliminar,
@@ -184,6 +202,7 @@ function FilaCaja({
   icon: string;
   titulo: string;
   subtitulo?: string | null;
+  origen?: Origen | null;
   importe: number;
   ingreso: boolean;
   onEliminar: () => void;
@@ -198,7 +217,10 @@ function FilaCaja({
         <i className={icon}></i>
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm text-foreground-950 truncate">{titulo}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm text-foreground-950 truncate">{titulo}</p>
+          {origen && <OrigenBadge origen={origen} className="flex-shrink-0" />}
+        </div>
         {subtitulo && <p className="text-xs text-foreground-400 truncate">{subtitulo}</p>}
       </div>
       <span className={`text-sm font-medium flex-shrink-0 tabular-nums ${ingreso ? 'text-emerald-700' : 'text-red-600'}`}>
@@ -221,6 +243,7 @@ function FilaMovimiento({ m, onEliminar }: { m: CajaMovimiento; onEliminar: (m: 
       icon={ICONO_POR_TIPO[m.tipo]}
       titulo={CAJA_TIPO_LABELS[m.tipo]}
       subtitulo={m.concepto}
+      origen={m.origen}
       importe={m.importe}
       ingreso={esCajaIngreso(m.tipo)}
       onEliminar={() => onEliminar(m)}
@@ -234,6 +257,7 @@ function FilaBascula({ l, onEliminar }: { l: BasculaVenta; onEliminar: (l: Bascu
       icon="ri-scales-3-line"
       titulo={l.designacion}
       subtitulo={`Báscula · ${l.hora?.slice(0, 5) ?? '—'} · ${l.cantidad} ${l.unidad}`}
+      origen={l.origen}
       importe={l.importe}
       ingreso
       onEliminar={() => onEliminar(l)}
@@ -267,6 +291,18 @@ function VistaDia({
 
   const [lineasBascula, setLineasBascula] = useState<BasculaVenta[]>([]);
   const [cargandoBascula, setCargandoBascula] = useState(true);
+
+  const ingresosPorTiendaDia = useMemo(() => {
+    const map: Partial<Record<Origen, number>> = {};
+    lineasBascula.forEach((l) => {
+      map[l.origen] = (map[l.origen] ?? 0) + l.importe;
+    });
+    ingresosManuales.forEach((m) => {
+      if (!m.origen) return;
+      map[m.origen] = (map[m.origen] ?? 0) + Number(m.importe);
+    });
+    return map;
+  }, [lineasBascula, ingresosManuales]);
 
   useEffect(() => {
     let cancelado = false;
@@ -317,6 +353,18 @@ function VistaDia({
             {ticketsHoy > 0 ? `${ticketsHoy} ticket${ticketsHoy === 1 ? '' : 's'} de báscula` : 'Sin ventas de báscula'}
             {totalIngresosManuales > 0 && ` · ${formatEUR(totalIngresosManuales)} a mano`}
           </p>
+          {ORIGENES.some((o) => ingresosPorTiendaDia[o]) && (
+            <div className="flex flex-wrap gap-x-2.5 gap-y-1 mt-1.5">
+              {ORIGENES.map((o) =>
+                ingresosPorTiendaDia[o] ? (
+                  <span key={o} className="inline-flex items-center gap-1 text-[11px]">
+                    <OrigenBadge origen={o} />
+                    <span className="font-medium text-foreground-600">{formatEUR(ingresosPorTiendaDia[o] ?? 0)}</span>
+                  </span>
+                ) : null,
+              )}
+            </div>
+          )}
         </div>
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
           <div className="flex items-center gap-1.5 mb-1">
@@ -397,7 +445,9 @@ function TablaTotales({
   const Row = ({ label, totales, onClick, bold }: { label: string; totales: Totales; onClick?: () => void; bold?: boolean }) => (
     <tr onClick={onClick} className={`${onClick ? 'cursor-pointer hover:bg-background-100' : ''} ${bold ? 'font-semibold border-t-2 border-background-200' : 'border-b border-background-200/50'}`}>
       <td className="px-3 py-2 whitespace-nowrap">{label}</td>
-      <td className="px-3 py-2 text-right whitespace-nowrap text-emerald-700">{formatEUR(totales.ingresos)}</td>
+      {ORIGENES.map((o) => (
+        <td key={o} className="px-3 py-2 text-right whitespace-nowrap text-emerald-700">{formatEUR(totales.ingresos_por_tienda[o] ?? 0)}</td>
+      ))}
       <td className="px-3 py-2 text-right whitespace-nowrap text-red-600">{formatEUR(totales.gasto_factura)}</td>
       <td className="px-3 py-2 text-right whitespace-nowrap text-red-600">{formatEUR(totales.gasto_extra)}</td>
       <td className="px-3 py-2 text-right whitespace-nowrap"><NetoBadge valor={totalNeto(totales)} /></td>
@@ -406,11 +456,17 @@ function TablaTotales({
 
   return (
     <div className="overflow-x-auto bg-background-50 border border-background-200/70 rounded-xl shadow-card">
-      <table className="w-full text-sm min-w-[520px]">
+      <table className="w-full text-sm min-w-[640px]">
         <thead>
           <tr className="text-[11px] uppercase tracking-wide text-foreground-400 border-b border-background-200/70">
             <th className="px-3 py-2 text-left font-medium"></th>
-            <th className="px-3 py-2 text-right font-medium">Ingresos</th>
+            {ORIGENES.map((o) => (
+              <th key={o} className="px-3 py-2 text-right font-medium">
+                <span className="inline-flex items-center gap-1 justify-end">
+                  <OrigenBadge origen={o} />
+                </span>
+              </th>
+            ))}
             <th className="px-3 py-2 text-right font-medium">Facturas</th>
             <th className="px-3 py-2 text-right font-medium">Gastos extra</th>
             <th className="px-3 py-2 text-right font-medium">Neto</th>
@@ -419,7 +475,7 @@ function TablaTotales({
         <tbody>
           {filas.length === 0 ? (
             <tr>
-              <td colSpan={5} className="px-3 py-4 text-center text-foreground-400">Sin movimientos.</td>
+              <td colSpan={4 + ORIGENES.length} className="px-3 py-4 text-center text-foreground-400">Sin movimientos.</td>
             </tr>
           ) : (
             filas.map((f) => <Row key={f.key} label={f.label} totales={f.totales} onClick={onFilaClick ? () => onFilaClick(f.key) : undefined} />)
@@ -434,12 +490,27 @@ function TablaTotales({
 // Suma el ingreso automático de báscula de ese día más cualquier ingreso
 // manual (de respaldo) registrado, y acumula los gastos por tipo.
 function acumularTotales(t: Totales, m: CajaMovimiento): Totales {
-  if (esCajaIngreso(m.tipo)) return { ...t, ingresos: t.ingresos + Number(m.importe) };
+  if (esCajaIngreso(m.tipo) && m.origen) {
+    return {
+      ...t,
+      ingresos: t.ingresos + Number(m.importe),
+      ingresos_por_tienda: { ...t.ingresos_por_tienda, [m.origen]: (t.ingresos_por_tienda[m.origen] ?? 0) + Number(m.importe) },
+    };
+  }
   return { ...t, [m.tipo]: t[m.tipo] + Number(m.importe) };
 }
 
 function sumarTotales(a: Totales, b: Totales): Totales {
-  return { ingresos: a.ingresos + b.ingresos, gasto_factura: a.gasto_factura + b.gasto_factura, gasto_extra: a.gasto_extra + b.gasto_extra };
+  const ingresos_por_tienda: Partial<Record<Origen, number>> = {};
+  ORIGENES.forEach((o) => {
+    ingresos_por_tienda[o] = (a.ingresos_por_tienda[o] ?? 0) + (b.ingresos_por_tienda[o] ?? 0);
+  });
+  return {
+    ingresos: a.ingresos + b.ingresos,
+    ingresos_por_tienda,
+    gasto_factura: a.gasto_factura + b.gasto_factura,
+    gasto_extra: a.gasto_extra + b.gasto_extra,
+  };
 }
 
 function VistaMes({
@@ -448,6 +519,7 @@ function VistaMes({
   onAnioChange,
   onMesChange,
   ingresosPorFecha,
+  ingresosPorFechaPorTienda,
   movimientos,
   onIrADia,
 }: {
@@ -456,6 +528,7 @@ function VistaMes({
   onAnioChange: (anio: number) => void;
   onMesChange: (mes: number) => void;
   ingresosPorFecha: Map<string, number>;
+  ingresosPorFechaPorTienda: Map<string, Partial<Record<Origen, number>>>;
   movimientos: CajaMovimiento[];
   onIrADia: (fecha: string) => void;
 }) {
@@ -465,7 +538,7 @@ function VistaMes({
     const map = new Map<string, Totales>();
     ingresosPorFecha.forEach((importe, fecha) => {
       if (!fecha.startsWith(prefijo)) return;
-      map.set(fecha, { ...(map.get(fecha) ?? totalesVacios()), ingresos: importe });
+      map.set(fecha, { ...(map.get(fecha) ?? totalesVacios()), ingresos: importe, ingresos_por_tienda: { ...(ingresosPorFechaPorTienda.get(fecha) ?? {}) } });
     });
     movimientos
       .filter((m) => m.fecha.startsWith(prefijo))
@@ -473,7 +546,7 @@ function VistaMes({
     return [...map.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([fecha, totales]) => ({ key: fecha, label: formatFechaCorta(fecha), totales }));
-  }, [ingresosPorFecha, movimientos, prefijo]);
+  }, [ingresosPorFecha, ingresosPorFechaPorTienda, movimientos, prefijo]);
 
   const totalMes = porDia.reduce((acc, f) => sumarTotales(acc, f.totales), totalesVacios());
 
@@ -497,12 +570,14 @@ function VistaAnio({
   anio,
   onAnioChange,
   ingresosPorFecha,
+  ingresosPorFechaPorTienda,
   movimientos,
   onIrAMes,
 }: {
   anio: number;
   onAnioChange: (anio: number) => void;
   ingresosPorFecha: Map<string, number>;
+  ingresosPorFechaPorTienda: Map<string, Partial<Record<Origen, number>>>;
   movimientos: CajaMovimiento[];
   onIrAMes: (mes: number) => void;
 }) {
@@ -512,6 +587,10 @@ function VistaAnio({
       if (!fecha.startsWith(String(anio))) return;
       const mes = Number(fecha.split('-')[1]) - 1;
       totalesPorMes[mes].ingresos += importe;
+      const porTienda = ingresosPorFechaPorTienda.get(fecha) ?? {};
+      ORIGENES.forEach((o) => {
+        totalesPorMes[mes].ingresos_por_tienda[o] = (totalesPorMes[mes].ingresos_por_tienda[o] ?? 0) + (porTienda[o] ?? 0);
+      });
     });
     movimientos
       .filter((m) => m.fecha.startsWith(String(anio)))
@@ -520,7 +599,7 @@ function VistaAnio({
         totalesPorMes[mes] = acumularTotales(totalesPorMes[mes], m);
       });
     return totalesPorMes.map((totales, i) => ({ key: String(i), label: MESES[i], totales }));
-  }, [ingresosPorFecha, movimientos, anio]);
+  }, [ingresosPorFecha, ingresosPorFechaPorTienda, movimientos, anio]);
 
   const totalAnio = porMes.reduce((acc, f) => sumarTotales(acc, f.totales), totalesVacios());
 
@@ -543,7 +622,7 @@ type Vista = 'dia' | 'mes' | 'anio';
 
 export default function CajaPanel() {
   const { movimientos, loading: loadingMovimientos, crearMovimiento, eliminarMovimiento } = useCaja();
-  const { dias, loading: loadingBascula } = useBasculaVentasDiarias();
+  const { dias, porTienda, loading: loadingBascula } = useBasculaVentasDiarias();
   const [vista, setVista] = useState<Vista>('dia');
   const [fecha, setFecha] = useState(hoyISO());
   const [mes, setMes] = useState(new Date().getMonth());
@@ -554,6 +633,16 @@ export default function CajaPanel() {
     dias.forEach((d) => map.set(d.fecha, d.total_importe));
     return map;
   }, [dias]);
+
+  const ingresosPorFechaPorTienda = useMemo(() => {
+    const map = new Map<string, Partial<Record<Origen, number>>>();
+    porTienda.forEach((t) => {
+      const actual = map.get(t.fecha) ?? {};
+      actual[t.origen] = (actual[t.origen] ?? 0) + t.total_importe;
+      map.set(t.fecha, actual);
+    });
+    return map;
+  }, [porTienda]);
 
   const ticketsPorFecha = useMemo(() => {
     const map = new Map<string, number>();
@@ -622,11 +711,19 @@ export default function CajaPanel() {
             onAnioChange={setAnio}
             onMesChange={setMes}
             ingresosPorFecha={ingresosPorFecha}
+            ingresosPorFechaPorTienda={ingresosPorFechaPorTienda}
             movimientos={movimientos}
             onIrADia={irADia}
           />
         ) : (
-          <VistaAnio anio={anio} onAnioChange={setAnio} ingresosPorFecha={ingresosPorFecha} movimientos={movimientos} onIrAMes={irAMes} />
+          <VistaAnio
+            anio={anio}
+            onAnioChange={setAnio}
+            ingresosPorFecha={ingresosPorFecha}
+            ingresosPorFechaPorTienda={ingresosPorFechaPorTienda}
+            movimientos={movimientos}
+            onIrAMes={irAMes}
+          />
         )}
       </div>
     </>

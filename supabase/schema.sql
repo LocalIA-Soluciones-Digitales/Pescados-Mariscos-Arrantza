@@ -876,8 +876,16 @@ create table if not exists public.caja_movimientos (
   concepto text,
   importe numeric(10, 2) not null check (importe >= 0),
   foto_url text,
+  -- Los ingresos se atribuyen a una pescadería (Ventas los desglosa por
+  -- tienda); los gastos son generales para el negocio conjunto y no
+  -- llevan origen — de ahí el check cruzado con "tipo".
+  origen text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint caja_movimientos_origen_check check (
+    (tipo like 'ingreso_%' and origen in ('pescaderia_1', 'pescaderia_2'))
+    or (tipo like 'gasto_%' and origen is null)
+  )
 );
 
 drop trigger if exists trg_caja_movimientos_updated_at on public.caja_movimientos;

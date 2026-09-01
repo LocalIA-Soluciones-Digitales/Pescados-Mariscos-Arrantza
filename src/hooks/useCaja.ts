@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { getMiClienteId } from '@/lib/clienteContext';
 import { useRealtimeTable } from './useRealtimeTable';
 import type { CajaMovimiento, CajaMovimientoTipo } from '@/types/caja';
+import type { Origen } from '@/types/origen';
 
 const MAX_ROWS = 10_000;
 
@@ -12,6 +13,9 @@ export interface NewCajaMovimientoInput {
   concepto: string | null;
   importe: number;
   foto_url?: string | null;
+  // Obligatorio para tipos "ingreso_*", null para "gasto_*" (los gastos
+  // son generales para el negocio conjunto).
+  origen: Origen | null;
 }
 
 function ordenarMovimientos(movimientos: CajaMovimiento[]): CajaMovimiento[] {
