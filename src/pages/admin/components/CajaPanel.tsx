@@ -247,17 +247,70 @@ function FilaMovimiento({ m, onEliminar }: { m: CajaMovimiento; onEliminar: (m: 
   );
 }
 
-function FilaBascula({ l, onEliminar }: { l: BasculaVenta; onEliminar: (l: BasculaVenta) => void }) {
+interface TicketBascula {
+  key: string;
+  origen: Origen;
+  hora: string | null;
+  numero: number;
+  total: number;
+  lineas: BasculaVenta[];
+}
+
+// Une las líneas de báscula del mismo ticket de cliente (mismo tipo_doc +
+// posto + numero) en un solo bloque con el total del ticket y el desglose
+// por producto debajo — así el pescadero compara directamente con el
+// papel que tiene en la mano, en vez de ver cada producto suelto.
+function agruparPorTicket(lineas: BasculaVenta[]): TicketBascula[] {
+  const grupos = new Map<string, TicketBascula>();
+  const orden: string[] = [];
+  for (const l of lineas) {
+    const key = `${l.ticket_tipo_doc}|${l.ticket_posto}|${l.ticket_numero}`;
+    let grupo = grupos.get(key);
+    if (!grupo) {
+      grupo = { key, origen: l.origen, hora: l.hora, numero: l.ticket_numero, total: 0, lineas: [] };
+      grupos.set(key, grupo);
+      orden.push(key);
+    }
+    grupo.total += l.importe;
+    grupo.lineas.push(l);
+  }
+  return orden.map((k) => grupos.get(k)!);
+}
+
+function FilaTicketBascula({ ticket, onEliminarLinea }: { ticket: TicketBascula; onEliminarLinea: (l: BasculaVenta) => void }) {
   return (
-    <FilaCaja
-      icon="ri-scales-3-line"
-      titulo={l.designacion}
-      subtitulo={`Báscula · ${l.hora?.slice(0, 5) ?? '—'} · ${l.cantidad} ${l.unidad}`}
-      origen={l.origen}
-      importe={l.importe}
-      ingreso
-      onEliminar={() => onEliminar(l)}
-    />
+    <div className="border-b border-background-200/50 last:border-b-0">
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        <span className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm bg-emerald-50 text-emerald-600">
+          <i className="ri-scales-3-line"></i>
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm text-foreground-950 truncate">Ticket nº {ticket.numero}</p>
+            <OrigenBadge origen={ticket.origen} className="flex-shrink-0" />
+          </div>
+          <p className="text-xs text-foreground-400 truncate">
+            {ticket.hora?.slice(0, 5) ?? '—'} · {ticket.lineas.length} producto{ticket.lineas.length === 1 ? '' : 's'}
+          </p>
+        </div>
+        <span className="text-sm font-medium flex-shrink-0 tabular-nums text-emerald-700">+{formatEUR(ticket.total)}</span>
+      </div>
+      <div className="pl-14 pr-3 pb-2 space-y-1">
+        {ticket.lineas.map((l) => (
+          <div key={l.id} className="flex items-center gap-2 text-xs text-foreground-500">
+            <span className="flex-1 truncate">{l.designacion} · {l.cantidad} {l.unidad}</span>
+            <span className="tabular-nums flex-shrink-0">{formatEUR(l.importe)}</span>
+            <button
+              type="button"
+              onClick={() => onEliminarLinea(l)}
+              className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full text-foreground-400 hover:bg-red-50 hover:text-red-600"
+            >
+              <i className="ri-delete-bin-line text-xs"></i>
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -306,6 +359,8 @@ function VistaDia({
     return map;
   }, [lineasBascula, ingresosManuales]);
 
+  const ticketsBascula = useMemo(() => agruparPorTicket(lineasBascula), [lineasBascula]);
+
   useEffect(() => {
     let cancelado = false;
     setCargandoBascula(true);
@@ -334,7 +389,7 @@ function VistaDia({
     setLineasBascula((prev) => prev.filter((x) => x.id !== l.id));
   };
 
-  const sinIngresos = !cargandoBascula && lineasBascula.length === 0 && ingresosManuales.length === 0;
+  const sinIngresos = !cargandoBascula && ticketsBascula.length === 0 && ingresosManuales.length === 0;
 
   return (
     <div className="space-y-4">
@@ -394,7 +449,7 @@ function VistaDia({
           <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500">Ingresos</p>
             <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] bg-emerald-50 text-emerald-600">
-              {lineasBascula.length + ingresosManuales.length}
+              {ticketsBascula.length + ingresosManuales.length}
             </span>
           </div>
           {cargandoBascula ? (
@@ -403,8 +458,8 @@ function VistaDia({
             <p className="text-xs text-foreground-400 px-3 py-3">Sin ingresos registrados.</p>
           ) : (
             <>
-              {lineasBascula.map((l) => (
-                <FilaBascula key={l.id} l={l} onEliminar={eliminarBascula} />
+              {ticketsBascula.map((t) => (
+                <FilaTicketBascula key={t.key} ticket={t} onEliminarLinea={eliminarBascula} />
               ))}
               {ingresosManuales.map((m) => (
                 <FilaMovimiento key={m.id} m={m} onEliminar={eliminar} />
