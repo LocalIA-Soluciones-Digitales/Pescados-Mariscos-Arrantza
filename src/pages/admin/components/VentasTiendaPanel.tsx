@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useBasculaVentasDiarias, fetchBasculaVentasDelDia, fetchBasculaVentasResumenProductos } from '@/hooks/useBasculaVentas';
 import type { BasculaVenta, BasculaVentaDiariaPorTienda, BasculaVentaResumenProducto } from '@/types/basculaVenta';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
@@ -133,6 +133,40 @@ function ResumenSeccion({
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// Ranking visual de los productos que más se mueven (mismo patrón de
+// barras que "Lo que más se pide" en Reportes > Online), para que David
+// vea de un vistazo qué reponer sin tener que abrir el resumen completo.
+function TopProductosSeccion({ titulo, icon, productos, unidad }: { titulo: string; icon: string; productos: BasculaVentaResumenProducto[]; unidad: 'kg' | 'un' }) {
+  if (productos.length === 0) return null;
+  const max = productos[0]?.cantidad || 1;
+  return (
+    <div className="bg-background-50 border border-background-200/70 rounded-xl p-4 shadow-card">
+      <div className="flex items-center gap-1.5 mb-4">
+        <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-primary-50 text-primary-600 text-[11px]">
+          <i className={icon}></i>
+        </span>
+        <p className="text-sm font-medium text-foreground-950">{titulo}</p>
+      </div>
+      <div className="space-y-2.5">
+        {productos.map((p) => {
+          const pct = (p.cantidad / max) * 100;
+          return (
+            <div key={`${p.designacion}__${p.unidad}`} className="flex items-center gap-3">
+              <span className="text-xs text-foreground-600 w-28 sm:w-36 flex-shrink-0 truncate">{p.designacion}</span>
+              <div className="flex-1 h-2 bg-background-200/60 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-primary-500" style={{ width: `${pct}%` }} />
+              </div>
+              <span className="text-xs text-foreground-400 w-28 flex-shrink-0 text-right tabular-nums">
+                {p.cantidad.toFixed(unidad === 'kg' ? 1 : 0)} {unidad} · {formatPrecio(p.importe)}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -359,14 +393,33 @@ export default function VentasTiendaPanel() {
   const [resumenProductos, setResumenProductos] = useState<BasculaVentaResumenProducto[] | null>(null);
   const [resumenCargando, setResumenCargando] = useState(false);
 
-  const abrirResumen = async () => {
-    setResumenAbierto(true);
+  // Se carga en cuanto hay días visibles (no solo al abrir el modal) para
+  // poder alimentar también el ranking de "Top productos" siempre visible.
+  useEffect(() => {
+    if (diasVisibles.length === 0) {
+      setResumenProductos([]);
+      return;
+    }
+    let cancelado = false;
     setResumenCargando(true);
     const fechas = diasVisibles.map((d) => d.fecha);
-    const data = await fetchBasculaVentasResumenProductos(fechas, filtro === 'todas' ? null : filtro);
-    setResumenProductos(data);
-    setResumenCargando(false);
-  };
+    fetchBasculaVentasResumenProductos(fechas, filtro === 'todas' ? null : filtro).then((data) => {
+      if (cancelado) return;
+      setResumenProductos(data);
+      setResumenCargando(false);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [diasVisibles, filtro]);
+
+  const { topKg, topPiezas } = useMemo(() => {
+    const ordenado = [...(resumenProductos ?? [])].sort((a, b) => b.cantidad - a.cantidad);
+    return {
+      topKg: ordenado.filter((p) => p.unidad === 'kg').slice(0, 8),
+      topPiezas: ordenado.filter((p) => p.unidad === 'un').slice(0, 8),
+    };
+  }, [resumenProductos]);
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
@@ -402,9 +455,16 @@ export default function VentasTiendaPanel() {
       {!loading && diasVisibles.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           <StatTile label="Facturado" valor={formatPrecio(totales.importe)} icon="ri-money-euro-circle-line" />
-          <StatTile label="Kg a peso" valor={`${totales.peso.toFixed(2)} kg`} icon="ri-scales-3-line" onClick={abrirResumen} />
-          <StatTile label="Piezas" valor={String(totales.piezas)} icon="ri-shopping-basket-line" onClick={abrirResumen} />
+          <StatTile label="Kg a peso" valor={`${totales.peso.toFixed(2)} kg`} icon="ri-scales-3-line" onClick={() => setResumenAbierto(true)} />
+          <StatTile label="Piezas" valor={String(totales.piezas)} icon="ri-shopping-basket-line" onClick={() => setResumenAbierto(true)} />
           <StatTile label="Tickets" valor={String(totales.tickets)} icon="ri-receipt-line" />
+        </div>
+      )}
+
+      {!loading && (topKg.length > 0 || topPiezas.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+          <TopProductosSeccion titulo="Más vendido a peso" icon="ri-scales-3-line" productos={topKg} unidad="kg" />
+          <TopProductosSeccion titulo="Más vendido por unidad" icon="ri-shopping-basket-line" productos={topPiezas} unidad="un" />
         </div>
       )}
 
