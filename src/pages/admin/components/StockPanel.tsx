@@ -29,17 +29,19 @@ function StockRow({
   onGuardarCodigoBascula: (origen: Origen, valor: string) => Promise<boolean>;
 }) {
   const [entrada, setEntrada] = useState('');
+  const [movimiento, setMovimiento] = useState<'entrada' | 'baja'>('entrada');
   const [stockMinimo, setStockMinimo] = useState(producto.stock_minimo);
   const [codigosLocal, setCodigosLocal] = useState<Partial<Record<Origen, string>>>(codigosBascula);
   const [saving, setSaving] = useState(false);
   const stockBajo = producto.stock_kg <= producto.stock_minimo;
 
   const sumarEntrada = async () => {
-    const kg = Number(entrada);
-    if (!Number.isFinite(kg) || kg === 0) {
+    const cantidad = Number(entrada);
+    if (!Number.isFinite(cantidad) || cantidad === 0) {
       setEntrada('');
       return;
     }
+    const kg = movimiento === 'baja' ? -Math.abs(cantidad) : Math.abs(cantidad);
     setSaving(true);
     const { data, error } = await supabase.rpc('sumar_stock', { p_producto_id: producto.id, p_kg: kg });
     setSaving(false);
@@ -48,6 +50,7 @@ function StockRow({
       return;
     }
     setEntrada('');
+    setMovimiento('entrada');
     onPatch({ stock_kg: data as number });
   };
 
@@ -105,19 +108,47 @@ function StockRow({
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <label className="text-[11px] text-foreground-400">Entrada de hoy</label>
-          <input
-            type="number"
-            step="0.5"
-            placeholder="0"
-            value={entrada}
-            onChange={(e) => setEntrada(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur();
-            }}
-            onBlur={sumarEntrada}
-            disabled={saving}
-            className="w-16 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
-          />
+          <div className="flex items-center rounded-md border border-background-200/70 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setMovimiento('entrada')}
+              disabled={saving}
+              title="Sumar stock (entrada, merma positiva)"
+              className={`w-7 h-[30px] flex items-center justify-center text-sm font-semibold transition-colors ${
+                movimiento === 'entrada' ? 'bg-emerald-500 text-white' : 'bg-background-100 text-foreground-400'
+              }`}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onClick={() => setMovimiento('baja')}
+              disabled={saving}
+              title="Descontar stock (se puso malo, hay que tirar, etc.)"
+              className={`w-7 h-[30px] flex items-center justify-center text-sm font-semibold transition-colors border-x border-background-200/70 ${
+                movimiento === 'baja' ? 'bg-red-500 text-white' : 'bg-background-100 text-foreground-400'
+              }`}
+            >
+              −
+            </button>
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.5"
+              min="0"
+              placeholder="0"
+              value={entrada}
+              onChange={(e) => setEntrada(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+              }}
+              onBlur={sumarEntrada}
+              disabled={saving}
+              className={`w-16 px-2 py-1.5 border-0 text-sm text-right focus:outline-none ${
+                movimiento === 'baja' ? 'bg-red-50 text-red-700' : 'bg-background-100'
+              }`}
+            />
+          </div>
           <span className="text-xs text-foreground-400">kg</span>
         </div>
 
