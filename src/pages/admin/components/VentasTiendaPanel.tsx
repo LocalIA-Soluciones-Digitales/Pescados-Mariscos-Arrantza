@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useBasculaVentasDiarias, fetchBasculaVentasDelDia } from '@/hooks/useBasculaVentas';
-import type { BasculaVenta, BasculaVentaDiariaPorTienda } from '@/types/basculaVenta';
+import { useBasculaVentasDiarias, fetchBasculaVentasDelDia, fetchBasculaVentasResumenProductos } from '@/hooks/useBasculaVentas';
+import type { BasculaVenta, BasculaVentaDiariaPorTienda, BasculaVentaResumenProducto } from '@/types/basculaVenta';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import OrigenBadge from '@/components/base/OrigenBadge';
 
@@ -34,9 +34,28 @@ function LineaVenta({ l }: { l: BasculaVenta }) {
   );
 }
 
-function StatTile({ label, valor, icon, color }: { label: string; valor: string; icon: string; color?: { bg: string; text: string } }) {
+function StatTile({
+  label,
+  valor,
+  icon,
+  color,
+  onClick,
+}: {
+  label: string;
+  valor: string;
+  icon: string;
+  color?: { bg: string; text: string };
+  onClick?: () => void;
+}) {
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`text-left bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card ${
+        onClick ? 'cursor-pointer hover:bg-background-100/60 hover:border-background-300/70 transition-colors' : 'cursor-default'
+      }`}
+    >
       <div className="flex items-center gap-1.5 mb-1">
         <span className={`w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full text-[11px] ${color ? `${color.bg} ${color.text}` : 'bg-primary-50 text-primary-600'}`}>
           <i className={icon}></i>
@@ -44,6 +63,117 @@ function StatTile({ label, valor, icon, color }: { label: string; valor: string;
         <p className="text-[11px] text-foreground-400 truncate">{label}</p>
       </div>
       <p className="text-lg font-semibold text-foreground-950 tabular-nums">{valor}</p>
+    </button>
+  );
+}
+
+// Listado agregado por producto (no cronológico como las líneas de
+// ticket de DiaRow) que se abre al pulsar los recuadros de Kg a peso /
+// Piezas: separa lo vendido a peso de lo vendido por unidad para que se
+// pueda revisar de un vistazo cuánto se ha movido de cada producto.
+function ResumenSeccion({
+  titulo,
+  icon,
+  filas,
+  unidad,
+  totalCantidad,
+  totalImporte,
+}: {
+  titulo: string;
+  icon: string;
+  filas: BasculaVentaResumenProducto[];
+  unidad: 'kg' | 'un';
+  totalCantidad: number;
+  totalImporte: number;
+}) {
+  if (filas.length === 0) return null;
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-primary-50 text-primary-600 text-[11px]">
+            <i className={icon}></i>
+          </span>
+          <h3 className="text-xs font-semibold text-foreground-700 uppercase tracking-wide truncate">{titulo}</h3>
+        </div>
+        <span className="text-xs text-foreground-500 tabular-nums flex-shrink-0">
+          {totalCantidad.toFixed(unidad === 'kg' ? 2 : 0)} {unidad} · {formatPrecio(totalImporte)}
+        </span>
+      </div>
+      <div className="border border-background-200/70 rounded-xl overflow-hidden divide-y divide-background-200/70">
+        {filas.map((p) => (
+          <div key={`${p.designacion}__${p.unidad}`} className="flex items-center justify-between gap-3 px-3 py-2 text-xs bg-background-50">
+            <span className="text-foreground-800 truncate">{p.designacion}</span>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <span className="text-foreground-400 tabular-nums">
+                {p.cantidad.toFixed(unidad === 'kg' ? 3 : 0)} {p.unidad}
+              </span>
+              <span className="text-foreground-950 font-medium tabular-nums w-16 text-right">{formatPrecio(p.importe)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResumenProductosModal({
+  onClose,
+  cargando,
+  productos,
+  subtitulo,
+}: {
+  onClose: () => void;
+  cargando: boolean;
+  productos: BasculaVentaResumenProducto[] | null;
+  subtitulo: string;
+}) {
+  const { kg, piezas, totalKg, totalPiezas, importeKg, importePiezas } = useMemo(() => {
+    const kg = (productos ?? []).filter((p) => p.unidad === 'kg');
+    const piezas = (productos ?? []).filter((p) => p.unidad === 'un');
+    return {
+      kg,
+      piezas,
+      totalKg: kg.reduce((acc, p) => acc + p.cantidad, 0),
+      totalPiezas: piezas.reduce((acc, p) => acc + p.cantidad, 0),
+      importeKg: kg.reduce((acc, p) => acc + p.importe, 0),
+      importePiezas: piezas.reduce((acc, p) => acc + p.importe, 0),
+    };
+  }, [productos]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-foreground-950/40 sm:p-4" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex flex-col w-full sm:max-w-[560px] max-h-[92vh] sm:max-h-[85vh] bg-background-50 rounded-t-2xl sm:rounded-lg border border-background-200/70 shadow-2xl"
+      >
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-background-200/70 flex-shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-base font-heading font-semibold text-foreground-950">Resumen por producto</h2>
+            <p className="text-xs text-foreground-400 mt-0.5 truncate">{subtitulo}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-100 hover:text-foreground-950"
+          >
+            <i className="ri-close-line"></i>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {cargando ? (
+            <p className="text-xs text-foreground-400">Cargando…</p>
+          ) : (productos ?? []).length === 0 ? (
+            <p className="text-xs text-foreground-400">Sin ventas registradas.</p>
+          ) : (
+            <>
+              <ResumenSeccion titulo="Vendido a peso" icon="ri-scales-3-line" filas={kg} unidad="kg" totalCantidad={totalKg} totalImporte={importeKg} />
+              <ResumenSeccion titulo="Vendido por unidad" icon="ri-shopping-basket-line" filas={piezas} unidad="un" totalCantidad={totalPiezas} totalImporte={importePiezas} />
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -178,6 +308,26 @@ export default function VentasTiendaPanel() {
     );
   }, [diasVisibles]);
 
+  const rangoFechas = useMemo(() => {
+    const fechas = diasVisibles.map((d) => d.fecha).sort();
+    if (fechas.length === 0) return '';
+    if (fechas.length === 1) return formatFechaLarga(fechas[0]);
+    return `${formatFechaLarga(fechas[0])} — ${formatFechaLarga(fechas[fechas.length - 1])}`;
+  }, [diasVisibles]);
+
+  const [resumenAbierto, setResumenAbierto] = useState(false);
+  const [resumenProductos, setResumenProductos] = useState<BasculaVentaResumenProducto[] | null>(null);
+  const [resumenCargando, setResumenCargando] = useState(false);
+
+  const abrirResumen = async () => {
+    setResumenAbierto(true);
+    setResumenCargando(true);
+    const fechas = diasVisibles.map((d) => d.fecha);
+    const data = await fetchBasculaVentasResumenProductos(fechas, filtro === 'todas' ? null : filtro);
+    setResumenProductos(data);
+    setResumenCargando(false);
+  };
+
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
       <div className="flex items-center gap-1.5 mb-4 flex-wrap">
@@ -212,8 +362,8 @@ export default function VentasTiendaPanel() {
       {!loading && diasVisibles.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           <StatTile label="Facturado" valor={formatPrecio(totales.importe)} icon="ri-money-euro-circle-line" />
-          <StatTile label="Kg a peso" valor={`${totales.peso.toFixed(2)} kg`} icon="ri-scales-3-line" />
-          <StatTile label="Piezas" valor={String(totales.piezas)} icon="ri-shopping-basket-line" />
+          <StatTile label="Kg a peso" valor={`${totales.peso.toFixed(2)} kg`} icon="ri-scales-3-line" onClick={abrirResumen} />
+          <StatTile label="Piezas" valor={String(totales.piezas)} icon="ri-shopping-basket-line" onClick={abrirResumen} />
           <StatTile label="Tickets" valor={String(totales.tickets)} icon="ri-receipt-line" />
         </div>
       )}
@@ -236,6 +386,15 @@ export default function VentasTiendaPanel() {
             />
           ))}
         </div>
+      )}
+
+      {resumenAbierto && (
+        <ResumenProductosModal
+          onClose={() => setResumenAbierto(false)}
+          cargando={resumenCargando}
+          productos={resumenProductos}
+          subtitulo={`${filtro === 'todas' ? 'Todas las tiendas' : ORIGEN_LABELS[filtro]} · ${rangoFechas}`}
+        />
       )}
     </div>
   );

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRealtimeTable } from './useRealtimeTable';
-import type { BasculaVenta, BasculaVentaDiaria, BasculaVentaDiariaPorTienda } from '@/types/basculaVenta';
+import type { BasculaVenta, BasculaVentaDiaria, BasculaVentaDiariaPorTienda, BasculaVentaResumenProducto } from '@/types/basculaVenta';
+import type { Origen } from '@/types/origen';
 
 // Totales por día combinando ambas pescaderías (vista bascula_ventas_diarias).
 // Se suscribe a cambios en la tabla base bascula_ventas, no en la vista —
@@ -41,6 +42,30 @@ export async function fetchBasculaVentasDelDia(fecha: string): Promise<BasculaVe
     .order('hora', { ascending: false })
     .order('linea_oid', { ascending: false });
   return data ?? [];
+}
+
+// Resumen por producto (agrupando todas las líneas por designación +
+// unidad) para el listado que se abre al pulsar los recuadros de Kg a
+// peso / Piezas: en vez del histórico cronológico de tickets, muestra
+// cuánto se ha vendido en total de cada producto. La agregación se hace
+// en el cliente porque el volumen de líneas por día es bajo.
+export async function fetchBasculaVentasResumenProductos(fechas: string[], origen: Origen | null): Promise<BasculaVentaResumenProducto[]> {
+  let query = supabase.from('bascula_ventas').select('designacion, unidad, cantidad, importe').in('fecha', fechas);
+  if (origen) query = query.eq('origen', origen);
+  const { data } = await query;
+
+  const map = new Map<string, BasculaVentaResumenProducto>();
+  (data ?? []).forEach((l) => {
+    const key = `${l.designacion}__${l.unidad}`;
+    const actual = map.get(key);
+    if (actual) {
+      actual.cantidad += l.cantidad;
+      actual.importe += l.importe;
+    } else {
+      map.set(key, { designacion: l.designacion, unidad: l.unidad, cantidad: l.cantidad, importe: l.importe });
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => b.importe - a.importe);
 }
 
 // Borra una línea de venta sincronizada de la báscula (p.ej. si se coló una

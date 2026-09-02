@@ -17,6 +17,15 @@ export interface BasculaVentaDiariaPorTienda {
   total_piezas_un: number | null;
 }
 
+// Fila agregada por producto (designación + unidad) usada en el resumen
+// visual que se abre al pulsar los recuadros de Kg a peso / Piezas.
+export interface BasculaVentaResumenProducto {
+  designacion: string;
+  unidad: string;
+  cantidad: number;
+  importe: number;
+}
+
 export interface BasculaVenta {
   id: string;
   origen: Origen;
