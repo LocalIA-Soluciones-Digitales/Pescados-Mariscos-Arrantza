@@ -34,7 +34,12 @@ export function useBasculaVentasDiarias() {
 // Detalle de líneas de un día concreto, cargado bajo demanda al desplegar
 // ese día en el panel (en vez de traer todo el histórico de golpe).
 export async function fetchBasculaVentasDelDia(fecha: string): Promise<BasculaVenta[]> {
-  const { data } = await supabase.from('bascula_ventas').select('*').eq('fecha', fecha).order('hora', { ascending: true });
+  const { data } = await supabase
+    .from('bascula_ventas')
+    .select('*')
+    .eq('fecha', fecha)
+    .order('hora', { ascending: false })
+    .order('linea_oid', { ascending: false });
   return data ?? [];
 }
 

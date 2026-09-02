@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCaja, type NewCajaMovimientoInput } from '@/hooks/useCaja';
+import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { deleteBasculaVenta, fetchBasculaVentasDelDia, useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
 import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
@@ -44,6 +45,10 @@ function formatFechaLarga(fecha: string): string {
 function formatFechaCorta(fecha: string): string {
   const [y, m, d] = fecha.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+}
+
+function formatHora(isoTimestamp: string): string {
+  return new Date(isoTimestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 }
 
 interface Totales {
@@ -228,11 +233,12 @@ function FilaCaja({
 }
 
 function FilaMovimiento({ m, onEliminar }: { m: CajaMovimiento; onEliminar: (m: CajaMovimiento) => void }) {
+  const hora = formatHora(m.created_at);
   return (
     <FilaCaja
       icon={ICONO_POR_TIPO[m.tipo]}
       titulo={CAJA_TIPO_LABELS[m.tipo]}
-      subtitulo={m.concepto}
+      subtitulo={m.concepto ? `${hora} · ${m.concepto}` : hora}
       origen={m.origen}
       importe={m.importe}
       ingreso={esCajaIngreso(m.tipo)}
@@ -282,6 +288,12 @@ function VistaDia({
   const [lineasBascula, setLineasBascula] = useState<BasculaVenta[]>([]);
   const [cargandoBascula, setCargandoBascula] = useState(true);
 
+  const refetchLineasBascula = useCallback(() => {
+    fetchBasculaVentasDelDia(fecha).then((data) => setLineasBascula(data));
+  }, [fecha]);
+
+  useRealtimeTable('bascula_ventas', refetchLineasBascula);
+
   const ingresosPorTiendaDia = useMemo(() => {
     const map: Partial<Record<Origen, number>> = {};
     lineasBascula.forEach((l) => {
@@ -305,9 +317,7 @@ function VistaDia({
     return () => {
       cancelado = true;
     };
-    // basculaHoy cambia (por Realtime) cada vez que se sincroniza o se borra
-    // una venta de báscula de este día, así que también refresca las líneas.
-  }, [fecha, basculaHoy]);
+  }, [fecha]);
 
   const eliminar = async (m: CajaMovimiento) => {
     if (!confirm(`¿Eliminar este movimiento de ${formatEUR(m.importe)}?`)) return;
