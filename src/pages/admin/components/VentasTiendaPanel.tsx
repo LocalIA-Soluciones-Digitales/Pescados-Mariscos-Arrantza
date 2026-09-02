@@ -19,13 +19,13 @@ function formatPrecio(n: number): string {
 
 function LineaVenta({ l, mostrarHora = true }: { l: BasculaVenta; mostrarHora?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-xs py-1">
+    <div className="flex items-center justify-between gap-3 text-xs py-1.5">
       <div className="min-w-0 flex items-center gap-2">
         {mostrarHora && <span className="text-foreground-400 tabular-nums flex-shrink-0">{l.hora?.slice(0, 5) ?? '—'}</span>}
         <span className="text-foreground-800 truncate">{l.designacion}</span>
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
-        <span className="text-foreground-400 tabular-nums">
+        <span className="text-foreground-400 tabular-nums w-16 text-right">
           {l.cantidad} {l.unidad}
         </span>
         <span className="text-foreground-950 font-medium tabular-nums w-16 text-right">{formatPrecio(l.importe)}</span>
@@ -277,17 +277,23 @@ function DiaRow({
             Array.from(lineasPorOrigen.entries()).map(([origen, lineasOrigen]) => (
               <div key={origen}>
                 {filtro === 'todas' && <OrigenBadge origen={origen} className="mb-1.5" />}
-                <div className="space-y-2 mt-1.5">
+                <div className="space-y-2.5 mt-1.5">
                   {agruparPorTicket(lineasOrigen).map((ticket) => (
-                    <div key={ticket.key} className="rounded-lg border border-background-200/70 overflow-hidden">
-                      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-background-100/60">
-                        <span className="flex items-center gap-1.5 text-[11px] text-foreground-500">
-                          <i className="ri-receipt-line"></i>
-                          <span className="tabular-nums">{ticket.hora?.slice(0, 5) ?? '—'}</span>
+                    <div key={ticket.key} className="rounded-xl border border-background-200/70 shadow-sm overflow-hidden bg-background-50">
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-background-100/50 border-b border-background-200/70">
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-primary-50 text-primary-600 text-[11px]">
+                            <i className="ri-receipt-line"></i>
+                          </span>
+                          <span className="text-[11px] text-foreground-500 tabular-nums">{ticket.hora?.slice(0, 5) ?? '—'}</span>
+                          <span className="text-[11px] text-foreground-300">·</span>
+                          <span className="text-[11px] text-foreground-400">
+                            {ticket.lineas.length} producto{ticket.lineas.length === 1 ? '' : 's'}
+                          </span>
                         </span>
-                        <span className="text-[11px] font-semibold text-foreground-700 tabular-nums">{formatPrecio(ticket.total)}</span>
+                        <span className="text-sm font-semibold text-foreground-950 tabular-nums flex-shrink-0">{formatPrecio(ticket.total)}</span>
                       </div>
-                      <div className="divide-y divide-background-200/50 px-2.5">
+                      <div className="divide-y divide-background-200/60 px-3">
                         {ticket.lineas.map((l) => (
                           <LineaVenta key={l.id} l={l} mostrarHora={false} />
                         ))}
