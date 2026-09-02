@@ -17,11 +17,11 @@ function formatPrecio(n: number): string {
   return `${n.toFixed(2)} €`;
 }
 
-function LineaVenta({ l }: { l: BasculaVenta }) {
+function LineaVenta({ l, mostrarHora = true }: { l: BasculaVenta; mostrarHora?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-xs">
+    <div className="flex items-center justify-between gap-3 text-xs py-1">
       <div className="min-w-0 flex items-center gap-2">
-        <span className="text-foreground-400 tabular-nums flex-shrink-0">{l.hora?.slice(0, 5) ?? '—'}</span>
+        {mostrarHora && <span className="text-foreground-400 tabular-nums flex-shrink-0">{l.hora?.slice(0, 5) ?? '—'}</span>}
         <span className="text-foreground-800 truncate">{l.designacion}</span>
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
@@ -32,6 +32,27 @@ function LineaVenta({ l }: { l: BasculaVenta }) {
       </div>
     </div>
   );
+}
+
+// Un ticket = una cesta de la compra (varias líneas con el mismo
+// ticket_tipo_doc/posto/numero). Se agrupan así en vez de en una lista
+// plana para que se vea claramente dónde acaba una venta y empieza la
+// siguiente.
+type TicketGrupo = { key: string; hora: string | null; lineas: BasculaVenta[]; total: number };
+
+function agruparPorTicket(lineasOrigen: BasculaVenta[]): TicketGrupo[] {
+  const map = new Map<string, TicketGrupo>();
+  lineasOrigen.forEach((l) => {
+    const key = `${l.ticket_tipo_doc}-${l.ticket_posto}-${l.ticket_numero}`;
+    const actual = map.get(key);
+    if (actual) {
+      actual.lineas.push(l);
+      actual.total += l.importe;
+    } else {
+      map.set(key, { key, hora: l.hora, lineas: [l], total: l.importe });
+    }
+  });
+  return Array.from(map.values());
 }
 
 function StatTile({
@@ -256,9 +277,22 @@ function DiaRow({
             Array.from(lineasPorOrigen.entries()).map(([origen, lineasOrigen]) => (
               <div key={origen}>
                 {filtro === 'todas' && <OrigenBadge origen={origen} className="mb-1.5" />}
-                <div className="space-y-1.5 mt-1.5">
-                  {lineasOrigen.map((l) => (
-                    <LineaVenta key={l.id} l={l} />
+                <div className="space-y-2 mt-1.5">
+                  {agruparPorTicket(lineasOrigen).map((ticket) => (
+                    <div key={ticket.key} className="rounded-lg border border-background-200/70 overflow-hidden">
+                      <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-background-100/60">
+                        <span className="flex items-center gap-1.5 text-[11px] text-foreground-500">
+                          <i className="ri-receipt-line"></i>
+                          <span className="tabular-nums">{ticket.hora?.slice(0, 5) ?? '—'}</span>
+                        </span>
+                        <span className="text-[11px] font-semibold text-foreground-700 tabular-nums">{formatPrecio(ticket.total)}</span>
+                      </div>
+                      <div className="divide-y divide-background-200/50 px-2.5">
+                        {ticket.lineas.map((l) => (
+                          <LineaVenta key={l.id} l={l} mostrarHora={false} />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
