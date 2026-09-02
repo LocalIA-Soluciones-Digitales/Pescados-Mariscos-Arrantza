@@ -158,18 +158,20 @@ export default function VentasTiendaPanel() {
   // origen concreto: se reconstruye la lista a partir del desglose por
   // tienda, mostrando solo los días en los que esa tienda vendió algo.
   const diasVisibles = useMemo(() => {
-    if (filtro === 'todas') return dias.map((d) => ({ fecha: d.fecha, numTickets: d.num_tickets, totalPeso: d.total_peso_kg, totalImporte: d.total_importe }));
+    if (filtro === 'todas')
+      return dias.map((d) => ({ fecha: d.fecha, numTickets: d.num_tickets, totalPeso: d.total_peso_kg, totalPiezas: d.total_piezas_un, totalImporte: d.total_importe }));
     return porTienda
       .filter((t) => t.origen === filtro)
-      .map((t) => ({ fecha: t.fecha, numTickets: t.num_tickets, totalPeso: t.total_peso_kg, totalImporte: t.total_importe }));
+      .map((t) => ({ fecha: t.fecha, numTickets: t.num_tickets, totalPeso: t.total_peso_kg, totalPiezas: t.total_piezas_un, totalImporte: t.total_importe }));
   }, [filtro, dias, porTienda]);
 
   const totales = useMemo(() => {
-    const base = { importe: 0, peso: 0, tickets: 0 };
+    const base = { importe: 0, peso: 0, piezas: 0, tickets: 0 };
     return diasVisibles.reduce(
       (acc, d) => ({
         importe: acc.importe + d.totalImporte,
         peso: acc.peso + (d.totalPeso ?? 0),
+        piezas: acc.piezas + (d.totalPiezas ?? 0),
         tickets: acc.tickets + d.numTickets,
       }),
       base,
@@ -208,9 +210,10 @@ export default function VentasTiendaPanel() {
       </div>
 
       {!loading && diasVisibles.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           <StatTile label="Facturado" valor={formatPrecio(totales.importe)} icon="ri-money-euro-circle-line" />
           <StatTile label="Kg a peso" valor={`${totales.peso.toFixed(2)} kg`} icon="ri-scales-3-line" />
+          <StatTile label="Piezas" valor={String(totales.piezas)} icon="ri-shopping-basket-line" />
           <StatTile label="Tickets" valor={String(totales.tickets)} icon="ri-receipt-line" />
         </div>
       )}

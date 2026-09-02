@@ -835,7 +835,8 @@ select
   fecha,
   count(distinct (ticket_tipo_doc, ticket_posto, ticket_numero)) as num_tickets,
   sum(importe) as total_importe,
-  sum(cantidad) filter (where unidad = 'kg') as total_peso_kg
+  sum(cantidad) filter (where unidad = 'kg') as total_peso_kg,
+  sum(cantidad) filter (where unidad = 'un') as total_piezas_un
 from public.bascula_ventas
 group by cliente_id, fecha
 order by fecha desc;
@@ -851,7 +852,8 @@ select
   origen,
   count(distinct (ticket_tipo_doc, ticket_posto, ticket_numero)) as num_tickets,
   sum(importe) as total_importe,
-  sum(cantidad) filter (where unidad = 'kg') as total_peso_kg
+  sum(cantidad) filter (where unidad = 'kg') as total_peso_kg,
+  sum(cantidad) filter (where unidad = 'un') as total_piezas_un
 from public.bascula_ventas
 group by cliente_id, fecha, origen
 order by fecha desc, origen;

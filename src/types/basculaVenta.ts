@@ -5,6 +5,7 @@ export interface BasculaVentaDiaria {
   num_tickets: number;
   total_importe: number;
   total_peso_kg: number | null;
+  total_piezas_un: number | null;
 }
 
 export interface BasculaVentaDiariaPorTienda {
@@ -13,6 +14,7 @@ export interface BasculaVentaDiariaPorTienda {
   num_tickets: number;
   total_importe: number;
   total_peso_kg: number | null;
+  total_piezas_un: number | null;
 }
 
 export interface BasculaVenta {
