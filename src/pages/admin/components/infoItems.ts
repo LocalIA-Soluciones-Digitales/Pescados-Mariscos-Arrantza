@@ -4,7 +4,7 @@
 
 export const HOY_INFO_ITEMS = [
   { icon: 'ri-dashboard-3-line', text: 'Resumen del día: pedidos nuevos, reservas pendientes, reseñas por moderar y productos bajo mínimo.' },
-  { icon: 'ri-bar-chart-2-line', text: '"Para preparar" suma todo lo pendiente de entregar, para saber qué comprar en la lonja.' },
+  { icon: 'ri-bar-chart-2-line', text: '"Para preparar hoy" lista los pedidos y reservas de hoy en orden de hora, con el detalle de cada cliente — y abajo el total por producto para comprar en la lonja.' },
   { icon: 'ri-alarm-warning-line', text: 'Abajo se listan los pedidos y reservas que necesitan confirmación, y los productos bajo mínimo, con acceso rápido a llamar o escribir por WhatsApp.' },
 ];
 

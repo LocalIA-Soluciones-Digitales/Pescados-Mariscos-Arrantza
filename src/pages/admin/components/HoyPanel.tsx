@@ -18,11 +18,22 @@ function formatKg(n: number): string {
   return `${Math.round(n * 100) / 100} kg`;
 }
 
-interface PrepararRow {
+interface PrepararItem {
   nombre: string;
   kg: number;
-  pedidos: number;
-  reservas: number;
+  preparacion?: string;
+  nota?: string;
+}
+
+interface PrepararEntry {
+  id: string;
+  tipo: 'pedido' | 'reserva';
+  hora: string | null;
+  cliente: string;
+  telefono: string | null;
+  metodoEntrega?: Pedido['metodo_entrega'];
+  items: PrepararItem[];
+  kgTotal: number;
 }
 
 // Cabecera de sección con la misma pareja "kicker en versalitas + título en
@@ -142,29 +153,62 @@ export default function HoyPanel({
     [productos],
   );
 
-  const paraPreparar = useMemo(() => {
-    const map = new Map<string, PrepararRow>();
+  const prepararHoy = useMemo(() => {
+    const entries: PrepararEntry[] = [];
     pedidosActivos.forEach((p) => {
-      p.items.forEach((item) => {
-        const row = map.get(item.nombre) ?? { nombre: item.nombre, kg: 0, pedidos: 0, reservas: 0 };
-        row.kg += item.kg;
-        row.pedidos += 1;
-        map.set(item.nombre, row);
+      if (p.fecha_preferida !== hoy) return;
+      entries.push({
+        id: `pedido-${p.id}`,
+        tipo: 'pedido',
+        hora: p.hora_preferida,
+        cliente: p.cliente_nombre || 'Sin nombre',
+        telefono: p.cliente_telefono,
+        metodoEntrega: p.metodo_entrega,
+        items: p.items.map((item) => ({ nombre: item.nombre, kg: item.kg, preparacion: item.preparacion, nota: item.nota })),
+        kgTotal: p.peso_total,
       });
     });
     reservasActivas.forEach((r) => {
-      r.items.forEach((item) => {
-        const row = map.get(item.nombre) ?? { nombre: item.nombre, kg: 0, pedidos: 0, reservas: 0 };
-        row.kg += item.kg;
-        row.reservas += 1;
-        map.set(item.nombre, row);
+      if (r.fecha_deseada !== hoy) return;
+      entries.push({
+        id: `reserva-${r.id}`,
+        tipo: 'reserva',
+        hora: null,
+        cliente: r.cliente_nombre,
+        telefono: r.cliente_telefono,
+        items: r.items.map((item) => ({ nombre: item.nombre, kg: item.kg, nota: item.nota })),
+        kgTotal: r.peso_total,
       });
     });
-    return Array.from(map.values()).sort((a, b) => b.kg - a.kg);
-  }, [pedidosActivos, reservasActivas]);
+    return entries.sort((a, b) => {
+      if (a.hora && b.hora) return a.hora.localeCompare(b.hora);
+      if (a.hora) return -1;
+      if (b.hora) return 1;
+      return a.cliente.localeCompare(b.cliente);
+    });
+  }, [pedidosActivos, reservasActivas, hoy]);
 
-  const totalPreparar = useMemo(() => paraPreparar.reduce((sum, r) => sum + r.kg, 0), [paraPreparar]);
-  const maxPreparar = useMemo(() => paraPreparar.reduce((max, r) => Math.max(max, r.kg), 0), [paraPreparar]);
+  const prepararOtrosDias = useMemo(
+    () => ({
+      pedidos: pedidosActivos.filter((p) => p.fecha_preferida !== hoy).length,
+      reservas: reservasActivas.filter((r) => r.fecha_deseada !== hoy).length,
+    }),
+    [pedidosActivos, reservasActivas, hoy],
+  );
+
+  const totalKgHoy = useMemo(() => prepararHoy.reduce((sum, e) => sum + e.kgTotal, 0), [prepararHoy]);
+
+  const porProductoHoy = useMemo(() => {
+    const map = new Map<string, number>();
+    prepararHoy.forEach((e) => {
+      e.items.forEach((item) => {
+        map.set(item.nombre, (map.get(item.nombre) ?? 0) + item.kg);
+      });
+    });
+    return Array.from(map.entries())
+      .map(([nombre, kg]) => ({ nombre, kg }))
+      .sort((a, b) => b.kg - a.kg);
+  }, [prepararHoy]);
 
   if (loading) {
     return (
@@ -187,38 +231,82 @@ export default function HoyPanel({
       <section>
         <SectionHeading
           kicker="Compromiso vivo con clientes"
-          title="Para preparar"
+          title="Para preparar hoy"
           action={
-            paraPreparar.length > 0 ? <span className="text-xs text-foreground-400 flex-shrink-0">{formatKg(totalPreparar)} en total</span> : undefined
+            prepararHoy.length > 0 ? <span className="text-xs text-foreground-400 flex-shrink-0">{formatKg(totalKgHoy)} en total</span> : undefined
           }
         />
         <p className="text-xs text-foreground-400 mb-3 max-w-2xl">
-          Suma de todos los pedidos (nuevos y confirmados) y reservas (pendientes y confirmadas) que todavía no se han
-          entregado.
+          Pedidos y reservas de hoy, en orden de hora, con el detalle de cada cliente — para saber qué preparar y
+          cuándo lo recoge o se le entrega.
         </p>
-        {paraPreparar.length === 0 ? (
-          <p className="text-sm text-foreground-400">No hay pedidos ni reservas activas ahora mismo.</p>
+        {prepararHoy.length === 0 ? (
+          <p className="text-sm text-foreground-400">No hay pedidos ni reservas para hoy.</p>
         ) : (
-          <div className="space-y-1.5">
-            {paraPreparar.map((row) => {
-              const pct = maxPreparar > 0 ? Math.max((row.kg / maxPreparar) * 100, 6) : 0;
-              return (
-                <div key={row.nombre} className="relative overflow-hidden bg-background-50 border border-background-200/70 rounded-lg shadow-card">
-                  <div className="absolute inset-y-0 left-0 bg-primary-50" style={{ width: `${pct}%` }} aria-hidden="true"></div>
-                  <div className="relative flex items-center justify-between gap-3 px-3 py-2.5">
-                    <p className="text-sm text-foreground-800 truncate">{row.nombre}</p>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <span className="text-[11px] text-foreground-400 hidden sm:inline">
-                        {row.pedidos > 0 && `${row.pedidos} pedido${row.pedidos === 1 ? '' : 's'}`}
-                        {row.pedidos > 0 && row.reservas > 0 && ' · '}
-                        {row.reservas > 0 && `${row.reservas} reserva${row.reservas === 1 ? '' : 's'}`}
-                      </span>
-                      <span className="text-sm font-semibold text-foreground-950 tabular-nums">{formatKg(row.kg)}</span>
+          <div className="space-y-2">
+            {prepararHoy.map((entry) => (
+              <div key={entry.id} className="flex gap-3">
+                <div className="w-14 sm:w-16 flex-shrink-0 pt-3 text-right">
+                  <span className={`text-xs font-semibold tabular-nums ${entry.hora ? 'text-foreground-700' : 'text-foreground-300'}`}>
+                    {entry.hora || (entry.tipo === 'reserva' ? 'Reserva' : 'Sin hora')}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0 bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 px-3.5 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-foreground-950 truncate">{entry.cliente}</p>
+                        {entry.tipo === 'pedido' ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-foreground-400 flex-shrink-0">
+                            <i className={entry.metodoEntrega === 'home' ? 'ri-truck-line' : 'ri-store-2-line'}></i>
+                            {entry.metodoEntrega === 'home' ? 'A domicilio' : 'Recogida en tienda'}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-foreground-400 flex-shrink-0">
+                            <i className="ri-calendar-check-line"></i>
+                            Reserva de evento
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1.5 space-y-0.5">
+                        {entry.items.map((item, idx) => (
+                          <p key={idx} className="text-xs text-foreground-600">
+                            {formatKg(item.kg)} — {item.nombre}
+                            {item.preparacion && item.preparacion !== 'whole' ? ` (${item.preparacion})` : ''}
+                            {item.nota ? ` — "${item.nota}"` : ''}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                      <span className="text-sm font-semibold text-foreground-950 tabular-nums">{formatKg(entry.kgTotal)}</span>
+                      <ContactoRapido telefono={entry.telefono} />
                     </div>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
+          </div>
+        )}
+        {(prepararOtrosDias.pedidos > 0 || prepararOtrosDias.reservas > 0) && (
+          <p className="text-xs text-foreground-400 mt-3">
+            Además hay
+            {prepararOtrosDias.pedidos > 0 && ` ${prepararOtrosDias.pedidos} pedido${prepararOtrosDias.pedidos === 1 ? '' : 's'}`}
+            {prepararOtrosDias.pedidos > 0 && prepararOtrosDias.reservas > 0 && ' y'}
+            {prepararOtrosDias.reservas > 0 && ` ${prepararOtrosDias.reservas} reserva${prepararOtrosDias.reservas === 1 ? '' : 's'}`}
+            {' '}pendientes para otros días.
+          </p>
+        )}
+        {porProductoHoy.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-background-200/70">
+            <p className="text-[10px] uppercase tracking-wide text-foreground-400 mb-1.5">Total por producto hoy (para la lonja)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {porProductoHoy.map((row) => (
+                <span key={row.nombre} className="inline-flex items-center gap-1 text-[11px] text-foreground-600 bg-background-100 rounded-full px-2.5 py-1">
+                  {row.nombre} <span className="font-semibold text-foreground-800">{formatKg(row.kg)}</span>
+                </span>
+              ))}
+            </div>
           </div>
         )}
       </section>
