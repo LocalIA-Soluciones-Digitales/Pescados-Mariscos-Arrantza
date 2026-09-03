@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { CATEGORIA_FILTROS, type CategoriaFiltro, type Producto, type ProductoCategoria } from '@/types/producto';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import { useProductosCodigosBascula } from '@/hooks/useProductosCodigosBascula';
+import { useCodigosBasculaSinMapear } from '@/hooks/useCodigosBasculaSinMapear';
 import { ORIGENES, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import SearchInput from '@/components/base/SearchInput';
 import CategoryFilterDropdown from '@/components/base/CategoryFilterDropdown';
@@ -220,6 +221,7 @@ export default function StockPanel({
   };
   const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
   const { codigos: codigosBascula, loading: loadingCodigos, guardarCodigo } = useProductosCodigosBascula();
+  const { codigos: codigosSinMapear } = useCodigosBasculaSinMapear();
   const cargando = loading || loadingCodigos;
 
   const bajoCount = useMemo(() => productos.filter((p) => p.stock_kg <= p.stock_minimo).length, [productos]);
@@ -305,6 +307,25 @@ export default function StockPanel({
       </div>
 
       <div className="px-4 md:px-8 py-6 pb-28">
+      {codigosSinMapear.length > 0 && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p className="font-medium flex items-center gap-1.5">
+            <i className="ri-error-warning-line"></i>
+            {codigosSinMapear.length} código{codigosSinMapear.length === 1 ? '' : 's'} de báscula sin asignar a ningún producto
+          </p>
+          <p className="mt-1 text-xs text-amber-700">
+            Sus ventas se registran para la facturación pero NO descuentan stock automáticamente. Asigna cada código en el
+            campo &quot;Código&quot; del producto correspondiente para corregirlo.
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            {codigosSinMapear.map((c) => (
+              <li key={`${c.origen}-${c.codigo_bascula}`}>
+                <span className="font-medium">{ORIGEN_LABELS[c.origen]}</span> · código {c.codigo_bascula} · {c.designacion}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {cargando ? (
         <p className="text-sm text-foreground-400">Cargando…</p>
       ) : totalVisible === 0 ? (
