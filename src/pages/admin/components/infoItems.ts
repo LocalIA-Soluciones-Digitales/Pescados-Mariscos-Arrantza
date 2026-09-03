@@ -73,6 +73,10 @@ export const CLIENTES_INFO_ITEMS = [
   { icon: 'ri-database-2-line', text: 'Se construye solo a partir del histórico de pedidos y reservas.' },
   { icon: 'ri-phone-line', text: 'Se agrupa por teléfono, para juntar todo bajo el mismo cliente.' },
   { icon: 'ri-star-fill', text: 'Con 3 o más pedidos/reservas, el cliente lleva la insignia "Habitual".' },
+  {
+    icon: 'ri-gift-line',
+    text: 'En "Reglas de promociones" defines condiciones (gasto total o nº de pedidos) que conceden solas una recompensa por cliente — email automático, WhatsApp con un toque.',
+  },
 ];
 
 export const RESENAS_INFO_ITEMS = [

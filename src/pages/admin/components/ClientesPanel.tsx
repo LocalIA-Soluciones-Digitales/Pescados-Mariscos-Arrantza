@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react';
 import type { Pedido } from '@/types/pedido';
 import type { Reserva } from '@/types/reserva';
+import type { Producto } from '@/types/producto';
+import type { PromoOtorgada } from '@/types/promo';
 import { normalizePhone, telHref, whatsappHref } from '@/lib/phone';
 import SearchInput from '@/components/base/SearchInput';
+import { usePromoReglas } from '@/hooks/usePromoReglas';
+import PromoReglasPanel from './PromoReglasPanel';
 
 interface HistorialEntrada {
   tipo: 'pedido' | 'reserva';
@@ -109,17 +113,33 @@ function buildClientes(pedidos: Pedido[], reservas: Reserva[]): ClienteAgregado[
 export default function ClientesPanel({
   pedidos,
   reservas,
+  productos,
+  promoOtorgadas,
+  patchOtorgada,
   loading,
 }: {
   pedidos: Pedido[];
   reservas: Reserva[];
+  productos: Producto[];
+  promoOtorgadas: PromoOtorgada[];
+  patchOtorgada: (id: string, patch: Partial<PromoOtorgada>) => Promise<boolean>;
   loading: boolean;
 }) {
   const [search, setSearch] = useState('');
   const [orden, setOrden] = useState<'recientes' | 'frecuentes'>('recientes');
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [showReglas, setShowReglas] = useState(false);
+  const { reglas, crearRegla, patchRegla, eliminarRegla } = usePromoReglas();
 
   const clientes = useMemo(() => buildClientes(pedidos, reservas), [pedidos, reservas]);
+  const promoPendientesPorCliente = useMemo(() => {
+    const map = new Map<string, PromoOtorgada[]>();
+    promoOtorgadas
+      .filter((o) => o.estado !== 'canjeada')
+      .forEach((o) => map.set(o.cliente_key, [...(map.get(o.cliente_key) ?? []), o]));
+    return map;
+  }, [promoOtorgadas]);
+  const totalPendientes = useMemo(() => promoOtorgadas.filter((o) => o.estado !== 'canjeada').length, [promoOtorgadas]);
 
   const visibles = useMemo(() => {
     let result = clientes;
@@ -174,6 +194,19 @@ export default function ClientesPanel({
             Más frecuentes
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowReglas(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-background-50 text-foreground-600 hover:bg-background-200/70 whitespace-nowrap"
+        >
+          <i className="ri-gift-line"></i>
+          Reglas de promociones
+          {totalPendientes > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold bg-red-500 text-background-50">
+              {totalPendientes}
+            </span>
+          )}
+        </button>
       </div>
 
       {visibles.length === 0 ? (
@@ -183,6 +216,7 @@ export default function ClientesPanel({
           {visibles.map((c) => {
             const habitual = c.totalPedidos + c.totalReservas >= 3;
             const expanded = expandedKey === c.key;
+            const promosPendientes = promoPendientesPorCliente.get(c.key) ?? [];
             return (
               <div key={c.key} className="bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 p-3">
                 <div className="flex items-start gap-3">
@@ -198,6 +232,12 @@ export default function ClientesPanel({
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 border border-amber-200 text-amber-700">
                               <i className="ri-star-fill text-amber-500"></i>
                               Habitual
+                            </span>
+                          )}
+                          {promosPendientes.length > 0 && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 border border-amber-300 text-amber-800">
+                              <i className="ri-gift-line"></i>
+                              Promo pendiente
                             </span>
                           )}
                         </div>
@@ -235,6 +275,20 @@ export default function ClientesPanel({
                           </a>
                         </>
                       )}
+                      {promosPendientes
+                        .filter((o) => !o.whatsapp_enviado_at && o.cliente_telefono)
+                        .map((o) => (
+                          <a
+                            key={o.id}
+                            href={whatsappHref(o.cliente_telefono as string, o.mensaje)}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => patchOtorgada(o.id, { whatsapp_enviado_at: new Date().toISOString() })}
+                            className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 hover:bg-amber-100"
+                          >
+                            <i className="ri-gift-line"></i> Enviar promo
+                          </a>
+                        ))}
                       <button
                         type="button"
                         onClick={() => setExpandedKey(expanded ? null : c.key)}
@@ -261,6 +315,19 @@ export default function ClientesPanel({
             );
           })}
         </div>
+      )}
+
+      {showReglas && (
+        <PromoReglasPanel
+          reglas={reglas}
+          otorgadas={promoOtorgadas}
+          productos={productos}
+          onClose={() => setShowReglas(false)}
+          onCrearRegla={(input) => crearRegla(input).then(Boolean)}
+          onPatchRegla={patchRegla}
+          onEliminarRegla={eliminarRegla}
+          onPatchOtorgada={patchOtorgada}
+        />
       )}
     </div>
   );

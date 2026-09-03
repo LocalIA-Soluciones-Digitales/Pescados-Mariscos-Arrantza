@@ -11,6 +11,7 @@ export function telHref(phone: string): string {
   return `tel:+34${phone}`;
 }
 
-export function whatsappHref(phone: string): string {
-  return `https://wa.me/34${phone}`;
+export function whatsappHref(phone: string, mensaje?: string): string {
+  const base = `https://wa.me/34${phone}`;
+  return mensaje ? `${base}?text=${encodeURIComponent(mensaje)}` : base;
 }

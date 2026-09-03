@@ -27,6 +27,7 @@ import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
 import { useReservas } from '@/hooks/useReservas';
 import { useSolicitudesStock } from '@/hooks/useSolicitudesStock';
+import { usePromoOtorgadas } from '@/hooks/usePromoOtorgadas';
 import { usePulse } from '@/hooks/usePulse';
 import { useOrderAlertSound } from '@/hooks/useOrderAlertSound';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
@@ -220,6 +221,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   const { resenas, loading: loadingResenas } = useResenas();
   const { reservas, loading: loadingReservas } = useReservas();
   const { solicitudes } = useSolicitudesStock();
+  const { otorgadas: promoOtorgadas, patchOtorgada } = usePromoOtorgadas();
   const pedidosNuevos = useMemo(() => pedidos.filter((p) => p.estado === 'nuevo').length, [pedidos]);
   const resenasPendientes = useMemo(() => resenas.filter((r) => r.estado === 'pendiente').length, [resenas]);
   const reservasPendientes = useMemo(() => reservas.filter((r) => r.estado === 'pendiente').length, [reservas]);
@@ -421,7 +423,14 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
       ) : tab === 'solicitudes' ? (
         <SolicitudesStockPanel />
       ) : tab === 'clientes' ? (
-        <ClientesPanel pedidos={pedidos} reservas={reservas} loading={loadingPedidos || loadingReservas} />
+        <ClientesPanel
+          pedidos={pedidos}
+          reservas={reservas}
+          productos={productos}
+          promoOtorgadas={promoOtorgadas}
+          patchOtorgada={patchOtorgada}
+          loading={loadingPedidos || loadingReservas}
+        />
       ) : tab === 'stock' ? (
         <StockPanel productos={productos} loading={loading} onPatch={patchLocal} />
       ) : (

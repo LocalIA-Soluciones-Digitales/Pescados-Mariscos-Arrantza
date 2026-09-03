@@ -1443,6 +1443,302 @@ end;
 $$;
 
 -- ============================================================
+-- Reglas de promociones: el pescadero define condiciones (gasto total
+-- acumulado, o nº de pedidos con importe mínimo) que conceden una
+-- recompensa (producto gratis o descuento) una vez por cliente. Se
+-- evalúan solas al crear/actualizar pedidos y reservas.
+-- ============================================================
+
+create table if not exists public.promo_reglas (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  nombre text not null,
+  activo boolean not null default true,
+  orden integer not null default 0,
+
+  tipo_condicion text not null check (tipo_condicion in ('gasto_total', 'num_pedidos')),
+  umbral numeric not null check (umbral > 0),
+  -- Solo aplica a 'num_pedidos': importe mínimo que debe tener cada pedido
+  -- para contar (p.ej. "10 pedidos de 50€ o más").
+  importe_min_pedido numeric check (importe_min_pedido is null or importe_min_pedido > 0),
+
+  tipo_recompensa text not null check (tipo_recompensa in ('producto_gratis', 'descuento_eur', 'descuento_pct')),
+  producto_id uuid references public.productos (id),
+  valor_recompensa numeric,
+
+  mensaje_plantilla text not null default
+    'Hola {{cliente_nombre}}, ¡enhorabuena! Como agradecimiento por tu confianza en {{negocio}} has conseguido: {{recompensa}}. ¡Gracias por confiar en nosotros!',
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  constraint promo_reglas_producto_check check (
+    (tipo_recompensa = 'producto_gratis' and producto_id is not null)
+    or (tipo_recompensa <> 'producto_gratis' and valor_recompensa is not null and valor_recompensa > 0)
+  ),
+  constraint promo_reglas_num_pedidos_check check (
+    (tipo_condicion = 'num_pedidos' and importe_min_pedido is not null)
+    or (tipo_condicion = 'gasto_total')
+  )
+);
+
+drop trigger if exists trg_promo_reglas_updated_at on public.promo_reglas;
+create trigger trg_promo_reglas_updated_at
+  before update on public.promo_reglas
+  for each row execute function public.set_updated_at();
+
+alter table public.promo_reglas enable row level security;
+
+drop policy if exists "promo_reglas_select_admin" on public.promo_reglas;
+create policy "promo_reglas_select_admin" on public.promo_reglas for select
+  to authenticated using (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "promo_reglas_insert_admin" on public.promo_reglas;
+create policy "promo_reglas_insert_admin" on public.promo_reglas for insert
+  to authenticated with check (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "promo_reglas_update_admin" on public.promo_reglas;
+create policy "promo_reglas_update_admin" on public.promo_reglas for update
+  to authenticated using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "promo_reglas_delete_admin" on public.promo_reglas;
+create policy "promo_reglas_delete_admin" on public.promo_reglas for delete
+  to authenticated using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_promo_reglas_activo on public.promo_reglas (cliente_id, activo);
+
+-- ============================================================
+-- Recompensas ya concedidas: una fila por regla + cliente final
+-- (identificado por teléfono normalizado, único dato fiable para
+-- deduplicar y para poder escribirle por WhatsApp).
+-- ============================================================
+
+create table if not exists public.promo_otorgadas (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  regla_id uuid not null references public.promo_reglas (id),
+
+  cliente_key text not null,
+  cliente_nombre text not null,
+  cliente_telefono text,
+  cliente_email text,
+
+  valor_disparador numeric not null,
+  mensaje text not null,
+
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'canjeada')),
+  email_enviado_at timestamptz,
+  whatsapp_enviado_at timestamptz,
+  canjeada_at timestamptz,
+
+  created_at timestamptz not null default now(),
+
+  constraint promo_otorgadas_unica unique (regla_id, cliente_key)
+);
+
+alter table public.promo_otorgadas enable row level security;
+
+drop policy if exists "promo_otorgadas_select_admin" on public.promo_otorgadas;
+create policy "promo_otorgadas_select_admin" on public.promo_otorgadas for select
+  to authenticated using (is_developer() or cliente_id = mi_cliente_id());
+
+-- Sin policy de insert: los crea siempre evaluar_promo_reglas() (security
+-- definer), igual que pedidos/reservas solo se crean vía RPC.
+
+drop policy if exists "promo_otorgadas_update_admin" on public.promo_otorgadas;
+create policy "promo_otorgadas_update_admin" on public.promo_otorgadas for update
+  to authenticated using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "promo_otorgadas_delete_admin" on public.promo_otorgadas;
+create policy "promo_otorgadas_delete_admin" on public.promo_otorgadas for delete
+  to authenticated using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_promo_otorgadas_estado on public.promo_otorgadas (cliente_id, estado);
+create index if not exists idx_promo_otorgadas_cliente_key on public.promo_otorgadas (cliente_key);
+
+-- ============================================================
+-- Motor de evaluación: se llama desde triggers de pedidos/reservas.
+-- ============================================================
+
+create or replace function public.normalizar_telefono(p_telefono text)
+returns text
+language sql immutable
+as $$
+  select nullif(regexp_replace(regexp_replace(coalesce(p_telefono, ''), '\D', '', 'g'), '^34', ''), '');
+$$;
+
+-- Uso interno (llamada solo desde los triggers de pedidos/reservas más
+-- abajo). Al ser SECURITY DEFINER y devolver void (no "trigger"),
+-- PostgREST la expondría por defecto como RPC pública en
+-- /rest/v1/rpc/evaluar_promo_reglas, lo que permitiría a cualquiera
+-- (incluso anon) forzar la creación de promo_otorgadas con un
+-- cliente_id/teléfono arbitrarios — se revoca el EXECUTE público justo
+-- después de crearla (mismo motivo que get_pedidos_by_device).
+create or replace function public.evaluar_promo_reglas(p_cliente_id uuid, p_telefono text, p_nombre text, p_email text)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_key text;
+  v_regla record;
+  v_gasto numeric;
+  v_num_pedidos integer;
+  v_valor numeric;
+  v_recompensa_texto text;
+  v_mensaje text;
+  v_negocio text;
+begin
+  v_key := public.normalizar_telefono(p_telefono);
+  if v_key is null then
+    return;
+  end if;
+
+  select nombre_negocio into v_negocio from public.clientes where id = p_cliente_id;
+
+  for v_regla in
+    select * from public.promo_reglas
+    where cliente_id = p_cliente_id and activo = true
+  loop
+    if exists (
+      select 1 from public.promo_otorgadas
+      where regla_id = v_regla.id and cliente_key = v_key
+    ) then
+      continue;
+    end if;
+
+    if v_regla.tipo_condicion = 'gasto_total' then
+      select coalesce(sum(importe_estimado), 0) into v_gasto
+      from (
+        select importe_estimado from public.pedidos
+        where cliente_id = p_cliente_id and estado <> 'cancelado'
+          and public.normalizar_telefono(cliente_telefono) = v_key
+        union all
+        select importe_estimado from public.reservas
+        where cliente_id = p_cliente_id and estado <> 'cancelada'
+          and public.normalizar_telefono(cliente_telefono) = v_key
+      ) t;
+
+      if v_gasto < v_regla.umbral then
+        continue;
+      end if;
+      v_valor := v_gasto;
+
+    elsif v_regla.tipo_condicion = 'num_pedidos' then
+      select count(*) into v_num_pedidos
+      from public.pedidos
+      where cliente_id = p_cliente_id and estado <> 'cancelado'
+        and public.normalizar_telefono(cliente_telefono) = v_key
+        and importe_estimado >= v_regla.importe_min_pedido;
+
+      if v_num_pedidos < v_regla.umbral then
+        continue;
+      end if;
+      v_valor := v_num_pedidos;
+    end if;
+
+    if v_regla.tipo_recompensa = 'producto_gratis' then
+      select nombre_es into v_recompensa_texto from public.productos where id = v_regla.producto_id;
+      v_recompensa_texto := coalesce(v_recompensa_texto, 'un producto') || ' gratis';
+    elsif v_regla.tipo_recompensa = 'descuento_eur' then
+      v_recompensa_texto := v_regla.valor_recompensa::text || '€ de descuento en tu próximo pedido';
+    else
+      v_recompensa_texto := v_regla.valor_recompensa::text || '% de descuento en tu próximo pedido';
+    end if;
+
+    v_mensaje := replace(replace(replace(v_regla.mensaje_plantilla,
+      '{{cliente_nombre}}', coalesce(nullif(trim(p_nombre), ''), 'cliente')),
+      '{{recompensa}}', v_recompensa_texto),
+      '{{negocio}}', coalesce(v_negocio, 'nuestra pescadería'));
+
+    insert into public.promo_otorgadas (
+      cliente_id, regla_id, cliente_key, cliente_nombre, cliente_telefono, cliente_email,
+      valor_disparador, mensaje
+    ) values (
+      p_cliente_id, v_regla.id, v_key, coalesce(nullif(trim(p_nombre), ''), 'Sin nombre'), v_key, p_email,
+      v_valor, v_mensaje
+    )
+    on conflict (regla_id, cliente_key) do nothing;
+  end loop;
+end;
+$$;
+
+revoke all on function public.evaluar_promo_reglas(uuid, text, text, text) from public, anon, authenticated;
+
+create or replace function public.trg_evaluar_promo_pedido()
+returns trigger as $$
+begin
+  perform public.evaluar_promo_reglas(new.cliente_id, new.cliente_telefono, new.cliente_nombre, new.cliente_email);
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+revoke all on function public.trg_evaluar_promo_pedido() from public, anon, authenticated;
+
+drop trigger if exists trg_pedidos_promo_evaluar on public.pedidos;
+create trigger trg_pedidos_promo_evaluar
+  after insert or update of estado, importe_estimado on public.pedidos
+  for each row execute function public.trg_evaluar_promo_pedido();
+
+create or replace function public.trg_evaluar_promo_reserva()
+returns trigger as $$
+begin
+  perform public.evaluar_promo_reglas(new.cliente_id, new.cliente_telefono, new.cliente_nombre, new.cliente_email);
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+revoke all on function public.trg_evaluar_promo_reserva() from public, anon, authenticated;
+
+drop trigger if exists trg_reservas_promo_evaluar on public.reservas;
+create trigger trg_reservas_promo_evaluar
+  after insert or update of estado, importe_estimado on public.reservas
+  for each row execute function public.trg_evaluar_promo_reserva();
+
+-- ============================================================
+-- Aviso automático por email cuando se concede una promoción (filtra por
+-- cliente_id, a diferencia del bug conocido en notificar_pedido_estado,
+-- ver comentario allí).
+-- ============================================================
+
+create or replace function public.notificar_promo_otorgada()
+returns trigger as $$
+declare
+  v_url text;
+  v_secret text;
+begin
+  if new.cliente_email is not null then
+    select value #>> '{}' into v_url from public.settings
+      where key = 'promo_notify_url' and cliente_id = new.cliente_id;
+    select value #>> '{}' into v_secret from public.settings
+      where key = 'promo_notify_secret' and cliente_id = new.cliente_id;
+
+    if v_url is not null then
+      perform net.http_post(
+        url := v_url,
+        headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', coalesce(v_secret, '')),
+        body := jsonb_build_object(
+          'otorgada_id', new.id,
+          'cliente_nombre', new.cliente_nombre,
+          'cliente_email', new.cliente_email,
+          'mensaje', new.mensaje
+        )
+      );
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public, extensions;
+
+revoke all on function public.notificar_promo_otorgada() from public, anon, authenticated;
+
+drop trigger if exists trg_promo_otorgadas_notificar on public.promo_otorgadas;
+create trigger trg_promo_otorgadas_notificar
+  after insert on public.promo_otorgadas
+  for each row execute function public.notificar_promo_otorgada();
+
+-- ============================================================
 -- Realtime: el panel de gestión (usePedidos, useReservas, useResenas,
 -- useProductos, useNewsletter, useReservasEventos, useReservasAjustes,
 -- useSolicitudesStock, useCaja) se suscribe a estas tablas con Postgres Changes
@@ -1463,7 +1759,8 @@ begin
     'pedidos', 'reservas', 'reservas_eventos', 'reservas_ajustes',
     'resenas', 'newsletter_subscribers', 'productos', 'solicitudes_stock',
     'bascula_ventas',
-    'caja_movimientos'
+    'caja_movimientos',
+    'promo_reglas', 'promo_otorgadas'
   ]
   loop
     if not exists (
