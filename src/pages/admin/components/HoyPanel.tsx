@@ -18,6 +18,13 @@ function formatKg(n: number): string {
   return `${Math.round(n * 100) / 100} kg`;
 }
 
+function getInitials(nombre: string): string {
+  const palabras = nombre.trim().split(/\s+/).filter(Boolean);
+  if (palabras.length === 0) return '?';
+  if (palabras.length === 1) return palabras[0].slice(0, 2).toUpperCase();
+  return `${palabras[0][0]}${palabras[1][0]}`.toUpperCase();
+}
+
 interface PrepararItem {
   nombre: string;
   kg: number;
@@ -89,6 +96,40 @@ function StatTile({
         </span>
       </div>
     </button>
+  );
+}
+
+function MethodBadge({ tipo, metodoEntrega }: { tipo: 'pedido' | 'reserva'; metodoEntrega?: Pedido['metodo_entrega'] }) {
+  if (tipo === 'reserva') {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 flex-shrink-0">
+        <i className="ri-calendar-check-line text-[11px]"></i>
+        Reserva
+      </span>
+    );
+  }
+  const isHome = metodoEntrega === 'home';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+        isHome ? 'bg-blue-50 text-blue-700' : 'bg-background-100 text-foreground-500'
+      }`}
+    >
+      <i className={`${isHome ? 'ri-truck-line' : 'ri-store-2-line'} text-[11px]`}></i>
+      {isHome ? 'A domicilio' : 'Recogida'}
+    </span>
+  );
+}
+
+function ProductoTile({ nombre, kg, pct }: { nombre: string; kg: number; pct: number }) {
+  return (
+    <div className="relative overflow-hidden bg-background-100/60 border border-background-200/50 rounded-lg px-3 py-2">
+      <div className="absolute inset-y-0 left-0 bg-primary-100/70" style={{ width: `${pct}%` }} aria-hidden="true"></div>
+      <div className="relative flex items-center justify-between gap-2">
+        <span className="text-xs text-foreground-700 truncate">{nombre}</span>
+        <span className="text-xs font-semibold text-foreground-950 tabular-nums flex-shrink-0">{formatKg(kg)}</span>
+      </div>
+    </div>
   );
 }
 
@@ -210,6 +251,8 @@ export default function HoyPanel({
       .sort((a, b) => b.kg - a.kg);
   }, [prepararHoy]);
 
+  const maxPorProductoHoy = useMemo(() => porProductoHoy.reduce((max, r) => Math.max(max, r.kg), 0), [porProductoHoy]);
+
   if (loading) {
     return (
       <div className="px-4 md:px-8 py-6">
@@ -243,44 +286,47 @@ export default function HoyPanel({
         {prepararHoy.length === 0 ? (
           <p className="text-sm text-foreground-400">No hay pedidos ni reservas para hoy.</p>
         ) : (
-          <div className="space-y-2">
-            {prepararHoy.map((entry) => (
+          <div>
+            {prepararHoy.map((entry, idx) => (
               <div key={entry.id} className="flex gap-3">
-                <div className="w-14 sm:w-16 flex-shrink-0 pt-3 text-right">
+                <div className="w-14 sm:w-16 flex-shrink-0 pt-3.5 text-right">
                   <span className={`text-xs font-semibold tabular-nums ${entry.hora ? 'text-foreground-700' : 'text-foreground-300'}`}>
                     {entry.hora || (entry.tipo === 'reserva' ? 'Reserva' : 'Sin hora')}
                   </span>
                 </div>
-                <div className="flex-1 min-w-0 bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 px-3.5 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-foreground-950 truncate">{entry.cliente}</p>
-                        {entry.tipo === 'pedido' ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-foreground-400 flex-shrink-0">
-                            <i className={entry.metodoEntrega === 'home' ? 'ri-truck-line' : 'ri-store-2-line'}></i>
-                            {entry.metodoEntrega === 'home' ? 'A domicilio' : 'Recogida en tienda'}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-foreground-400 flex-shrink-0">
-                            <i className="ri-calendar-check-line"></i>
-                            Reserva de evento
-                          </span>
-                        )}
+
+                <div className="relative flex-shrink-0 w-4 flex justify-center">
+                  {idx !== 0 && <span className="absolute top-0 h-4 w-px bg-background-200" aria-hidden="true"></span>}
+                  {idx !== prepararHoy.length - 1 && <span className="absolute top-4 bottom-0 w-px bg-background-200" aria-hidden="true"></span>}
+                  <span className="relative z-10 mt-[18px] w-2.5 h-2.5 rounded-full bg-primary-400 ring-4 ring-background-50 flex-shrink-0"></span>
+                </div>
+
+                <div className="flex-1 min-w-0 bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 px-3.5 py-3 mb-2.5">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-primary-50 text-primary-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                      {getInitials(entry.cliente)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-foreground-950 truncate">{entry.cliente}</p>
+                          <MethodBadge tipo={entry.tipo} metodoEntrega={entry.metodoEntrega} />
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-sm font-semibold text-foreground-950 tabular-nums">{formatKg(entry.kgTotal)}</span>
+                          <ContactoRapido telefono={entry.telefono} />
+                        </div>
                       </div>
-                      <div className="mt-1.5 space-y-0.5">
-                        {entry.items.map((item, idx) => (
-                          <p key={idx} className="text-xs text-foreground-600">
-                            {formatKg(item.kg)} — {item.nombre}
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {entry.items.map((item, itemIdx) => (
+                          <span key={itemIdx} className="inline-flex items-center gap-1 text-[11px] text-foreground-600 bg-background-100 rounded-md px-2 py-1">
+                            <span className="font-semibold text-foreground-900 tabular-nums">{formatKg(item.kg)}</span>
+                            {item.nombre}
                             {item.preparacion && item.preparacion !== 'whole' ? ` (${item.preparacion})` : ''}
-                            {item.nota ? ` — "${item.nota}"` : ''}
-                          </p>
+                            {item.nota ? <span className="italic text-foreground-400"> — "{item.nota}"</span> : null}
+                          </span>
                         ))}
                       </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      <span className="text-sm font-semibold text-foreground-950 tabular-nums">{formatKg(entry.kgTotal)}</span>
-                      <ContactoRapido telefono={entry.telefono} />
                     </div>
                   </div>
                 </div>
@@ -289,7 +335,8 @@ export default function HoyPanel({
           </div>
         )}
         {(prepararOtrosDias.pedidos > 0 || prepararOtrosDias.reservas > 0) && (
-          <p className="text-xs text-foreground-400 mt-3">
+          <p className="flex items-center gap-1.5 text-xs text-foreground-400 mt-1">
+            <i className="ri-time-line"></i>
             Además hay
             {prepararOtrosDias.pedidos > 0 && ` ${prepararOtrosDias.pedidos} pedido${prepararOtrosDias.pedidos === 1 ? '' : 's'}`}
             {prepararOtrosDias.pedidos > 0 && prepararOtrosDias.reservas > 0 && ' y'}
@@ -298,13 +345,17 @@ export default function HoyPanel({
           </p>
         )}
         {porProductoHoy.length > 0 && (
-          <div className="mt-4 pt-3 border-t border-background-200/70">
-            <p className="text-[10px] uppercase tracking-wide text-foreground-400 mb-1.5">Total por producto hoy (para la lonja)</p>
-            <div className="flex flex-wrap gap-1.5">
+          <div className="mt-5 pt-4 border-t border-background-200/70">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-foreground-400">
+                <i className="ri-shopping-basket-2-line"></i>
+                Total por producto hoy
+              </p>
+              <p className="text-[10px] text-foreground-300">para comprar en la lonja</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {porProductoHoy.map((row) => (
-                <span key={row.nombre} className="inline-flex items-center gap-1 text-[11px] text-foreground-600 bg-background-100 rounded-full px-2.5 py-1">
-                  {row.nombre} <span className="font-semibold text-foreground-800">{formatKg(row.kg)}</span>
-                </span>
+                <ProductoTile key={row.nombre} nombre={row.nombre} kg={row.kg} pct={maxPorProductoHoy > 0 ? Math.max((row.kg / maxPorProductoHoy) * 100, 8) : 0} />
               ))}
             </div>
           </div>
