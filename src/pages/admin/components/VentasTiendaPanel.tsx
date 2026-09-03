@@ -5,11 +5,24 @@ import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/ori
 import OrigenBadge from '@/components/base/OrigenBadge';
 
 type Filtro = 'todas' | Origen;
+type Periodo = 'dia' | 'mes' | 'anio';
 
 function formatFechaLarga(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
   const date = new Date(y, m - 1, d);
   const texto = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+function isoDeFecha(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatMesAnio(d: Date): string {
+  const texto = d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
@@ -344,9 +357,65 @@ function DiaRow({
   );
 }
 
+// Fila resumen de un mes completo (vista "Año"): a diferencia de DiaRow no
+// se despliega in situ, pulsarla lleva directamente a la vista "Mes" de ese
+// mes para ver el detalle día a día.
+function MesRow({
+  anio,
+  mes,
+  numTickets,
+  totalPeso,
+  totalImporte,
+  porTienda,
+  filtro,
+  onClick,
+}: {
+  anio: number;
+  mes: number;
+  numTickets: number;
+  totalPeso: number;
+  totalImporte: number;
+  porTienda: Map<Origen, number>;
+  filtro: Filtro;
+  onClick: () => void;
+}) {
+  const etiqueta = formatMesAnio(new Date(anio, mes - 1, 1));
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:bg-background-100/60 transition-colors text-left"
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-foreground-950">{etiqueta}</p>
+        <p className="text-xs text-foreground-400 mt-0.5">
+          {numTickets} ticket{numTickets === 1 ? '' : 's'}
+          {totalPeso ? ` · ${totalPeso.toFixed(2)} kg vendidos a peso` : ''}
+        </p>
+        {filtro === 'todas' && porTienda.size > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {Array.from(porTienda.entries()).map(([origen, importe]) => (
+              <span key={origen} className="inline-flex items-center gap-1 text-[11px]">
+                <OrigenBadge origen={origen} />
+                <span className="font-medium text-foreground-600">{formatPrecio(importe)}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <span className="text-sm font-semibold text-foreground-950 tabular-nums">{formatPrecio(totalImporte)}</span>
+        <i className="ri-arrow-right-s-line text-foreground-400"></i>
+      </div>
+    </button>
+  );
+}
+
 export default function VentasTiendaPanel() {
   const { dias, porTienda, loading } = useBasculaVentasDiarias();
   const [filtro, setFiltro] = useState<Filtro>('todas');
+  const [periodo, setPeriodo] = useState<Periodo>('dia');
+  const [cursor, setCursor] = useState<Date>(() => new Date());
 
   const porTiendaPorFecha = useMemo(() => {
     const map = new Map<string, BasculaVentaDiariaPorTienda[]>();
@@ -361,7 +430,7 @@ export default function VentasTiendaPanel() {
   // "Todas": los días combinados tal cual vienen de la vista. Con un
   // origen concreto: se reconstruye la lista a partir del desglose por
   // tienda, mostrando solo los días en los que esa tienda vendió algo.
-  const diasVisibles = useMemo(() => {
+  const diasTienda = useMemo(() => {
     if (filtro === 'todas')
       return dias.map((d) => ({ fecha: d.fecha, numTickets: d.num_tickets, totalPeso: d.total_peso_kg, totalPiezas: d.total_piezas_un, totalImporte: d.total_importe }));
     return porTienda
@@ -369,9 +438,19 @@ export default function VentasTiendaPanel() {
       .map((t) => ({ fecha: t.fecha, numTickets: t.num_tickets, totalPeso: t.total_peso_kg, totalPiezas: t.total_piezas_un, totalImporte: t.total_importe }));
   }, [filtro, dias, porTienda]);
 
+  // Además del filtro por tienda, se acota a día/mes/año concreto según el
+  // selector de periodo, para que el listado no sea un histórico infinito.
+  const diasPeriodo = useMemo(() => {
+    const anio = cursor.getFullYear();
+    const mesPrefijo = `${anio}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+    if (periodo === 'dia') return diasTienda.filter((d) => d.fecha === isoDeFecha(cursor));
+    if (periodo === 'mes') return diasTienda.filter((d) => d.fecha.startsWith(mesPrefijo));
+    return diasTienda.filter((d) => d.fecha.startsWith(`${anio}-`));
+  }, [diasTienda, periodo, cursor]);
+
   const totales = useMemo(() => {
     const base = { importe: 0, peso: 0, piezas: 0, tickets: 0 };
-    return diasVisibles.reduce(
+    return diasPeriodo.reduce(
       (acc, d) => ({
         importe: acc.importe + d.totalImporte,
         peso: acc.peso + (d.totalPeso ?? 0),
@@ -380,14 +459,59 @@ export default function VentasTiendaPanel() {
       }),
       base,
     );
-  }, [diasVisibles]);
+  }, [diasPeriodo]);
 
-  const rangoFechas = useMemo(() => {
-    const fechas = diasVisibles.map((d) => d.fecha).sort();
-    if (fechas.length === 0) return '';
-    if (fechas.length === 1) return formatFechaLarga(fechas[0]);
-    return `${formatFechaLarga(fechas[0])} — ${formatFechaLarga(fechas[fechas.length - 1])}`;
-  }, [diasVisibles]);
+  const etiquetaPeriodo = useMemo(() => {
+    if (periodo === 'dia') return formatFechaLarga(isoDeFecha(cursor));
+    if (periodo === 'mes') return formatMesAnio(cursor);
+    return String(cursor.getFullYear());
+  }, [periodo, cursor]);
+
+  const esPeriodoActual = useMemo(() => {
+    const ahora = new Date();
+    if (periodo === 'dia') return isoDeFecha(cursor) === isoDeFecha(ahora);
+    if (periodo === 'mes') return cursor.getFullYear() === ahora.getFullYear() && cursor.getMonth() === ahora.getMonth();
+    return cursor.getFullYear() === ahora.getFullYear();
+  }, [periodo, cursor]);
+
+  const moverPeriodo = (delta: number) => {
+    setCursor((prev) => {
+      const d = new Date(prev);
+      if (periodo === 'dia') d.setDate(d.getDate() + delta);
+      else if (periodo === 'mes') d.setMonth(d.getMonth() + delta);
+      else d.setFullYear(d.getFullYear() + delta);
+      return d;
+    });
+  };
+
+  // Vista "Año": se agregan los días visibles por mes para mostrar un
+  // listado corto (máx. 12 filas) en vez de todos los días del año.
+  const mesesDelAnio = useMemo(() => {
+    if (periodo !== 'anio') return [];
+    const map = new Map<
+      string,
+      { anio: number; mes: number; numTickets: number; totalPeso: number; totalImporte: number; porTienda: Map<Origen, number> }
+    >();
+    diasPeriodo.forEach((d) => {
+      const mesKey = d.fecha.slice(0, 7);
+      const [anio, mes] = mesKey.split('-').map(Number);
+      const tiendasDia = porTiendaPorFecha.get(d.fecha) ?? [];
+      const actual = map.get(mesKey);
+      if (actual) {
+        actual.numTickets += d.numTickets;
+        actual.totalPeso += d.totalPeso ?? 0;
+        actual.totalImporte += d.totalImporte;
+        tiendasDia.forEach((t) => actual.porTienda.set(t.origen, (actual.porTienda.get(t.origen) ?? 0) + t.total_importe));
+      } else {
+        const porTiendaMes = new Map<Origen, number>();
+        tiendasDia.forEach((t) => porTiendaMes.set(t.origen, t.total_importe));
+        map.set(mesKey, { anio, mes, numTickets: d.numTickets, totalPeso: d.totalPeso ?? 0, totalImporte: d.totalImporte, porTienda: porTiendaMes });
+      }
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([, v]) => v);
+  }, [periodo, diasPeriodo, porTiendaPorFecha]);
 
   const [resumenAbierto, setResumenAbierto] = useState(false);
   const [resumenProductos, setResumenProductos] = useState<BasculaVentaResumenProducto[] | null>(null);
@@ -396,13 +520,13 @@ export default function VentasTiendaPanel() {
   // Se carga en cuanto hay días visibles (no solo al abrir el modal) para
   // poder alimentar también el ranking de "Top productos" siempre visible.
   useEffect(() => {
-    if (diasVisibles.length === 0) {
+    if (diasPeriodo.length === 0) {
       setResumenProductos([]);
       return;
     }
     let cancelado = false;
     setResumenCargando(true);
-    const fechas = diasVisibles.map((d) => d.fecha);
+    const fechas = diasPeriodo.map((d) => d.fecha);
     fetchBasculaVentasResumenProductos(fechas, filtro === 'todas' ? null : filtro).then((data) => {
       if (cancelado) return;
       setResumenProductos(data);
@@ -411,7 +535,7 @@ export default function VentasTiendaPanel() {
     return () => {
       cancelado = true;
     };
-  }, [diasVisibles, filtro]);
+  }, [diasPeriodo, filtro]);
 
   const { topKg, topPiezas } = useMemo(() => {
     const ordenado = [...(resumenProductos ?? [])].sort((a, b) => b.cantidad - a.cantidad);
@@ -452,7 +576,46 @@ export default function VentasTiendaPanel() {
         })}
       </div>
 
-      {!loading && diasVisibles.length > 0 && (
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          {(['dia', 'mes', 'anio'] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPeriodo(p)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                periodo === p ? 'bg-foreground-950 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70 border border-background-200/70'
+              }`}
+            >
+              {p === 'dia' ? 'Día' : p === 'mes' ? 'Mes' : 'Año'}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => moverPeriodo(-1)}
+            className="w-7 h-7 flex items-center justify-center rounded-full border border-background-200/70 bg-background-50 text-foreground-500 hover:bg-background-100"
+          >
+            <i className="ri-arrow-left-s-line"></i>
+          </button>
+          <span className="text-sm font-medium text-foreground-950 min-w-[130px] text-center capitalize">{etiquetaPeriodo}</span>
+          <button
+            type="button"
+            onClick={() => moverPeriodo(1)}
+            className="w-7 h-7 flex items-center justify-center rounded-full border border-background-200/70 bg-background-50 text-foreground-500 hover:bg-background-100"
+          >
+            <i className="ri-arrow-right-s-line"></i>
+          </button>
+          {!esPeriodoActual && (
+            <button type="button" onClick={() => setCursor(new Date())} className="ml-1 text-xs font-medium text-primary-600 hover:underline">
+              Hoy
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!loading && diasPeriodo.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           <StatTile label="Facturado" valor={formatPrecio(totales.importe)} icon="ri-money-euro-circle-line" />
           <StatTile label="Kg a peso" valor={`${totales.peso.toFixed(2)} kg`} icon="ri-scales-3-line" onClick={() => setResumenAbierto(true)} />
@@ -470,11 +633,30 @@ export default function VentasTiendaPanel() {
 
       {loading ? (
         <p className="text-sm text-foreground-400">Cargando…</p>
-      ) : diasVisibles.length === 0 ? (
-        <p className="text-sm text-foreground-400">Todavía no hay ventas registradas{filtro !== 'todas' ? ` en ${ORIGEN_LABELS[filtro]}` : ''}.</p>
+      ) : diasPeriodo.length === 0 ? (
+        <p className="text-sm text-foreground-400">Sin ventas registradas{filtro !== 'todas' ? ` en ${ORIGEN_LABELS[filtro]}` : ''} para este periodo.</p>
+      ) : periodo === 'anio' ? (
+        <div className="space-y-2">
+          {mesesDelAnio.map((m) => (
+            <MesRow
+              key={`${m.anio}-${m.mes}`}
+              anio={m.anio}
+              mes={m.mes}
+              numTickets={m.numTickets}
+              totalPeso={m.totalPeso}
+              totalImporte={m.totalImporte}
+              porTienda={m.porTienda}
+              filtro={filtro}
+              onClick={() => {
+                setCursor(new Date(m.anio, m.mes - 1, 1));
+                setPeriodo('mes');
+              }}
+            />
+          ))}
+        </div>
       ) : (
         <div className="space-y-2">
-          {diasVisibles.map((d) => (
+          {diasPeriodo.map((d) => (
             <DiaRow
               key={d.fecha}
               fecha={d.fecha}
@@ -493,7 +675,7 @@ export default function VentasTiendaPanel() {
           onClose={() => setResumenAbierto(false)}
           cargando={resumenCargando}
           productos={resumenProductos}
-          subtitulo={`${filtro === 'todas' ? 'Todas las tiendas' : ORIGEN_LABELS[filtro]} · ${rangoFechas}`}
+          subtitulo={`${filtro === 'todas' ? 'Todas las tiendas' : ORIGEN_LABELS[filtro]} · ${etiquetaPeriodo}`}
         />
       )}
     </div>
