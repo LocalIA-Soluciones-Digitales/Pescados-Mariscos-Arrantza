@@ -280,7 +280,7 @@ export default function Reservas() {
   return (
     <>
       <Navbar />
-      <main className="pt-16 md:pt-20 min-h-screen bg-background-50">
+      <main id="main-content" className="pt-16 md:pt-20 min-h-screen bg-background-50">
         {loading ? (
           <div className="container-wide px-4 md:px-6 lg:px-12 py-24 text-center text-sm text-foreground-400">Cargando…</div>
         ) : !evento ? (
@@ -461,6 +461,14 @@ export default function Reservas() {
                     />
 
                     {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
+                    <p className="text-[11px] text-foreground-400 leading-relaxed">
+                      {t('reservas.form_privacy_pre')}{' '}
+                      <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground-600">
+                        {t('reservas.form_privacy_link')}
+                      </a>
+                      .
+                    </p>
 
                     <button
                       type="button"

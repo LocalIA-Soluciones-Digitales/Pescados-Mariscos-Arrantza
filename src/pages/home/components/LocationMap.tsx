@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { logConversion } from '@/lib/visitLog';
@@ -6,6 +7,11 @@ export default function LocationMap() {
   const { t } = useTranslation();
   const weekdayTimes = t('location.hours.weekday.time').split(' · ');
   const { ref, isVisible } = useScrollAnimation();
+  // El iframe de Google Maps no se carga hasta que el usuario lo pide:
+  // evita enviar su IP a Google en cada visita a la portada (ver informe
+  // de auditoría legal). El resto del sitio no hace ninguna petición a
+  // terceros sin esta misma condición.
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   return (
     <section id="location" className="section-padding bg-background-50">
@@ -85,18 +91,30 @@ export default function LocationMap() {
           </div>
 
           {/* Map */}
-          <div className="lg:col-span-3 rounded-lg overflow-hidden h-[350px] sm:h-[400px] lg:h-auto min-h-[300px]">
-            <iframe
-              src="https://www.google.com/maps?q=Pescados+y+Mariscos+Arrantza,+Jesus+Aranburu+Kalea,+1,+48950+Altzaga,+Biscay&ftid=0xd4e5a88380885e5:0x34c6512b6d44913&output=embed"
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              title="Pescados y Mariscos Arrantza - Ubicación en Erandio"
-              aria-label="Mapa de ubicación oficial de Pescados y Mariscos Arrantza en Erandio con información del negocio"
-            ></iframe>
+          <div className="lg:col-span-3 rounded-lg overflow-hidden h-[350px] sm:h-[400px] lg:h-auto min-h-[300px] bg-background-200/50">
+            {mapLoaded ? (
+              <iframe
+                src="https://www.google.com/maps?q=Pescados+y+Mariscos+Arrantza,+Jesus+Aranburu+Kalea,+1,+48950+Altzaga,+Biscay&ftid=0xd4e5a88380885e5:0x34c6512b6d44913&output=embed"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Pescados y Mariscos Arrantza - Ubicación en Erandio"
+                aria-label="Mapa de ubicación oficial de Pescados y Mariscos Arrantza en Erandio con información del negocio"
+              ></iframe>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setMapLoaded(true)}
+                className="w-full h-full flex flex-col items-center justify-center gap-3 text-foreground-500 hover:text-foreground-700 hover:bg-background-200/70 transition-colors duration-300 cursor-pointer"
+              >
+                <i className="ri-map-2-line text-3xl"></i>
+                <span className="text-sm font-medium">{t('location.map.load_cta')}</span>
+                <span className="text-[11px] text-foreground-400 max-w-[260px] text-center leading-relaxed">{t('location.map.load_note')}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

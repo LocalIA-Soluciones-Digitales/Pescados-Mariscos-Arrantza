@@ -1445,9 +1445,12 @@ export default function CartDrawer({
                     </h3>
                     <div className="space-y-3">
                       <div id="checkout-field-name">
+                        <label htmlFor="checkout-input-name" className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
+                          {t('cart.customer_name_label')}
+                        </label>
                         <input
+                          id="checkout-input-name"
                           type="text"
-                          aria-label={t('cart.customer_name_placeholder')}
                           placeholder={t('cart.customer_name_placeholder')}
                           value={customer.name}
                           onChange={e => {
@@ -1468,9 +1471,12 @@ export default function CartDrawer({
                         )}
                       </div>
                       <div id="checkout-field-phone">
+                        <label htmlFor="checkout-input-phone" className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
+                          {t('cart.customer_phone_label')}
+                        </label>
                         <input
+                          id="checkout-input-phone"
                           type="text"
-                          aria-label={t('cart.customer_phone_placeholder')}
                           placeholder={t('cart.customer_phone_placeholder')}
                           value={customer.phone}
                           onChange={e => {
@@ -1493,22 +1499,32 @@ export default function CartDrawer({
                       <p className="text-[10px] text-foreground-400 mt-1">
                         {t('cart.customer_phone_hint')}
                       </p>
-                      <input
-                        type="email"
-                        aria-label={t('checkout.customer_email_placeholder')}
-                        placeholder={t('checkout.customer_email_placeholder')}
-                        value={customer.email}
-                        onChange={e => onCustomerChange('email', e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-primary-300/60 focus:ring-1 focus:ring-primary-200/40 transition-all duration-200"
-                      />
-                      <input
-                        type="text"
-                        aria-label={t('cart.customer_business_placeholder')}
-                        placeholder={t('cart.customer_business_placeholder')}
-                        value={customer.business}
-                        onChange={e => onCustomerChange('business', e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-primary-300/60 focus:ring-1 focus:ring-primary-200/40 transition-all duration-200"
-                      />
+                      <div>
+                        <label htmlFor="checkout-input-email" className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
+                          {t('cart.customer_email_label')}
+                        </label>
+                        <input
+                          id="checkout-input-email"
+                          type="email"
+                          placeholder={t('checkout.customer_email_placeholder')}
+                          value={customer.email}
+                          onChange={e => onCustomerChange('email', e.target.value)}
+                          className="w-full px-3.5 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-primary-300/60 focus:ring-1 focus:ring-primary-200/40 transition-all duration-200"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="checkout-input-business" className="block text-[10px] uppercase tracking-wider text-foreground-400 mb-1.5">
+                          {t('cart.customer_business_label')}
+                        </label>
+                        <input
+                          id="checkout-input-business"
+                          type="text"
+                          placeholder={t('cart.customer_business_placeholder')}
+                          value={customer.business}
+                          onChange={e => onCustomerChange('business', e.target.value)}
+                          className="w-full px-3.5 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-primary-300/60 focus:ring-1 focus:ring-primary-200/40 transition-all duration-200"
+                        />
+                      </div>
                     </div>
                   </div>
 

@@ -67,6 +67,12 @@ export default function Navbar() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50" data-scrolled={showDark}>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:bg-primary-500 focus:text-background-50 focus:px-4 focus:py-2 focus:rounded-full focus:text-sm focus:font-medium"
+      >
+        {t('common.skip_to_content')}
+      </a>
       {/* backdrop-blur-md below establishes a containing block for `position: fixed`
           descendants (same as transform/filter), so it must not wrap the mobile
           menu overlay — otherwise that overlay positions against this row instead

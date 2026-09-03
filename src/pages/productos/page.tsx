@@ -1600,7 +1600,7 @@ export default function Productos() {
           </button>
         </div>
       )}
-      <main>
+      <main id="main-content">
         <CompactHero />
         <StickyToolbar
           searchQuery={searchQuery}

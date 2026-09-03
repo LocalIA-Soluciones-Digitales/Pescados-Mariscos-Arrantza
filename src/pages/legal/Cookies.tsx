@@ -8,7 +8,7 @@ export default function Cookies() {
   return (
     <>
       <Navbar />
-      <main className="bg-background-50 pt-28 md:pt-32 pb-16 md:pb-24">
+      <main id="main-content" className="bg-background-50 pt-28 md:pt-32 pb-16 md:pb-24">
         <div className="container-wide px-4 md:px-6 lg:px-12 max-w-3xl mx-auto">
           <h1 className="text-2xl md:text-3xl font-heading font-semibold text-foreground-950 mb-8">
             {t('footer.cookies')}
@@ -89,6 +89,7 @@ export default function Cookies() {
                 </table>
               </div>
               <p className="mt-3 text-xs text-foreground-400">{t('legal.cookies.s2b.note')}</p>
+              <p className="mt-1 text-xs text-foreground-400">{t('legal.cookies.maps_note')}</p>
             </section>
 
             <section>

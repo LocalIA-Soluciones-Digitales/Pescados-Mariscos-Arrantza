@@ -20,7 +20,7 @@ export default function Home() {
     <>
       <Navbar />
       <ReservasPopup />
-      <main>
+      <main id="main-content">
         <Hero />
         <AvailableToday />
         <ReservasBanner />

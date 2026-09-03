@@ -566,6 +566,14 @@ function ContactForm() {
                 <i className="ri-arrow-right-line"></i>
               </span>
             </button>
+
+            <p className="text-xs text-foreground-400 leading-relaxed">
+              {t('pro.form.privacy_pre')}{' '}
+              <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground-600">
+                {t('pro.form.privacy_link')}
+              </a>
+              .
+            </p>
           </form>
         )}
       </div>
@@ -624,7 +632,7 @@ export default function Profesionales() {
   return (
     <>
       <Navbar />
-      <main className={`transition-all duration-[600ms] ease-out ${visible ? 'opacity-100' : 'opacity-0'}`}>
+      <main id="main-content" className={`transition-all duration-[600ms] ease-out ${visible ? 'opacity-100' : 'opacity-0'}`}>
         <HeroSection />
         <BusinessCards />
         <DailySelection />

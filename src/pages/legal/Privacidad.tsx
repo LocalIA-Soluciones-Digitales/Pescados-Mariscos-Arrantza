@@ -8,7 +8,7 @@ export default function Privacidad() {
   return (
     <>
       <Navbar />
-      <main className="bg-background-50 pt-28 md:pt-32 pb-16 md:pb-24">
+      <main id="main-content" className="bg-background-50 pt-28 md:pt-32 pb-16 md:pb-24">
         <div className="container-wide px-4 md:px-6 lg:px-12 max-w-3xl mx-auto">
           <h1 className="text-2xl md:text-3xl font-heading font-semibold text-foreground-950 mb-8">
             {t('legal.privacidad.page_title')}
@@ -22,6 +22,9 @@ export default function Privacidad() {
               <p>{t('legal.privacidad.s1.p')}</p>
               <ul className="mt-2 space-y-1">
                 <li><strong>{t('legal.aviso.owner_label')}:</strong> Pescados y Mariscos Arrantza</li>
+                <li><strong>{t('legal.aviso.legalname_label')}:</strong> David Tamayo Huerta</li>
+                <li><strong>{t('legal.aviso.nif_label')}:</strong> 78880797C</li>
+                <li><strong>{t('legal.aviso.legalform_label')}:</strong> {t('legal.aviso.legalform_value')}</li>
                 <li><strong>{t('legal.aviso.address_label')}:</strong> Calle Jesús Aramburu, 1, 48950 Erandio, Bizkaia, España</li>
                 <li><strong>{t('legal.aviso.email_label')}:</strong> d-tamayo@hotmail.com</li>
                 <li><strong>{t('legal.aviso.phone_label')}:</strong> +34 619 60 98 88</li>
@@ -61,11 +64,17 @@ export default function Privacidad() {
                       <td className="py-2 pr-4">{t('legal.privacidad.row3.basis')}</td>
                       <td className="py-2">{t('legal.privacidad.row3.retention')}</td>
                     </tr>
-                    <tr>
+                    <tr className="border-b border-background-100">
                       <td className="py-2 pr-4">{t('legal.privacidad.row4.purpose')}</td>
                       <td className="py-2 pr-4">{t('legal.privacidad.row4.data')}</td>
                       <td className="py-2 pr-4">{t('legal.privacidad.row4.basis')}</td>
                       <td className="py-2">{t('legal.privacidad.row4.retention')}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2 pr-4">{t('legal.privacidad.row5.purpose')}</td>
+                      <td className="py-2 pr-4">{t('legal.privacidad.row5.data')}</td>
+                      <td className="py-2 pr-4">{t('legal.privacidad.row5.basis')}</td>
+                      <td className="py-2">{t('legal.privacidad.row5.retention')}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -80,6 +89,8 @@ export default function Privacidad() {
               <ul className="mt-2 space-y-1 list-disc pl-5">
                 <li>{t('legal.privacidad.s3.li1')}</li>
                 <li>{t('legal.privacidad.s3.li2')}</li>
+                <li>{t('legal.privacidad.s3.li3')}</li>
+                <li>{t('legal.privacidad.s3.li4')}</li>
               </ul>
             </section>
 

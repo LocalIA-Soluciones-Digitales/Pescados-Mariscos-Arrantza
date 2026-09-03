@@ -154,6 +154,14 @@ export default function SolicitudStockModal({ product, onClose }: { product: Pro
                   <i className="ri-notification-3-line text-base"></i>
                   {sending ? t('stock_request.submit_sending') : t('stock_request.submit_button')}
                 </button>
+
+                <p className="text-[11px] text-foreground-400 leading-relaxed">
+                  {t('stock_request.form_privacy_pre')}{' '}
+                  <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground-600">
+                    {t('stock_request.form_privacy_link')}
+                  </a>
+                  .
+                </p>
               </div>
             </div>
           </>
