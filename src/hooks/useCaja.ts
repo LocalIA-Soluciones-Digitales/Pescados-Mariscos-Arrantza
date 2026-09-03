@@ -47,7 +47,12 @@ export function useCaja() {
   useRealtimeTable('caja_movimientos', fetchMovimientos);
 
   const crearMovimiento = useCallback(async (input: NewCajaMovimientoInput) => {
-    const cliente_id = await getMiClienteId();
+    let cliente_id: string;
+    try {
+      cliente_id = await getMiClienteId();
+    } catch {
+      return null;
+    }
     const { data, error } = await supabase
       .from('caja_movimientos')
       .insert({ ...input, cliente_id })

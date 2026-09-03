@@ -39,7 +39,12 @@ export function useReservasEventos() {
   useRealtimeTable('reservas_eventos', fetchEventos);
 
   const crearEvento = useCallback(async (input: NewReservaEventoInput) => {
-    const cliente_id = await getMiClienteId();
+    let cliente_id: string;
+    try {
+      cliente_id = await getMiClienteId();
+    } catch {
+      return null;
+    }
     const { data, error } = await supabase
       .from('reservas_eventos')
       .insert({ ...input, cliente_id })

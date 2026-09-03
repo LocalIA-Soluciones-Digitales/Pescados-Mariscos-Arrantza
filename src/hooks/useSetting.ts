@@ -9,10 +9,15 @@ export function useSetting<T>(key: string, defaultValue: T) {
 
   const fetchValue = useCallback(async () => {
     setLoading(true);
-    const cliente_id = await getMiClienteId();
-    const { data } = await supabase.from('settings').select('value').eq('cliente_id', cliente_id).eq('key', key).maybeSingle();
-    setValueState((data?.value as T) ?? defaultRef.current);
-    setLoading(false);
+    try {
+      const cliente_id = await getMiClienteId();
+      const { data } = await supabase.from('settings').select('value').eq('cliente_id', cliente_id).eq('key', key).maybeSingle();
+      setValueState((data?.value as T) ?? defaultRef.current);
+    } catch {
+      setValueState(defaultRef.current);
+    } finally {
+      setLoading(false);
+    }
   }, [key]);
 
   useEffect(() => {
@@ -22,8 +27,12 @@ export function useSetting<T>(key: string, defaultValue: T) {
   const save = useCallback(
     async (next: T) => {
       setValueState(next);
-      const cliente_id = await getMiClienteId();
-      await supabase.from('settings').upsert({ cliente_id, key, value: next });
+      try {
+        const cliente_id = await getMiClienteId();
+        await supabase.from('settings').upsert({ cliente_id, key, value: next });
+      } catch {
+        // Sin cliente resuelto no hay dónde guardar; el valor ya se refleja en UI.
+      }
     },
     [key],
   );

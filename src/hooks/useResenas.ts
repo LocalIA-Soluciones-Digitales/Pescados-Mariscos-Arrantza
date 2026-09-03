@@ -17,14 +17,19 @@ export function useResenas() {
 
   const fetchResenas = useCallback(async () => {
     setLoading(true);
-    const clienteId = await getMiClienteId();
-    const { data } = await supabase
-      .from('resenas')
-      .select('*')
-      .eq('cliente_id', clienteId)
-      .order('created_at', { ascending: false });
-    setResenas(data ?? []);
-    setLoading(false);
+    try {
+      const clienteId = await getMiClienteId();
+      const { data } = await supabase
+        .from('resenas')
+        .select('*')
+        .eq('cliente_id', clienteId)
+        .order('created_at', { ascending: false });
+      setResenas(data ?? []);
+    } catch {
+      setResenas([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

@@ -26,7 +26,12 @@ export function useReservasAjustes() {
 
   const registrarAjuste = useCallback(
     async (input: { evento_id: string; producto_id: string | null; producto_nombre: string; kg: number; nota?: string | null }) => {
-      const cliente_id = await getMiClienteId();
+      let cliente_id: string;
+      try {
+        cliente_id = await getMiClienteId();
+      } catch {
+        return null;
+      }
       const { data, error } = await supabase
         .from('reservas_ajustes')
         .insert({ ...input, cliente_id })
