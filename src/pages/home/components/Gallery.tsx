@@ -1,31 +1,32 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 
 const galleryImages = [
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-01.jpg',
-    alt: 'Pescado fresco sobre hielo en el mostrador',
+    src: '/gallery/arrantza-gallery-01.jpg',
+    alt: 'Mostrador de la pescadería Arrantza con pescado fresco sobre hielo',
+    caption: 'Nuestro mostrador, con pescado fresco cada día',
   },
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-02.jpg',
-    alt: 'Manos de pescadero fileteando pescado',
+    src: '/gallery/arrantza-gallery-02.jpg',
+    alt: 'Pescadero de Arrantza sonriendo en el mostrador',
+    caption: 'El equipo de Arrantza, pasión por el oficio',
   },
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-03.jpg',
-    alt: 'Marisco fresco sobre hielo',
+    src: '/gallery/arrantza-gallery-03.jpg',
+    alt: 'Selección de marisco y pescado fresco sobre sal',
+    caption: 'Gambas, boquerones y pescado recién llegado de lonja',
   },
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-04.jpg',
-    alt: 'Fachada de la pescadería Arrantza',
+    src: '/gallery/arrantza-gallery-04.jpg',
+    alt: 'Cesta variada de marisco fresco: bogavante, centollo, langostinos y percebes',
+    caption: 'Selección de marisco: bogavante, centollo y percebes',
   },
   {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-05.jpg',
-    alt: 'Anchoas frescas del Cantábrico',
-  },
-  {
-    src: 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-06.jpg',
-    alt: 'Pescadero de Arrantza en el mostrador',
+    src: '/gallery/arrantza-gallery-05.jpg',
+    alt: 'Pescado y carne fresca en el mostrador de Arrantza',
+    caption: 'Variedad diaria de pescado y carne fresca',
   },
 ];
 
@@ -33,6 +34,7 @@ export default function Gallery() {
   const { t } = useTranslation();
   const { ref, isVisible } = useScrollAnimation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const scroll = (direction: 'left' | 'right') => {
     if (!scrollRef.current) return;
@@ -42,6 +44,21 @@ export default function Gallery() {
       behavior: 'smooth',
     });
   };
+
+  const closeLightbox = () => setLightboxIndex(null);
+  const showPrev = () => setLightboxIndex((i) => (i === null ? null : (i - 1 + galleryImages.length) % galleryImages.length));
+  const showNext = () => setLightboxIndex((i) => (i === null ? null : (i + 1) % galleryImages.length));
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') showPrev();
+      if (e.key === 'ArrowRight') showNext();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [lightboxIndex]);
 
   return (
     <section id="gallery" className="section-padding bg-background-100 overflow-hidden">
@@ -85,19 +102,89 @@ export default function Gallery() {
               key={i}
               className="flex-shrink-0 w-[82vw] sm:w-[320px] md:w-[420px] lg:w-[560px] snap-center"
             >
-              <div className="aspect-[4/3] overflow-hidden rounded-lg">
+              <button
+                type="button"
+                onClick={() => setLightboxIndex(i)}
+                aria-label={`Ampliar: ${img.caption}`}
+                className="group relative block w-full aspect-[4/3] overflow-hidden rounded-lg cursor-zoom-in"
+              >
                 <img
                   src={img.src}
                   alt={img.alt}
                   title={img.alt}
-                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                   loading={i > 1 ? 'lazy' : undefined}
                 />
-              </div>
+                {/* Caption overlay */}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-foreground-950/80 via-foreground-950/25 to-transparent pt-10 pb-3 px-4">
+                  <p className="text-background-50 text-xs sm:text-sm leading-snug">{img.caption}</p>
+                </div>
+                {/* Zoom hint icon */}
+                <span className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-foreground-950/40 text-background-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <i className="ri-zoom-in-line text-base"></i>
+                </span>
+              </button>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={galleryImages[lightboxIndex].caption}
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-foreground-950/90 backdrop-blur-sm p-4 animate-fade-up"
+          onClick={closeLightbox}
+        >
+          <button
+            type="button"
+            onClick={closeLightbox}
+            aria-label="Cerrar"
+            className="absolute top-4 right-4 lg:top-6 lg:right-6 z-10 w-10 h-10 lg:w-11 lg:h-11 flex items-center justify-center rounded-full text-background-50/80 hover:text-background-50 hover:bg-background-50/10 transition-colors cursor-pointer"
+          >
+            <i className="ri-close-line text-2xl"></i>
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              showPrev();
+            }}
+            aria-label="Anterior"
+            className="absolute left-2 sm:left-4 lg:left-6 top-1/2 -translate-y-1/2 z-10 w-9 h-9 lg:w-11 lg:h-11 flex items-center justify-center rounded-full bg-background-50/10 text-background-50 hover:bg-background-50/20 transition-colors cursor-pointer"
+          >
+            <i className="ri-arrow-left-s-line text-xl lg:text-2xl"></i>
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              showNext();
+            }}
+            aria-label="Siguiente"
+            className="absolute right-2 sm:right-4 lg:right-6 top-1/2 -translate-y-1/2 z-10 w-9 h-9 lg:w-11 lg:h-11 flex items-center justify-center rounded-full bg-background-50/10 text-background-50 hover:bg-background-50/20 transition-colors cursor-pointer"
+          >
+            <i className="ri-arrow-right-s-line text-xl lg:text-2xl"></i>
+          </button>
+
+          <div
+            className="relative max-w-5xl w-full max-h-[85vh] flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={galleryImages[lightboxIndex].src}
+              alt={galleryImages[lightboxIndex].alt}
+              className="max-w-full max-h-[70vh] object-contain rounded-lg"
+            />
+            <p className="mt-4 text-center text-background-50 text-sm sm:text-base px-4">
+              {galleryImages[lightboxIndex].caption}
+            </p>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
