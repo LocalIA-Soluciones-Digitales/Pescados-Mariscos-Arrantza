@@ -9,12 +9,7 @@ function isShopOpen(): boolean {
   const totalMinutes = now.getHours() * 60 + now.getMinutes();
 
   if (day === 1) return false;
-  if (day === 0) {
-    return totalMinutes >= 9 * 60 && totalMinutes < 14 * 60;
-  }
-  const morning = totalMinutes >= 9 * 60 && totalMinutes < 14 * 60;
-  const evening = totalMinutes >= 17 * 60 && totalMinutes < 20 * 60;
-  return morning || evening;
+  return totalMinutes >= 8 * 60 && totalMinutes < 14 * 60;
 }
 
 export default function Hero() {

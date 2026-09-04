@@ -15,7 +15,7 @@ Arrantza es una pescadería de proximidad ubicada en el barrio de Altzaga, Erand
 - Nombre legal: Pescados y Mariscos Arrantza
 - Dirección: Calle Jesús Aramburu, 1, 48950 Erandio, Bizkaia, España
 - Teléfono: +34 619 60 98 88
-- Horario: martes a sábado de 9:00 a 14:00 y de 17:00 a 20:00; domingo de 9:00 a 14:00; lunes cerrado.
+- Horario: martes a domingo de 8:00 a 14:00; lunes cerrado.
 - Idiomas: castellano y euskera.
 
 ## Legal

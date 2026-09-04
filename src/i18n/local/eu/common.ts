@@ -765,7 +765,7 @@ const common = {
   "faq.q5": "Jatetxeei zerbitzua ematen diezue?",
   "faq.a5": "Bai. Ostalaritzarako eguneroko hornikuntza zerbitzu profesionala eskaintzen dugu. 20 jatetxe eta hotel baino gehiagok konfiantza digute. Jarri harremanetan baldintzak ezagutzeko.",
   "faq.q6": "Zein da ordutegia?",
-  "faq.a6": "Asteartetik larunbatera zabaltzen dugu 9:00etatik 14:00etara eta 17:00etatik 20:00etara. Astelehenetan itxita gaude atsedenagatik. Igandeetan 9:00etatik 14:00etara zabaltzen dugu.",
+  "faq.a6": "Asteartetik igandera zabaltzen dugu 8:00etatik 14:00etara. Astelehenetan itxita gaude atsedenagatik.",
 
   // Location
   "location.label": "Non gaude",
@@ -773,9 +773,9 @@ const common = {
   "location.address": "Calle Jesús Aramburu, 1, 48950, Erandio, Bizkaia",
   "location.hours.title": "Ordutegia",
   "location.hours.weekday": "Asteartetik Larunbatera",
-  "location.hours.weekday.time": "9:00 – 14:00 · 17:00 – 20:00",
+  "location.hours.weekday.time": "8:00 – 14:00",
   "location.hours.sunday": "Igandea",
-  "location.hours.sunday.time": "9:00 – 14:00",
+  "location.hours.sunday.time": "8:00 – 14:00",
   "location.hours.monday": "Astelehena",
   "location.hours.monday.time": "Itxita",
   "location.phone": "Deitu iezaguzu",

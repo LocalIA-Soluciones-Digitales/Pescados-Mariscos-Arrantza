@@ -233,11 +233,14 @@ const PREPARATIONS = [
   { key: 'other',           labelKey: 'cart.prep_other' },
 ] as const;
 
-const TIME_SLOTS = [
+const PICKUP_TIME_SLOTS = [
   '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
   '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-  '16:00', '16:30', '17:00', '17:30', '18:00', '18:30',
-  '19:00', '19:30', '20:00',
+] as const;
+
+const DELIVERY_TIME_SLOTS = [
+  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+  '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00',
 ] as const;
 
 const DELIVERY_COST = 3.50;
@@ -1180,7 +1183,7 @@ export default function CartDrawer({
                       <button
                         type="button"
                         aria-pressed={customer.deliveryMethod === 'home'}
-                        onClick={() => { onCustomerChange('deliveryMethod', 'home'); if (validationErrors.deliveryMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.deliveryMethod; return next; }); }}
+                        onClick={() => { onCustomerChange('deliveryMethod', 'home'); if (customer.deliveryMethod !== 'home') onCustomerChange('preferredTime', ''); if (validationErrors.deliveryMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.deliveryMethod; return next; }); }}
                         className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
                           customer.deliveryMethod === 'home'
                             ? 'border-primary-500 bg-primary-50/50'
@@ -1211,7 +1214,7 @@ export default function CartDrawer({
                       <button
                         type="button"
                         aria-pressed={customer.deliveryMethod === 'pickup'}
-                        onClick={() => { onCustomerChange('deliveryMethod', 'pickup'); setValidationErrors(prev => { const next = { ...prev }; delete next.deliveryMethod; delete next.address; delete next.city; delete next.postalCode; return next; }); }}
+                        onClick={() => { onCustomerChange('deliveryMethod', 'pickup'); if (customer.deliveryMethod !== 'pickup') onCustomerChange('preferredTime', ''); setValidationErrors(prev => { const next = { ...prev }; delete next.deliveryMethod; delete next.address; delete next.city; delete next.postalCode; return next; }); }}
                         className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
                           customer.deliveryMethod === 'pickup'
                             ? 'border-primary-500 bg-primary-50/50'
@@ -1422,7 +1425,7 @@ export default function CartDrawer({
                         className={`w-full appearance-none bg-background-100 border rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-foreground-950 cursor-pointer focus:outline-none focus:ring-1 transition-all duration-200 ${validationErrors.preferredTime ? 'border-red-400 focus:border-red-500 focus:ring-red-200/40' : 'border-background-200/70 focus:border-primary-300/60 focus:ring-primary-200/40'}`}
                       >
                         <option value="">{t('checkout.preferred_time_placeholder')}</option>
-                        {TIME_SLOTS.map(slot => (
+                        {(isHomeDelivery ? DELIVERY_TIME_SLOTS : PICKUP_TIME_SLOTS).map(slot => (
                           <option key={slot} value={slot}>{slot}</option>
                         ))}
                       </select>
