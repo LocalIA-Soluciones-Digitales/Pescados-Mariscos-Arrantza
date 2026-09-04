@@ -16,5 +16,8 @@ verify_jwt = false
 [functions.bascula-sync]
 verify_jwt = false
 
+[functions.bascula-catalogo]
+verify_jwt = false
+
 [functions.promo-notify]
 verify_jwt = false

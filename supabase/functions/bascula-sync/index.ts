@@ -24,14 +24,24 @@
 // más se usa. Por eso aquí se consulta cada tipo_doc por separado con
 // "seek", en vez de un único GET sin filtrar.
 //
-// El Albarán (tipo_doc 3) NO se procesa: según el negocio, es solo la
-// entrega provisional de género a un cliente tipo restaurante, y a fin
-// de mes se cierra reagrupando varios Albaranes en una Factura (tipo_doc
-// 2) — el documento que realmente factura la venta. Contar el Albarán
-// además de la Factura duplicaría tanto el stock descontado como la
-// facturación diaria (una vez al entregar, otra al facturar el mes).
-// Solo se procesan tipo_doc 1 (Factura Simplificada) y 2 (Factura), que
-// son los que representan la venta ya facturada.
+// El Albarán (tipo_doc 3) SÍ se procesa, pero solo para descontar stock —
+// NUNCA para la facturación diaria. Es la entrega provisional de género a
+// un cliente tipo restaurante: el pescado sale físicamente de la
+// pescadería en ese momento (por eso debe descontar stock ya), pero según
+// el negocio, no se factura hasta fin de mes, cuando se reagrupan varios
+// Albaranes en una Factura (tipo_doc 2) — el documento que realmente
+// factura la venta. Guardar el Albarán en bascula_ventas ADEMÁS de esa
+// Factura de cierre duplicaría la facturación diaria (una vez al
+// entregar, otra al facturar el mes), así que solo tipo_doc 1 (Factura
+// Simplificada) y 2 (Factura) se guardan ahí; el Albarán nunca.
+//
+// RIESGO PENDIENTE DE VERIFICAR: si esa Factura de cierre de mes vuelve a
+// listar las mismas líneas pesadas de los Albaranes que agrupa (en vez de
+// solo un total monetario por Albarán), el stock se descontaría DOS
+// VECES para el mismo pescado (una al Albarán, otra al facturarlo). No
+// hay forma de comprobar esto sin ver una Factura de cierre real — hay
+// que revisarlo la primera vez que un cliente restaurante llegue a fin de
+// mes, comparando el stock antes/después de esa Factura.
 //
 // Cada báscula tiene su propio contador interno de _oid_, así que el
 // "último ticket procesado" se guarda en `settings` con una clave por
@@ -62,7 +72,8 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const ETPROXY_BASE = 'https://etproxy.etpos.pt';
 const LOTE_MAX = 100; // tope del propio API ETWS por consulta
-const TIPOS_DOC_A_PROCESAR = new Set([1, 2]);
+const TIPOS_DOC_A_PROCESAR = new Set([1, 2, 3]);
+const TIPOS_DOC_FACTURABLES = new Set([1, 2]); // Albarán (3) descuenta stock pero no se guarda para facturación — ver comentario arriba.
 const ORIGENES_VALIDOS = ['pescaderia_1', 'pescaderia_2'];
 
 // Comparación en tiempo constante: evita filtrar por temporización cuántos
@@ -246,32 +257,38 @@ Deno.serve(async (req: Request) => {
       const hoy = new Date().toISOString().slice(0, 10);
       const productoId = productoIdPorCodigo.get(linea.codigo) ?? null;
 
-      const { error: errorInsert } = await supabase.from('bascula_ventas').upsert(
-        {
-          cliente_id: clienteId,
-          origen,
-          producto_id: productoId,
-          linea_oid: linea._oid_,
-          ticket_tipo_doc: linea.tipo_doc,
-          ticket_posto: linea.posto,
-          ticket_numero: linea.numero,
-          fecha: cabecera?.fecha ?? hoy,
-          hora: cabecera?.hora ?? null,
-          codigo_bascula: linea.codigo,
-          designacion: linea.designacao,
-          unidad: linea.unidade,
-          cantidad: linea.quantidade,
-          precio_unit: linea.preco_unit,
-          importe: linea.valor,
-        },
-        { onConflict: 'origen,linea_oid', ignoreDuplicates: true },
-      );
+      // El Albarán solo descuenta stock (más abajo) — nunca se guarda en
+      // bascula_ventas, para no duplicar la facturación diaria cuando se
+      // agrupe en la Factura de cierre de mes (ver comentario al
+      // principio del fichero).
+      if (TIPOS_DOC_FACTURABLES.has(linea.tipo_doc)) {
+        const { error: errorInsert } = await supabase.from('bascula_ventas').upsert(
+          {
+            cliente_id: clienteId,
+            origen,
+            producto_id: productoId,
+            linea_oid: linea._oid_,
+            ticket_tipo_doc: linea.tipo_doc,
+            ticket_posto: linea.posto,
+            ticket_numero: linea.numero,
+            fecha: cabecera?.fecha ?? hoy,
+            hora: cabecera?.hora ?? null,
+            codigo_bascula: linea.codigo,
+            designacion: linea.designacao,
+            unidad: linea.unidade,
+            cantidad: linea.quantidade,
+            precio_unit: linea.preco_unit,
+            importe: linea.valor,
+          },
+          { onConflict: 'origen,linea_oid', ignoreDuplicates: true },
+        );
 
-      if (errorInsert) {
-        console.error(`[${origen}] Error guardando línea (ticket ${linea.numero}, código ${linea.codigo}):`, errorInsert.message);
-        continue;
+        if (errorInsert) {
+          console.error(`[${origen}] Error guardando línea (ticket ${linea.numero}, código ${linea.codigo}):`, errorInsert.message);
+          continue;
+        }
+        resultado.guardadas++;
       }
-      resultado.guardadas++;
 
       if (linea.unidade !== 'kg') continue;
 
