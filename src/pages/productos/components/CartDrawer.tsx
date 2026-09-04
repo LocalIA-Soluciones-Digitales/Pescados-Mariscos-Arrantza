@@ -1425,7 +1425,7 @@ export default function CartDrawer({
                         className={`w-full appearance-none bg-background-100 border rounded-lg pl-3.5 pr-10 py-2.5 text-sm text-foreground-950 cursor-pointer focus:outline-none focus:ring-1 transition-all duration-200 ${validationErrors.preferredTime ? 'border-red-400 focus:border-red-500 focus:ring-red-200/40' : 'border-background-200/70 focus:border-primary-300/60 focus:ring-primary-200/40'}`}
                       >
                         <option value="">{t('checkout.preferred_time_placeholder')}</option>
-                        {(isHomeDelivery ? DELIVERY_TIME_SLOTS : PICKUP_TIME_SLOTS).map(slot => (
+                        {(customer.deliveryMethod === 'home' ? DELIVERY_TIME_SLOTS : PICKUP_TIME_SLOTS).map(slot => (
                           <option key={slot} value={slot}>{slot}</option>
                         ))}
                       </select>
