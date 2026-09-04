@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { usePedidos } from '@/hooks/usePedidos';
 import type { Pedido, PedidoEstado, PedidoEstadoPago } from '@/types/pedido';
+import DiaNavigator from '@/components/base/DiaNavigator';
 
 const ESTADO_PAGO_LABELS: Record<PedidoEstadoPago, string> = {
   no_aplica: '',
@@ -56,6 +57,13 @@ function formatFechaLarga(iso: string): string {
   const date = new Date(y, m - 1, d);
   const texto = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+function isoDeFecha(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // Días de diferencia entre hoy y la fecha preferida, para destacar visualmente
@@ -275,6 +283,7 @@ export default function PedidosPanel() {
   const { pedidos, loading, setEstado, setEstadoPago, deletePedido } = usePedidos();
   const [filtro, setFiltro] = useState<'todos' | PedidoEstado>('todos');
   const [colapsados, setColapsados] = useState<Set<string>>(new Set());
+  const [cursor, setCursor] = useState<Date>(() => new Date());
 
   const toggleColapsado = (key: string) => {
     setColapsados((prev) => {
@@ -285,17 +294,26 @@ export default function PedidosPanel() {
     });
   };
 
+  // Solo se muestran los pedidos del día seleccionado (más los que aún no
+  // tienen fecha asignada, para que no se pierdan de vista) — se navega a
+  // otras fechas con el DiaNavigator en vez de listarlas todas de golpe.
+  const cursorIso = isoDeFecha(cursor);
+  const pedidosDelDia = useMemo(
+    () => pedidos.filter((p) => !p.fecha_preferida || p.fecha_preferida === cursorIso),
+    [pedidos, cursorIso],
+  );
+
   const counts = useMemo(() => {
-    const c: Record<string, number> = { todos: pedidos.length };
+    const c: Record<string, number> = { todos: pedidosDelDia.length };
     (['nuevo', 'confirmado', 'completado', 'cancelado'] as PedidoEstado[]).forEach((e) => {
-      c[e] = pedidos.filter((p) => p.estado === e).length;
+      c[e] = pedidosDelDia.filter((p) => p.estado === e).length;
     });
     return c;
-  }, [pedidos]);
+  }, [pedidosDelDia]);
 
   const visibles = useMemo(
-    () => (filtro === 'todos' ? pedidos : pedidos.filter((p) => p.estado === filtro)),
-    [pedidos, filtro],
+    () => (filtro === 'todos' ? pedidosDelDia : pedidosDelDia.filter((p) => p.estado === filtro)),
+    [pedidosDelDia, filtro],
   );
 
   // Agrupar por fecha preferida de recogida/entrega, igual que en Reservas,
@@ -320,6 +338,10 @@ export default function PedidosPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
+      <div className="mb-4">
+        <DiaNavigator value={cursor} onChange={setCursor} label={formatFechaLarga(cursorIso)} />
+      </div>
+
       <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide mb-4">
         {ESTADO_FILTROS.map((f) => (
           <button

@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabaseClient';
 import { CATEGORIA_FILTROS, type CategoriaFiltro, type Producto, type ProductoCategoria } from '@/types/producto';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import { useProductosCodigosBascula } from '@/hooks/useProductosCodigosBascula';
-import { useCodigosBasculaSinMapear } from '@/hooks/useCodigosBasculaSinMapear';
 import { ORIGENES, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import SearchInput from '@/components/base/SearchInput';
 import CategoryFilterDropdown from '@/components/base/CategoryFilterDropdown';
@@ -22,17 +21,14 @@ function StockRow({
   producto,
   onPatch,
   codigosBascula,
-  onGuardarCodigoBascula,
 }: {
   producto: Producto;
   onPatch: (patch: Partial<Producto>) => void;
   codigosBascula: Partial<Record<Origen, string>>;
-  onGuardarCodigoBascula: (origen: Origen, valor: string) => Promise<boolean>;
 }) {
   const [entrada, setEntrada] = useState('');
   const [movimiento, setMovimiento] = useState<'entrada' | 'baja'>('entrada');
   const [stockMinimo, setStockMinimo] = useState(producto.stock_minimo);
-  const [codigosLocal, setCodigosLocal] = useState<Partial<Record<Origen, string>>>(codigosBascula);
   const [saving, setSaving] = useState(false);
   const stockBajo = producto.stock_kg <= producto.stock_minimo;
 
@@ -64,16 +60,6 @@ function StockRow({
       return;
     }
     onPatch({ stock_minimo: v });
-  };
-
-  const guardarCodigo = async (origen: Origen, valor: string) => {
-    setSaving(true);
-    const ok = await onGuardarCodigoBascula(origen, valor);
-    setSaving(false);
-    if (!ok) {
-      alert('No se pudo guardar el código de báscula.');
-      setCodigosLocal((prev) => ({ ...prev, [origen]: codigosBascula[origen] ?? '' }));
-    }
   };
 
   return (
@@ -175,21 +161,13 @@ function StockRow({
         {ORIGENES.map((origen) => (
           <div key={origen} className="flex items-center gap-1.5 flex-shrink-0">
             <label className="text-[11px] text-foreground-400">Código {ORIGEN_LABELS[origen]}</label>
-            <input
-              type="text"
-              placeholder="ej. 338"
-              value={codigosLocal[origen] ?? ''}
-              onChange={(e) => setCodigosLocal((prev) => ({ ...prev, [origen]: e.target.value }))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') e.currentTarget.blur();
-              }}
-              onBlur={() => {
-                const valor = codigosLocal[origen] ?? '';
-                if (valor.trim() !== (codigosBascula[origen] ?? '')) guardarCodigo(origen, valor);
-              }}
-              disabled={saving}
-              className="w-20 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
-            />
+            <span
+              className={`w-20 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right ${
+                codigosBascula[origen] ? 'text-foreground-950' : 'text-foreground-300'
+              }`}
+            >
+              {codigosBascula[origen] || '—'}
+            </span>
           </div>
         ))}
       </div>
@@ -209,7 +187,7 @@ export default function StockPanel({
   const [search, setSearch] = useState('');
   const [soloBajo, setSoloBajo] = useState(false);
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
-  const [colapsados, setColapsados] = useState<Set<ProductoCategoria>>(new Set());
+  const [colapsados, setColapsados] = useState<Set<ProductoCategoria>>(new Set(CATEGORIA_ORDEN));
 
   const toggleColapsado = (cat: ProductoCategoria) => {
     setColapsados((prev) => {
@@ -220,8 +198,7 @@ export default function StockPanel({
     });
   };
   const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
-  const { codigos: codigosBascula, loading: loadingCodigos, guardarCodigo } = useProductosCodigosBascula();
-  const { codigos: codigosSinMapear } = useCodigosBasculaSinMapear();
+  const { codigos: codigosBascula, loading: loadingCodigos } = useProductosCodigosBascula();
   const cargando = loading || loadingCodigos;
 
   const bajoCount = useMemo(() => productos.filter((p) => p.stock_kg <= p.stock_minimo).length, [productos]);
@@ -307,25 +284,6 @@ export default function StockPanel({
       </div>
 
       <div className="px-4 md:px-8 py-6 pb-28">
-      {codigosSinMapear.length > 0 && (
-        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <p className="font-medium flex items-center gap-1.5">
-            <i className="ri-error-warning-line"></i>
-            {codigosSinMapear.length} código{codigosSinMapear.length === 1 ? '' : 's'} de báscula sin asignar a ningún producto
-          </p>
-          <p className="mt-1 text-xs text-amber-700">
-            Sus ventas se registran para la facturación pero NO descuentan stock automáticamente. Asigna cada código en el
-            campo &quot;Código&quot; del producto correspondiente para corregirlo.
-          </p>
-          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            {codigosSinMapear.map((c) => (
-              <li key={`${c.origen}-${c.codigo_bascula}`}>
-                <span className="font-medium">{ORIGEN_LABELS[c.origen]}</span> · código {c.codigo_bascula} · {c.designacion}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
       {cargando ? (
         <p className="text-sm text-foreground-400">Cargando…</p>
       ) : totalVisible === 0 ? (
@@ -360,7 +318,6 @@ export default function StockPanel({
                         producto={producto}
                         onPatch={(patch) => onPatch(producto.id, patch)}
                         codigosBascula={codigosBascula.get(producto.id) ?? {}}
-                        onGuardarCodigoBascula={(origen, valor) => guardarCodigo(producto.id, origen, valor)}
                       />
                     ))}
                   </div>

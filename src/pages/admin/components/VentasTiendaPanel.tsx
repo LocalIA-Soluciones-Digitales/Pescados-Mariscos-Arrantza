@@ -3,6 +3,7 @@ import { useBasculaVentasDiarias, fetchBasculaVentasDelDia, fetchBasculaVentasRe
 import type { BasculaVenta, BasculaVentaDiariaPorTienda, BasculaVentaResumenProducto } from '@/types/basculaVenta';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import OrigenBadge from '@/components/base/OrigenBadge';
+import DiaNavigator from '@/components/base/DiaNavigator';
 
 type Filtro = 'todas' | Origen;
 type Periodo = 'dia' | 'mes' | 'anio';
@@ -591,28 +592,32 @@ export default function VentasTiendaPanel() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => moverPeriodo(-1)}
-            className="w-7 h-7 flex items-center justify-center rounded-full border border-background-200/70 bg-background-50 text-foreground-500 hover:bg-background-100"
-          >
-            <i className="ri-arrow-left-s-line"></i>
-          </button>
-          <span className="text-sm font-medium text-foreground-950 min-w-[130px] text-center capitalize">{etiquetaPeriodo}</span>
-          <button
-            type="button"
-            onClick={() => moverPeriodo(1)}
-            className="w-7 h-7 flex items-center justify-center rounded-full border border-background-200/70 bg-background-50 text-foreground-500 hover:bg-background-100"
-          >
-            <i className="ri-arrow-right-s-line"></i>
-          </button>
-          {!esPeriodoActual && (
-            <button type="button" onClick={() => setCursor(new Date())} className="ml-1 text-xs font-medium text-primary-600 hover:underline">
-              Hoy
+        {periodo === 'dia' ? (
+          <DiaNavigator value={cursor} onChange={setCursor} label={etiquetaPeriodo} />
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => moverPeriodo(-1)}
+              className="w-7 h-7 flex items-center justify-center rounded-full border border-background-200/70 bg-background-50 text-foreground-500 hover:bg-background-100"
+            >
+              <i className="ri-arrow-left-s-line"></i>
             </button>
-          )}
-        </div>
+            <span className="text-sm font-medium text-foreground-950 min-w-[130px] text-center capitalize">{etiquetaPeriodo}</span>
+            <button
+              type="button"
+              onClick={() => moverPeriodo(1)}
+              className="w-7 h-7 flex items-center justify-center rounded-full border border-background-200/70 bg-background-50 text-foreground-500 hover:bg-background-100"
+            >
+              <i className="ri-arrow-right-s-line"></i>
+            </button>
+            {!esPeriodoActual && (
+              <button type="button" onClick={() => setCursor(new Date())} className="ml-1 text-xs font-medium text-primary-600 hover:underline">
+                Hoy
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {!loading && diasPeriodo.length > 0 && (
