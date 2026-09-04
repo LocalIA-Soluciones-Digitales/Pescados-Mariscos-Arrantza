@@ -1420,7 +1420,7 @@ export default function CartDrawer({
                       min={new Date().toISOString().split('T')[0]}
                       onChange={e => {
                         const value = e.target.value;
-                        if (isHomeDelivery && isDeliveryClosedDay(value)) {
+                        if (customer.deliveryMethod === 'home' && isDeliveryClosedDay(value)) {
                           setValidationErrors(prev => ({ ...prev, preferredDate: t('cart.validation_delivery_closed_day') }));
                           return;
                         }
@@ -1434,7 +1434,7 @@ export default function CartDrawer({
                         <span className="w-3 h-3 flex items-center justify-center"><i className="ri-error-warning-line text-[10px]"></i></span>
                         {validationErrors.preferredDate}
                       </p>
-                    ) : isHomeDelivery && (
+                    ) : customer.deliveryMethod === 'home' && (
                       <p className="text-[11px] text-foreground-400 mt-1.5 ml-0.5 flex items-center gap-1">
                         <span className="w-3 h-3 flex items-center justify-center"><i className="ri-information-line text-[10px]"></i></span>
                         {t('cart.validation_delivery_closed_day')}
