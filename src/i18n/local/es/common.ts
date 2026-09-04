@@ -594,6 +594,7 @@ const common = {
   "cart.validation_payment_method_required": "Selecciona cómo quieres pagar.",
   "cart.validation_date_required": "Selecciona una fecha de entrega o recogida.",
   "cart.validation_time_required": "Selecciona una hora preferida.",
+  "cart.validation_delivery_closed_day": "No repartimos a domicilio los domingos ni los lunes. Elige otra fecha.",
   "cart.validation_address_required": "Introduce la dirección de entrega.",
   "cart.validation_city_required": "Introduce la ciudad de entrega.",
   "cart.validation_postal_code_required": "Introduce el código postal.",
@@ -764,7 +765,7 @@ const common = {
   "faq.q5": "¿Servís a restaurantes?",
   "faq.a5": "Sí. Ofrecemos servicio profesional de suministro diario para hostelería. Más de 20 restaurantes y hoteles confían en nosotros. Contacta para conocer condiciones.",
   "faq.q6": "¿Cuál es el horario?",
-  "faq.a6": "Abrimos de martes a domingo de 8:00 a 14:00. Los lunes cerramos por descanso.",
+  "faq.a6": "Abrimos de martes a sábado de 8:00 a 14:00. Los domingos y lunes cerramos por descanso.",
 
   // Location
   "location.label": "Dónde estamos",
@@ -774,7 +775,7 @@ const common = {
   "location.hours.weekday": "Martes a Sábado",
   "location.hours.weekday.time": "8:00 – 14:00",
   "location.hours.sunday": "Domingo",
-  "location.hours.sunday.time": "8:00 – 14:00",
+  "location.hours.sunday.time": "Cerrado",
   "location.hours.monday": "Lunes",
   "location.hours.monday.time": "Cerrado",
   "location.phone": "Contáctanos",

@@ -591,6 +591,7 @@ const common = {
   "cart.validation_payment_method_required": "Aukeratu nola ordaindu nahi duzun.",
   "cart.validation_date_required": "Aukeratu entrega edo jasotze data bat.",
   "cart.validation_time_required": "Aukeratu ordu hobetsi bat.",
+  "cart.validation_delivery_closed_day": "Ez dugu etxez etxeko banaketarik egiten igandeetan ez astelehenetan. Aukeratu beste data bat.",
   "cart.validation_address_required": "Sartu entrega helbidea.",
   "cart.validation_city_required": "Sartu entrega hiria.",
   "cart.validation_postal_code_required": "Sartu posta kodea.",
@@ -765,7 +766,7 @@ const common = {
   "faq.q5": "Jatetxeei zerbitzua ematen diezue?",
   "faq.a5": "Bai. Ostalaritzarako eguneroko hornikuntza zerbitzu profesionala eskaintzen dugu. 20 jatetxe eta hotel baino gehiagok konfiantza digute. Jarri harremanetan baldintzak ezagutzeko.",
   "faq.q6": "Zein da ordutegia?",
-  "faq.a6": "Asteartetik igandera zabaltzen dugu 8:00etatik 14:00etara. Astelehenetan itxita gaude atsedenagatik.",
+  "faq.a6": "Asteartetik larunbatera zabaltzen dugu 8:00etatik 14:00etara. Igandeetan eta astelehenetan itxita gaude atsedenagatik.",
 
   // Location
   "location.label": "Non gaude",
@@ -775,7 +776,7 @@ const common = {
   "location.hours.weekday": "Asteartetik Larunbatera",
   "location.hours.weekday.time": "8:00 – 14:00",
   "location.hours.sunday": "Igandea",
-  "location.hours.sunday.time": "8:00 – 14:00",
+  "location.hours.sunday.time": "Itxita",
   "location.hours.monday": "Astelehena",
   "location.hours.monday.time": "Itxita",
   "location.phone": "Deitu iezaguzu",

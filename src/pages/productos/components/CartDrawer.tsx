@@ -246,6 +246,14 @@ const DELIVERY_TIME_SLOTS = [
 const DELIVERY_COST = 3.50;
 const BIZUM_PHONE_WA = '34619609888';
 
+// Tienda cerrada domingo (0) y lunes (1): sin reparto a domicilio esos días
+function isDeliveryClosedDay(dateStr: string): boolean {
+  if (!dateStr) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const day = new Date(y, m - 1, d).getDay();
+  return day === 0 || day === 1;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Cart line item                                                     */
 /* ------------------------------------------------------------------ */
@@ -645,6 +653,8 @@ export default function CartDrawer({
     // Preferred date (always required)
     if (!customer.preferredDate) {
       errors.preferredDate = t('cart.validation_date_required');
+    } else if (customer.deliveryMethod === 'home' && isDeliveryClosedDay(customer.preferredDate)) {
+      errors.preferredDate = t('cart.validation_delivery_closed_day');
     }
 
     // Preferred time (always required)
@@ -1183,7 +1193,14 @@ export default function CartDrawer({
                       <button
                         type="button"
                         aria-pressed={customer.deliveryMethod === 'home'}
-                        onClick={() => { onCustomerChange('deliveryMethod', 'home'); if (customer.deliveryMethod !== 'home') onCustomerChange('preferredTime', ''); if (validationErrors.deliveryMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.deliveryMethod; return next; }); }}
+                        onClick={() => {
+                          onCustomerChange('deliveryMethod', 'home');
+                          if (customer.deliveryMethod !== 'home') {
+                            onCustomerChange('preferredTime', '');
+                            if (isDeliveryClosedDay(customer.preferredDate)) onCustomerChange('preferredDate', '');
+                          }
+                          if (validationErrors.deliveryMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.deliveryMethod; return next; });
+                        }}
                         className={`relative flex flex-col items-center text-center p-4 rounded-xl border-2 cursor-pointer h-full transition-all duration-300 ${
                           customer.deliveryMethod === 'home'
                             ? 'border-primary-500 bg-primary-50/50'
@@ -1401,13 +1418,26 @@ export default function CartDrawer({
                       type="date"
                       value={customer.preferredDate}
                       min={new Date().toISOString().split('T')[0]}
-                      onChange={e => { onCustomerChange('preferredDate', e.target.value); if (validationErrors.preferredDate) setValidationErrors(prev => { const next = { ...prev }; delete next.preferredDate; return next; }); }}
+                      onChange={e => {
+                        const value = e.target.value;
+                        if (isHomeDelivery && isDeliveryClosedDay(value)) {
+                          setValidationErrors(prev => ({ ...prev, preferredDate: t('cart.validation_delivery_closed_day') }));
+                          return;
+                        }
+                        onCustomerChange('preferredDate', value);
+                        if (validationErrors.preferredDate) setValidationErrors(prev => { const next = { ...prev }; delete next.preferredDate; return next; });
+                      }}
                       className={`w-full px-3.5 py-2.5 bg-background-100 border rounded-lg text-sm text-foreground-950 focus:outline-none focus:ring-1 transition-all duration-200 cursor-pointer ${validationErrors.preferredDate ? 'border-red-400 focus:border-red-500 focus:ring-red-200/40' : 'border-background-200/70 focus:border-primary-300/60 focus:ring-primary-200/40'}`}
                     />
-                    {validationErrors.preferredDate && (
+                    {validationErrors.preferredDate ? (
                       <p className="text-[11px] text-red-500 mt-1.5 ml-0.5 flex items-center gap-1 animate-fadeIn">
                         <span className="w-3 h-3 flex items-center justify-center"><i className="ri-error-warning-line text-[10px]"></i></span>
                         {validationErrors.preferredDate}
+                      </p>
+                    ) : isHomeDelivery && (
+                      <p className="text-[11px] text-foreground-400 mt-1.5 ml-0.5 flex items-center gap-1">
+                        <span className="w-3 h-3 flex items-center justify-center"><i className="ri-information-line text-[10px]"></i></span>
+                        {t('cart.validation_delivery_closed_day')}
                       </p>
                     )}
                   </div>

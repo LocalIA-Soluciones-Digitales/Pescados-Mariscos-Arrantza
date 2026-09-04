@@ -8,7 +8,7 @@ function isShopOpen(): boolean {
   const day = now.getDay();
   const totalMinutes = now.getHours() * 60 + now.getMinutes();
 
-  if (day === 1) return false;
+  if (day === 0 || day === 1) return false;
   return totalMinutes >= 8 * 60 && totalMinutes < 14 * 60;
 }
 
