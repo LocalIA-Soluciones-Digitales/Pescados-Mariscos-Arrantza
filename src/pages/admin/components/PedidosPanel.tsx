@@ -338,26 +338,25 @@ export default function PedidosPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
-      <div className="mb-4">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          {ESTADO_FILTROS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setFiltro(f.value)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+                filtro === f.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              {f.label}
+              <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${filtro === f.value ? 'bg-background-50/20' : 'bg-background-200/60 text-foreground-400'}`}>
+                {counts[f.value] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
         <DiaNavigator value={cursor} onChange={setCursor} label={formatFechaLarga(cursorIso)} />
-      </div>
-
-      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide mb-4">
-        {ESTADO_FILTROS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            onClick={() => setFiltro(f.value)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
-              filtro === f.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
-            }`}
-          >
-            {f.label}
-            <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] ${filtro === f.value ? 'bg-background-50/20' : 'bg-background-200/60 text-foreground-400'}`}>
-              {counts[f.value] ?? 0}
-            </span>
-          </button>
-        ))}
       </div>
 
       {loading ? (
