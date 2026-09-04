@@ -42,10 +42,6 @@ export default function LocationMap() {
 
               <div className="space-y-2 sm:space-y-4">
                 <div className="flex flex-wrap justify-between items-start gap-x-2 gap-y-1">
-                  <span className="text-sm text-foreground-400 whitespace-nowrap">{t('location.hours.monday')}</span>
-                  <span className="text-sm font-medium text-foreground-400 text-right whitespace-nowrap">{t('location.hours.monday.time')}</span>
-                </div>
-                <div className="flex flex-wrap justify-between items-start gap-x-2 gap-y-1 pt-2 border-t border-foreground-100/50">
                   <span className="text-sm text-foreground-700 whitespace-nowrap">{t('location.hours.weekday')}</span>
                   <div className="flex flex-col items-end gap-1 sm:gap-2">
                     {weekdayTimes.map((time, i) => (
@@ -55,9 +51,9 @@ export default function LocationMap() {
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-wrap justify-between items-start gap-x-2 gap-y-1">
-                  <span className="text-sm text-foreground-700 whitespace-nowrap">{t('location.hours.sunday')}</span>
-                  <span className="text-sm font-medium text-foreground-950 text-right whitespace-nowrap">{t('location.hours.sunday.time')}</span>
+                <div className="flex flex-wrap justify-between items-start gap-x-2 gap-y-1 pt-2 border-t border-foreground-100/50">
+                  <span className="text-sm text-foreground-400 whitespace-nowrap">{t('location.hours.monday')}</span>
+                  <span className="text-sm font-medium text-foreground-400 text-right whitespace-nowrap">{t('location.hours.monday.time')}</span>
                 </div>
               </div>
             </div>
