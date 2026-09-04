@@ -35,13 +35,25 @@
 // entregar, otra al facturar el mes), así que solo tipo_doc 1 (Factura
 // Simplificada) y 2 (Factura) se guardan ahí; el Albarán nunca.
 //
-// RIESGO PENDIENTE DE VERIFICAR: si esa Factura de cierre de mes vuelve a
-// listar las mismas líneas pesadas de los Albaranes que agrupa (en vez de
-// solo un total monetario por Albarán), el stock se descontaría DOS
-// VECES para el mismo pescado (una al Albarán, otra al facturarlo). No
-// hay forma de comprobar esto sin ver una Factura de cierre real — hay
-// que revisarlo la primera vez que un cliente restaurante llegue a fin de
-// mes, comparando el stock antes/después de esa Factura.
+// CONFIRMADO (04/09/2026, ticket real de Restaurante Orotela SL): la
+// Factura de cierre SÍ vuelve a listar cada línea pesada de los Albaranes
+// que agrupa, con el mismo peso exacto (p.ej. Albarán A1/39 con "Anchoa
+// 3,120 kg" y la Factura A1/48 que lo agrupa con esa misma línea "Anchoa
+// 3,120 kg"), y no solo un total monetario. Sin más, eso descontaría el
+// stock DOS VECES para el mismo pescado (una al Albarán, otra al
+// facturarlo).
+//
+// Para evitarlo, cada línea en kg de un Albarán (tipo_doc 3) que descuenta
+// stock se registra también en public.bascula_albaran_lineas. Cuando llega
+// una línea en kg de una Factura (tipo_doc 2), antes de descontar stock se
+// llama a consumir_linea_albaran: si encuentra una línea de Albarán sin
+// consumir del mismo cliente/origen/código/peso, la marca consumida y esa
+// línea de Factura NO vuelve a descontar stock (pero sí se sigue guardando
+// en bascula_ventas para la facturación diaria, como siempre). Si no
+// encuentra ninguna, es una venta nueva y se descuenta con normalidad — así
+// una Factura directa (sin Albarán de por medio) sigue funcionando igual.
+// El emparejamiento es por peso exacto porque la báscula copia el mismo
+// valor decimal tal cual, como confirma el ticket real de arriba.
 //
 // Cada báscula tiene su propio contador interno de _oid_, así que el
 // "último ticket procesado" se guarda en `settings` con una clave por
@@ -243,7 +255,14 @@ Deno.serve(async (req: Request) => {
   const nuevas = lineas.filter((l) => l._oid_ > lastOid).sort((a, b) => a._oid_ - b._oid_);
   const maxOidVisto = Math.max(...lineas.map((l) => l._oid_));
 
-  const resultado = { origen, guardadas: 0, stock_descontado: 0, sin_mapear: [] as string[], primera_ejecucion: esPrimeraEjecucion };
+  const resultado = {
+    origen,
+    guardadas: 0,
+    stock_descontado: 0,
+    evitado_doble_conteo: 0,
+    sin_mapear: [] as string[],
+    primera_ejecucion: esPrimeraEjecucion,
+  };
 
   // En la primera ejecución no hay "último ticket procesado": solo se
   // fija el punto de partida, para no registrar de golpe todo el
@@ -297,6 +316,24 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
+      // Si esta línea de Factura ya salió antes como línea de Albarán (ver
+      // comentario al principio del fichero), el stock ya se descontó
+      // entonces — nos la saltamos para no descontarla dos veces.
+      if (linea.tipo_doc === 2) {
+        const { data: yaDescontadaPorAlbaran, error: errorConsumir } = await supabase.rpc('consumir_linea_albaran', {
+          p_cliente_id: clienteId,
+          p_origen: origen,
+          p_codigo_bascula: linea.codigo,
+          p_cantidad: linea.quantidade,
+        });
+        if (errorConsumir) {
+          console.error(`[${origen}] Error comprobando Albarán previo (ticket ${linea.numero}, código ${linea.codigo}):`, errorConsumir.message);
+        } else if (yaDescontadaPorAlbaran) {
+          resultado.evitado_doble_conteo++;
+          continue;
+        }
+      }
+
       const { error: errorStock } = await supabase.rpc('descontar_stock_bascula', {
         p_cliente_id: clienteId,
         p_origen: origen,
@@ -308,6 +345,24 @@ Deno.serve(async (req: Request) => {
         continue;
       }
       resultado.stock_descontado++;
+
+      // Registra la línea de Albarán para que, cuando se cierre en una
+      // Factura de fin de mes, esa línea de Factura pueda reconocerla y
+      // saltarse el descuento de stock (ver bloque anterior).
+      if (linea.tipo_doc === 3) {
+        const { error: errorAlbaran } = await supabase.from('bascula_albaran_lineas').insert({
+          cliente_id: clienteId,
+          origen,
+          codigo_bascula: linea.codigo,
+          cantidad: linea.quantidade,
+          ticket_posto: linea.posto,
+          ticket_numero: linea.numero,
+          fecha: cabecera?.fecha ?? hoy,
+        });
+        if (errorAlbaran) {
+          console.error(`[${origen}] Error registrando línea de Albarán (ticket ${linea.numero}, código ${linea.codigo}):`, errorAlbaran.message);
+        }
+      }
     }
   }
 

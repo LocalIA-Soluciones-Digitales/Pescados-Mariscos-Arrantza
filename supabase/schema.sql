@@ -743,6 +743,77 @@ $$ language sql set search_path = public;
 revoke all on function public.descontar_stock_bascula(uuid, text, text, numeric) from public;
 grant execute on function public.descontar_stock_bascula(uuid, text, text, numeric) to service_role;
 
+-- Registro de las líneas de un Albarán (tipo_doc 3) que ya descontaron
+-- stock, para poder detectar cuándo la Factura de cierre de mes que agrupa
+-- varios Albaranes (mismo cliente, mismo producto, mismo peso exacto —
+-- confirmado con un ticket real de Restaurante Orotela SL el 04/09/2026,
+-- ver comentario en bascula-sync/index.ts) vuelve a listar esa misma
+-- línea, y así no descontarla una segunda vez. Cada línea se marca
+-- "consumida" en cuanto una línea de Factura la reclama vía
+-- consumir_linea_albaran; una vez consumida no puede volver a usarse.
+create table if not exists public.bascula_albaran_lineas (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  origen text not null,
+  codigo_bascula text not null,
+  cantidad numeric not null,
+  ticket_posto integer not null,
+  ticket_numero integer not null,
+  fecha date not null,
+  consumida boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+alter table public.bascula_albaran_lineas enable row level security;
+
+drop policy if exists "bascula_albaran_lineas_select_admin" on public.bascula_albaran_lineas;
+create policy "bascula_albaran_lineas_select_admin"
+  on public.bascula_albaran_lineas for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_bascula_albaran_lineas_pendientes
+  on public.bascula_albaran_lineas (cliente_id, origen, codigo_bascula, cantidad)
+  where not consumida;
+
+-- Intenta reclamar, para la línea de Factura que bascula-sync está
+-- procesando ahora mismo, una línea de Albarán ya descontada que coincida
+-- en cliente/origen/código/peso. Si la encuentra, la marca consumida y
+-- devuelve true (bascula-sync debe SALTARSE el descuento de stock de esa
+-- línea, porque ya se descontó cuando salió como Albarán). Si no hay
+-- ninguna pendiente, devuelve false (es una venta nueva, se descuenta con
+-- normalidad). "for update skip locked" evita bloqueos si algún día hay
+-- más de un proceso escribiendo a la vez.
+create or replace function public.consumir_linea_albaran(
+  p_cliente_id uuid, p_origen text, p_codigo_bascula text, p_cantidad numeric
+)
+returns boolean as $$
+declare
+  v_id uuid;
+begin
+  select id into v_id
+  from public.bascula_albaran_lineas
+  where cliente_id = p_cliente_id
+    and origen = p_origen
+    and codigo_bascula = p_codigo_bascula
+    and cantidad = p_cantidad
+    and not consumida
+  order by fecha asc, created_at asc
+  limit 1
+  for update skip locked;
+
+  if v_id is null then
+    return false;
+  end if;
+
+  update public.bascula_albaran_lineas set consumida = true where id = v_id;
+  return true;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+revoke all on function public.consumir_linea_albaran(uuid, text, text, numeric) from public;
+grant execute on function public.consumir_linea_albaran(uuid, text, text, numeric) to service_role;
+
 -- Mapeo producto × báscula → código de ese terminal. Sustituye a un
 -- antiguo campo único productos.codigo_bascula (válido mientras solo
 -- había una báscula) — con dos terminales, un mismo producto necesita un
