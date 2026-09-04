@@ -2,29 +2,31 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 
+const GALLERY_BASE_URL = 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing';
+
 const galleryImages = [
   {
-    src: '/gallery/arrantza-gallery-01.jpg',
+    src: `${GALLERY_BASE_URL}/arrantza-gallery-real-01.jpg`,
     alt: 'Mostrador de la pescadería Arrantza con pescado fresco sobre hielo',
     caption: 'Nuestro mostrador, con pescado fresco cada día',
   },
   {
-    src: '/gallery/arrantza-gallery-02.jpg',
+    src: `${GALLERY_BASE_URL}/arrantza-gallery-real-02.jpg`,
     alt: 'Pescadero de Arrantza sonriendo en el mostrador',
     caption: 'El equipo de Arrantza, pasión por el oficio',
   },
   {
-    src: '/gallery/arrantza-gallery-03.jpg',
+    src: `${GALLERY_BASE_URL}/arrantza-gallery-real-03.jpg`,
     alt: 'Selección de marisco y pescado fresco sobre sal',
     caption: 'Gambas, boquerones y pescado recién llegado de lonja',
   },
   {
-    src: '/gallery/arrantza-gallery-04.jpg',
+    src: `${GALLERY_BASE_URL}/arrantza-gallery-real-04.jpg`,
     alt: 'Cesta variada de marisco fresco: bogavante, centollo, langostinos y percebes',
     caption: 'Selección de marisco: bogavante, centollo y percebes',
   },
   {
-    src: '/gallery/arrantza-gallery-05.jpg',
+    src: `${GALLERY_BASE_URL}/arrantza-gallery-real-05.jpg`,
     alt: 'Pescado y carne fresca en el mostrador de Arrantza',
     caption: 'Variedad diaria de pescado y carne fresca',
   },
