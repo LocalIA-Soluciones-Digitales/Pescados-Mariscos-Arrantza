@@ -1559,7 +1559,11 @@ create index if not exists idx_promo_otorgadas_estado on public.promo_otorgadas 
 create index if not exists idx_promo_otorgadas_cliente_key on public.promo_otorgadas (cliente_key);
 
 -- ============================================================
--- Motor de evaluación: se llama desde triggers de pedidos/reservas.
+-- Motor de evaluación: se llama desde triggers de pedidos/reservas, y
+-- también (para una sola regla, contra todo el historial ya existente)
+-- al crear o reactivar una regla — sin este barrido retroactivo, un
+-- cliente que YA cumplía la condición antes de crear la regla se
+-- quedaría sin la recompensa hasta su siguiente pedido.
 -- ============================================================
 
 create or replace function public.normalizar_telefono(p_telefono text)
@@ -1569,20 +1573,20 @@ as $$
   select nullif(regexp_replace(regexp_replace(coalesce(p_telefono, ''), '\D', '', 'g'), '^34', ''), '');
 $$;
 
--- Uso interno (llamada solo desde los triggers de pedidos/reservas más
--- abajo). Al ser SECURITY DEFINER y devolver void (no "trigger"),
--- PostgREST la expondría por defecto como RPC pública en
--- /rest/v1/rpc/evaluar_promo_reglas, lo que permitiría a cualquiera
--- (incluso anon) forzar la creación de promo_otorgadas con un
--- cliente_id/teléfono arbitrarios — se revoca el EXECUTE público justo
--- después de crearla (mismo motivo que get_pedidos_by_device).
-create or replace function public.evaluar_promo_reglas(p_cliente_id uuid, p_telefono text, p_nombre text, p_email text)
+-- Comprueba una regla concreta contra un cliente concreto y concede la
+-- recompensa si corresponde. Uso interno (llamada desde evaluar_promo_reglas
+-- y evaluar_promo_regla_historico, más abajo) — se revoca el EXECUTE
+-- público igual que en el resto de funciones de este bloque (mismo motivo
+-- que get_pedidos_by_device: SECURITY DEFINER + devuelve algo distinto de
+-- "trigger" = PostgREST la expondría como RPC pública si no se revoca).
+create or replace function public.evaluar_promo_regla_para_cliente(
+  p_regla public.promo_reglas, p_cliente_id uuid, p_telefono text, p_nombre text, p_email text
+)
 returns void
 language plpgsql security definer set search_path = public
 as $$
 declare
   v_key text;
-  v_regla record;
   v_gasto numeric;
   v_num_pedidos integer;
   v_valor numeric;
@@ -1595,76 +1599,146 @@ begin
     return;
   end if;
 
+  if exists (
+    select 1 from public.promo_otorgadas
+    where regla_id = p_regla.id and cliente_key = v_key
+  ) then
+    return;
+  end if;
+
+  if p_regla.tipo_condicion = 'gasto_total' then
+    select coalesce(sum(importe_estimado), 0) into v_gasto
+    from (
+      select importe_estimado from public.pedidos
+      where cliente_id = p_cliente_id and estado <> 'cancelado'
+        and public.normalizar_telefono(cliente_telefono) = v_key
+      union all
+      select importe_estimado from public.reservas
+      where cliente_id = p_cliente_id and estado <> 'cancelada'
+        and public.normalizar_telefono(cliente_telefono) = v_key
+    ) t;
+
+    if v_gasto < p_regla.umbral then
+      return;
+    end if;
+    v_valor := v_gasto;
+
+  elsif p_regla.tipo_condicion = 'num_pedidos' then
+    select count(*) into v_num_pedidos
+    from public.pedidos
+    where cliente_id = p_cliente_id and estado <> 'cancelado'
+      and public.normalizar_telefono(cliente_telefono) = v_key
+      and importe_estimado >= p_regla.importe_min_pedido;
+
+    if v_num_pedidos < p_regla.umbral then
+      return;
+    end if;
+    v_valor := v_num_pedidos;
+  end if;
+
   select nombre_negocio into v_negocio from public.clientes where id = p_cliente_id;
 
+  if p_regla.tipo_recompensa = 'producto_gratis' then
+    select nombre_es into v_recompensa_texto from public.productos where id = p_regla.producto_id;
+    v_recompensa_texto := coalesce(v_recompensa_texto, 'un producto') || ' gratis';
+  elsif p_regla.tipo_recompensa = 'descuento_eur' then
+    v_recompensa_texto := p_regla.valor_recompensa::text || '€ de descuento en tu próximo pedido';
+  else
+    v_recompensa_texto := p_regla.valor_recompensa::text || '% de descuento en tu próximo pedido';
+  end if;
+
+  v_mensaje := replace(replace(replace(p_regla.mensaje_plantilla,
+    '{{cliente_nombre}}', coalesce(nullif(trim(p_nombre), ''), 'cliente')),
+    '{{recompensa}}', v_recompensa_texto),
+    '{{negocio}}', coalesce(v_negocio, 'nuestra pescadería'));
+
+  insert into public.promo_otorgadas (
+    cliente_id, regla_id, cliente_key, cliente_nombre, cliente_telefono, cliente_email,
+    valor_disparador, mensaje
+  ) values (
+    p_cliente_id, p_regla.id, v_key, coalesce(nullif(trim(p_nombre), ''), 'Sin nombre'), v_key, p_email,
+    v_valor, v_mensaje
+  )
+  on conflict (regla_id, cliente_key) do nothing;
+end;
+$$;
+
+revoke all on function public.evaluar_promo_regla_para_cliente(public.promo_reglas, uuid, text, text, text) from public, anon, authenticated;
+
+-- Llamada desde los triggers de pedidos/reservas: recorre todas las
+-- reglas activas del negocio para ese cliente.
+create or replace function public.evaluar_promo_reglas(p_cliente_id uuid, p_telefono text, p_nombre text, p_email text)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_regla public.promo_reglas;
+begin
   for v_regla in
     select * from public.promo_reglas
     where cliente_id = p_cliente_id and activo = true
   loop
-    if exists (
-      select 1 from public.promo_otorgadas
-      where regla_id = v_regla.id and cliente_key = v_key
-    ) then
-      continue;
-    end if;
-
-    if v_regla.tipo_condicion = 'gasto_total' then
-      select coalesce(sum(importe_estimado), 0) into v_gasto
-      from (
-        select importe_estimado from public.pedidos
-        where cliente_id = p_cliente_id and estado <> 'cancelado'
-          and public.normalizar_telefono(cliente_telefono) = v_key
-        union all
-        select importe_estimado from public.reservas
-        where cliente_id = p_cliente_id and estado <> 'cancelada'
-          and public.normalizar_telefono(cliente_telefono) = v_key
-      ) t;
-
-      if v_gasto < v_regla.umbral then
-        continue;
-      end if;
-      v_valor := v_gasto;
-
-    elsif v_regla.tipo_condicion = 'num_pedidos' then
-      select count(*) into v_num_pedidos
-      from public.pedidos
-      where cliente_id = p_cliente_id and estado <> 'cancelado'
-        and public.normalizar_telefono(cliente_telefono) = v_key
-        and importe_estimado >= v_regla.importe_min_pedido;
-
-      if v_num_pedidos < v_regla.umbral then
-        continue;
-      end if;
-      v_valor := v_num_pedidos;
-    end if;
-
-    if v_regla.tipo_recompensa = 'producto_gratis' then
-      select nombre_es into v_recompensa_texto from public.productos where id = v_regla.producto_id;
-      v_recompensa_texto := coalesce(v_recompensa_texto, 'un producto') || ' gratis';
-    elsif v_regla.tipo_recompensa = 'descuento_eur' then
-      v_recompensa_texto := v_regla.valor_recompensa::text || '€ de descuento en tu próximo pedido';
-    else
-      v_recompensa_texto := v_regla.valor_recompensa::text || '% de descuento en tu próximo pedido';
-    end if;
-
-    v_mensaje := replace(replace(replace(v_regla.mensaje_plantilla,
-      '{{cliente_nombre}}', coalesce(nullif(trim(p_nombre), ''), 'cliente')),
-      '{{recompensa}}', v_recompensa_texto),
-      '{{negocio}}', coalesce(v_negocio, 'nuestra pescadería'));
-
-    insert into public.promo_otorgadas (
-      cliente_id, regla_id, cliente_key, cliente_nombre, cliente_telefono, cliente_email,
-      valor_disparador, mensaje
-    ) values (
-      p_cliente_id, v_regla.id, v_key, coalesce(nullif(trim(p_nombre), ''), 'Sin nombre'), v_key, p_email,
-      v_valor, v_mensaje
-    )
-    on conflict (regla_id, cliente_key) do nothing;
+    perform public.evaluar_promo_regla_para_cliente(v_regla, p_cliente_id, p_telefono, p_nombre, p_email);
   end loop;
 end;
 $$;
 
 revoke all on function public.evaluar_promo_reglas(uuid, text, text, text) from public, anon, authenticated;
+
+-- Barrido retroactivo de una sola regla: recorre el historial completo
+-- de pedidos/reservas del negocio (un cliente final por teléfono, con su
+-- nombre/email más reciente) y evalúa esa regla para cada uno.
+create or replace function public.evaluar_promo_regla_historico(p_regla_id uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_regla public.promo_reglas;
+  v_cliente record;
+begin
+  select * into v_regla from public.promo_reglas where id = p_regla_id;
+  if v_regla.id is null or not v_regla.activo then
+    return;
+  end if;
+
+  for v_cliente in
+    select distinct on (public.normalizar_telefono(t.cliente_telefono))
+      t.cliente_telefono, t.cliente_nombre, t.cliente_email
+    from (
+      select cliente_telefono, cliente_nombre, cliente_email, created_at from public.pedidos
+      where cliente_id = v_regla.cliente_id and cliente_telefono is not null
+      union all
+      select cliente_telefono, cliente_nombre, cliente_email, created_at from public.reservas
+      where cliente_id = v_regla.cliente_id and cliente_telefono is not null
+    ) t
+    where public.normalizar_telefono(t.cliente_telefono) is not null
+    order by public.normalizar_telefono(t.cliente_telefono), t.created_at desc
+  loop
+    perform public.evaluar_promo_regla_para_cliente(
+      v_regla, v_regla.cliente_id, v_cliente.cliente_telefono, v_cliente.cliente_nombre, v_cliente.cliente_email
+    );
+  end loop;
+end;
+$$;
+
+revoke all on function public.evaluar_promo_regla_historico(uuid) from public, anon, authenticated;
+
+create or replace function public.trg_promo_regla_historico()
+returns trigger as $$
+begin
+  if new.activo and (tg_op = 'INSERT' or old.activo is distinct from true) then
+    perform public.evaluar_promo_regla_historico(new.id);
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+revoke all on function public.trg_promo_regla_historico() from public, anon, authenticated;
+
+drop trigger if exists trg_promo_reglas_historico on public.promo_reglas;
+create trigger trg_promo_reglas_historico
+  after insert or update of activo on public.promo_reglas
+  for each row execute function public.trg_promo_regla_historico();
 
 create or replace function public.trg_evaluar_promo_pedido()
 returns trigger as $$
