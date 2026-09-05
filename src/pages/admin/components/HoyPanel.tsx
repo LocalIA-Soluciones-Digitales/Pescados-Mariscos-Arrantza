@@ -133,6 +133,26 @@ function ProductoTile({ nombre, kg, pct }: { nombre: string; kg: number; pct: nu
   );
 }
 
+function EmptyState({ icon, message, variant = 'neutral' }: { icon: string; message: string; variant?: 'neutral' | 'success' }) {
+  const success = variant === 'success';
+  return (
+    <div
+      className={`flex flex-col items-center justify-center gap-2.5 text-center py-9 px-4 rounded-xl border border-dashed ${
+        success ? 'border-emerald-200 bg-emerald-50/40' : 'border-background-200 bg-background-50/50'
+      }`}
+    >
+      <span
+        className={`w-10 h-10 flex items-center justify-center rounded-full ${
+          success ? 'bg-emerald-100 text-emerald-600' : 'bg-background-100 text-foreground-300'
+        }`}
+      >
+        <i className={`${icon} text-lg`}></i>
+      </span>
+      <p className={`text-sm ${success ? 'text-emerald-700' : 'text-foreground-400'}`}>{message}</p>
+    </div>
+  );
+}
+
 function ContactoRapido({ telefono }: { telefono: string | null }) {
   const tel = normalizePhone(telefono);
   if (!tel) return null;
@@ -284,7 +304,7 @@ export default function HoyPanel({
           cuándo lo recoge o se le entrega.
         </p>
         {prepararHoy.length === 0 ? (
-          <p className="text-sm text-foreground-400">No hay pedidos ni reservas para hoy.</p>
+          <EmptyState icon="ri-cup-line" message="No hay pedidos ni reservas para hoy." />
         ) : (
           <div>
             {prepararHoy.map((entry, idx) => (
@@ -374,7 +394,7 @@ export default function HoyPanel({
             }
           />
           {pedidosNuevos.length === 0 ? (
-            <p className="text-sm text-foreground-400">No hay pedidos nuevos por confirmar.</p>
+            <EmptyState icon="ri-shopping-bag-3-line" message="No hay pedidos nuevos por confirmar." />
           ) : (
             <div className="space-y-2">
               {pedidosNuevos.map((p) => {
@@ -407,7 +427,7 @@ export default function HoyPanel({
             }
           />
           {reservasPendientes.length === 0 ? (
-            <p className="text-sm text-foreground-400">No hay reservas pendientes de confirmar.</p>
+            <EmptyState icon="ri-calendar-check-line" message="No hay reservas pendientes de confirmar." />
           ) : (
             <div className="space-y-2">
               {reservasPendientes.map((r) => {
@@ -441,7 +461,7 @@ export default function HoyPanel({
           }
         />
         {stockBajo.length === 0 ? (
-          <p className="text-sm text-foreground-400">Todos los productos están por encima de su mínimo.</p>
+          <EmptyState icon="ri-checkbox-circle-line" message="Todos los productos están por encima de su mínimo." variant="success" />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {stockBajo.map((p) => (
