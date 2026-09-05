@@ -176,8 +176,11 @@ export default function Gallery() {
                   loading={img.setIndex === MIDDLE_SET && img.itemIndex < 2 ? undefined : 'lazy'}
                 />
                 {/* Caption overlay */}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-foreground-950/80 via-foreground-950/25 to-transparent pt-10 pb-3 px-4">
-                  <p className="text-background-50 text-xs sm:text-sm leading-snug">{img.caption}</p>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-foreground-950/95 via-foreground-950/45 via-40% to-transparent pt-16 sm:pt-20 pb-4 sm:pb-5 px-4 sm:px-5">
+                  <span className="block w-7 h-[2px] rounded-full bg-accent-300 mb-2 sm:mb-2.5" />
+                  <p className="font-heading text-background-50 text-sm sm:text-base md:text-lg font-medium leading-snug drop-shadow-[0_1px_3px_rgba(0,0,0,0.55)]">
+                    {img.caption}
+                  </p>
                 </div>
                 {/* Zoom hint icon */}
                 <span className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-foreground-950/40 text-background-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -239,7 +242,7 @@ export default function Gallery() {
               alt={galleryImages[lightboxIndex].alt}
               className="max-w-full max-h-[70vh] object-contain rounded-lg"
             />
-            <p className="mt-4 text-center text-background-50 text-sm sm:text-base px-4">
+            <p className="font-heading mt-5 text-center text-background-50 text-base sm:text-lg font-medium px-4">
               {galleryImages[lightboxIndex].caption}
             </p>
           </div>
