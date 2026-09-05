@@ -4,6 +4,7 @@ import type { Reserva } from '@/types/reserva';
 import type { Resena } from '@/types/resena';
 import type { Producto } from '@/types/producto';
 import { normalizePhone, telHref, whatsappHref } from '@/lib/phone';
+import InfoHint from '@/components/base/InfoHint';
 
 type Tab = 'hoy' | 'productos' | 'stock' | 'ventas' | 'reservas' | 'resenas' | 'clientes';
 
@@ -46,12 +47,25 @@ interface PrepararEntry {
 // Cabecera de sección con la misma pareja "kicker en versalitas + título en
 // la tipografía editorial" que ya usa el resto del panel (StockPanel,
 // ReservasPanel), en vez de un <h2> suelto sin jerarquía.
-function SectionHeading({ kicker, title, action }: { kicker: string; title: string; action?: ReactNode }) {
+function SectionHeading({
+  kicker,
+  title,
+  info,
+  action,
+}: {
+  kicker: string;
+  title: string;
+  info?: { icon: string; text: string }[];
+  action?: ReactNode;
+}) {
   return (
     <div className="flex items-end justify-between gap-3 mb-3">
       <div>
         <p className="text-[10px] uppercase tracking-wide text-foreground-400 mb-0.5">{kicker}</p>
-        <h2 className="text-base font-heading font-semibold text-foreground-950 leading-tight">{title}</h2>
+        <div className="flex items-center gap-1.5">
+          <h2 className="text-base font-heading font-semibold text-foreground-950 leading-tight">{title}</h2>
+          {info && <InfoHint items={info} title={title} size="sm" />}
+        </div>
       </div>
       {action}
     </div>
@@ -295,14 +309,16 @@ export default function HoyPanel({
         <SectionHeading
           kicker="Compromiso vivo con clientes"
           title="Para preparar hoy"
+          info={[
+            {
+              icon: 'ri-list-check-2',
+              text: 'Pedidos y reservas de hoy, en orden de hora, con el detalle de cada cliente — para saber qué preparar y cuándo lo recoge o se le entrega.',
+            },
+          ]}
           action={
             prepararHoy.length > 0 ? <span className="text-xs text-foreground-400 flex-shrink-0">{formatKg(totalKgHoy)} en total</span> : undefined
           }
         />
-        <p className="text-xs text-foreground-400 mb-3 max-w-2xl">
-          Pedidos y reservas de hoy, en orden de hora, con el detalle de cada cliente — para saber qué preparar y
-          cuándo lo recoge o se le entrega.
-        </p>
         {prepararHoy.length === 0 ? (
           <EmptyState icon="ri-cup-line" message="No hay pedidos ni reservas para hoy." />
         ) : (
