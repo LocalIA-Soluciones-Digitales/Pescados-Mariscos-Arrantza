@@ -32,10 +32,18 @@ const galleryImages = [
   },
 ];
 
+const REPEAT_COUNT = 3;
+const MIDDLE_SET = 1;
+
+const loopedImages = Array.from({ length: REPEAT_COUNT }, (_, setIndex) =>
+  galleryImages.map((img, itemIndex) => ({ ...img, itemIndex, setIndex }))
+).flat();
+
 export default function Gallery() {
   const { t } = useTranslation();
   const { ref, isVisible } = useScrollAnimation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const setStartRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const scroll = (direction: 'left' | 'right') => {
@@ -46,6 +54,55 @@ export default function Gallery() {
       behavior: 'smooth',
     });
   };
+
+  // Carrusel infinito: se triplica el set de imágenes y, cuando el usuario
+  // llega al set de los extremos, se recoloca el scroll al set central sin
+  // animación (misma imagen en el mismo sitio), dando la sensación de que
+  // no tiene ni principio ni fin.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const leftOf = (el: HTMLDivElement) =>
+      el.getBoundingClientRect().left - container.getBoundingClientRect().left + container.scrollLeft;
+
+    const middleStart = setStartRefs.current[MIDDLE_SET];
+    if (middleStart) {
+      container.scrollLeft = leftOf(middleStart);
+    }
+
+    let settleTimeout: ReturnType<typeof setTimeout>;
+    const correctPosition = () => {
+      const firstStart = setStartRefs.current[0];
+      const midStart = setStartRefs.current[MIDDLE_SET];
+      const lastStart = setStartRefs.current[REPEAT_COUNT - 1];
+      if (!firstStart || !midStart || !lastStart) return;
+
+      const midLeft = leftOf(midStart);
+      const lastLeft = leftOf(lastStart);
+      const setWidth = midLeft - leftOf(firstStart);
+      if (setWidth <= 0) return;
+
+      if (container.scrollLeft < midLeft) {
+        container.scrollLeft += setWidth;
+      } else if (container.scrollLeft >= lastLeft) {
+        container.scrollLeft -= setWidth;
+      }
+    };
+
+    const handleScroll = () => {
+      clearTimeout(settleTimeout);
+      settleTimeout = setTimeout(correctPosition, 120);
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', correctPosition);
+    return () => {
+      clearTimeout(settleTimeout);
+      container.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', correctPosition);
+    };
+  }, []);
 
   const closeLightbox = () => setLightboxIndex(null);
   const showPrev = () => setLightboxIndex((i) => (i === null ? null : (i - 1 + galleryImages.length) % galleryImages.length));
@@ -99,14 +156,15 @@ export default function Gallery() {
           className="flex gap-4 px-4 md:px-12 overflow-x-auto scrollbar-hide snap-x snap-mandatory"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {galleryImages.map((img, i) => (
+          {loopedImages.map((img) => (
             <div
-              key={i}
+              key={`${img.setIndex}-${img.itemIndex}`}
+              ref={img.itemIndex === 0 ? (el) => { setStartRefs.current[img.setIndex] = el; } : undefined}
               className="flex-shrink-0 w-[82vw] sm:w-[320px] md:w-[420px] lg:w-[560px] snap-center"
             >
               <button
                 type="button"
-                onClick={() => setLightboxIndex(i)}
+                onClick={() => setLightboxIndex(img.itemIndex)}
                 aria-label={`Ampliar: ${img.caption}`}
                 className="group relative block w-full aspect-[4/3] overflow-hidden rounded-lg cursor-zoom-in"
               >
@@ -115,7 +173,7 @@ export default function Gallery() {
                   alt={img.alt}
                   title={img.alt}
                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  loading={i > 1 ? 'lazy' : undefined}
+                  loading={img.setIndex === MIDDLE_SET && img.itemIndex < 2 ? undefined : 'lazy'}
                 />
                 {/* Caption overlay */}
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-foreground-950/80 via-foreground-950/25 to-transparent pt-10 pb-3 px-4">
