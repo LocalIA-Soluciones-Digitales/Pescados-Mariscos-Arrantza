@@ -303,18 +303,25 @@ export default function PedidosPanel() {
     [pedidos, cursorIso],
   );
 
+  // Los pedidos "nuevos" requieren atención inmediata (confirmarlos o
+  // rechazarlos) independientemente del día para el que estén programados,
+  // así que ese contador y su filtro no se limitan al día seleccionado —
+  // si no, la insignia de la pestaña Ventas avisaría de un pedido que no
+  // aparece en ningún sitio hasta navegar al día exacto.
+  const pedidosNuevos = useMemo(() => pedidos.filter((p) => p.estado === 'nuevo'), [pedidos]);
+
   const counts = useMemo(() => {
-    const c: Record<string, number> = { todos: pedidosDelDia.length };
-    (['nuevo', 'confirmado', 'completado', 'cancelado'] as PedidoEstado[]).forEach((e) => {
+    const c: Record<string, number> = { todos: pedidosDelDia.length, nuevo: pedidosNuevos.length };
+    (['confirmado', 'completado', 'cancelado'] as PedidoEstado[]).forEach((e) => {
       c[e] = pedidosDelDia.filter((p) => p.estado === e).length;
     });
     return c;
-  }, [pedidosDelDia]);
+  }, [pedidosDelDia, pedidosNuevos]);
 
-  const visibles = useMemo(
-    () => (filtro === 'todos' ? pedidosDelDia : pedidosDelDia.filter((p) => p.estado === filtro)),
-    [pedidosDelDia, filtro],
-  );
+  const visibles = useMemo(() => {
+    if (filtro === 'nuevo') return pedidosNuevos;
+    return filtro === 'todos' ? pedidosDelDia : pedidosDelDia.filter((p) => p.estado === filtro);
+  }, [pedidosDelDia, pedidosNuevos, filtro]);
 
   // Agrupar por fecha preferida de recogida/entrega, igual que en Reservas,
   // para ver de un vistazo qué hay que preparar cada día.
