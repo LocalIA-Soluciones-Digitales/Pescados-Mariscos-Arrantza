@@ -30,6 +30,11 @@ const galleryImages = [
     alt: 'Pescado y carne fresca en el mostrador de Arrantza',
     caption: 'Variedad diaria de pescado y carne fresca',
   },
+  {
+    src: '/gallery/arrantza-gallery-06.jpg',
+    alt: 'Fachada de la pescadería Arrantza',
+    caption: 'Nuestra tienda, siempre lista para atenderte',
+  },
 ];
 
 const REPEAT_COUNT = 3;
