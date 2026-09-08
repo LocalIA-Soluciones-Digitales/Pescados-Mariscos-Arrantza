@@ -4,15 +4,15 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 
 const GALLERY_BASE_URL = 'https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing';
 
-const galleryImages = [
+const galleryImages: { src: string; alt: string; caption: string; fit?: 'cover' | 'contain' }[] = [
   {
     src: `${GALLERY_BASE_URL}/arrantza-gallery-real-01.jpg`,
     alt: 'Mostrador de la pescadería Arrantza con pescado fresco sobre hielo',
     caption: 'Nuestro mostrador, con pescado fresco cada día',
   },
   {
-    src: `${GALLERY_BASE_URL}/arrantza-gallery-real-02.jpg`,
-    alt: 'Pescadero de Arrantza sonriendo en el mostrador',
+    src: '/gallery/arrantza-gallery-02.jpg',
+    alt: 'Pescadero de Arrantza sonriendo en el mostrador, con el género expuesto',
     caption: 'El equipo de Arrantza, pasión por el oficio',
   },
   {
@@ -171,13 +171,13 @@ export default function Gallery() {
                 type="button"
                 onClick={() => setLightboxIndex(img.itemIndex)}
                 aria-label={`Ampliar: ${img.caption}`}
-                className="group relative block w-full aspect-[4/3] overflow-hidden rounded-lg cursor-zoom-in"
+                className="group relative block w-full aspect-[4/3] overflow-hidden rounded-lg cursor-zoom-in bg-foreground-950"
               >
                 <img
                   src={img.src}
                   alt={img.alt}
                   title={img.alt}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  className={`w-full h-full transition-transform duration-700 group-hover:scale-105 ${img.fit === 'contain' ? 'object-contain' : 'object-cover'}`}
                   loading={img.setIndex === MIDDLE_SET && img.itemIndex < 2 ? undefined : 'lazy'}
                 />
                 {/* Caption overlay */}
