@@ -56,7 +56,7 @@ function ProductoCard({
   onEdit: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const stockBajo = producto.stock_kg <= producto.stock_minimo;
+  const stockBajo = producto.gestion_stock && producto.stock_kg <= producto.stock_minimo;
 
   const toggleDisponible = async () => {
     setBusy(true);
@@ -253,7 +253,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
 
   const agotadosCount = useMemo(() => productos.filter((p) => !p.disponible).length, [productos]);
   const destacadosCount = useMemo(() => productos.filter((p) => p.destacado).length, [productos]);
-  const stockBajoCount = useMemo(() => productos.filter((p) => p.stock_kg <= p.stock_minimo).length, [productos]);
+  const stockBajoCount = useMemo(() => productos.filter((p) => p.gestion_stock && p.stock_kg <= p.stock_minimo).length, [productos]);
 
   const categoriaCounts = useMemo(() => {
     const counts: Record<string, number> = { todos: productos.length };

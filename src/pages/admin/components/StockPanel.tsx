@@ -30,7 +30,7 @@ function StockRow({
   const [movimiento, setMovimiento] = useState<'entrada' | 'baja'>('entrada');
   const [stockMinimo, setStockMinimo] = useState(producto.stock_minimo);
   const [saving, setSaving] = useState(false);
-  const stockBajo = producto.stock_kg <= producto.stock_minimo;
+  const stockBajo = producto.gestion_stock && producto.stock_kg <= producto.stock_minimo;
 
   const sumarEntrada = async () => {
     const cantidad = Number(entrada);
@@ -62,18 +62,34 @@ function StockRow({
     onPatch({ stock_minimo: v });
   };
 
+  const toggleGestionStock = async () => {
+    const gestion_stock = !producto.gestion_stock;
+    setSaving(true);
+    const { error } = await supabase.from('productos').update({ gestion_stock }).eq('id', producto.id);
+    setSaving(false);
+    if (error) {
+      alert('No se pudo actualizar la gestión de stock: ' + error.message);
+      return;
+    }
+    onPatch({ gestion_stock });
+  };
+
   return (
     <div
       className={`rounded-xl border px-3 py-2.5 shadow-card hover:shadow-card-hover transition-all duration-200 ${
-        stockBajo ? 'bg-red-50/60 border-red-200 border-l-4 border-l-red-400' : 'bg-background-50 border-background-200/70'
+        stockBajo
+          ? 'bg-red-50/60 border-red-200 border-l-4 border-l-red-400'
+          : !producto.gestion_stock
+            ? 'bg-background-50/60 border-background-200/50'
+            : 'bg-background-50 border-background-200/70'
       } ${saving ? 'opacity-60' : ''}`}
     >
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
+        <div className={`w-10 h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
           {producto.imagen_url && <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" />}
         </div>
 
-        <div className="flex-1 min-w-0">
+        <div className={`flex-1 min-w-0 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
           <p className="text-sm font-medium text-foreground-950 truncate">{producto.nombre_es}</p>
           <p className="text-xs text-foreground-400">{producto.precio}</p>
         </div>
@@ -83,9 +99,24 @@ function StockRow({
             <i className="ri-alert-line"></i> Bajo mínimo
           </span>
         )}
+
+        <button
+          type="button"
+          onClick={toggleGestionStock}
+          disabled={saving}
+          title={producto.gestion_stock ? 'Dejar de gestionar el stock de este producto (no avisará de mínimos)' : 'Volver a gestionar el stock de este producto'}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium flex-shrink-0 transition-colors ${
+            producto.gestion_stock
+              ? 'bg-background-100 text-foreground-400 hover:bg-background-200/70'
+              : 'bg-foreground-200/60 text-foreground-600'
+          }`}
+        >
+          <i className={producto.gestion_stock ? 'ri-toggle-fill text-sm' : 'ri-toggle-line text-sm'}></i>
+          {producto.gestion_stock ? 'Gestión activa' : 'Sin gestionar'}
+        </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-2.5">
+      <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 mt-2.5 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <label className="text-[11px] text-foreground-400">Stock actual</label>
           <span className={`w-16 text-right text-sm font-medium ${stockBajo ? 'text-red-700' : 'text-foreground-950'}`}>
@@ -201,7 +232,7 @@ export default function StockPanel({
   const { codigos: codigosBascula, loading: loadingCodigos } = useProductosCodigosBascula();
   const cargando = loading || loadingCodigos;
 
-  const bajoCount = useMemo(() => productos.filter((p) => p.stock_kg <= p.stock_minimo).length, [productos]);
+  const bajoCount = useMemo(() => productos.filter((p) => p.gestion_stock && p.stock_kg <= p.stock_minimo).length, [productos]);
 
   const categoriaCounts = useMemo(() => {
     const counts: Record<string, number> = { todos: productos.length };
@@ -223,7 +254,7 @@ export default function StockPanel({
       );
     }
     if (soloBajo) {
-      result = result.filter((p) => p.stock_kg <= p.stock_minimo);
+      result = result.filter((p) => p.gestion_stock && p.stock_kg <= p.stock_minimo);
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();

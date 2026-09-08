@@ -39,6 +39,7 @@ export interface Producto {
   stock_kg: number;
   stock_minimo: number;
   stock_alerta_enviada: boolean;
+  gestion_stock: boolean;
   orden: number;
   created_at: string;
   updated_at: string;

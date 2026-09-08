@@ -224,7 +224,10 @@ export default function HoyPanel({
   const reservasActivas = useMemo(() => reservas.filter((r) => r.estado === 'pendiente' || r.estado === 'confirmada'), [reservas]);
   const resenasPendientes = useMemo(() => resenas.filter((r) => r.estado === 'pendiente'), [resenas]);
   const stockBajo = useMemo(
-    () => productos.filter((p) => p.stock_kg <= p.stock_minimo).sort((a, b) => (a.stock_kg - a.stock_minimo) - (b.stock_kg - b.stock_minimo)),
+    () =>
+      productos
+        .filter((p) => p.gestion_stock && p.stock_kg <= p.stock_minimo)
+        .sort((a, b) => (a.stock_kg - a.stock_minimo) - (b.stock_kg - b.stock_minimo)),
     [productos],
   );
 

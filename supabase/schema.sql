@@ -93,6 +93,7 @@ create table if not exists public.productos (
   stock_kg numeric not null default 0,
   stock_minimo numeric not null default 10,
   stock_alerta_enviada boolean not null default false,
+  gestion_stock boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -686,6 +687,14 @@ declare
   v_url text;
   v_secret text;
 begin
+  if coalesce(new.gestion_stock, true) = false then
+    -- Sin gestión de stock no hay avisos: al desactivarla se limpia el
+    -- flag para que, si se reactiva más tarde con el stock aún bajo,
+    -- se dispare un aviso nuevo en vez de quedarse silenciado para siempre.
+    new.stock_alerta_enviada := false;
+    return new;
+  end if;
+
   if new.stock_kg <= new.stock_minimo and coalesce(old.stock_alerta_enviada, false) = false then
     new.stock_alerta_enviada := true;
 
@@ -713,7 +722,7 @@ $$ language plpgsql security definer set search_path = public, extensions;
 
 drop trigger if exists trg_productos_stock_bajo on public.productos;
 create trigger trg_productos_stock_bajo
-  before update of stock_kg, stock_minimo on public.productos
+  before update of stock_kg, stock_minimo, gestion_stock on public.productos
   for each row execute function public.notificar_stock_bajo();
 
 -- Descuenta stock automáticamente a partir de las pesadas registradas en
