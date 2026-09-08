@@ -7,6 +7,7 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { logConversion } from '@/lib/visitLog';
 import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { pickLang } from '@/types/producto';
+import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 
 /* ── Daily selection shows whatever the fishmonger marks as        ── */
 /* ── "Destacado" in the admin panel (shared with the home carousel). ── */
@@ -166,13 +167,15 @@ function DailySelection() {
                 style={{ transitionDelay: `${idx * 100}ms` }}
               >
                 <div className="relative aspect-[4/3] overflow-hidden bg-background-100">
-                  {producto.imagen_url && (
+                  {producto.imagen_url ? (
                     <img
                       src={producto.imagen_url}
                       alt={nombre}
                       className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03]"
                       loading="lazy"
                     />
+                  ) : (
+                    <ProductImagePlaceholder label={t('products.image_coming_soon')} />
                   )}
                 </div>
                 <div className="p-4 md:p-5">

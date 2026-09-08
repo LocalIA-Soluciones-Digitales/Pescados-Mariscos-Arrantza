@@ -6,6 +6,7 @@ import { useProductosCodigosBascula } from '@/hooks/useProductosCodigosBascula';
 import { ORIGENES, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import SearchInput from '@/components/base/SearchInput';
 import CategoryFilterDropdown from '@/components/base/CategoryFilterDropdown';
+import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 
 const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
   pescado: 'Pescado',
@@ -86,7 +87,11 @@ function StockRow({
     >
       <div className="flex items-center gap-3">
         <div className={`w-10 h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
-          {producto.imagen_url && <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" />}
+          {producto.imagen_url ? (
+            <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <ProductImagePlaceholder className="[&>i]:text-sm [&>span]:hidden" />
+          )}
         </div>
 
         <div className={`flex-1 min-w-0 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>

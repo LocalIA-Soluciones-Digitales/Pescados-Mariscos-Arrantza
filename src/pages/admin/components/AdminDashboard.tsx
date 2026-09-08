@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useProductos } from '@/hooks/useProductos';
 import { CATEGORIA_FILTROS, type CategoriaFiltro, type Producto, type ProductoEstado } from '@/types/producto';
 import CategoryFilterDropdown from '@/components/base/CategoryFilterDropdown';
+import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 import ProductoFormModal from './ProductoFormModal';
 import VentasPanel from './VentasPanel';
 import ResenasPanel from './ResenasPanel';
@@ -108,8 +109,10 @@ function ProductoCard({
   return (
     <div className={`bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden ${busy ? 'opacity-60' : ''}`}>
       <div className="relative aspect-[5/4] bg-background-100">
-        {producto.imagen_url && (
+        {producto.imagen_url ? (
           <img src={producto.imagen_url} alt={producto.nombre_es} className={`w-full h-full object-cover ${!producto.disponible ? 'grayscale opacity-60' : ''}`} />
+        ) : (
+          <ProductImagePlaceholder />
         )}
         <button
           type="button"

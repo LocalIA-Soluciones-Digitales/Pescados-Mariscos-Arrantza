@@ -5,6 +5,7 @@ import type { CartItem, CartCustomerInfo, OrderHistoryEntry } from '@/hooks/useC
 import type { Producto } from '@/types/producto';
 import { pickLang } from '@/types/producto';
 import RollingNumber from '@/components/base/RollingNumber';
+import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 import { useTurnstile } from '@/hooks/useTurnstile';
 import TurnstileWidget from '@/components/feature/TurnstileWidget';
 import { isTurnstileEnabled } from '@/config/turnstile';
@@ -347,11 +348,15 @@ function CartLineItem({
     <div className={`flex gap-2.5 py-3 border-b border-background-200/60 last:border-b-0 rounded-lg transition-shadow duration-200 ${rowFlashing ? 'animate-row-flash' : ''}`}>
       {/* Thumbnail */}
       <div className="w-12 h-12 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
-        <img
-          src={product.imagen_url ?? ''}
-          alt={pickLang(product, 'nombre', i18n.language)}
-          className="w-full h-full object-cover object-top"
-        />
+        {product.imagen_url ? (
+          <img
+            src={product.imagen_url}
+            alt={pickLang(product, 'nombre', i18n.language)}
+            className="w-full h-full object-cover object-top"
+          />
+        ) : (
+          <ProductImagePlaceholder className="[&>i]:text-base [&>span]:hidden" />
+        )}
       </div>
 
       {/* Details */}

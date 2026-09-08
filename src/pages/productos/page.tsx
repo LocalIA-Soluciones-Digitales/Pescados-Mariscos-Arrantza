@@ -13,6 +13,7 @@ import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { useCartSound } from '@/hooks/useCartSound';
 import { logAddToCart, logCategoryView, logConversion, logProductView } from '@/lib/visitLog';
 import { pickLang, normalizeSearch } from '@/types/producto';
+import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 import type { Producto } from '@/types/producto';
 
 /* ------------------------------------------------------------------ */
@@ -237,11 +238,15 @@ function AddToCartToast({
         <div className="flex items-center gap-3">
           {/* Product thumbnail */}
           <div className="w-12 h-12 md:w-10 md:h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0">
-            <img
-              src={product.imagen_url ?? ''}
-              alt={pickLang(product, 'nombre', i18n.language)}
-              className="w-full h-full object-cover object-top"
-            />
+            {product.imagen_url ? (
+              <img
+                src={product.imagen_url}
+                alt={pickLang(product, 'nombre', i18n.language)}
+                className="w-full h-full object-cover object-top"
+              />
+            ) : (
+              <ProductImagePlaceholder className="[&>i]:text-base [&>span]:hidden" />
+            )}
           </div>
 
           {/* Info */}
@@ -808,12 +813,16 @@ function ProductCard({
     >
       {/* Image */}
       <div className="relative aspect-[5/4] overflow-hidden bg-background-100">
-        <img
-          src={product.imagen_url ?? ''}
-          alt={pickLang(product, 'nombre', i18n.language)}
-          className={`w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03] ${agotado ? 'opacity-40 grayscale' : ''}`}
-          loading="lazy"
-        />
+        {product.imagen_url ? (
+          <img
+            src={product.imagen_url}
+            alt={pickLang(product, 'nombre', i18n.language)}
+            className={`w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03] ${agotado ? 'opacity-40 grayscale' : ''}`}
+            loading="lazy"
+          />
+        ) : (
+          <ProductImagePlaceholder label={t('products.image_coming_soon')} />
+        )}
 
         {/* Color-coded badge — "agotado" takes priority over the highlight badge */}
         <div className="absolute top-2 left-2 md:top-4 md:left-4">

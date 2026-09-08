@@ -5,6 +5,7 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { pickLang } from '@/types/producto';
 import type { Producto, ProductoEstado } from '@/types/producto';
+import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 
 /* ------------------------------------------------------------------ */
 /*  The carousel shows whatever the fishmonger marks as "Destacado"   */
@@ -66,7 +67,7 @@ function ProductCard({
     >
       {/* Image container */}
       <div className="relative aspect-[4/5] overflow-hidden bg-background-100">
-        {producto.imagen_url && (
+        {producto.imagen_url ? (
           <img
             src={producto.imagen_url}
             alt={productName}
@@ -74,6 +75,8 @@ function ProductCard({
             className="w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105"
             draggable={false}
           />
+        ) : (
+          <ProductImagePlaceholder label={t('products.image_coming_soon')} />
         )}
 
         {/* Premium badge */}

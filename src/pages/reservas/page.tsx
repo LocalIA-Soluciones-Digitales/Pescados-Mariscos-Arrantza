@@ -9,6 +9,7 @@ import { logReserva } from '@/lib/reservasLog';
 import { getDeviceId } from '@/lib/deviceId';
 import { pickLang } from '@/types/producto';
 import type { Producto, ProductoCategoria } from '@/types/producto';
+import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 import type { ReservaEvento, ReservaItem } from '@/types/reserva';
 
 const CATEGORIA_ORDEN: { value: ProductoCategoria; labelKey: string }[] = [
@@ -120,7 +121,11 @@ function ReservaProductCard({
       }`}
     >
       <div className="relative aspect-[5/4] overflow-hidden bg-background-100">
-        <img src={product.imagen_url ?? ''} alt={pickLang(product, 'nombre', i18n.language)} className="w-full h-full object-cover object-top" loading="lazy" />
+        {product.imagen_url ? (
+          <img src={product.imagen_url} alt={pickLang(product, 'nombre', i18n.language)} className="w-full h-full object-cover object-top" loading="lazy" />
+        ) : (
+          <ProductImagePlaceholder label={t('products.image_coming_soon')} />
+        )}
       </div>
       <div className="px-3 pt-3 pb-3">
         <h3 className="text-[13px] md:text-sm font-heading font-semibold text-foreground-950 leading-tight mb-1">
