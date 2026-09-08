@@ -100,20 +100,28 @@ function StockRow({
           </span>
         )}
 
-        <button
-          type="button"
-          onClick={toggleGestionStock}
-          disabled={saving}
+        <div
+          className="flex items-center gap-2 flex-shrink-0"
           title={producto.gestion_stock ? 'Dejar de gestionar el stock de este producto (no avisará de mínimos)' : 'Volver a gestionar el stock de este producto'}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium flex-shrink-0 transition-colors ${
-            producto.gestion_stock
-              ? 'bg-background-100 text-foreground-400 hover:bg-background-200/70'
-              : 'bg-foreground-200/60 text-foreground-600'
-          }`}
         >
-          <i className={producto.gestion_stock ? 'ri-toggle-fill text-sm' : 'ri-toggle-line text-sm'}></i>
-          {producto.gestion_stock ? 'Gestión activa' : 'Sin gestionar'}
-        </button>
+          <span className="hidden sm:inline text-[11px] text-foreground-400">Gestionar stock</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={producto.gestion_stock}
+            onClick={toggleGestionStock}
+            disabled={saving}
+            className={`relative inline-flex flex-shrink-0 items-center w-9 h-5 rounded-full border transition-colors duration-200 ${
+              producto.gestion_stock ? 'bg-primary-500 border-primary-500' : 'bg-background-200 border-background-300'
+            }`}
+          >
+            <span
+              className={`inline-block w-3.5 h-3.5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
+                producto.gestion_stock ? 'translate-x-[18px]' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 mt-2.5 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
