@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCaja, type NewCajaMovimientoInput } from '@/hooks/useCaja';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { deleteBasculaVenta, fetchBasculaVentasDelDia, useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
+import { useBasculaSyncEstado, type BasculaSyncInfo } from '@/hooks/useBasculaSyncEstado';
 import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
@@ -49,6 +50,39 @@ function formatFechaCorta(fecha: string): string {
 
 function formatHora(isoTimestamp: string): string {
   return new Date(isoTimestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatRelativo(fecha: Date): string {
+  const minutos = Math.round((Date.now() - fecha.getTime()) / 60000);
+  if (minutos < 1) return 'ahora mismo';
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  return `hace ${horas}h ${resto}min`;
+}
+
+const BASCULA_LABELS: Record<Origen, string> = { pescaderia_1: 'Báscula I', pescaderia_2: 'Báscula II' };
+
+// Watchdog de conexión de cada báscula: se apoya en bascula_sync_estado()
+// (hora de la última ejecución correcta del cron, haya vendido algo o no —
+// ver useBasculaSyncEstado). Es normal que salga "sin conexión" mientras la
+// báscula física está apagada fuera de horario — el indicador no distingue
+// eso de una caída real, solo si está respondiendo ahora mismo.
+function WatchdogBascula({ origen, info }: { origen: Origen; info?: BasculaSyncInfo }) {
+  const estado = info?.estado ?? 'desconocido';
+  const color = estado === 'conectada' ? 'bg-emerald-500' : estado === 'sin_conexion' ? 'bg-red-500' : 'bg-foreground-300';
+  const titulo = info?.ultimaSync
+    ? `Última sincronización: ${info.ultimaSync.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} (${formatRelativo(info.ultimaSync)})`
+    : 'Sin datos de sincronización todavía';
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500" title={titulo}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${color}`}></span>
+      {BASCULA_LABELS[origen]}
+      {estado === 'sin_conexion' && info?.ultimaSync && (
+        <span className="text-red-500">· {formatRelativo(info.ultimaSync)}</span>
+      )}
+    </span>
+  );
 }
 
 interface Totales {
@@ -341,7 +375,7 @@ function VistaDia({
   const netoDia = totalIngresosDia - totalGastosDia;
 
   const [filtroOrigen, setFiltroOrigen] = useState<FiltroOrigen>('todas');
-  const origenesVisibles = filtroOrigen === 'todas' ? ORIGENES : [filtroOrigen];
+  const origenesVisibles = useMemo(() => (filtroOrigen === 'todas' ? ORIGENES : [filtroOrigen]), [filtroOrigen]);
 
   const [lineasBascula, setLineasBascula] = useState<BasculaVenta[]>([]);
   const [cargandoBascula, setCargandoBascula] = useState(true);
@@ -730,6 +764,7 @@ type Vista = 'dia' | 'mes' | 'anio';
 export default function CajaPanel() {
   const { movimientos, loading: loadingMovimientos, crearMovimiento, eliminarMovimiento } = useCaja();
   const { dias, porTienda, loading: loadingBascula } = useBasculaVentasDiarias();
+  const { porOrigen: syncPorOrigen } = useBasculaSyncEstado();
   const [vista, setVista] = useState<Vista>('dia');
   const [fecha, setFecha] = useState(hoyISO());
   const [mes, setMes] = useState(new Date().getMonth());
@@ -793,6 +828,12 @@ export default function CajaPanel() {
             >
               {v.label}
             </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-3">
+          {ORIGENES.map((o) => (
+            <WatchdogBascula key={o} origen={o} info={syncPorOrigen[o]} />
           ))}
         </div>
       </div>

@@ -351,6 +351,26 @@ create policy "settings_all_admin"
   using (is_developer())
   with check (is_developer());
 
+-- settings es developer-only (guarda secretos/URLs de otras integraciones,
+-- no solo el estado de la báscula), así que el panel admin normal (David)
+-- no puede leerla directo. Esta función expone SOLO la hora de la última
+-- sincronización de cada báscula (bascula_last_oid_pescaderia_1/2 se
+-- actualiza en cada ejecución del cron, haya vendido algo o no — ver
+-- bascula-sync/index.ts), para el indicador "báscula conectada / sin
+-- conexión" de Caja, sin filtrar el resto de la tabla.
+create or replace function public.bascula_sync_estado()
+returns table (origen text, ultima_sync timestamptz)
+language sql stable security definer set search_path = public
+as $$
+  select regexp_replace(key, '^bascula_last_oid_', '') as origen, updated_at as ultima_sync
+  from public.settings
+  where key in ('bascula_last_oid_pescaderia_1', 'bascula_last_oid_pescaderia_2')
+    and (is_developer() or cliente_id = mi_cliente_id());
+$$;
+
+revoke all on function public.bascula_sync_estado() from public;
+grant execute on function public.bascula_sync_estado() to authenticated;
+
 -- ============================================================
 -- Pedidos: persiste el contenido de cada pedido enviado por WhatsApp.
 -- ============================================================
