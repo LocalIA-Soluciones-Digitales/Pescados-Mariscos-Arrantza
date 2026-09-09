@@ -542,7 +542,7 @@ export default function VentasTiendaPanel() {
     const ordenado = [...(resumenProductos ?? [])].sort((a, b) => b.cantidad - a.cantidad);
     return {
       topKg: ordenado.filter((p) => p.unidad === 'kg').slice(0, 8),
-      topPiezas: ordenado.filter((p) => p.unidad === 'un').slice(0, 8),
+      topPiezas: ordenado.filter((p) => p.unidad === 'un' && p.designacion.toUpperCase() !== 'BOLSA').slice(0, 8),
     };
   }, [resumenProductos]);
 
