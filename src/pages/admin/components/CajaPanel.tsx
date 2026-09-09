@@ -314,6 +314,8 @@ function FilaTicketBascula({ ticket, onEliminarLinea }: { ticket: TicketBascula;
   );
 }
 
+type FiltroOrigen = Origen | 'todas';
+
 function VistaDia({
   fecha,
   onFechaChange,
@@ -338,6 +340,9 @@ function VistaDia({
   const totalIngresosDia = basculaHoy + totalIngresosManuales;
   const netoDia = totalIngresosDia - totalGastosDia;
 
+  const [filtroOrigen, setFiltroOrigen] = useState<FiltroOrigen>('todas');
+  const origenesVisibles = filtroOrigen === 'todas' ? ORIGENES : [filtroOrigen];
+
   const [lineasBascula, setLineasBascula] = useState<BasculaVenta[]>([]);
   const [cargandoBascula, setCargandoBascula] = useState(true);
 
@@ -360,6 +365,18 @@ function VistaDia({
   }, [lineasBascula, ingresosManuales]);
 
   const ticketsBascula = useMemo(() => agruparPorTicket(lineasBascula), [lineasBascula]);
+
+  const ticketsBasculaFiltrados = useMemo(
+    () => ticketsBascula.filter((t) => origenesVisibles.includes(t.origen)),
+    [ticketsBascula, origenesVisibles],
+  );
+  const ingresosManualesFiltrados = useMemo(
+    () => ingresosManuales.filter((m) => m.origen && origenesVisibles.includes(m.origen)),
+    [ingresosManuales, origenesVisibles],
+  );
+  const totalIngresosFiltrado =
+    ticketsBasculaFiltrados.reduce((n, t) => n + t.total, 0) + ingresosManualesFiltrados.reduce((n, m) => n + Number(m.importe), 0);
+  const ticketsFiltrados = ticketsBasculaFiltrados.length;
 
   useEffect(() => {
     let cancelado = false;
@@ -389,24 +406,62 @@ function VistaDia({
     setLineasBascula((prev) => prev.filter((x) => x.id !== l.id));
   };
 
-  const sinIngresos = !cargandoBascula && ticketsBascula.length === 0 && ingresosManuales.length === 0;
+  const sinIngresos = !cargandoBascula && ticketsBasculaFiltrados.length === 0 && ingresosManualesFiltrados.length === 0;
 
   return (
     <div className="space-y-4">
       <FormNuevoMovimiento fecha={fecha} onFechaChange={onFechaChange} onCrear={onCrear} />
+
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setFiltroOrigen('todas')}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            filtroOrigen === 'todas' ? 'bg-primary-500 text-background-50' : 'bg-background-50 border border-background-200/70 text-foreground-500 hover:bg-background-200/70'
+          }`}
+        >
+          Todas
+        </button>
+        {ORIGENES.map((o) => {
+          const activo = filtroOrigen === o;
+          const c = ORIGEN_COLORS[o];
+          return (
+            <button
+              key={o}
+              type="button"
+              onClick={() => setFiltroOrigen(o)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                activo ? `${c.bg} ${c.text} ring-1 ${c.ring}` : 'bg-background-50 border border-background-200/70 text-foreground-500 hover:bg-background-200/70'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`}></span>
+              {ORIGEN_LABELS[o]}
+            </button>
+          );
+        })}
+      </div>
 
       <div className="mb-1.5 flex items-center gap-1.5">
         <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-emerald-50 text-emerald-600 text-[11px]">
           <i className="ri-arrow-up-line"></i>
         </span>
         <p className="text-[11px] text-foreground-400">
-          Ingresos del día por tienda — {formatEUR(totalIngresosDia)} en total
-          {ticketsHoy > 0 && ` · ${ticketsHoy} ticket${ticketsHoy === 1 ? '' : 's'} de báscula`}
-          {totalIngresosManuales > 0 && ` · ${formatEUR(totalIngresosManuales)} a mano`}
+          {filtroOrigen === 'todas' ? (
+            <>
+              Ingresos del día por tienda — {formatEUR(totalIngresosDia)} en total
+              {ticketsHoy > 0 && ` · ${ticketsHoy} ticket${ticketsHoy === 1 ? '' : 's'} de báscula`}
+              {totalIngresosManuales > 0 && ` · ${formatEUR(totalIngresosManuales)} a mano`}
+            </>
+          ) : (
+            <>
+              Ingresos del día — {ORIGEN_LABELS[filtroOrigen]} — {formatEUR(totalIngresosFiltrado)} en total
+              {ticketsFiltrados > 0 && ` · ${ticketsFiltrados} ticket${ticketsFiltrados === 1 ? '' : 's'} de báscula`}
+            </>
+          )}
         </p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {ORIGENES.map((o) => {
+        {origenesVisibles.map((o) => {
           const c = ORIGEN_COLORS[o];
           return (
             <div key={o} className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
@@ -449,7 +504,7 @@ function VistaDia({
           <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500">Ingresos</p>
             <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] bg-emerald-50 text-emerald-600">
-              {ticketsBascula.length + ingresosManuales.length}
+              {ticketsBasculaFiltrados.length + ingresosManualesFiltrados.length}
             </span>
           </div>
           {cargandoBascula ? (
@@ -458,10 +513,10 @@ function VistaDia({
             <p className="text-xs text-foreground-400 px-3 py-3">Sin ingresos registrados.</p>
           ) : (
             <>
-              {ticketsBascula.map((t) => (
+              {ticketsBasculaFiltrados.map((t) => (
                 <FilaTicketBascula key={t.key} ticket={t} onEliminarLinea={eliminarBascula} />
               ))}
-              {ingresosManuales.map((m) => (
+              {ingresosManualesFiltrados.map((m) => (
                 <FilaMovimiento key={m.id} m={m} onEliminar={eliminar} />
               ))}
             </>
