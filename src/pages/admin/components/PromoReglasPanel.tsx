@@ -25,10 +25,13 @@ export default function PromoReglasPanel({
   onEliminarRegla: (id: string) => Promise<boolean>;
   onPatchOtorgada: (id: string, patch: Partial<PromoOtorgada>) => Promise<boolean>;
 }) {
-  const [tab, setTab] = useState<'reglas' | 'pendientes'>('reglas');
+  const [tab, setTab] = useState<'reglas' | 'pendientes' | 'historial'>('reglas');
   const [editing, setEditing] = useState<PromoRegla | null | 'new'>(null);
 
   const pendientes = otorgadas.filter((o) => o.estado !== 'canjeada');
+  const historial = otorgadas
+    .filter((o) => o.estado === 'canjeada')
+    .sort((a, b) => new Date(b.canjeada_at ?? b.created_at).getTime() - new Date(a.canjeada_at ?? a.created_at).getTime());
 
   const eliminar = async (regla: PromoRegla) => {
     if (!confirm(`¿Borrar la regla "${regla.nombre}"? Si ya se ha concedido a algún cliente, no se podrá borrar — desactívala en su lugar.`)) return;
@@ -81,6 +84,15 @@ export default function PromoReglasPanel({
               </span>
             )}
           </button>
+          <button
+            type="button"
+            onClick={() => setTab('historial')}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              tab === 'historial' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+            }`}
+          >
+            Historial
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -125,9 +137,10 @@ export default function PromoReglasPanel({
                 ))
               )}
             </div>
-          ) : pendientes.length === 0 ? (
-            <p className="text-sm text-foreground-400 text-center py-6">No hay promociones pendientes de gestionar.</p>
-          ) : (
+          ) : tab === 'pendientes' ? (
+            pendientes.length === 0 ? (
+              <p className="text-sm text-foreground-400 text-center py-6">No hay promociones pendientes de gestionar.</p>
+            ) : (
             <div className="space-y-2">
               {pendientes.map((o) => {
                 const regla = reglas.find((r) => r.id === o.regla_id);
@@ -165,6 +178,30 @@ export default function PromoReglasPanel({
                           Canjeada
                         </button>
                       </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            )
+          ) : historial.length === 0 ? (
+            <p className="text-sm text-foreground-400 text-center py-6">Todavía no se ha entregado ninguna promoción.</p>
+          ) : (
+            <div className="space-y-2">
+              {historial.map((o) => {
+                const regla = reglas.find((r) => r.id === o.regla_id);
+                return (
+                  <div key={o.id} className="bg-background-100 rounded-xl p-3.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground-950 truncate">{o.cliente_nombre}</p>
+                        <p className="text-xs text-foreground-500 mt-0.5">{regla?.nombre ?? 'Regla eliminada'}</p>
+                      </div>
+                      <span className="flex-shrink-0 mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700">
+                        {o.canjeada_at
+                          ? new Date(o.canjeada_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
+                          : 'Canjeada'}
+                      </span>
                     </div>
                   </div>
                 );
