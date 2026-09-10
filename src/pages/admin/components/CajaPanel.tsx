@@ -75,7 +75,7 @@ function WatchdogBascula({ origen, info }: { origen: Origen; info?: BasculaSyncI
     ? `Última sincronización: ${info.ultimaSync.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} (${formatRelativo(info.ultimaSync)})`
     : 'Sin datos de sincronización todavía';
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500" title={titulo}>
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500 whitespace-nowrap" title={titulo}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${color}`}></span>
       {BASCULA_LABELS[origen]}
       {estado === 'sin_conexion' && info?.ultimaSync && (
@@ -809,7 +809,7 @@ export default function CajaPanel() {
   return (
     <>
       <div
-        className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex items-center justify-between gap-1.5"
+        className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-1.5"
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
         <div className="flex items-center gap-1.5">
@@ -831,7 +831,7 @@ export default function CajaPanel() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {ORIGENES.map((o) => (
             <WatchdogBascula key={o} origen={o} info={syncPorOrigen[o]} />
           ))}
