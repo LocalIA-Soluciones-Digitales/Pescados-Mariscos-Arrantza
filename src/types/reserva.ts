@@ -9,6 +9,7 @@ export interface ReservaEvento {
   fecha_limite: string | null;
   activo: boolean;
   orden: number;
+  imagen_url: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -9,6 +9,7 @@ export interface NewReservaEventoInput {
   nombre_eu: string | null;
   fecha_entrega: string;
   fecha_limite: string | null;
+  imagen_url: string | null;
 }
 
 // Mismo criterio que el order-by de fetchEventos, para que insertar o editar

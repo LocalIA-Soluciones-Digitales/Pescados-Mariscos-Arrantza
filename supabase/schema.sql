@@ -1251,6 +1251,7 @@ create table if not exists public.reservas_eventos (
   fecha_limite date,
   activo boolean not null default true,
   orden integer not null default 0,
+  imagen_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint reservas_eventos_fecha_limite_check check (fecha_limite is null or fecha_limite >= fecha_entrega)

@@ -32,6 +32,16 @@ export default function ReservasBanner() {
             isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
           }`}
         >
+          {evento.imagen_url && (
+            <>
+              <img
+                src={evento.imagen_url}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-foreground-950 via-foreground-950/85 to-foreground-950/40" />
+            </>
+          )}
           <div
             className="absolute inset-0 opacity-[0.05] pointer-events-none"
             style={{

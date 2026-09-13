@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { optimizeImageFile } from '@/lib/imageOptimize';
 import type { ReservaEvento } from '@/types/reserva';
 import type { NewReservaEventoInput } from '@/hooks/useReservasEventos';
 
@@ -8,11 +10,12 @@ type FormState = {
   fecha_entrega: string;
   fecha_limite: string;
   activo: boolean;
+  imagen_url: string;
 };
 
 function toFormState(e: ReservaEvento | null): FormState {
   if (!e) {
-    return { nombre_es: '', nombre_eu: '', fecha_entrega: '', fecha_limite: '', activo: true };
+    return { nombre_es: '', nombre_eu: '', fecha_entrega: '', fecha_limite: '', activo: true, imagen_url: '' };
   }
   return {
     nombre_es: e.nombre_es,
@@ -20,6 +23,7 @@ function toFormState(e: ReservaEvento | null): FormState {
     fecha_entrega: e.fecha_entrega,
     fecha_limite: e.fecha_limite ?? '',
     activo: e.activo,
+    imagen_url: e.imagen_url ?? '',
   };
 }
 
@@ -34,7 +38,35 @@ export default function ReservaEventoModal({
 }) {
   const [form, setForm] = useState<FormState>(() => toFormState(evento));
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleImageUpload = async (file: File) => {
+    setUploading(true);
+    setError(null);
+    try {
+      const optimized = await optimizeImageFile(file);
+      const path = `campanas/${Date.now()}-${optimized.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const { error: uploadError } = await supabase.storage.from('pescados-mariscos-arrantza').upload(path, optimized, {
+        cacheControl: '31536000',
+        contentType: optimized.type || file.type,
+      });
+      if (uploadError) {
+        setError('No se pudo subir la foto: ' + uploadError.message);
+        return;
+      }
+      const { data } = supabase.storage.from('pescados-mariscos-arrantza').getPublicUrl(path);
+      setForm((f) => ({ ...f, imagen_url: data.publicUrl }));
+    } catch {
+      setError('No se pudo procesar la imagen. Prueba con otra foto.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleImageRemove = () => {
+    setForm((f) => ({ ...f, imagen_url: '' }));
+  };
 
   const handleSave = async () => {
     if (!form.nombre_es.trim()) {
@@ -57,6 +89,7 @@ export default function ReservaEventoModal({
       fecha_entrega: form.fecha_entrega,
       fecha_limite: form.fecha_limite || null,
       activo: form.activo,
+      imagen_url: form.imagen_url || null,
     });
     setSaving(false);
     if (!ok) {
@@ -82,6 +115,49 @@ export default function ReservaEventoModal({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-foreground-500 mb-2">Foto de fondo (banner y aviso emergente)</label>
+            <div className="flex items-center gap-4">
+              <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-background-100 border border-background-200/70 flex-shrink-0">
+                {form.imagen_url ? (
+                  <>
+                    <img src={form.imagen_url} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={handleImageRemove}
+                      aria-label="Eliminar foto"
+                      className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded-full bg-foreground-950/70 text-background-50 hover:bg-red-600"
+                    >
+                      <i className="ri-delete-bin-line text-xs"></i>
+                    </button>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-foreground-300">
+                    <i className="ri-image-line text-2xl"></i>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col items-start gap-2">
+                <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-background-100 border border-background-200/70 text-xs font-medium text-foreground-600 cursor-pointer hover:bg-background-200/70">
+                  <i className="ri-upload-2-line"></i>
+                  {form.imagen_url ? 'Cambiar foto' : 'Seleccionar archivo'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file);
+                      e.target.value = '';
+                    }}
+                    className="hidden"
+                  />
+                </label>
+                {uploading && <span className="text-xs text-foreground-400">Subiendo…</span>}
+              </div>
+            </div>
+            <p className="text-[11px] text-foreground-400 mt-1.5">Opcional. Si no subes foto, se usa un fondo decorativo por defecto.</p>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-foreground-500 mb-1.5">Nombre (castellano)</label>
             <input
@@ -161,7 +237,7 @@ export default function ReservaEventoModal({
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || uploading}
             className="flex-1 px-4 py-2.5 rounded-full text-sm font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-60"
           >
             {saving ? 'Guardando…' : 'Guardar'}
