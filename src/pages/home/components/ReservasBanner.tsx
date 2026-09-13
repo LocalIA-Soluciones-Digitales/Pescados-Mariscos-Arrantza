@@ -24,7 +24,7 @@ export default function ReservasBanner() {
   const evento = eventos[0];
 
   return (
-    <section className="bg-background-50">
+    <section className="bg-background-50 py-8 sm:py-10 md:py-14">
       <div className="w-full md:max-w-[1440px] md:mx-auto md:px-6 lg:px-12">
         <div
           ref={ref}

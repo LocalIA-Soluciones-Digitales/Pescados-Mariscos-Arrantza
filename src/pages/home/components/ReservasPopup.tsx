@@ -82,7 +82,7 @@ export default function ReservasPopup() {
                 alt=""
                 className="absolute inset-0 w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-br from-primary-950/90 via-foreground-950/85 to-foreground-900/80" />
+              <div className="absolute inset-0 bg-gradient-to-br from-primary-950/92 via-foreground-950/65 to-foreground-900/30" />
             </>
           )}
           <div className="absolute -top-10 -right-10 w-40 h-40 lg:w-56 lg:h-56 rounded-full bg-accent-400/20 blur-3xl pointer-events-none" />
