@@ -1257,6 +1257,15 @@ create table if not exists public.reservas_eventos (
   constraint reservas_eventos_fecha_limite_check check (fecha_limite is null or fecha_limite >= fecha_entrega)
 );
 
+-- La tabla ya existía en producción sin esta columna (el create table de
+-- arriba solo la incluye para instalaciones nuevas). Sin este alter table
+-- explícito, la columna nunca se llegó a crear en la base real: por eso
+-- la foto de campaña se podía "guardar" desde el admin sin dar error (o
+-- fallar en silencio según el cliente de Postgrest) pero nunca aparecía
+-- en el popup ni en el banner — ejecutar esto en el SQL Editor de
+-- Supabase es lo que realmente la añade.
+alter table public.reservas_eventos add column if not exists imagen_url text;
+
 drop trigger if exists trg_reservas_eventos_updated_at on public.reservas_eventos;
 create trigger trg_reservas_eventos_updated_at
   before update on public.reservas_eventos

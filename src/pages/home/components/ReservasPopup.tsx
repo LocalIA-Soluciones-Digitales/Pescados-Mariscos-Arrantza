@@ -74,46 +74,59 @@ export default function ReservasPopup() {
           entered ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-3 scale-95'
         }`}
       >
-        <div className="relative overflow-hidden bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 px-6 pt-6 pb-7 sm:px-8 sm:pt-7 sm:pb-8 lg:px-11 lg:pt-10 lg:pb-11">
-          {evento.imagen_url && (
+        <div
+          className={`relative overflow-hidden bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 ${
+            evento.imagen_url ? 'h-44 sm:h-52 lg:h-60' : 'px-6 pt-6 pb-7 sm:px-8 sm:pt-7 sm:pb-8 lg:px-11 lg:pt-10 lg:pb-11'
+          }`}
+        >
+          {evento.imagen_url ? (
+            <img src={evento.imagen_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          ) : (
             <>
-              <img
-                src={evento.imagen_url}
-                alt=""
-                className="absolute inset-0 w-full h-full object-cover"
+              <div className="absolute -top-10 -right-10 w-40 h-40 lg:w-56 lg:h-56 rounded-full bg-accent-400/20 blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-16 -left-10 w-40 h-40 lg:w-56 lg:h-56 rounded-full bg-primary-300/10 blur-3xl pointer-events-none" />
+              <div
+                className="absolute inset-0 opacity-[0.05] pointer-events-none"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                }}
               />
-              <div className="absolute inset-0 bg-gradient-to-br from-primary-950/92 via-foreground-950/65 to-foreground-900/30" />
             </>
           )}
-          <div className="absolute -top-10 -right-10 w-40 h-40 lg:w-56 lg:h-56 rounded-full bg-accent-400/20 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-16 -left-10 w-40 h-40 lg:w-56 lg:h-56 rounded-full bg-primary-300/10 blur-3xl pointer-events-none" />
-          <div
-            className="absolute inset-0 opacity-[0.05] pointer-events-none"
-            style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-            }}
-          />
 
           <button
             type="button"
             onClick={close}
             aria-label={t('reservas.popup_close')}
-            className="absolute top-3 right-3 lg:top-4 lg:right-4 z-10 w-8 h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full text-background-50/70 hover:text-background-50 hover:bg-background-50/10 transition-colors cursor-pointer"
+            className={`absolute top-3 right-3 lg:top-4 lg:right-4 z-10 w-8 h-8 lg:w-10 lg:h-10 flex items-center justify-center rounded-full text-background-50/90 hover:text-background-50 hover:bg-foreground-950/40 transition-colors cursor-pointer ${
+              evento.imagen_url ? 'bg-foreground-950/30 backdrop-blur-sm' : ''
+            }`}
           >
             <i className="ri-close-line text-xl lg:text-2xl"></i>
           </button>
 
-          <div className="relative z-10">
-            <span className="w-11 h-11 lg:w-14 lg:h-14 flex items-center justify-center rounded-full bg-background-50/10 ring-1 ring-background-50/15 text-accent-300 text-lg lg:text-2xl mb-4 lg:mb-5">
-              <i className="ri-calendar-event-line"></i>
-            </span>
-            <span className="text-[10px] sm:text-xs lg:text-sm uppercase tracking-[0.2em] text-accent-300 mb-2 inline-block">
-              {t('reservas.hero_label')}
-            </span>
-            <h2 className="font-heading text-xl sm:text-2xl lg:text-3xl font-semibold text-background-50 leading-[1.2] pr-8 lg:pr-10">
-              {t('reservas.popup_title', { evento: eventoNombre(evento.nombre_es, evento.nombre_eu, i18n.language) })}
-            </h2>
-          </div>
+          {evento.imagen_url ? (
+            <div className="absolute inset-x-0 bottom-0 px-6 pt-10 pb-4 sm:px-8 lg:px-11 bg-gradient-to-t from-foreground-950 to-transparent">
+              <span className="text-[10px] sm:text-xs lg:text-sm uppercase tracking-[0.2em] text-accent-300 mb-1.5 inline-block">
+                {t('reservas.hero_label')}
+              </span>
+              <h2 className="font-heading text-lg sm:text-xl lg:text-2xl font-semibold text-background-50 leading-[1.2] pr-8 lg:pr-10">
+                {t('reservas.popup_title', { evento: eventoNombre(evento.nombre_es, evento.nombre_eu, i18n.language) })}
+              </h2>
+            </div>
+          ) : (
+            <div className="relative z-10">
+              <span className="w-11 h-11 lg:w-14 lg:h-14 flex items-center justify-center rounded-full bg-background-50/10 ring-1 ring-background-50/15 text-accent-300 text-lg lg:text-2xl mb-4 lg:mb-5">
+                <i className="ri-calendar-event-line"></i>
+              </span>
+              <span className="text-[10px] sm:text-xs lg:text-sm uppercase tracking-[0.2em] text-accent-300 mb-2 inline-block">
+                {t('reservas.hero_label')}
+              </span>
+              <h2 className="font-heading text-xl sm:text-2xl lg:text-3xl font-semibold text-background-50 leading-[1.2] pr-8 lg:pr-10">
+                {t('reservas.popup_title', { evento: eventoNombre(evento.nombre_es, evento.nombre_eu, i18n.language) })}
+              </h2>
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-6 sm:px-8 sm:py-7 lg:px-11 lg:py-9">
