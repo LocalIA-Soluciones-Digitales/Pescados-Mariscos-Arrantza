@@ -25,10 +25,10 @@ export default function ReservasBanner() {
 
   return (
     <section className="bg-background-50 py-8 sm:py-10 md:py-14">
-      <div className="w-full md:max-w-[1440px] md:mx-auto md:px-6 lg:px-12">
+      <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-12">
         <div
           ref={ref}
-          className={`relative overflow-hidden rounded-2xl md:rounded-[28px] bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.35)] transition-all duration-1000 ease-out min-h-[320px] sm:min-h-[360px] md:min-h-[420px] flex ${
+          className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.35)] transition-all duration-1000 ease-out min-h-[320px] sm:min-h-[360px] md:min-h-[420px] flex ${
             isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
           }`}
         >
