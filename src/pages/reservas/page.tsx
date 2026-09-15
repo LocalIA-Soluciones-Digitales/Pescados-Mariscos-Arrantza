@@ -315,6 +315,13 @@ export default function Reservas() {
           <>
             {/* Hero */}
             <section className="relative bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 overflow-hidden rounded-b-[2rem] md:rounded-b-[2.5rem]">
+              {evento.imagen_url && (
+                <>
+                  <img src={evento.imagen_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-foreground-950 via-foreground-950/85 to-foreground-950/40" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-foreground-950/70 via-transparent to-transparent" />
+                </>
+              )}
               <div className="absolute -top-24 -right-16 w-80 h-80 rounded-full bg-accent-400/15 blur-3xl pointer-events-none" />
               <div className="absolute -bottom-28 -left-16 w-72 h-72 rounded-full bg-primary-300/10 blur-3xl pointer-events-none" />
               <div
