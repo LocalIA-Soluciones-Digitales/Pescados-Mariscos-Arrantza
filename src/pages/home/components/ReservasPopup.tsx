@@ -70,17 +70,20 @@ export default function ReservasPopup() {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`relative w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-background-50 rounded-2xl shadow-2xl overflow-hidden transition-all duration-200 ${
+        className={`relative w-full sm:max-w-md md:max-w-lg lg:max-w-xl bg-background-50 rounded-[28px] shadow-2xl ring-1 ring-black/5 overflow-hidden transition-all duration-200 ${
           entered ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-3 scale-95'
         }`}
       >
         <div
           className={`relative overflow-hidden bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 ${
-            evento.imagen_url ? 'h-44 sm:h-52 lg:h-60' : 'px-6 pt-6 pb-7 sm:px-8 sm:pt-7 sm:pb-8 lg:px-11 lg:pt-10 lg:pb-11'
+            evento.imagen_url ? 'h-56 sm:h-64 lg:h-72' : 'px-6 pt-6 pb-7 sm:px-8 sm:pt-7 sm:pb-8 lg:px-11 lg:pt-10 lg:pb-11'
           }`}
         >
           {evento.imagen_url ? (
-            <img src={evento.imagen_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            <>
+              <img src={evento.imagen_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-foreground-950 via-foreground-950/15 to-foreground-950/10" />
+            </>
           ) : (
             <>
               <div className="absolute -top-10 -right-10 w-40 h-40 lg:w-56 lg:h-56 rounded-full bg-accent-400/20 blur-3xl pointer-events-none" />
@@ -106,14 +109,17 @@ export default function ReservasPopup() {
           </button>
 
           {evento.imagen_url ? (
-            <div className="absolute inset-x-0 bottom-0 px-6 pt-10 pb-4 sm:px-8 lg:px-11 bg-gradient-to-t from-foreground-950 to-transparent">
-              <span className="text-[10px] sm:text-xs lg:text-sm uppercase tracking-[0.2em] text-accent-300 mb-1.5 inline-block">
+            <>
+              <span className="absolute top-4 left-4 lg:top-5 lg:left-5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background-50/15 backdrop-blur-sm ring-1 ring-background-50/20 text-[10px] sm:text-xs uppercase tracking-[0.2em] text-background-50 font-medium">
+                <i className="ri-calendar-event-line text-accent-300"></i>
                 {t('reservas.hero_label')}
               </span>
-              <h2 className="font-heading text-lg sm:text-xl lg:text-2xl font-semibold text-background-50 leading-[1.2] pr-8 lg:pr-10">
-                {t('reservas.popup_title', { evento: eventoNombre(evento.nombre_es, evento.nombre_eu, i18n.language) })}
-              </h2>
-            </div>
+              <div className="absolute inset-x-0 bottom-0 px-6 pt-14 pb-5 sm:px-8 lg:px-11">
+                <h2 className="font-heading text-xl sm:text-2xl lg:text-3xl font-semibold text-background-50 leading-[1.2] pr-8 lg:pr-10 [text-shadow:0_2px_12px_rgba(0,0,0,0.35)]">
+                  {t('reservas.popup_title', { evento: eventoNombre(evento.nombre_es, evento.nombre_eu, i18n.language) })}
+                </h2>
+              </div>
+            </>
           ) : (
             <div className="relative z-10">
               <span className="w-11 h-11 lg:w-14 lg:h-14 flex items-center justify-center rounded-full bg-background-50/10 ring-1 ring-background-50/15 text-accent-300 text-lg lg:text-2xl mb-4 lg:mb-5">

@@ -28,13 +28,14 @@ export default function ReservasBanner() {
       <div className="w-full md:max-w-[1440px] md:mx-auto md:px-6 lg:px-12">
         <div
           ref={ref}
-          className={`relative overflow-hidden md:rounded-2xl bg-foreground-950 transition-all duration-1000 ease-out flex flex-col md:flex-row md:items-stretch ${
+          className={`relative overflow-hidden md:rounded-2xl bg-foreground-950 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.35)] transition-all duration-1000 ease-out flex flex-col md:flex-row md:items-stretch ${
             isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
           }`}
         >
           {evento.imagen_url && (
             <div className="relative w-full h-48 sm:h-64 md:h-auto md:w-2/5 lg:w-[45%] flex-shrink-0">
               <img src={evento.imagen_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-foreground-950 via-foreground-950/10 to-transparent" />
             </div>
           )}
 

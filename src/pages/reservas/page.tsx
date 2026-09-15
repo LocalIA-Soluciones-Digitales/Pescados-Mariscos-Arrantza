@@ -314,7 +314,7 @@ export default function Reservas() {
         ) : (
           <>
             {/* Hero */}
-            <section className="relative bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 overflow-hidden rounded-b-[2rem] md:rounded-b-[2.5rem]">
+            <section className="relative bg-gradient-to-br from-primary-950 via-foreground-950 to-foreground-900 overflow-hidden">
               {evento.imagen_url && (
                 <>
                   <img src={evento.imagen_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -324,12 +324,14 @@ export default function Reservas() {
               )}
               <div className="absolute -top-24 -right-16 w-80 h-80 rounded-full bg-accent-400/15 blur-3xl pointer-events-none" />
               <div className="absolute -bottom-28 -left-16 w-72 h-72 rounded-full bg-primary-300/10 blur-3xl pointer-events-none" />
-              <div
-                className="absolute inset-0 opacity-[0.05] pointer-events-none"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-                }}
-              />
+              {!evento.imagen_url && (
+                <div
+                  className="absolute inset-0 opacity-[0.05] pointer-events-none"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                  }}
+                />
+              )}
               <div className="container-wide px-4 md:px-6 lg:px-12 relative z-10 py-14 md:py-20">
                 <div className="max-w-2xl">
                   <span className="w-11 h-11 flex items-center justify-center rounded-full bg-background-50/10 ring-1 ring-background-50/15 text-accent-300 text-lg mb-4">
