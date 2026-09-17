@@ -14,10 +14,22 @@
 // El índice real de /year/artigos no está documentado de antemano: se
 // descubre en cada llamada preguntando a ETWS por los recursos de la
 // base "year" (GET /year), y se usa ese índice para paginar con "seek"
-// (el API limita cada página a 100 filas). Es una operación de solo
-// lectura: nunca se escribe nada en la báscula ni se toca el catálogo de
+// (el API limita cada página a 100 filas, ignora "limit" por encima de
+// eso y también ignora "offset"). Es una operación de solo lectura:
+// nunca se escribe nada en la báscula ni se toca el catálogo de
 // productos — el volcado a productos_codigos_bascula se revisa y hace a
 // mano después, para no arriesgarse a mapear mal un código real.
+//
+// IMPORTANTE sobre "seek": NO enviar el parámetro "filter" junto al
+// seek. Se probó (2026-09-17, ver commit) que "seek={<último visto>}" +
+// "filter=<nº de campos>" convierte la consulta en una búsqueda por
+// IGUALDAD exacta (devuelve como mucho 1 fila, la del propio valor
+// buscado), no en un cursor "a partir de este punto". Sin "filter", el
+// mismo "seek" sí funciona como cursor real y continúa devolviendo las
+// filas siguientes en orden. Con "filter" puesto, la paginación se
+// paraba siempre en la primera página completa (100 filas) sin avisar
+// de que había más artículos detrás (se detectó porque pescadería 1
+// tiene también artículos con código 405–9xx que "filter" ocultaba).
 
 const ETPROXY_BASE = 'https://etproxy.etpos.pt';
 const LOTE_MAX = 100;
@@ -130,9 +142,7 @@ Deno.serve(async (req: Request) => {
     let seek: Record<string, unknown> | null = null;
 
     for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
-      const query = seek
-        ? `?seek=${encodeURIComponent(JSON.stringify(seek))}&filter=${campos.length}&limit=${LOTE_MAX}`
-        : `?limit=${LOTE_MAX}`;
+      const query = seek ? `?seek=${encodeURIComponent(JSON.stringify(seek))}&limit=${LOTE_MAX}` : `?limit=${LOTE_MAX}`;
       const { res, puerto: puertoUsado } = await llamarETWSConReintento(cfg, puerto, 'GET', '/year/artigos', query);
       puerto = puertoUsado;
       if (!res.ok) throw new Error(`Error consultando /year/artigos (HTTP ${res.status})`);
