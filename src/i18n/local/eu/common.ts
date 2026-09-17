@@ -557,6 +557,9 @@ const common = {
   "cart.payment_local_desc": "Eskaera jaso edo hartzean ordainduko duzu",
   "cart.payment_online": "Orain online ordaindu",
   "cart.payment_online_desc": "Txartelarekin edo Bizum bidez, unean bertan",
+  "cart.payment_account": "Nire kontuan kargatu",
+  "cart.payment_account_desc": "Zure zorpeko eskaerari gehituko zaio eta Arrantzarekin fakturatuko da",
+  "cart.account_confirm_button": "Kontura egindako eskaera berretsi",
   "cart.card_payment_button": "Orain ordaindu txartelarekin",
   "cart.card_payment_loading": "Ordainketa segurua irekitzen...",
   "cart.card_payment_error": "Ezin izan da ordainketa hasi. Saiatu berriro edo eskatu WhatsApp bidez.",
@@ -636,6 +639,8 @@ const common = {
   "cart.confirmation_title": "Eskerrik asko zure eskaeragatik!",
   "cart.confirmation_text": "WhatsApp zabaldu dugu zure eskaeraren datuekin. Bidali mezua berresteko eta laster zurekin harremanetan jarriko gara.",
   "cart.confirmation_close": "Erosten jarraitu",
+  "cart.account_confirmation_title": "Eskaera erregistratuta!",
+  "cart.account_confirmation_text": "Zure eskaera erregistratu dugu. Prestatuko dugu eta zure kontuan gehituko da.",
 
   // Checkout redesign
   "checkout.delivery_method": "Entregatzeko modua",

@@ -552,6 +552,11 @@ interface CartDrawerProps {
   orderHistory: OrderHistoryEntry[];
   onSaveLastOrder: () => void;
   onLoadOrder: (orderId: string) => void;
+  // Solo para el catálogo privado de profesionales: añade una tercera forma
+  // de pago que no pasa por WhatsApp ni Stripe — registra el pedido para que
+  // el pescadero lo apunte en su albarán y lo facture con el resto de la
+  // cuenta del cliente (semanal o mensual, según el trato con cada uno).
+  allowAccountPayment?: boolean;
 }
 
 export default function CartDrawer({
@@ -574,6 +579,7 @@ export default function CartDrawer({
   orderHistory,
   onSaveLastOrder,
   onLoadOrder,
+  allowAccountPayment = false,
 }: CartDrawerProps) {
   const { t, i18n } = useTranslation();
   const productMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
@@ -585,10 +591,11 @@ export default function CartDrawer({
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [viewOrderId, setViewOrderId] = useState<string | null>(null);
   const [orderConfirmed, setOrderConfirmed] = useState(false);
+  const [confirmationKind, setConfirmationKind] = useState<'whatsapp' | 'account'>('whatsapp');
   const [payingWithCard, setPayingWithCard] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [payingWithBizum, setPayingWithBizum] = useState(false);
-  const [paymentChoice, setPaymentChoice] = useState<'local' | 'online' | null>(null);
+  const [paymentChoice, setPaymentChoice] = useState<'local' | 'online' | 'account' | null>(null);
   const hasLastOrder = orderHistory.length > 0;
 
   // ── Turnstile verification (currently always passes) ──
@@ -644,9 +651,10 @@ export default function CartDrawer({
   const validateOrder = useCallback((): boolean => {
     const errors: Record<string, string> = {};
 
-    // Payment method — local vs online (always required, checked first
-    // since it decides which button in the footer even applies)
-    if (paymentChoice !== 'local' && paymentChoice !== 'online') {
+    // Payment method — local vs online vs (profesionales) account, always
+    // required, checked first since it decides which button in the footer
+    // even applies.
+    if (paymentChoice !== 'local' && paymentChoice !== 'online' && paymentChoice !== 'account') {
       errors.paymentMethod = t('cart.validation_payment_method_required');
     }
 
@@ -802,6 +810,60 @@ export default function CartDrawer({
     onClearCart();
     setValidationErrors({});
     setPaymentChoice(null);
+    setConfirmationKind('whatsapp');
+    setOrderConfirmed(true);
+  };
+
+  // Pedido "a cuenta" (solo profesionales): no pasa por WhatsApp ni Stripe —
+  // simplemente queda registrado en Pedidos para que el pescadero lo apunte
+  // en su albarán, igual que si se lo hubieran pedido en persona o por
+  // teléfono, y lo facture junto con el resto de su cuenta.
+  const handleChargeToAccount = () => {
+    if (!validateOrder()) return;
+    if (isTurnstileEnabled() && !turnstile.verified) return;
+
+    const subTotalAmount = items.reduce((sum, item) => {
+      const product = productMap.get(item.productId);
+      if (!product) return sum;
+      return sum + extractPricePerKg(product.precio) * item.kg;
+    }, 0);
+
+    onSaveLastOrder();
+
+    void logPedido({
+      items: items.map((item) => {
+        const product = productMap.get(item.productId);
+        return {
+          productoId: item.productId,
+          nombre: product ? pickLang(product, 'nombre', i18n.language) : item.productId,
+          kg: item.kg,
+          preparacion: item.preparation,
+          nota: item.note,
+          precioKg: product ? extractPricePerKg(product.precio) : 0,
+        };
+      }),
+      totalProductos: totalProducts,
+      pesoTotal: totalWeight,
+      importeEstimado: subTotalAmount + deliveryCost,
+      metodoEntrega: customer.deliveryMethod,
+      clienteNombre: customer.name,
+      clienteNegocio: customer.business,
+      clienteTelefono: customer.phone,
+      clienteEmail: customer.email,
+      clienteDireccion: customer.address,
+      clienteCiudad: customer.city,
+      clienteCp: customer.postalCode,
+      fechaPreferida: customer.preferredDate,
+      horaPreferida: customer.preferredTime,
+      notas: customer.notes,
+      deviceId: getDeviceId(),
+      metodoPago: 'cuenta',
+    });
+
+    onClearCart();
+    setValidationErrors({});
+    setPaymentChoice(null);
+    setConfirmationKind('account');
     setOrderConfirmed(true);
   };
 
@@ -1601,6 +1663,38 @@ export default function CartDrawer({
                     <h3 className="text-xs font-medium uppercase tracking-wider text-foreground-400 mb-3">
                       {t('cart.payment_method_title')}
                     </h3>
+
+                    {allowAccountPayment && (
+                      <button
+                        type="button"
+                        aria-pressed={paymentChoice === 'account'}
+                        onClick={() => {
+                          setPaymentChoice('account');
+                          if (validationErrors.paymentMethod) setValidationErrors(prev => { const next = { ...prev }; delete next.paymentMethod; return next; });
+                        }}
+                        className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 mb-3 text-left cursor-pointer transition-all duration-300 ${
+                          paymentChoice === 'account'
+                            ? 'border-primary-500 bg-primary-50/50'
+                            : 'border-background-200/70 bg-background-50 hover:border-background-300/80 hover:bg-background-100/50'
+                        }`}
+                      >
+                        <span className={`w-10 h-10 flex items-center justify-center rounded-full flex-shrink-0 text-xl transition-all duration-300 ${
+                          paymentChoice === 'account' ? 'bg-primary-100 text-primary-600' : 'bg-background-100 text-foreground-400'
+                        }`}>
+                          <i className="ri-file-list-3-line"></i>
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-foreground-950">{t('cart.payment_account')}</span>
+                          <span className="block text-[11px] text-foreground-400 leading-relaxed">{t('cart.payment_account_desc')}</span>
+                        </span>
+                        {paymentChoice === 'account' && (
+                          <span className="ml-auto w-5 h-5 flex items-center justify-center rounded-full bg-primary-500 text-background-50 flex-shrink-0 animate-[scaleIn_0.3s_ease-out]">
+                            <i className="ri-check-line text-[11px]"></i>
+                          </span>
+                        )}
+                      </button>
+                    )}
+
                     <div className={`grid grid-cols-2 gap-3 p-0.5 rounded-xl transition-all duration-300 ${validationErrors.paymentMethod ? 'ring-2 ring-red-400/60' : ''}`}>
                       {/* Pay locally */}
                       <button
@@ -1712,7 +1806,7 @@ export default function CartDrawer({
                   chosen above; if payment method wasn't chosen at all yet,
                   validateOrder() catches it and scrolls up to that field,
                   same as any other required field. */}
-              {paymentChoice !== 'online' && (
+              {paymentChoice !== 'online' && paymentChoice !== 'account' && (
                 <button
                   type="button"
                   disabled={isTurnstileEnabled() && !turnstile.verified}
@@ -1725,6 +1819,24 @@ export default function CartDrawer({
                 >
                   <span className="inline-flex items-center gap-1 overflow-hidden">
                     <span>{t('cart.confirm_order')} · </span>
+                    <RollingNumber value={formatPrice(estimatedTotal)} />
+                  </span>
+                </button>
+              )}
+
+              {paymentChoice === 'account' && (
+                <button
+                  type="button"
+                  disabled={isTurnstileEnabled() && !turnstile.verified}
+                  onClick={handleChargeToAccount}
+                  className={`w-full py-3 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 ${
+                    isTurnstileEnabled() && !turnstile.verified
+                      ? 'bg-background-200/70 text-foreground-400 cursor-not-allowed'
+                      : 'bg-primary-500 text-background-50 hover:bg-primary-600 active:scale-[0.98]'
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-1 overflow-hidden">
+                    <span>{t('cart.account_confirm_button')} · </span>
                     <RollingNumber value={formatPrice(estimatedTotal)} />
                   </span>
                 </button>
@@ -2098,10 +2210,10 @@ export default function CartDrawer({
               <i className="ri-checkbox-circle-line text-3xl"></i>
             </span>
             <h3 className="text-lg font-heading font-semibold text-foreground-950 mb-2">
-              {t('cart.confirmation_title')}
+              {confirmationKind === 'account' ? t('cart.account_confirmation_title') : t('cart.confirmation_title')}
             </h3>
             <p className="text-sm text-foreground-500 mb-8 max-w-[280px] leading-relaxed">
-              {t('cart.confirmation_text')}
+              {confirmationKind === 'account' ? t('cart.account_confirmation_text') : t('cart.confirmation_text')}
             </p>
             <button
               type="button"

@@ -180,6 +180,12 @@ function PedidoCard({
             <span className="text-[10px] text-foreground-400">
               {pedido.metodo_entrega === 'home' ? 'A domicilio' : 'Recogida en tienda'}
             </span>
+            {pedido.metodo_pago === 'cuenta' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-100/80 text-violet-700">
+                <i className="ri-file-list-3-line"></i>
+                A cuenta
+              </span>
+            )}
             <span className="text-[10px] text-foreground-400">Pedido: {new Date(pedido.created_at).toLocaleString('es-ES')}</span>
             {pedido.estado_pago !== 'no_aplica' && (
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${ESTADO_PAGO_STYLES[pedido.estado_pago]}`}>

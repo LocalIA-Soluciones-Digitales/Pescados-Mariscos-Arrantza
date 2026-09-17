@@ -560,6 +560,9 @@ const common = {
   "cart.payment_local_desc": "Pagas al recoger o al recibir tu pedido",
   "cart.payment_online": "Pagar online ahora",
   "cart.payment_online_desc": "Con tarjeta o Bizum, al momento",
+  "cart.payment_account": "Cargar a mi cuenta",
+  "cart.payment_account_desc": "Se añade a tu pedido pendiente y se factura con Arrantza",
+  "cart.account_confirm_button": "Confirmar pedido a cuenta",
   "cart.card_payment_button": "Pagar ahora con tarjeta",
   "cart.card_payment_loading": "Abriendo pago seguro...",
   "cart.card_payment_error": "No se pudo iniciar el pago. Inténtalo de nuevo o pide por WhatsApp.",
@@ -639,6 +642,8 @@ const common = {
   "cart.confirmation_title": "¡Gracias por tu pedido!",
   "cart.confirmation_text": "Hemos abierto WhatsApp con los datos de tu pedido. Envía el mensaje para confirmarlo y en breve nos pondremos en contacto contigo.",
   "cart.confirmation_close": "Seguir comprando",
+  "cart.account_confirmation_title": "¡Pedido registrado!",
+  "cart.account_confirmation_text": "Hemos registrado tu pedido. Lo prepararemos y quedará añadido a tu cuenta.",
 
   // Checkout redesign
   "checkout.delivery_method": "Método de entrega",

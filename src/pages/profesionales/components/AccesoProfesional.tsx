@@ -350,6 +350,7 @@ export function CatalogoProfesionalView({
         orderHistory={orderHistory}
         onSaveLastOrder={saveLastOrder}
         onLoadOrder={loadOrder}
+        allowAccountPayment
       />
     </main>
   );
