@@ -34,12 +34,16 @@ export function useBasculaVentasDiarias() {
 
 // Detalle de líneas de un día concreto, cargado bajo demanda al desplegar
 // ese día en el panel (en vez de traer todo el histórico de golpe).
+// Incluye a propósito los tickets anulados (a diferencia de las vistas
+// diarias y del resumen por producto, que sí los excluyen) — así el
+// pescadero puede ver en Caja/Ventas qué ticket concreto se anuló en la
+// báscula, en vez de que desaparezca sin más. Quien sume totales a partir
+// de este detalle debe filtrar `anulado` explícitamente.
 export async function fetchBasculaVentasDelDia(fecha: string): Promise<BasculaVenta[]> {
   const { data } = await supabase
     .from('bascula_ventas')
     .select('*')
     .eq('fecha', fecha)
-    .eq('anulado', false)
     .order('hora', { ascending: false })
     .order('linea_oid', { ascending: false });
   return data ?? [];

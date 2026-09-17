@@ -52,7 +52,7 @@ function LineaVenta({ l, mostrarHora = true }: { l: BasculaVenta; mostrarHora?: 
 // ticket_tipo_doc/posto/numero). Se agrupan así en vez de en una lista
 // plana para que se vea claramente dónde acaba una venta y empieza la
 // siguiente.
-type TicketGrupo = { key: string; hora: string | null; lineas: BasculaVenta[]; total: number };
+type TicketGrupo = { key: string; hora: string | null; lineas: BasculaVenta[]; total: number; anulado: boolean };
 
 function agruparPorTicket(lineasOrigen: BasculaVenta[]): TicketGrupo[] {
   const map = new Map<string, TicketGrupo>();
@@ -62,8 +62,9 @@ function agruparPorTicket(lineasOrigen: BasculaVenta[]): TicketGrupo[] {
     if (actual) {
       actual.lineas.push(l);
       actual.total += l.importe;
+      if (l.anulado) actual.anulado = true;
     } else {
-      map.set(key, { key, hora: l.hora, lineas: [l], total: l.importe });
+      map.set(key, { key, hora: l.hora, lineas: [l], total: l.importe, anulado: l.anulado });
     }
   });
   return Array.from(map.values());
@@ -327,10 +328,17 @@ function DiaRow({
                 {filtro === 'todas' && <OrigenBadge origen={origen} className="mb-1.5" />}
                 <div className="space-y-2.5 mt-1.5">
                   {agruparPorTicket(lineasOrigen).map((ticket) => (
-                    <div key={ticket.key} className="rounded-xl border border-background-200/70 shadow-sm overflow-hidden bg-background-50">
+                    <div
+                      key={ticket.key}
+                      className={`rounded-xl border border-background-200/70 shadow-sm overflow-hidden bg-background-50 ${ticket.anulado ? 'opacity-60' : ''}`}
+                    >
                       <div className="flex items-center justify-between gap-2 px-3 py-2 bg-background-100/50 border-b border-background-200/70">
                         <span className="flex items-center gap-2 min-w-0">
-                          <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-primary-50 text-primary-600 text-[11px]">
+                          <span
+                            className={`w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full text-[11px] ${
+                              ticket.anulado ? 'bg-red-50 text-red-500' : 'bg-primary-50 text-primary-600'
+                            }`}
+                          >
                             <i className="ri-receipt-line"></i>
                           </span>
                           <span className="text-[11px] text-foreground-500 tabular-nums">{ticket.hora?.slice(0, 5) ?? '—'}</span>
@@ -338,10 +346,17 @@ function DiaRow({
                           <span className="text-[11px] text-foreground-400">
                             {ticket.lineas.length} producto{ticket.lineas.length === 1 ? '' : 's'}
                           </span>
+                          {ticket.anulado && (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-600">Anulado</span>
+                          )}
                         </span>
-                        <span className="text-sm font-semibold text-foreground-950 tabular-nums flex-shrink-0">{formatPrecio(ticket.total)}</span>
+                        <span
+                          className={`text-sm font-semibold tabular-nums flex-shrink-0 ${ticket.anulado ? 'line-through text-foreground-400' : 'text-foreground-950'}`}
+                        >
+                          {formatPrecio(ticket.total)}
+                        </span>
                       </div>
-                      <div className="divide-y divide-background-200/60 px-3">
+                      <div className={`divide-y divide-background-200/60 px-3 ${ticket.anulado ? 'line-through' : ''}`}>
                         {ticket.lineas.map((l) => (
                           <LineaVenta key={l.id} l={l} mostrarHora={false} />
                         ))}

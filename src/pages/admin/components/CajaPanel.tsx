@@ -288,12 +288,16 @@ interface TicketBascula {
   numero: number;
   total: number;
   lineas: BasculaVenta[];
+  anulado: boolean;
 }
 
 // Une las líneas de báscula del mismo ticket de cliente (mismo tipo_doc +
 // posto + numero) en un solo bloque con el total del ticket y el desglose
 // por producto debajo — así el pescadero compara directamente con el
-// papel que tiene en la mano, en vez de ver cada producto suelto.
+// papel que tiene en la mano, en vez de ver cada producto suelto. Un
+// ticket se marca anulado si alguna de sus líneas lo está — bascula-sync
+// las anula todas juntas, pero por si alguna se hubiera borrado a mano
+// desde aquí basta con que quede una para seguir viéndolo.
 function agruparPorTicket(lineas: BasculaVenta[]): TicketBascula[] {
   const grupos = new Map<string, TicketBascula>();
   const orden: string[] = [];
@@ -301,37 +305,47 @@ function agruparPorTicket(lineas: BasculaVenta[]): TicketBascula[] {
     const key = `${l.ticket_tipo_doc}|${l.ticket_posto}|${l.ticket_numero}`;
     let grupo = grupos.get(key);
     if (!grupo) {
-      grupo = { key, origen: l.origen, hora: l.hora, numero: l.ticket_numero, total: 0, lineas: [] };
+      grupo = { key, origen: l.origen, hora: l.hora, numero: l.ticket_numero, total: 0, lineas: [], anulado: false };
       grupos.set(key, grupo);
       orden.push(key);
     }
     grupo.total += l.importe;
     grupo.lineas.push(l);
+    if (l.anulado) grupo.anulado = true;
   }
   return orden.map((k) => grupos.get(k)!);
 }
 
 function FilaTicketBascula({ ticket, onEliminarLinea }: { ticket: TicketBascula; onEliminarLinea: (l: BasculaVenta) => void }) {
   return (
-    <div className="border-b border-background-200/50 last:border-b-0">
+    <div className={`border-b border-background-200/50 last:border-b-0 ${ticket.anulado ? 'opacity-60' : ''}`}>
       <div className="flex items-center gap-3 px-3 py-2.5">
-        <span className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm bg-emerald-50 text-emerald-600">
+        <span
+          className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm ${
+            ticket.anulado ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-600'
+          }`}
+        >
           <i className="ri-scales-3-line"></i>
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="text-sm text-foreground-950 truncate">Ticket nº {ticket.numero}</p>
+            <p className={`text-sm text-foreground-950 truncate ${ticket.anulado ? 'line-through' : ''}`}>Ticket nº {ticket.numero}</p>
             <OrigenBadge origen={ticket.origen} className="flex-shrink-0" />
+            {ticket.anulado && (
+              <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-600">Anulado</span>
+            )}
           </div>
           <p className="text-xs text-foreground-400 truncate">
             {ticket.hora?.slice(0, 5) ?? '—'} · {ticket.lineas.length} producto{ticket.lineas.length === 1 ? '' : 's'}
           </p>
         </div>
-        <span className="text-sm font-medium flex-shrink-0 tabular-nums text-emerald-700">+{formatEUR(ticket.total)}</span>
+        <span className={`text-sm font-medium flex-shrink-0 tabular-nums ${ticket.anulado ? 'line-through text-foreground-400' : 'text-emerald-700'}`}>
+          +{formatEUR(ticket.total)}
+        </span>
       </div>
       <div className="pl-14 pr-3 pb-2 space-y-1">
         {ticket.lineas.map((l) => (
-          <div key={l.id} className="flex items-center gap-2 text-xs text-foreground-500">
+          <div key={l.id} className={`flex items-center gap-2 text-xs text-foreground-500 ${ticket.anulado ? 'line-through' : ''}`}>
             <span className="flex-1 truncate">{l.designacion} · {l.cantidad} {l.unidad}</span>
             <span className="tabular-nums flex-shrink-0">{formatEUR(l.importe)}</span>
             <button
@@ -389,6 +403,7 @@ function VistaDia({
   const ingresosPorTiendaDia = useMemo(() => {
     const map: Partial<Record<Origen, number>> = {};
     lineasBascula.forEach((l) => {
+      if (l.anulado) return;
       map[l.origen] = (map[l.origen] ?? 0) + l.importe;
     });
     ingresosManuales.forEach((m) => {
@@ -409,8 +424,9 @@ function VistaDia({
     [ingresosManuales, origenesVisibles],
   );
   const totalIngresosFiltrado =
-    ticketsBasculaFiltrados.reduce((n, t) => n + t.total, 0) + ingresosManualesFiltrados.reduce((n, m) => n + Number(m.importe), 0);
-  const ticketsFiltrados = ticketsBasculaFiltrados.length;
+    ticketsBasculaFiltrados.filter((t) => !t.anulado).reduce((n, t) => n + t.total, 0) +
+    ingresosManualesFiltrados.reduce((n, m) => n + Number(m.importe), 0);
+  const ticketsFiltrados = ticketsBasculaFiltrados.filter((t) => !t.anulado).length;
 
   useEffect(() => {
     let cancelado = false;
