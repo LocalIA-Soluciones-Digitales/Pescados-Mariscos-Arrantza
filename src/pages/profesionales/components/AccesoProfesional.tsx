@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCatalogoProfesional } from '@/hooks/useCatalogoProfesional';
-import { CATEGORIA_FILTROS, type CategoriaFiltro, normalizeSearch } from '@/types/producto';
+import { useCart } from '@/hooks/useCart';
+import { useCartSound } from '@/hooks/useCartSound';
+import { CATEGORIA_FILTROS, type CategoriaFiltro, type Producto, normalizeSearch } from '@/types/producto';
 import type { ProductoProfesional } from '@/types/profesional';
 import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
+import CartDrawer from '@/pages/productos/components/CartDrawer';
 
 /* ── Tarjeta compacta de "¿ya tienes acceso?", visible en la landing pública ── */
 export function AccesoProfesionalCard({
@@ -85,8 +88,39 @@ export function AccesoProfesionalCard({
   );
 }
 
+// El catálogo profesional no incluye los campos de gestión de stock (el
+// profesional no los necesita, y get_catalogo_profesional no los expone) —
+// se rellenan con valores neutros solo para encajar en el tipo Producto que
+// espera useCart/CartDrawer, que nunca los lee.
+function toProducto(p: ProductoProfesional): Producto {
+  return {
+    ...p,
+    destacado: p.destacado,
+    stock_kg: 0,
+    stock_minimo: 0,
+    stock_alerta_enviada: false,
+    gestion_stock: false,
+    created_at: '',
+    updated_at: '',
+  } as Producto;
+}
+
 /* ── Catálogo privado tras iniciar sesión ── */
-function ProductoProfesionalCard({ producto, lang }: { producto: ProductoProfesional; lang: string }) {
+function ProductoProfesionalCard({
+  producto,
+  lang,
+  kgEnCarrito,
+  onAdd,
+  onIncrease,
+  onDecrease,
+}: {
+  producto: ProductoProfesional;
+  lang: string;
+  kgEnCarrito: number | null;
+  onAdd: () => void;
+  onIncrease: () => void;
+  onDecrease: () => void;
+}) {
   const nombre = lang.startsWith('eu') && producto.nombre_eu ? producto.nombre_eu : producto.nombre_es;
   const origen = lang.startsWith('eu') && producto.origen_eu ? producto.origen_eu : producto.origen_es;
 
@@ -107,7 +141,37 @@ function ProductoProfesionalCard({ producto, lang }: { producto: ProductoProfesi
             {origen}
           </p>
         )}
-        <span className="text-sm font-semibold text-primary-700">{producto.precio}</span>
+        <span className="text-sm font-semibold text-primary-700 block mb-2">{producto.precio}</span>
+
+        {kgEnCarrito === null ? (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="w-full px-3 py-1.5 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600"
+          >
+            + Añadir
+          </button>
+        ) : (
+          <div className="flex items-center justify-between bg-background-100 rounded-full px-1 py-1">
+            <button
+              type="button"
+              onClick={onDecrease}
+              className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-600 hover:bg-background-200/70"
+              aria-label="Reducir cantidad"
+            >
+              −
+            </button>
+            <span className="text-xs font-semibold text-foreground-950 tabular-nums">{kgEnCarrito} kg</span>
+            <button
+              type="button"
+              onClick={onIncrease}
+              className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-600 hover:bg-background-200/70"
+              aria-label="Aumentar cantidad"
+            >
+              +
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -126,6 +190,38 @@ export function CatalogoProfesionalView({
   const { productos, loading, invalida } = useCatalogoProfesional(token);
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const { playAddToCartSound } = useCartSound();
+
+  const {
+    items: cartItems,
+    customer,
+    addItem,
+    removeItem,
+    increaseKg,
+    decreaseKg,
+    setKg,
+    clearCart,
+    updateCustomer,
+    getItem,
+    totalProducts,
+    totalWeight,
+    setPreparation,
+    setItemNote,
+    justAddedId,
+    orderHistory,
+    saveLastOrder,
+    loadOrder,
+  } = useCart();
+
+  // Rellena el negocio automáticamente con el nombre del cliente profesional
+  // — no tiene sentido pedírselo si ya sabemos quién es por su sesión.
+  useEffect(() => {
+    if (!customer.business.trim()) updateCustomer('business', nombreNegocio);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nombreNegocio]);
+
+  const productosAdaptados = useMemo(() => productos.map(toProducto), [productos]);
 
   const visibles = useMemo(() => {
     let result = productos;
@@ -150,7 +246,7 @@ export function CatalogoProfesionalView({
   }
 
   return (
-    <main id="main-content" className="min-h-[70vh] max-w-[1200px] mx-auto px-4 md:px-6 lg:px-12 py-10 md:py-14">
+    <main id="main-content" className="min-h-[70vh] max-w-[1200px] mx-auto px-4 md:px-6 lg:px-12 py-10 md:py-14 pb-28">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
         <div>
           <p className="text-xs uppercase tracking-wide text-primary-600 font-semibold mb-1">{t('pro.catalog.private_label')}</p>
@@ -196,11 +292,65 @@ export function CatalogoProfesionalView({
         <p className="text-sm text-foreground-400">{t('pro.catalog.empty')}</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-          {visibles.map((producto) => (
-            <ProductoProfesionalCard key={producto.id} producto={producto} lang={i18n.language} />
-          ))}
+          {visibles.map((producto) => {
+            const item = getItem(producto.id);
+            return (
+              <ProductoProfesionalCard
+                key={producto.id}
+                producto={producto}
+                lang={i18n.language}
+                kgEnCarrito={item ? item.kg : null}
+                onAdd={() => {
+                  addItem(producto.id);
+                  playAddToCartSound();
+                }}
+                onIncrease={() => increaseKg(producto.id)}
+                onDecrease={() => {
+                  if ((item?.kg ?? 0) <= 0.5) removeItem(producto.id);
+                  else decreaseKg(producto.id);
+                }}
+              />
+            );
+          })}
         </div>
       )}
+
+      {/* Botón flotante del carrito */}
+      <button
+        type="button"
+        onClick={() => setDrawerOpen(true)}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 flex items-center justify-center rounded-full bg-primary-500 text-background-50 shadow-lg hover:bg-primary-600 active:scale-95 transition-all duration-300"
+        aria-label={t('products.cart_label')}
+      >
+        <i className="ri-shopping-cart-line text-xl"></i>
+        {totalProducts > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[22px] h-[22px] flex items-center justify-center rounded-full bg-accent-500 text-background-50 text-[11px] font-bold leading-none px-1.5">
+            {totalProducts}
+          </span>
+        )}
+      </button>
+
+      <CartDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        productos={productosAdaptados}
+        items={cartItems}
+        customer={customer}
+        onIncrease={increaseKg}
+        onDecrease={decreaseKg}
+        onSetKg={setKg}
+        onRemove={removeItem}
+        onClearCart={clearCart}
+        onCustomerChange={updateCustomer}
+        onPreparationChange={setPreparation}
+        onNoteChange={setItemNote}
+        totalProducts={totalProducts}
+        totalWeight={totalWeight}
+        justAddedId={justAddedId}
+        orderHistory={orderHistory}
+        onSaveLastOrder={saveLastOrder}
+        onLoadOrder={loadOrder}
+      />
     </main>
   );
 }
