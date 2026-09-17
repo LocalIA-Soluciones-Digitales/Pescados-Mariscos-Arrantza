@@ -390,6 +390,7 @@ function VistaDia({
 
   const [filtroOrigen, setFiltroOrigen] = useState<FiltroOrigen>('todas');
   const origenesVisibles = useMemo(() => (filtroOrigen === 'todas' ? ORIGENES : [filtroOrigen]), [filtroOrigen]);
+  const [soloAnulados, setSoloAnulados] = useState(false);
 
   const [lineasBascula, setLineasBascula] = useState<BasculaVenta[]>([]);
   const [cargandoBascula, setCargandoBascula] = useState(true);
@@ -415,18 +416,26 @@ function VistaDia({
 
   const ticketsBascula = useMemo(() => agruparPorTicket(lineasBascula), [lineasBascula]);
 
-  const ticketsBasculaFiltrados = useMemo(
+  // Filtrado por tienda (usado también para los totales, que nunca deben
+  // depender de si se está buscando anulados o no) y, aparte, el filtro
+  // de "solo anulados" que solo afecta a qué se muestra en la lista.
+  const ticketsBasculaOrigen = useMemo(
     () => ticketsBascula.filter((t) => origenesVisibles.includes(t.origen)),
     [ticketsBascula, origenesVisibles],
   );
+  const anuladosVisibles = useMemo(() => ticketsBasculaOrigen.filter((t) => t.anulado).length, [ticketsBasculaOrigen]);
+  const ticketsBasculaFiltrados = useMemo(
+    () => (soloAnulados ? ticketsBasculaOrigen.filter((t) => t.anulado) : ticketsBasculaOrigen),
+    [ticketsBasculaOrigen, soloAnulados],
+  );
   const ingresosManualesFiltrados = useMemo(
-    () => ingresosManuales.filter((m) => m.origen && origenesVisibles.includes(m.origen)),
-    [ingresosManuales, origenesVisibles],
+    () => (soloAnulados ? [] : ingresosManuales.filter((m) => m.origen && origenesVisibles.includes(m.origen))),
+    [ingresosManuales, origenesVisibles, soloAnulados],
   );
   const totalIngresosFiltrado =
-    ticketsBasculaFiltrados.filter((t) => !t.anulado).reduce((n, t) => n + t.total, 0) +
-    ingresosManualesFiltrados.reduce((n, m) => n + Number(m.importe), 0);
-  const ticketsFiltrados = ticketsBasculaFiltrados.filter((t) => !t.anulado).length;
+    ticketsBasculaOrigen.filter((t) => !t.anulado).reduce((n, t) => n + t.total, 0) +
+    ingresosManuales.filter((m) => m.origen && origenesVisibles.includes(m.origen)).reduce((n, m) => n + Number(m.importe), 0);
+  const ticketsFiltrados = ticketsBasculaOrigen.filter((t) => !t.anulado).length;
 
   useEffect(() => {
     let cancelado = false;
@@ -489,6 +498,18 @@ function VistaDia({
             </button>
           );
         })}
+        {anuladosVisibles > 0 && (
+          <button
+            type="button"
+            onClick={() => setSoloAnulados((v) => !v)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              soloAnulados ? 'bg-red-500 text-background-50' : 'bg-background-50 border border-background-200/70 text-red-600 hover:bg-red-50'
+            }`}
+          >
+            <i className="ri-close-circle-line"></i>
+            Anulados ({anuladosVisibles})
+          </button>
+        )}
       </div>
 
       <div className="mb-1.5 flex items-center gap-1.5">
