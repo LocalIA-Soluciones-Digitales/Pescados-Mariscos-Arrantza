@@ -14,6 +14,27 @@
 //      código mapeado para ESE origen (productos_codigos_bascula),
 //      descuenta esos kg del stock compartido.
 //
+// ANULACIONES (17/09/2026, caso real en pescadería 1: ticket anulado en el
+// terminal, la báscula ya no lo contaba en su caja pero la web sí seguía
+// facturándolo): la báscula permite anular un ticket ya impreso, y
+// /year/documentos trae un campo "anulado" en la cabecera que refleja el
+// estado ACTUAL del ticket (confirmado con bascula-diagnostico contra el
+// terminal real). Como esta función solo avanza hacia delante por _oid_,
+// una anulación puede llegar en dos momentos distintos:
+//   - Antes de que el ticket se haya sincronizado nunca (lo más habitual:
+//     se anula a los pocos segundos de imprimirse, mucho antes del
+//     siguiente ciclo de 5 minutos) — en ese caso, ni se guarda en
+//     bascula_ventas ni descuenta stock, como si nunca hubiera pasado.
+//   - Después de que una ejecución anterior YA lo sincronizara — en ese
+//     caso hay que reponer el stock que se descontó entonces y excluirlo
+//     de la facturación diaria. Por eso cada ejecución recorre TODAS las
+//     cabeceras que trae el API (no solo las de líneas nuevas) y, por
+//     cada una marcada "anulado", llama a anular_venta_bascula (tipo_doc
+//     1/2) o anular_albaran_bascula (tipo_doc 3) — ambas en schema.sql,
+//     ambas idempotentes (no reponen stock dos veces), así que no importa
+//     que la misma anulación se vea varias ejecuciones seguidas mientras
+//     el ticket siga dentro de la ventana de cabeceras que trae el API.
+//
 // IMPORTANTE sobre el API ETWS: las tablas /year/documentos y
 // /year/documentos_lnh están indexadas empezando por "tipo_doc" (1 =
 // Factura Simplificada — clientes normales, 2 = Factura — clientes con
@@ -192,6 +213,7 @@ interface CabeceraDocumento {
   numero: number;
   d_doc: string;
   h_doc: string;
+  anulado: boolean;
 }
 
 Deno.serve(async (req: Request) => {
@@ -246,7 +268,9 @@ Deno.serve(async (req: Request) => {
     lineas.push(...(await seekPorTipoDoc<LineaDocumento>(cfg, puertoActual, '/year/documentos_lnh', ['posto', 'numero', 'linha_f'], tipoDoc)));
   }
 
-  const fechaPorTicket = new Map(cabeceras.map((c) => [`${c.tipo_doc}|${c.posto}|${c.numero}`, { fecha: c.d_doc, hora: c.h_doc }]));
+  const cabeceraPorTicket = new Map(
+    cabeceras.map((c) => [`${c.tipo_doc}|${c.posto}|${c.numero}`, { fecha: c.d_doc, hora: c.h_doc, anulado: c.anulado }]),
+  );
 
   if (lineas.length === 0) {
     return new Response('Sin tickets registrados todavía', { status: 200 });
@@ -260,6 +284,8 @@ Deno.serve(async (req: Request) => {
     guardadas: 0,
     stock_descontado: 0,
     evitado_doble_conteo: 0,
+    anuladas_al_llegar: 0,
+    anuladas_a_posteriori: 0,
     sin_mapear: [] as string[],
     primera_ejecucion: esPrimeraEjecucion,
   };
@@ -268,13 +294,61 @@ Deno.serve(async (req: Request) => {
   // fija el punto de partida, para no registrar de golpe todo el
   // histórico de ventas ya realizadas antes de activar la sincronización.
   if (!esPrimeraEjecucion) {
+    // Detecta anulaciones tardías: la báscula permite anular un ticket ya
+    // impreso, y esa anulación puede llegar DESPUÉS de que una ejecución
+    // anterior ya lo haya sincronizado (guardado en bascula_ventas y/o
+    // descontado stock). Cada cabecera trae su estado "anulado" actual
+    // tal cual está AHORA en el terminal, así que basta con recorrer las
+    // que vinieron marcadas y pedirle a la base que repare lo que haga
+    // falta — es idempotente (no vuelve a reponer stock si ya se hizo),
+    // así que no importa si la misma anulación se ve varias ejecuciones
+    // seguidas mientras siga dentro de la ventana que trae el API.
+    for (const cabecera of cabeceras) {
+      if (!cabecera.anulado) continue;
+      if (cabecera.tipo_doc === 3) {
+        const { data: filas, error } = await supabase.rpc('anular_albaran_bascula', {
+          p_cliente_id: clienteId,
+          p_origen: origen,
+          p_posto: cabecera.posto,
+          p_numero: cabecera.numero,
+        });
+        if (error) {
+          console.error(`[${origen}] Error anulando Albarán (ticket ${cabecera.numero}):`, error.message);
+        } else {
+          resultado.anuladas_a_posteriori += filas ?? 0;
+        }
+      } else {
+        const { data: filas, error } = await supabase.rpc('anular_venta_bascula', {
+          p_cliente_id: clienteId,
+          p_origen: origen,
+          p_tipo_doc: cabecera.tipo_doc,
+          p_posto: cabecera.posto,
+          p_numero: cabecera.numero,
+        });
+        if (error) {
+          console.error(`[${origen}] Error anulando ticket ${cabecera.numero}:`, error.message);
+        } else {
+          resultado.anuladas_a_posteriori += filas ?? 0;
+        }
+      }
+    }
+
     for (const linea of nuevas) {
       if (!linea.codigo) continue;
 
       const claveTicket = `${linea.tipo_doc}|${linea.posto}|${linea.numero}`;
-      const cabecera = fechaPorTicket.get(claveTicket);
+      const cabecera = cabeceraPorTicket.get(claveTicket);
       const hoy = new Date().toISOString().slice(0, 10);
       const productoId = productoIdPorCodigo.get(linea.codigo) ?? null;
+
+      // Si el ticket ya llegó anulado (lo más habitual: en la báscula se
+      // anula a los pocos segundos de imprimirse, mucho antes del
+      // siguiente ciclo de sincronización), ni se guarda para
+      // facturación ni descuenta stock — como si nunca hubiera pasado.
+      if (cabecera?.anulado) {
+        resultado.anuladas_al_llegar++;
+        continue;
+      }
 
       // El Albarán solo descuenta stock (más abajo) — nunca se guarda en
       // bascula_ventas, para no duplicar la facturación diaria cuando se
@@ -345,6 +419,21 @@ Deno.serve(async (req: Request) => {
         continue;
       }
       resultado.stock_descontado++;
+
+      // Marca esta línea como "sí descontó stock" — anular_venta_bascula
+      // lo necesita para saber si debe reponerlo cuando el ticket se
+      // anule más tarde, sin depender del mapeo código→producto vigente
+      // en ESE momento (que pudo cambiar desde que se sincronizó).
+      if (TIPOS_DOC_FACTURABLES.has(linea.tipo_doc)) {
+        const { error: errorMarcarStock } = await supabase
+          .from('bascula_ventas')
+          .update({ stock_descontado: true })
+          .eq('origen', origen)
+          .eq('linea_oid', linea._oid_);
+        if (errorMarcarStock) {
+          console.error(`[${origen}] Error marcando stock_descontado (ticket ${linea.numero}, código ${linea.codigo}):`, errorMarcarStock.message);
+        }
+      }
 
       // Registra la línea de Albarán para que, cuando se cierre en una
       // Factura de fin de mes, esa línea de Factura pueda reconocerla y

@@ -790,8 +790,17 @@ create table if not exists public.bascula_albaran_lineas (
   ticket_numero integer not null,
   fecha date not null,
   consumida boolean not null default false,
+  -- true si el terminal marcó anulado el Albarán que generó esta línea
+  -- DESPUÉS de haberla registrado aquí (ver anular_albaran_bascula más
+  -- abajo) — impide que consumir_linea_albaran la siga ofreciendo a una
+  -- Factura de cierre futura.
+  anulada boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+-- La tabla ya existe en producción sin esta columna (ver comentario en
+-- bascula-sync/index.ts sobre la detección de anulaciones tardías).
+alter table public.bascula_albaran_lineas add column if not exists anulada boolean not null default false;
 
 alter table public.bascula_albaran_lineas enable row level security;
 
@@ -827,6 +836,7 @@ begin
     and codigo_bascula = p_codigo_bascula
     and cantidad = p_cantidad
     and not consumida
+    and not anulada
   order by fecha asc, created_at asc
   limit 1
   for update skip locked;
@@ -842,6 +852,52 @@ $$ language plpgsql security definer set search_path = public;
 
 revoke all on function public.consumir_linea_albaran(uuid, text, text, numeric) from public;
 grant execute on function public.consumir_linea_albaran(uuid, text, text, numeric) to service_role;
+
+-- Anula un Albarán ya sincronizado que el terminal marca ahora como
+-- "anulado" (bascula-sync la llama en cada ejecución por cada cabecera de
+-- Albarán que vea anulada — ver comentario al principio de ese fichero
+-- sobre la detección de anulaciones tardías). Solo actúa sobre la línea
+-- pendiente si todavía no fue consumida por una Factura de cierre (si ya
+-- lo fue, el stock de esa línea se gestiona a través de esa Factura, no
+-- aquí) y todavía no estaba marcada anulada (para no reponer el stock dos
+-- veces si esta función se llama varias veces para el mismo Albarán, como
+-- ocurre mientras su cabecera siga apareciendo en la ventana que trae el
+-- API). Devuelve cuántas líneas afectó (0 si no había nada que revertir).
+create or replace function public.anular_albaran_bascula(
+  p_cliente_id uuid, p_origen text, p_posto integer, p_numero integer
+)
+returns integer as $$
+declare
+  v_filas integer;
+begin
+  update public.productos p
+  set stock_kg = p.stock_kg + a.cantidad
+  from public.bascula_albaran_lineas a
+  join public.productos_codigos_bascula m
+    on m.cliente_id = a.cliente_id and m.origen = a.origen and m.codigo_bascula = a.codigo_bascula
+  where a.cliente_id = p_cliente_id
+    and a.origen = p_origen
+    and a.ticket_posto = p_posto
+    and a.ticket_numero = p_numero
+    and not a.consumida
+    and not a.anulada
+    and m.producto_id = p.id;
+
+  update public.bascula_albaran_lineas
+  set anulada = true
+  where cliente_id = p_cliente_id
+    and origen = p_origen
+    and ticket_posto = p_posto
+    and ticket_numero = p_numero
+    and not consumida
+    and not anulada;
+  get diagnostics v_filas = row_count;
+  return v_filas;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+revoke all on function public.anular_albaran_bascula(uuid, text, integer, integer) from public;
+grant execute on function public.anular_albaran_bascula(uuid, text, integer, integer) to service_role;
 
 -- Mapeo producto × báscula → código de ese terminal. Sustituye a un
 -- antiguo campo único productos.codigo_bascula (válido mientras solo
@@ -899,9 +955,25 @@ create table if not exists public.bascula_ventas (
   cantidad numeric not null,
   precio_unit numeric not null,
   importe numeric not null,
+  -- true si el terminal marcó anulado este ticket DESPUÉS de haberse
+  -- sincronizado (ver anular_venta_bascula más abajo). Las vistas de
+  -- facturación diaria excluyen estas filas.
+  anulado boolean not null default false,
+  -- true si esta línea concreta llegó a descontar stock al sincronizarse
+  -- (kg con producto mapeado y no ya descontado vía Albarán) — sin esto,
+  -- anular_venta_bascula no podría saber si debe reponer stock al
+  -- detectar una anulación tardía sin volver a mirar el mapeo actual,
+  -- que pudo cambiar desde entonces.
+  stock_descontado boolean not null default false,
   created_at timestamptz not null default now(),
   unique (origen, linea_oid)
 );
+
+-- La tabla ya existe en producción sin estas dos columnas (ver comentario
+-- en bascula-sync/index.ts sobre la detección de anulaciones tardías).
+alter table public.bascula_ventas
+  add column if not exists anulado boolean not null default false,
+  add column if not exists stock_descontado boolean not null default false;
 
 alter table public.bascula_ventas enable row level security;
 
@@ -923,11 +995,58 @@ create policy "bascula_ventas_delete_admin"
 create index if not exists idx_bascula_ventas_fecha on public.bascula_ventas (cliente_id, fecha);
 create index if not exists idx_bascula_ventas_origen_fecha on public.bascula_ventas (cliente_id, origen, fecha);
 
+-- Anula un ticket ya sincronizado que el terminal marca ahora como
+-- "anulado" (bascula-sync la llama en cada ejecución por cada cabecera
+-- que vea anulada, dentro de la ventana de tickets recientes que ya trae
+-- el API — ver comentario al principio de ese fichero). Repone el stock
+-- solo de las líneas que de verdad llegaron a descontarlo
+-- (stock_descontado) y marca anuladas TODAS las líneas de ese ticket
+-- (kg o unidad) para que bascula_ventas_diarias deje de contarlas. El
+-- filtro "not anulado" hace que sea segura de llamar repetidamente para
+-- el mismo ticket sin reponer stock dos veces. Devuelve cuántas líneas
+-- afectó (0 si no había nada que revertir, p.ej. porque nunca llegó a
+-- sincronizarse antes de anularse).
+create or replace function public.anular_venta_bascula(
+  p_cliente_id uuid, p_origen text, p_tipo_doc integer, p_posto integer, p_numero integer
+)
+returns integer as $$
+declare
+  v_filas integer;
+begin
+  update public.productos p
+  set stock_kg = p.stock_kg + v.cantidad
+  from public.bascula_ventas v
+  where v.cliente_id = p_cliente_id
+    and v.origen = p_origen
+    and v.ticket_tipo_doc = p_tipo_doc
+    and v.ticket_posto = p_posto
+    and v.ticket_numero = p_numero
+    and not v.anulado
+    and v.stock_descontado
+    and v.producto_id = p.id;
+
+  update public.bascula_ventas
+  set anulado = true
+  where cliente_id = p_cliente_id
+    and origen = p_origen
+    and ticket_tipo_doc = p_tipo_doc
+    and ticket_posto = p_posto
+    and ticket_numero = p_numero
+    and not anulado;
+  get diagnostics v_filas = row_count;
+  return v_filas;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+revoke all on function public.anular_venta_bascula(uuid, text, integer, integer, integer) from public;
+grant execute on function public.anular_venta_bascula(uuid, text, integer, integer, integer) to service_role;
+
 -- Facturación diaria combinando las dos pescaderías (importe de línea,
 -- IVA incluido, tal como lo registra la báscula) y kg vendidos a peso,
 -- para el cierre de caja. security_invoker: la vista respeta la RLS de
 -- bascula_ventas para quien la consulte, en vez de correr con los
--- permisos de quien la creó.
+-- permisos de quien la creó. Excluye los tickets anulados en el
+-- terminal (ver anular_venta_bascula arriba).
 create or replace view public.bascula_ventas_diarias
 with (security_invoker = true) as
 select
@@ -938,6 +1057,7 @@ select
   sum(cantidad) filter (where unidad = 'kg') as total_peso_kg,
   sum(cantidad) filter (where unidad = 'un') as total_piezas_un
 from public.bascula_ventas
+where not anulado
 group by cliente_id, fecha
 order by fecha desc;
 
@@ -955,6 +1075,7 @@ select
   sum(cantidad) filter (where unidad = 'kg') as total_peso_kg,
   sum(cantidad) filter (where unidad = 'un') as total_piezas_un
 from public.bascula_ventas
+where not anulado
 group by cliente_id, fecha, origen
 order by fecha desc, origen;
 

@@ -42,5 +42,6 @@ export interface BasculaVenta {
   cantidad: number;
   precio_unit: number;
   importe: number;
+  anulado: boolean;
   created_at: string;
 }

@@ -39,6 +39,7 @@ export async function fetchBasculaVentasDelDia(fecha: string): Promise<BasculaVe
     .from('bascula_ventas')
     .select('*')
     .eq('fecha', fecha)
+    .eq('anulado', false)
     .order('hora', { ascending: false })
     .order('linea_oid', { ascending: false });
   return data ?? [];
@@ -50,7 +51,7 @@ export async function fetchBasculaVentasDelDia(fecha: string): Promise<BasculaVe
 // cuánto se ha vendido en total de cada producto. La agregación se hace
 // en el cliente porque el volumen de líneas por día es bajo.
 export async function fetchBasculaVentasResumenProductos(fechas: string[], origen: Origen | null): Promise<BasculaVentaResumenProducto[]> {
-  let query = supabase.from('bascula_ventas').select('designacion, unidad, cantidad, importe').in('fecha', fechas);
+  let query = supabase.from('bascula_ventas').select('designacion, unidad, cantidad, importe').in('fecha', fechas).eq('anulado', false);
   if (origen) query = query.eq('origen', origen);
   const { data } = await query;
 
