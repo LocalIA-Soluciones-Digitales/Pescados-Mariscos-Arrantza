@@ -8,6 +8,9 @@ import { logConversion } from '@/lib/visitLog';
 import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { pickLang } from '@/types/producto';
 import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
+import { supabase, SITE_KEY } from '@/lib/supabaseClient';
+import { useProfesionalAuth } from '@/hooks/useProfesionalAuth';
+import { AccesoProfesionalCard, CatalogoProfesionalView } from './components/AccesoProfesional';
 
 /* ── Daily selection shows whatever the fishmonger marks as        ── */
 /* ── "Destacado" in the admin panel (shared with the home carousel). ── */
@@ -382,43 +385,23 @@ function ContactForm() {
     setFormState('sending');
     setFormError('');
 
-    try {
-      const res = await fetch('https://readdy.ai/api/form/d9qvf6cnlsngrm4lm6lg', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          business_name: businessName.trim(),
-          contact_person: contactPerson.trim(),
-          business_type: businessType,
-          phone: phone.trim(),
-          email: (formData.get('email') as string || '').trim(),
-          needs: needs.trim(),
-        }).toString(),
-      });
+    const { error } = await supabase.rpc('crear_solicitud_profesional', {
+      p_site_key: SITE_KEY,
+      p_nombre_negocio: businessName.trim(),
+      p_persona_contacto: contactPerson.trim(),
+      p_tipo_negocio: businessType,
+      p_telefono: phone.trim(),
+      p_email: (formData.get('email') as string) || '',
+      p_necesidades: needs.trim(),
+    });
 
-      const responseText = await res.text();
-      let parsed: any = {};
-      try { parsed = JSON.parse(responseText); } catch { /* not JSON */ }
-
-      if (res.ok && parsed?.code === 'OK') {
-        setFormState('success');
-        form.reset();
-        setBusinessType('');
-        setTimeout(() => setFormState('idle'), 5000);
-      } else {
-        const serverMsg = parsed?.meta?.message || parsed?.message || '';
-        if (serverMsg.toLowerCase().includes('spam')) {
-          setFormState('success');
-          form.reset();
-          setBusinessType('');
-          setTimeout(() => setFormState('idle'), 4000);
-        } else {
-          setFormError(serverMsg || 'Ha ocurrido un error. Por favor, inténtalo de nuevo.');
-          setFormState('error');
-        }
-      }
-    } catch {
-      setFormError('Ha ocurrido un error de conexión. Por favor, inténtalo de nuevo.');
+    if (!error) {
+      setFormState('success');
+      form.reset();
+      setBusinessType('');
+      setTimeout(() => setFormState('idle'), 5000);
+    } else {
+      setFormError('Ha ocurrido un error. Por favor, inténtalo de nuevo.');
       setFormState('error');
     }
   };
@@ -451,7 +434,6 @@ function ContactForm() {
           <form
             id="profesionales-form"
             onSubmit={handleSubmit}
-            data-readdy-form
             className={`space-y-5 md:space-y-6 transition-all duration-500 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:gap-6">
@@ -626,17 +608,31 @@ function WhatsAppSection() {
 /* ── Main page ── */
 export default function Profesionales() {
   const [visible, setVisible] = useState(false);
+  const { session, loading: loginLoading, error: loginError, login, logout } = useProfesionalAuth();
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setVisible(true));
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // Un cliente profesional con sesión activa ve directamente su catálogo
+  // privado (con sus precios), no la landing de marketing/captación.
+  if (session) {
+    return (
+      <>
+        <Navbar />
+        <CatalogoProfesionalView token={session.token} nombreNegocio={session.nombreNegocio} onLogout={logout} />
+        <Footer />
+      </>
+    );
+  }
+
   return (
     <>
       <Navbar />
       <main id="main-content" className={`transition-all duration-[600ms] ease-out ${visible ? 'opacity-100' : 'opacity-0'}`}>
         <HeroSection />
+        <AccesoProfesionalCard onLogin={login} loading={loginLoading} error={loginError} />
         <BusinessCards />
         <DailySelection />
         <ProcessSteps />

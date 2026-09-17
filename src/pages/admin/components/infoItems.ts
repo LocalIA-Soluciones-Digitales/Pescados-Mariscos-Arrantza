@@ -79,6 +79,13 @@ export const CLIENTES_INFO_ITEMS = [
   },
 ];
 
+export const PROFESIONALES_INFO_ITEMS = [
+  { icon: 'ri-inbox-line', text: 'Las solicitudes llegan del formulario "Hablemos de tu negocio" de /profesionales.' },
+  { icon: 'ri-user-add-line', text: '"Dar de alta" crea el acceso del cliente (código + PIN) y marca la solicitud como aprobada.' },
+  { icon: 'ri-price-tag-3-line', text: 'Cada tarifa fija precios propios por producto; varios clientes pueden compartir una misma tarifa.' },
+  { icon: 'ri-lock-line', text: 'El cliente entra en /profesionales con su código y PIN y ve solo su catálogo con sus precios — privado, nadie más lo ve.' },
+];
+
 export const RESENAS_INFO_ITEMS = [
   { icon: 'ri-chat-3-line', text: 'Las reseñas las escriben los clientes desde la web.' },
   { icon: 'ri-shield-check-line', text: 'Apruébalas para que aparezcan en público — nada se publica solo.' },

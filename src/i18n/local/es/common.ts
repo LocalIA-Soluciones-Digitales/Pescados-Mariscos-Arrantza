@@ -1045,6 +1045,20 @@ const common = {
   "pro.whatsapp.subtitle": "También puedes contactar con nosotros por WhatsApp.",
   "pro.whatsapp.cta": "Hablar por WhatsApp",
 
+  "pro.access.prompt": "¿Ya tienes cuenta? Accede a tu catálogo con tus precios",
+  "pro.access.title": "Acceso privado",
+  "pro.access.subtitle": "Introduce el código y el PIN que te ha facilitado Arrantza para ver tu catálogo con tus precios.",
+  "pro.access.code_placeholder": "Código de acceso",
+  "pro.access.pin_placeholder": "PIN",
+  "pro.access.submit": "Acceder",
+  "pro.access.entering": "Accediendo...",
+  "pro.access.no_account": "¿Todavía no tienes cuenta? Envíanos tu solicitud más abajo.",
+  "pro.catalog.private_label": "Catálogo privado",
+  "pro.catalog.logout": "Cerrar sesión",
+  "pro.catalog.search_placeholder": "Buscar producto…",
+  "pro.catalog.loading": "Cargando catálogo…",
+  "pro.catalog.empty": "No hay productos que coincidan con la búsqueda.",
+
   // Reservas (fechas especiales: Navidad, Nochevieja...)
   "reservas.hero_label": "Reservas",
   "reservas.hero_title": "Reserva tu pedido para {{evento}}",

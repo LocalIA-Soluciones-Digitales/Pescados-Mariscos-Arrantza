@@ -1046,6 +1046,20 @@ const common = {
   "pro.whatsapp.subtitle": "WhatsApp bidez ere jar zaitezke gurekin harremanetan.",
   "pro.whatsapp.cta": "WhatsApp bidez hitz egin",
 
+  "pro.access.prompt": "Kontua baduzu jada? Sartu zure katalogora zure prezioekin",
+  "pro.access.title": "Sarbide pribatua",
+  "pro.access.subtitle": "Sartu Arrantzak eman dizun kodea eta PINa zure katalogoa zure prezioekin ikusteko.",
+  "pro.access.code_placeholder": "Sarbide-kodea",
+  "pro.access.pin_placeholder": "PINa",
+  "pro.access.submit": "Sartu",
+  "pro.access.entering": "Sartzen...",
+  "pro.access.no_account": "Oraindik ez duzu konturik? Bidali zure eskaera behean.",
+  "pro.catalog.private_label": "Katalogo pribatua",
+  "pro.catalog.logout": "Saioa itxi",
+  "pro.catalog.search_placeholder": "Produktua bilatu…",
+  "pro.catalog.loading": "Katalogoa kargatzen…",
+  "pro.catalog.empty": "Ez dago bilaketarekin bat datorren produkturik.",
+
   // Reservas (data bereziak: Eguberriak, Urtezahar gaua...)
   "reservas.hero_label": "Erreserbak",
   "reservas.hero_title": "Erreserbatu zure eskaera {{evento}} baterako",

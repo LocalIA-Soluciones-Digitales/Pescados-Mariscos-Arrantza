@@ -13,6 +13,7 @@ import ReservasPanel from './ReservasPanel';
 import SolicitudesStockPanel from './SolicitudesStockPanel';
 import HoyPanel from './HoyPanel';
 import ClientesPanel from './ClientesPanel';
+import ProfesionalesPanel from './ProfesionalesPanel';
 import {
   HOY_INFO_ITEMS,
   VENTAS_INFO_ITEMS,
@@ -23,11 +24,13 @@ import {
   STOCK_INFO_ITEMS,
   CLIENTES_INFO_ITEMS,
   RESENAS_INFO_ITEMS,
+  PROFESIONALES_INFO_ITEMS,
 } from './infoItems';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
 import { useReservas } from '@/hooks/useReservas';
 import { useSolicitudesStock } from '@/hooks/useSolicitudesStock';
+import { useProfesionalesSolicitudes } from '@/hooks/useProfesionalesSolicitudes';
 import { usePromoOtorgadas } from '@/hooks/usePromoOtorgadas';
 import { usePulse } from '@/hooks/usePulse';
 import { useOrderAlertSound } from '@/hooks/useOrderAlertSound';
@@ -36,7 +39,7 @@ import ViewSwitcher from './ViewSwitcher';
 import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
 
-type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes';
+type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes' | 'profesionales';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -189,6 +192,7 @@ const TABS: { value: Tab; label: string; info: { icon: string; text: string }[] 
   { value: 'productos', label: 'Productos', info: PRODUCTOS_INFO_ITEMS },
   { value: 'stock', label: 'Stock', info: STOCK_INFO_ITEMS },
   { value: 'clientes', label: 'Clientes', info: CLIENTES_INFO_ITEMS },
+  { value: 'profesionales', label: 'Profesionales', info: PROFESIONALES_INFO_ITEMS },
   { value: 'resenas', label: 'Reseñas', info: RESENAS_INFO_ITEMS },
 ];
 
@@ -224,11 +228,16 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   const { resenas, loading: loadingResenas } = useResenas();
   const { reservas, loading: loadingReservas } = useReservas();
   const { solicitudes } = useSolicitudesStock();
+  const { solicitudes: solicitudesProfesionales } = useProfesionalesSolicitudes();
   const { otorgadas: promoOtorgadas, patchOtorgada } = usePromoOtorgadas();
   const pedidosNuevos = useMemo(() => pedidos.filter((p) => p.estado === 'nuevo').length, [pedidos]);
   const resenasPendientes = useMemo(() => resenas.filter((r) => r.estado === 'pendiente').length, [resenas]);
   const reservasPendientes = useMemo(() => reservas.filter((r) => r.estado === 'pendiente').length, [reservas]);
   const solicitudesPendientes = useMemo(() => solicitudes.filter((s) => s.estado === 'pendiente').length, [solicitudes]);
+  const profesionalesPendientes = useMemo(
+    () => solicitudesProfesionales.filter((s) => s.estado === 'pendiente').length,
+    [solicitudesProfesionales],
+  );
 
   // Resalta visualmente la pestaña correspondiente durante unos segundos
   // cuando entra algo nuevo, y avisa con un sonido en el caso de pedidos
@@ -237,6 +246,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   const reservasPulse = usePulse(reservasPendientes);
   const resenasPulse = usePulse(resenasPendientes);
   const solicitudesPulse = usePulse(solicitudesPendientes);
+  const profesionalesPulse = usePulse(profesionalesPendientes);
 
   const { playNewOrderSound, unlock } = useOrderAlertSound();
   const pedidosNuevosPrevRef = useRef<number | null>(null);
@@ -315,7 +325,9 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
                     ? reservasPendientes
                     : t.value === 'solicitudes'
                       ? solicitudesPendientes
-                      : 0;
+                      : t.value === 'profesionales'
+                        ? profesionalesPendientes
+                        : 0;
         const pulse =
           t.value === 'hoy'
             ? pedidosPulse || reservasPulse
@@ -327,7 +339,9 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
                   ? resenasPulse
                   : t.value === 'solicitudes'
                     ? solicitudesPulse
-                    : false;
+                    : t.value === 'profesionales'
+                      ? profesionalesPulse
+                      : false;
         const active = tab === t.value;
         return (
           <div
@@ -436,6 +450,8 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         />
       ) : tab === 'stock' ? (
         <StockPanel productos={productos} loading={loading} onPatch={patchLocal} />
+      ) : tab === 'profesionales' ? (
+        <ProfesionalesPanel productos={productos} />
       ) : (
         <>
       {/* Filtros */}
