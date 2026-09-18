@@ -319,55 +319,152 @@ function agruparPorTicket(lineas: BasculaVenta[]): TicketBascula[] {
   return orden.map((k) => grupos.get(k)!);
 }
 
-function FilaTicketBascula({ ticket, onEliminarLinea }: { ticket: TicketBascula; onEliminarLinea: (l: BasculaVenta) => void }) {
+// Fila compacta y clicable: el detalle completo (líneas, total, estado) se
+// ve en TicketDetalleModal al pulsarla — así la lista se puede recorrer de
+// un vistazo, sin que el desglose de cada ticket empuje a los demás hacia
+// abajo. En móvil el número de ticket va en su propia línea y las badges
+// (tienda, anulado, editado) debajo, porque compartir una sola línea con
+// ellas era lo que hacía ilegible el número (ver comentario de
+// TicketDetalleModal).
+function FilaTicketBascula({ ticket, onClick }: { ticket: TicketBascula; onClick: () => void }) {
   return (
-    <div className={`border-b border-background-200/50 last:border-b-0 ${ticket.anulado ? 'opacity-60' : ''}`}>
-      <div className="flex items-center gap-3 px-3 py-2.5">
-        <span
-          className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm ${
-            ticket.anulado ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-600'
-          }`}
-        >
-          <i className="ri-scales-3-line"></i>
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <p className={`text-sm text-foreground-950 truncate ${ticket.anulado ? 'line-through' : ''}`}>Ticket nº {ticket.numero}</p>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left flex items-center gap-3 px-3 py-2.5 border-b border-background-200/50 last:border-b-0 hover:bg-background-100/60 transition-colors ${
+        ticket.anulado ? 'opacity-60' : ''
+      }`}
+    >
+      <span
+        className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm ${
+          ticket.anulado ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-600'
+        }`}
+      >
+        <i className="ri-scales-3-line"></i>
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-1.5">
+          <p className={`text-sm text-foreground-950 sm:truncate ${ticket.anulado ? 'line-through' : ''}`}>Ticket nº {ticket.numero}</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
             <OrigenBadge origen={ticket.origen} className="flex-shrink-0" />
             {ticket.anulado && (
               <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-600">Anulado</span>
             )}
             {ticket.editadoDeNumero != null && (
-              <span
-                className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600"
-                title={`Sustituye al ticket anulado nº ${ticket.editadoDeNumero}`}
-              >
+              <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600">
                 Editado de nº {ticket.editadoDeNumero}
               </span>
             )}
           </div>
-          <p className="text-xs text-foreground-400 truncate">
-            {ticket.hora?.slice(0, 5) ?? '—'} · {ticket.lineas.length} producto{ticket.lineas.length === 1 ? '' : 's'}
-          </p>
         </div>
-        <span className={`text-sm font-medium flex-shrink-0 tabular-nums ${ticket.anulado ? 'line-through text-foreground-400' : 'text-emerald-700'}`}>
-          +{formatEUR(ticket.total)}
-        </span>
+        <p className="text-xs text-foreground-400 truncate">
+          {ticket.hora?.slice(0, 5) ?? '—'} · {ticket.lineas.length} producto{ticket.lineas.length === 1 ? '' : 's'}
+        </p>
       </div>
-      <div className="pl-14 pr-3 pb-2 space-y-1">
-        {ticket.lineas.map((l) => (
-          <div key={l.id} className={`flex items-center gap-2 text-xs text-foreground-500 ${ticket.anulado ? 'line-through' : ''}`}>
-            <span className="flex-1 truncate">{l.designacion} · {l.cantidad} {l.unidad}</span>
-            <span className="tabular-nums flex-shrink-0">{formatEUR(l.importe)}</span>
-            <button
-              type="button"
-              onClick={() => onEliminarLinea(l)}
-              className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full text-foreground-400 hover:bg-red-50 hover:text-red-600"
+      <span className={`text-sm font-medium flex-shrink-0 tabular-nums ${ticket.anulado ? 'line-through text-foreground-400' : 'text-emerald-700'}`}>
+        +{formatEUR(ticket.total)}
+      </span>
+      <i className="ri-arrow-right-s-line text-foreground-300 flex-shrink-0"></i>
+    </button>
+  );
+}
+
+// Popup de detalle al pulsar un ticket: evoca un recibo (divisores
+// punteados, total al pie) sin imitarlo literalmente — pensado sobre todo
+// para móvil, donde la fila compacta no tiene sitio para mostrar tienda +
+// estado + todas las líneas a la vez sin atropellar el número de ticket.
+function TicketDetalleModal({
+  ticket,
+  onClose,
+  onEliminarLinea,
+}: {
+  ticket: TicketBascula;
+  onClose: () => void;
+  onEliminarLinea: (l: BasculaVenta) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-foreground-950/40 sm:p-4" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex flex-col w-full sm:max-w-[420px] max-h-[88vh] sm:max-h-[85vh] bg-background-50 rounded-t-2xl sm:rounded-lg border border-background-200/70 shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-background-200/70 flex-shrink-0">
+          <div className="min-w-0 flex items-center gap-3">
+            <span
+              className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full text-base ${
+                ticket.anulado ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-600'
+              }`}
             >
-              <i className="ri-delete-bin-line text-xs"></i>
-            </button>
+              <i className="ri-scales-3-line"></i>
+            </span>
+            <div className="min-w-0">
+              <h2 className={`text-base font-heading font-semibold text-foreground-950 ${ticket.anulado ? 'line-through text-foreground-400' : ''}`}>
+                Ticket nº {ticket.numero}
+              </h2>
+              <p className="text-xs text-foreground-400 mt-0.5">
+                {ticket.hora?.slice(0, 5) ?? '—'} · {ticket.lineas.length} producto{ticket.lineas.length === 1 ? '' : 's'}
+              </p>
+            </div>
           </div>
-        ))}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-100 hover:text-foreground-950"
+          >
+            <i className="ri-close-line"></i>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-wrap px-5 py-3 border-b border-background-200/70 flex-shrink-0">
+          <OrigenBadge origen={ticket.origen} />
+          {ticket.anulado && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-600">Anulado</span>
+          )}
+          {ticket.editadoDeNumero != null && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600">
+              Editado de nº {ticket.editadoDeNumero}
+            </span>
+          )}
+        </div>
+
+        {ticket.anulado && (
+          <p className="mx-5 mt-3 px-3 py-2 rounded-lg bg-red-50 text-red-600 text-xs flex-shrink-0">
+            Anulado en la báscula — no cuenta en la facturación del día.
+          </p>
+        )}
+        {ticket.editadoDeNumero != null && (
+          <p className="mx-5 mt-3 px-3 py-2 rounded-lg bg-amber-50 text-amber-700 text-xs flex-shrink-0">
+            Sustituye al ticket nº {ticket.editadoDeNumero}, anulado en la báscula.
+          </p>
+        )}
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="divide-y divide-dashed divide-background-200/70">
+            {ticket.lineas.map((l) => (
+              <div key={l.id} className={`flex items-center gap-2 py-2 text-sm ${ticket.anulado ? 'line-through text-foreground-400' : 'text-foreground-800'}`}>
+                <span className="flex-1 min-w-0 truncate">{l.designacion}</span>
+                <span className="flex-shrink-0 text-xs text-foreground-400 tabular-nums w-16 text-right">
+                  {l.cantidad} {l.unidad}
+                </span>
+                <span className="flex-shrink-0 font-medium tabular-nums w-16 text-right">{formatEUR(l.importe)}</span>
+                <button
+                  type="button"
+                  onClick={() => onEliminarLinea(l)}
+                  className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full text-foreground-400 hover:bg-red-50 hover:text-red-600"
+                >
+                  <i className="ri-delete-bin-line text-xs"></i>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-dashed border-background-300 flex-shrink-0">
+          <span className="text-sm font-medium text-foreground-500">Total</span>
+          <span className={`text-lg font-semibold tabular-nums ${ticket.anulado ? 'line-through text-foreground-400' : 'text-emerald-700'}`}>
+            {formatEUR(ticket.total)}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -404,6 +501,7 @@ function VistaDia({
   const [soloAnulados, setSoloAnulados] = useState(false);
   const [soloEditados, setSoloEditados] = useState(false);
   const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
+  const [ticketAbiertoKey, setTicketAbiertoKey] = useState<string | null>(null);
 
   const [lineasBascula, setLineasBascula] = useState<BasculaVenta[]>([]);
   const [cargandoBascula, setCargandoBascula] = useState(true);
@@ -428,6 +526,14 @@ function VistaDia({
   }, [lineasBascula, ingresosManuales]);
 
   const ticketsBascula = useMemo(() => agruparPorTicket(lineasBascula), [lineasBascula]);
+
+  // Busca por key en vez de guardar el ticket seleccionado tal cual: así el
+  // modal siempre refleja el estado actual (p.ej. si se borra una línea
+  // desde dentro) y se cierra solo si el ticket deja de existir.
+  const ticketAbierto = useMemo(
+    () => (ticketAbiertoKey ? (ticketsBascula.find((t) => t.key === ticketAbiertoKey) ?? null) : null),
+    [ticketsBascula, ticketAbiertoKey],
+  );
 
   // Filtrado por tienda (usado también para los totales, que nunca deben
   // depender de si se está buscando anulados/editados o no) y, aparte,
@@ -613,7 +719,7 @@ function VistaDia({
           ) : (
             <>
               {ticketsBasculaFiltrados.map((t) => (
-                <FilaTicketBascula key={t.key} ticket={t} onEliminarLinea={eliminarBascula} />
+                <FilaTicketBascula key={t.key} ticket={t} onClick={() => setTicketAbiertoKey(t.key)} />
               ))}
               {ingresosManualesFiltrados.map((m) => (
                 <FilaMovimiento key={m.id} m={m} onEliminar={eliminar} />
@@ -635,6 +741,10 @@ function VistaDia({
           )}
         </div>
       </div>
+
+      {ticketAbierto && (
+        <TicketDetalleModal ticket={ticketAbierto} onClose={() => setTicketAbiertoKey(null)} onEliminarLinea={eliminarBascula} />
+      )}
     </div>
   );
 }
