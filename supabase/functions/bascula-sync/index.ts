@@ -23,8 +23,12 @@
 // una anulación puede llegar en dos momentos distintos:
 //   - Antes de que el ticket se haya sincronizado nunca (lo más habitual:
 //     se anula a los pocos segundos de imprimirse, mucho antes del
-//     siguiente ciclo de 5 minutos) — en ese caso, ni se guarda en
-//     bascula_ventas ni descuenta stock, como si nunca hubiera pasado.
+//     siguiente ciclo de 5 minutos) — en ese caso nunca descuenta stock,
+//     pero SÍ se guarda en bascula_ventas ya marcado anulado (18/09/2026:
+//     antes ni se guardaba, "como si nunca hubiera pasado", pero eso
+//     dejaba el ticket invisible del todo — ahora se guarda para que se
+//     vea tachado en Caja/Ventas, sin afectar a ningún total porque esas
+//     vistas ya excluyen "anulado").
 //   - Después de que una ejecución anterior YA lo sincronizara — en ese
 //     caso hay que reponer el stock que se descontó entonces y excluirlo
 //     de la facturación diaria. Por eso cada ejecución recorre TODAS las
@@ -42,8 +46,8 @@
 // tipo "copia_de" en la cabecera del documento (comprobado con
 // bascula-diagnostico volcando ambos tickets en crudo), así que no hay
 // forma de que el terminal nos lo diga directamente. Pero SÍ se puede
-// saber con certeza práctica comparando líneas: cuando un ticket llega
-// anulado nunca guardado (ver bloque anterior), si TODAS sus líneas
+// saber con certeza práctica comparando líneas: cuando un ticket llega ya
+// anulado (ver bloque anterior), si TODAS sus líneas
 // (mismo código, cantidad y precio, sin margen) aparecen calcadas dentro
 // de un ticket posterior sin anular del mismo tipo_doc/posto, es porque
 // ese ticket posterior es el mismo ticket duplicado con algo añadido —
@@ -378,12 +382,14 @@ Deno.serve(async (req: Request) => {
 
       // Si el ticket ya llegó anulado (lo más habitual: en la báscula se
       // anula a los pocos segundos de imprimirse, mucho antes del
-      // siguiente ciclo de sincronización), ni se guarda para
-      // facturación ni descuenta stock — como si nunca hubiera pasado.
-      if (cabecera?.anulado) {
-        resultado.anuladas_al_llegar++;
-        continue;
-      }
+      // siguiente ciclo de sincronización), nunca descuenta stock — como
+      // si nunca hubiera pasado. Pero SÍ se guarda (más abajo, ya
+      // marcado anulado) para que quede visible tachado en Caja/Ventas,
+      // en vez de desaparecer sin dejar rastro — las vistas de
+      // facturación diaria y el resumen por producto ya excluyen
+      // "anulado", así que no afecta a ningún total.
+      const anuladoAlLlegar = cabecera?.anulado ?? false;
+      if (anuladoAlLlegar) resultado.anuladas_al_llegar++;
 
       // El Albarán solo descuenta stock (más abajo) — nunca se guarda en
       // bascula_ventas, para no duplicar la facturación diaria cuando se
@@ -407,6 +413,7 @@ Deno.serve(async (req: Request) => {
             cantidad: linea.quantidade,
             precio_unit: linea.preco_unit,
             importe: linea.valor,
+            anulado: anuladoAlLlegar,
           },
           { onConflict: 'origen,linea_oid', ignoreDuplicates: true },
         );
@@ -415,8 +422,13 @@ Deno.serve(async (req: Request) => {
           console.error(`[${origen}] Error guardando línea (ticket ${linea.numero}, código ${linea.codigo}):`, errorInsert.message);
           continue;
         }
-        resultado.guardadas++;
+        if (!anuladoAlLlegar) resultado.guardadas++;
       }
+
+      // Un ticket ya nacido anulado nunca llegó a descontar stock de
+      // verdad — nada más que hacer con él (el Albarán anulado tampoco
+      // se registra en bascula_albaran_lineas más abajo).
+      if (anuladoAlLlegar) continue;
 
       if (linea.unidade !== 'kg') continue;
 
@@ -490,8 +502,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // Detección de tickets editados (ver comentario al principio del
-    // fichero): por cada ticket que llegó anulado sin llegar a guardarse,
-    // busca entre las cabeceras de esta misma tanda un ticket posterior
+    // fichero): por cada cabecera anulada de esta tanda, busca entre las
+    // cabeceras de esa misma tanda un ticket posterior
     // (mismo tipo_doc/posto, numero mayor, sin anular) cuyas líneas
     // contengan calcadas todas las del anulado. Usa "lineas" (todas las
     // de la ventana, no solo "nuevas") porque el ticket editado pudo
