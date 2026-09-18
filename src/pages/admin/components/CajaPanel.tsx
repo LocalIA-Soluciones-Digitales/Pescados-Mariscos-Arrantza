@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCaja, type NewCajaMovimientoInput } from '@/hooks/useCaja';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
+import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import { deleteBasculaVenta, fetchBasculaVentasDelDia, useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
 import { useBasculaSyncEstado, type BasculaSyncInfo } from '@/hooks/useBasculaSyncEstado';
 import type { BasculaVenta } from '@/types/basculaVenta';
@@ -402,6 +403,7 @@ function VistaDia({
   const origenesVisibles = useMemo(() => (filtroOrigen === 'todas' ? ORIGENES : [filtroOrigen]), [filtroOrigen]);
   const [soloAnulados, setSoloAnulados] = useState(false);
   const [soloEditados, setSoloEditados] = useState(false);
+  const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
 
   const [lineasBascula, setLineasBascula] = useState<BasculaVenta[]>([]);
   const [cargandoBascula, setCargandoBascula] = useState(true);
@@ -485,11 +487,11 @@ function VistaDia({
     <div className="space-y-4">
       <FormNuevoMovimiento fecha={fecha} onFechaChange={onFechaChange} onCrear={onCrear} />
 
-      <div className="flex items-center gap-1.5">
+      <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
         <button
           type="button"
           onClick={() => setFiltroOrigen('todas')}
-          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+          className={`flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium transition-colors ${
             filtroOrigen === 'todas' ? 'bg-primary-500 text-background-50' : 'bg-background-50 border border-background-200/70 text-foreground-500 hover:bg-background-200/70'
           }`}
         >
@@ -503,7 +505,7 @@ function VistaDia({
               key={o}
               type="button"
               onClick={() => setFiltroOrigen(o)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`flex-shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 activo ? `${c.bg} ${c.text} ring-1 ${c.ring}` : 'bg-background-50 border border-background-200/70 text-foreground-500 hover:bg-background-200/70'
               }`}
             >
@@ -516,7 +518,7 @@ function VistaDia({
           <button
             type="button"
             onClick={() => setSoloAnulados((v) => !v)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            className={`flex-shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
               soloAnulados ? 'bg-red-500 text-background-50' : 'bg-background-50 border border-background-200/70 text-red-600 hover:bg-red-50'
             }`}
           >
@@ -528,7 +530,7 @@ function VistaDia({
           <button
             type="button"
             onClick={() => setSoloEditados((v) => !v)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            className={`flex-shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
               soloEditados ? 'bg-amber-500 text-background-50' : 'bg-background-50 border border-background-200/70 text-amber-600 hover:bg-amber-50'
             }`}
           >
