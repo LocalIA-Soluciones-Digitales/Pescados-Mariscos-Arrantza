@@ -35,6 +35,23 @@
 //     que la misma anulación se vea varias ejecuciones seguidas mientras
 //     el ticket siga dentro de la ventana de cabeceras que trae el API.
 //
+// TICKETS EDITADOS (18/09/2026, caso real en pescadería 1: David imprime
+// un ticket, se le olvida un producto, así que en el terminal "duplica"
+// ese ticket, le añade la línea que falta y lo vuelve a imprimir con
+// numero nuevo, anulando el original): la báscula no expone ningún campo
+// tipo "copia_de" en la cabecera del documento (comprobado con
+// bascula-diagnostico volcando ambos tickets en crudo), así que no hay
+// forma de que el terminal nos lo diga directamente. Pero SÍ se puede
+// saber con certeza práctica comparando líneas: cuando un ticket llega
+// anulado nunca guardado (ver bloque anterior), si TODAS sus líneas
+// (mismo código, cantidad y precio, sin margen) aparecen calcadas dentro
+// de un ticket posterior sin anular del mismo tipo_doc/posto, es porque
+// ese ticket posterior es el mismo ticket duplicado con algo añadido —
+// que dos tickets distintos coincidan al gramo y al céntimo en varias
+// líneas por azar no es plausible. Ese ticket posterior se marca con
+// editado_de_numero = numero del ticket anulado, para que Caja avise de
+// que hubo un ticket descartado por medio.
+//
 // IMPORTANTE sobre el API ETWS: las tablas /year/documentos y
 // /year/documentos_lnh están indexadas empezando por "tipo_doc" (1 =
 // Factura Simplificada — clientes normales, 2 = Factura — clientes con
@@ -216,6 +233,23 @@ interface CabeceraDocumento {
   anulado: boolean;
 }
 
+// true si todas las líneas de "buscadas" aparecen calcadas (mismo código,
+// cantidad y precio) dentro de "candidato" — cada línea de "buscadas" se
+// empareja con una línea distinta de "candidato" (multiconjunto, no
+// simple "includes"), para que dos líneas idénticas casuales no cuenten
+// dos veces como una sola coincidencia.
+function contieneTodasLasLineas(candidato: LineaDocumento[], buscadas: LineaDocumento[]): boolean {
+  const disponibles = [...candidato];
+  for (const buscada of buscadas) {
+    const idx = disponibles.findIndex(
+      (l) => l.codigo === buscada.codigo && l.quantidade === buscada.quantidade && l.preco_unit === buscada.preco_unit,
+    );
+    if (idx === -1) return false;
+    disponibles.splice(idx, 1);
+  }
+  return true;
+}
+
 Deno.serve(async (req: Request) => {
   const secret = req.headers.get('x-webhook-secret') ?? '';
   const expected = Deno.env.get('BASCULA_SYNC_SECRET') ?? '';
@@ -286,6 +320,7 @@ Deno.serve(async (req: Request) => {
     evitado_doble_conteo: 0,
     anuladas_al_llegar: 0,
     anuladas_a_posteriori: 0,
+    editados_detectados: 0,
     sin_mapear: [] as string[],
     primera_ejecucion: esPrimeraEjecucion,
   };
@@ -451,6 +486,49 @@ Deno.serve(async (req: Request) => {
         if (errorAlbaran) {
           console.error(`[${origen}] Error registrando línea de Albarán (ticket ${linea.numero}, código ${linea.codigo}):`, errorAlbaran.message);
         }
+      }
+    }
+
+    // Detección de tickets editados (ver comentario al principio del
+    // fichero): por cada ticket que llegó anulado sin llegar a guardarse,
+    // busca entre las cabeceras de esta misma tanda un ticket posterior
+    // (mismo tipo_doc/posto, numero mayor, sin anular) cuyas líneas
+    // contengan calcadas todas las del anulado. Usa "lineas" (todas las
+    // de la ventana, no solo "nuevas") porque el ticket editado pudo
+    // sincronizarse ya en una ejecución anterior si pasó algo de tiempo
+    // entre la anulación y detectarla aquí.
+    const lineasPorTicket = new Map<string, LineaDocumento[]>();
+    for (const l of lineas) {
+      const clave = `${l.tipo_doc}|${l.posto}|${l.numero}`;
+      const grupo = lineasPorTicket.get(clave);
+      if (grupo) grupo.push(l);
+      else lineasPorTicket.set(clave, [l]);
+    }
+
+    for (const cabeceraAnulada of cabeceras) {
+      if (!cabeceraAnulada.anulado) continue;
+      const lineasAnuladas = lineasPorTicket.get(`${cabeceraAnulada.tipo_doc}|${cabeceraAnulada.posto}|${cabeceraAnulada.numero}`);
+      if (!lineasAnuladas || lineasAnuladas.length === 0) continue;
+
+      const candidato = cabeceras
+        .filter((c) => c.tipo_doc === cabeceraAnulada.tipo_doc && c.posto === cabeceraAnulada.posto && !c.anulado && c.numero > cabeceraAnulada.numero)
+        .sort((a, b) => a.numero - b.numero)
+        .find((c) => contieneTodasLasLineas(lineasPorTicket.get(`${c.tipo_doc}|${c.posto}|${c.numero}`) ?? [], lineasAnuladas));
+      if (!candidato) continue;
+
+      const { data: filasEditadas, error: errorEditado } = await supabase
+        .from('bascula_ventas')
+        .update({ editado_de_numero: cabeceraAnulada.numero })
+        .eq('origen', origen)
+        .eq('ticket_tipo_doc', candidato.tipo_doc)
+        .eq('ticket_posto', candidato.posto)
+        .eq('ticket_numero', candidato.numero)
+        .is('editado_de_numero', null)
+        .select('id');
+      if (errorEditado) {
+        console.error(`[${origen}] Error marcando ticket ${candidato.numero} como editado desde ${cabeceraAnulada.numero}:`, errorEditado.message);
+      } else if ((filasEditadas?.length ?? 0) > 0) {
+        resultado.editados_detectados++;
       }
     }
   }

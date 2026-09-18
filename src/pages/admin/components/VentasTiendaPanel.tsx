@@ -52,7 +52,14 @@ function LineaVenta({ l, mostrarHora = true }: { l: BasculaVenta; mostrarHora?: 
 // ticket_tipo_doc/posto/numero). Se agrupan así en vez de en una lista
 // plana para que se vea claramente dónde acaba una venta y empieza la
 // siguiente.
-type TicketGrupo = { key: string; hora: string | null; lineas: BasculaVenta[]; total: number; anulado: boolean };
+type TicketGrupo = {
+  key: string;
+  hora: string | null;
+  lineas: BasculaVenta[];
+  total: number;
+  anulado: boolean;
+  editadoDeNumero: number | null;
+};
 
 function agruparPorTicket(lineasOrigen: BasculaVenta[]): TicketGrupo[] {
   const map = new Map<string, TicketGrupo>();
@@ -63,8 +70,9 @@ function agruparPorTicket(lineasOrigen: BasculaVenta[]): TicketGrupo[] {
       actual.lineas.push(l);
       actual.total += l.importe;
       if (l.anulado) actual.anulado = true;
+      if (l.editado_de_numero) actual.editadoDeNumero = l.editado_de_numero;
     } else {
-      map.set(key, { key, hora: l.hora, lineas: [l], total: l.importe, anulado: l.anulado });
+      map.set(key, { key, hora: l.hora, lineas: [l], total: l.importe, anulado: l.anulado, editadoDeNumero: l.editado_de_numero });
     }
   });
   return Array.from(map.values());
@@ -348,6 +356,14 @@ function DiaRow({
                           </span>
                           {ticket.anulado && (
                             <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-600">Anulado</span>
+                          )}
+                          {ticket.editadoDeNumero != null && (
+                            <span
+                              className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600"
+                              title={`Sustituye al ticket anulado nº ${ticket.editadoDeNumero}`}
+                            >
+                              Editado de nº {ticket.editadoDeNumero}
+                            </span>
                           )}
                         </span>
                         <span

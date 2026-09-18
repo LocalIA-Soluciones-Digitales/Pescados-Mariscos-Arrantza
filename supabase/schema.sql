@@ -969,15 +969,22 @@ create table if not exists public.bascula_ventas (
   -- detectar una anulación tardía sin volver a mirar el mapeo actual,
   -- que pudo cambiar desde entonces.
   stock_descontado boolean not null default false,
+  -- numero del ticket anulado del que este parece ser una copia editada
+  -- (ver bascula-sync/index.ts, detección de tickets editados) — null si
+  -- no se detectó ninguno. Es el "numero" del ticket original dentro del
+  -- mismo tipo_doc/posto, no un id propio.
+  editado_de_numero integer,
   created_at timestamptz not null default now(),
   unique (origen, linea_oid)
 );
 
--- La tabla ya existe en producción sin estas dos columnas (ver comentario
--- en bascula-sync/index.ts sobre la detección de anulaciones tardías).
+-- La tabla ya existe en producción sin estas columnas (ver comentario en
+-- bascula-sync/index.ts sobre la detección de anulaciones tardías y de
+-- tickets editados).
 alter table public.bascula_ventas
   add column if not exists anulado boolean not null default false,
-  add column if not exists stock_descontado boolean not null default false;
+  add column if not exists stock_descontado boolean not null default false,
+  add column if not exists editado_de_numero integer;
 
 alter table public.bascula_ventas enable row level security;
 

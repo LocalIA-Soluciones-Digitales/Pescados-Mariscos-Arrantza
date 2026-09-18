@@ -289,6 +289,7 @@ interface TicketBascula {
   total: number;
   lineas: BasculaVenta[];
   anulado: boolean;
+  editadoDeNumero: number | null;
 }
 
 // Une las líneas de báscula del mismo ticket de cliente (mismo tipo_doc +
@@ -305,13 +306,14 @@ function agruparPorTicket(lineas: BasculaVenta[]): TicketBascula[] {
     const key = `${l.ticket_tipo_doc}|${l.ticket_posto}|${l.ticket_numero}`;
     let grupo = grupos.get(key);
     if (!grupo) {
-      grupo = { key, origen: l.origen, hora: l.hora, numero: l.ticket_numero, total: 0, lineas: [], anulado: false };
+      grupo = { key, origen: l.origen, hora: l.hora, numero: l.ticket_numero, total: 0, lineas: [], anulado: false, editadoDeNumero: null };
       grupos.set(key, grupo);
       orden.push(key);
     }
     grupo.total += l.importe;
     grupo.lineas.push(l);
     if (l.anulado) grupo.anulado = true;
+    if (l.editado_de_numero) grupo.editadoDeNumero = l.editado_de_numero;
   }
   return orden.map((k) => grupos.get(k)!);
 }
@@ -333,6 +335,14 @@ function FilaTicketBascula({ ticket, onEliminarLinea }: { ticket: TicketBascula;
             <OrigenBadge origen={ticket.origen} className="flex-shrink-0" />
             {ticket.anulado && (
               <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-600">Anulado</span>
+            )}
+            {ticket.editadoDeNumero != null && (
+              <span
+                className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600"
+                title={`Sustituye al ticket anulado nº ${ticket.editadoDeNumero}`}
+              >
+                Editado de nº {ticket.editadoDeNumero}
+              </span>
             )}
           </div>
           <p className="text-xs text-foreground-400 truncate">
