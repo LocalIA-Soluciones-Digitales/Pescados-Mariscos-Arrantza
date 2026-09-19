@@ -22,22 +22,23 @@ export function useReservasEventos() {
   const [eventos, setEventos] = useState<ReservaEvento[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchEventos = useCallback(async () => {
-    setLoading(true);
+  const fetchEventos = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase
       .from('reservas_eventos')
       .select('*')
       .order('orden', { ascending: true })
       .order('fecha_entrega', { ascending: true });
     setEventos(data ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchEventos();
   }, [fetchEventos]);
 
-  useRealtimeTable('reservas_eventos', fetchEventos);
+  const fetchEventosSilent = useCallback(() => fetchEventos(true), [fetchEventos]);
+  useRealtimeTable('reservas_eventos', fetchEventosSilent);
 
   const crearEvento = useCallback(async (input: NewReservaEventoInput) => {
     let cliente_id: string;

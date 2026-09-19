@@ -15,8 +15,8 @@ export function useResenas() {
   const [resenas, setResenas] = useState<Resena[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchResenas = useCallback(async () => {
-    setLoading(true);
+  const fetchResenas = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const clienteId = await getMiClienteId();
       const { data } = await supabase
@@ -28,7 +28,7 @@ export function useResenas() {
     } catch {
       setResenas([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -36,7 +36,8 @@ export function useResenas() {
     fetchResenas();
   }, [fetchResenas]);
 
-  useRealtimeTable('resenas', fetchResenas);
+  const fetchResenasSilent = useCallback(() => fetchResenas(true), [fetchResenas]);
+  useRealtimeTable('resenas', fetchResenasSilent);
 
   const setEstado = useCallback(async (id: string, estado: ResenaEstado) => {
     const { error } = await supabase.from('resenas').update({ estado }).eq('id', id);

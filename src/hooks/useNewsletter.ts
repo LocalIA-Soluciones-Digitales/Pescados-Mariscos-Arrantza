@@ -15,18 +15,19 @@ export function useNewsletter() {
   const [subscribers, setSubscribers] = useState<NewsletterSubscriber[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchSubscribers = useCallback(async () => {
-    setLoading(true);
+  const fetchSubscribers = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase.from('newsletter_subscribers').select('*').order('created_at', { ascending: false });
     setSubscribers(data ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchSubscribers();
   }, [fetchSubscribers]);
 
-  useRealtimeTable('newsletter_subscribers', fetchSubscribers);
+  const fetchSubscribersSilent = useCallback(() => fetchSubscribers(true), [fetchSubscribers]);
+  useRealtimeTable('newsletter_subscribers', fetchSubscribersSilent);
 
   const remove = useCallback(
     async (id: string) => {

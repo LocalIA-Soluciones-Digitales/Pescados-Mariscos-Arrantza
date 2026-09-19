@@ -8,21 +8,22 @@ export function useReservasAjustes() {
   const [ajustes, setAjustes] = useState<ReservaAjuste[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchAjustes = useCallback(async () => {
-    setLoading(true);
+  const fetchAjustes = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase
       .from('reservas_ajustes')
       .select('*')
       .order('created_at', { ascending: false });
     setAjustes(data ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchAjustes();
   }, [fetchAjustes]);
 
-  useRealtimeTable('reservas_ajustes', fetchAjustes);
+  const fetchAjustesSilent = useCallback(() => fetchAjustes(true), [fetchAjustes]);
+  useRealtimeTable('reservas_ajustes', fetchAjustesSilent);
 
   const registrarAjuste = useCallback(
     async (input: { evento_id: string; producto_id: string | null; producto_nombre: string; kg: number; nota?: string | null }) => {

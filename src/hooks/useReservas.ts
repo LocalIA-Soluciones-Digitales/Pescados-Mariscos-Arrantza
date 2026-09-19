@@ -9,22 +9,23 @@ export function useReservas() {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchReservas = useCallback(async () => {
-    setLoading(true);
+  const fetchReservas = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase
       .from('reservas')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(MAX_ROWS);
     setReservas(data ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchReservas();
   }, [fetchReservas]);
 
-  useRealtimeTable('reservas', fetchReservas);
+  const fetchReservasSilent = useCallback(() => fetchReservas(true), [fetchReservas]);
+  useRealtimeTable('reservas', fetchReservasSilent);
 
   const setEstado = useCallback(async (id: string, estado: ReservaEstado) => {
     const { error } = await supabase.from('reservas').update({ estado }).eq('id', id);

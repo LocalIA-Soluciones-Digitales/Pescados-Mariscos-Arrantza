@@ -9,22 +9,23 @@ export function useSolicitudesStock() {
   const [solicitudes, setSolicitudes] = useState<SolicitudStock[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchSolicitudes = useCallback(async () => {
-    setLoading(true);
+  const fetchSolicitudes = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase
       .from('solicitudes_stock')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(MAX_ROWS);
     setSolicitudes(data ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchSolicitudes();
   }, [fetchSolicitudes]);
 
-  useRealtimeTable('solicitudes_stock', fetchSolicitudes);
+  const fetchSolicitudesSilent = useCallback(() => fetchSolicitudes(true), [fetchSolicitudes]);
+  useRealtimeTable('solicitudes_stock', fetchSolicitudesSilent);
 
   const setEstado = useCallback(async (id: string, estado: SolicitudStockEstado) => {
     const { error } = await supabase.from('solicitudes_stock').update({ estado }).eq('id', id);

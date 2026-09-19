@@ -8,8 +8,8 @@ export function useProductos() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchProductos = useCallback(async () => {
-    setLoading(true);
+  const fetchProductos = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data, error: fetchError } = await supabase
       .from('productos')
       .select('*')
@@ -22,14 +22,15 @@ export function useProductos() {
       setError(null);
       setProductos(data ?? []);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchProductos();
   }, [fetchProductos]);
 
-  useRealtimeTable('productos', fetchProductos);
+  const fetchProductosSilent = useCallback(() => fetchProductos(true), [fetchProductos]);
+  useRealtimeTable('productos', fetchProductosSilent);
 
   const patchLocal = useCallback((id: string, patch: Partial<Producto>) => {
     setProductos((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));

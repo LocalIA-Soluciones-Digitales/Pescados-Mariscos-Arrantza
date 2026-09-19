@@ -12,22 +12,23 @@ export function useBasculaVentasDiarias() {
   const [porTienda, setPorTienda] = useState<BasculaVentaDiariaPorTienda[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchDias = useCallback(async () => {
-    setLoading(true);
+  const fetchDias = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const [{ data: combinado }, { data: desglose }] = await Promise.all([
       supabase.from('bascula_ventas_diarias').select('*').order('fecha', { ascending: false }),
       supabase.from('bascula_ventas_diarias_por_tienda').select('*').order('fecha', { ascending: false }),
     ]);
     setDias(combinado ?? []);
     setPorTienda(desglose ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchDias();
   }, [fetchDias]);
 
-  useRealtimeTable('bascula_ventas', fetchDias);
+  const fetchDiasSilent = useCallback(() => fetchDias(true), [fetchDias]);
+  useRealtimeTable('bascula_ventas', fetchDiasSilent);
 
   return { dias, porTienda, loading, refetch: fetchDias };
 }

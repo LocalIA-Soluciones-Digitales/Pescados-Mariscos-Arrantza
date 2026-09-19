@@ -23,22 +23,23 @@ export function usePromoReglas() {
   const [reglas, setReglas] = useState<PromoRegla[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchReglas = useCallback(async () => {
-    setLoading(true);
+  const fetchReglas = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase
       .from('promo_reglas')
       .select('*')
       .order('orden', { ascending: true })
       .order('created_at', { ascending: true });
     setReglas((data as PromoRegla[]) ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchReglas();
   }, [fetchReglas]);
 
-  useRealtimeTable('promo_reglas', fetchReglas);
+  const fetchReglasSilent = useCallback(() => fetchReglas(true), [fetchReglas]);
+  useRealtimeTable('promo_reglas', fetchReglasSilent);
 
   const crearRegla = useCallback(async (input: NewPromoReglaInput) => {
     let cliente_id: string;

@@ -9,23 +9,24 @@ export function useProfesionalesListasPrecio() {
   const [precios, setPrecios] = useState<ProfesionalPrecio[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchTodo = useCallback(async () => {
-    setLoading(true);
+  const fetchTodo = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const [listasRes, preciosRes] = await Promise.all([
       supabase.from('profesionales_listas_precio').select('*').order('nombre', { ascending: true }),
       supabase.from('profesionales_precios').select('*'),
     ]);
     setListas(listasRes.data ?? []);
     setPrecios(preciosRes.data ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchTodo();
   }, [fetchTodo]);
 
-  useRealtimeTable('profesionales_listas_precio', fetchTodo);
-  useRealtimeTable('profesionales_precios', fetchTodo);
+  const fetchTodoSilent = useCallback(() => fetchTodo(true), [fetchTodo]);
+  useRealtimeTable('profesionales_listas_precio', fetchTodoSilent);
+  useRealtimeTable('profesionales_precios', fetchTodoSilent);
 
   const crearLista = useCallback(async (nombre: string) => {
     const clienteId = await getMiClienteId();

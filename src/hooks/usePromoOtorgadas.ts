@@ -7,18 +7,19 @@ export function usePromoOtorgadas() {
   const [otorgadas, setOtorgadas] = useState<PromoOtorgada[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchOtorgadas = useCallback(async () => {
-    setLoading(true);
+  const fetchOtorgadas = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase.from('promo_otorgadas').select('*').order('created_at', { ascending: false });
     setOtorgadas((data as PromoOtorgada[]) ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchOtorgadas();
   }, [fetchOtorgadas]);
 
-  useRealtimeTable('promo_otorgadas', fetchOtorgadas);
+  const fetchOtorgadasSilent = useCallback(() => fetchOtorgadas(true), [fetchOtorgadas]);
+  useRealtimeTable('promo_otorgadas', fetchOtorgadasSilent);
 
   // No se crean ni se borran desde el cliente: las inserta siempre el
   // trigger evaluar_promo_reglas() al cumplirse una regla.

@@ -28,8 +28,8 @@ export function useCaja() {
   const [movimientos, setMovimientos] = useState<CajaMovimiento[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchMovimientos = useCallback(async () => {
-    setLoading(true);
+  const fetchMovimientos = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase
       .from('caja_movimientos')
       .select('*')
@@ -37,14 +37,15 @@ export function useCaja() {
       .order('created_at', { ascending: false })
       .limit(MAX_ROWS);
     setMovimientos(data ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchMovimientos();
   }, [fetchMovimientos]);
 
-  useRealtimeTable('caja_movimientos', fetchMovimientos);
+  const fetchMovimientosSilent = useCallback(() => fetchMovimientos(true), [fetchMovimientos]);
+  useRealtimeTable('caja_movimientos', fetchMovimientosSilent);
 
   const crearMovimiento = useCallback(async (input: NewCajaMovimientoInput) => {
     let cliente_id: string;

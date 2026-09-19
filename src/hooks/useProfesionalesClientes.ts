@@ -7,18 +7,19 @@ export function useProfesionalesClientes() {
   const [clientes, setClientes] = useState<ProfesionalCliente[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchClientes = useCallback(async () => {
-    setLoading(true);
+  const fetchClientes = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase.from('profesionales_clientes').select('*').order('nombre_negocio', { ascending: true });
     setClientes(data ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchClientes();
   }, [fetchClientes]);
 
-  useRealtimeTable('profesionales_clientes', fetchClientes);
+  const fetchClientesSilent = useCallback(() => fetchClientes(true), [fetchClientes]);
+  useRealtimeTable('profesionales_clientes', fetchClientesSilent);
 
   // El PIN se hashea siempre en el servidor (pgcrypto) — nunca se guarda ni
   // se mueve en texto plano por el cliente más allá de este RPC.

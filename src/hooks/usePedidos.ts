@@ -9,22 +9,23 @@ export function usePedidos() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchPedidos = useCallback(async () => {
-    setLoading(true);
+  const fetchPedidos = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase
       .from('pedidos')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(MAX_ROWS);
     setPedidos(data ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchPedidos();
   }, [fetchPedidos]);
 
-  useRealtimeTable('pedidos', fetchPedidos);
+  const fetchPedidosSilent = useCallback(() => fetchPedidos(true), [fetchPedidos]);
+  useRealtimeTable('pedidos', fetchPedidosSilent);
 
   const setEstado = useCallback(async (id: string, estado: PedidoEstado) => {
     await supabase.from('pedidos').update({ estado }).eq('id', id);

@@ -7,18 +7,19 @@ export function useProfesionalesSolicitudes() {
   const [solicitudes, setSolicitudes] = useState<ProfesionalSolicitud[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchSolicitudes = useCallback(async () => {
-    setLoading(true);
+  const fetchSolicitudes = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     const { data } = await supabase.from('profesionales_solicitudes').select('*').order('created_at', { ascending: false });
     setSolicitudes(data ?? []);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchSolicitudes();
   }, [fetchSolicitudes]);
 
-  useRealtimeTable('profesionales_solicitudes', fetchSolicitudes);
+  const fetchSolicitudesSilent = useCallback(() => fetchSolicitudes(true), [fetchSolicitudes]);
+  useRealtimeTable('profesionales_solicitudes', fetchSolicitudesSilent);
 
   const setEstado = useCallback(async (id: string, estado: ProfesionalSolicitudEstado) => {
     const { error } = await supabase.from('profesionales_solicitudes').update({ estado }).eq('id', id);
