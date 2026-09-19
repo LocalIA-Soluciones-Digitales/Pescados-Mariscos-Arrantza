@@ -110,16 +110,25 @@ function SolicitudCard({
 function ClienteCard({
   cliente,
   nombreLista,
+  seleccionado,
+  onSeleccionar,
   onEditar,
   onEliminar,
 }: {
   cliente: ProfesionalCliente;
   nombreLista: string;
+  seleccionado: boolean;
+  onSeleccionar: () => void;
   onEditar: () => void;
   onEliminar: () => void;
 }) {
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-xl shadow-card p-3 flex items-center justify-between gap-3">
+    <div
+      onClick={onSeleccionar}
+      className={`bg-background-50 border rounded-xl shadow-card p-3 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+        seleccionado ? 'border-primary-400 ring-1 ring-primary-400/40' : 'border-background-200/70 hover:border-background-300'
+      }`}
+    >
       <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <p className="text-sm font-medium text-foreground-950 truncate">{cliente.nombre_negocio}</p>
@@ -132,11 +141,102 @@ function ClienteCard({
         </p>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <button type="button" onClick={onEditar} className="w-8 h-8 flex items-center justify-center rounded-full bg-background-100 text-foreground-600 hover:bg-background-200/70">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditar();
+          }}
+          className="w-8 h-8 flex items-center justify-center rounded-full bg-background-100 text-foreground-600 hover:bg-background-200/70"
+        >
           <i className="ri-pencil-line text-sm"></i>
         </button>
-        <button type="button" onClick={onEliminar} className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-600 hover:bg-red-100">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEliminar();
+          }}
+          className="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-600 hover:bg-red-100"
+        >
           <i className="ri-delete-bin-line text-sm"></i>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ icon, label, value }: { icon: string; label: string; value: string | number }) {
+  return (
+    <div className="bg-background-50 border border-background-200/70 rounded-xl shadow-card p-3">
+      <div className="flex items-center gap-1.5 text-foreground-400 mb-1">
+        <i className={`${icon} text-xs`}></i>
+        <span className="text-[11px] font-medium">{label}</span>
+      </div>
+      <p className="text-xl font-heading font-semibold text-foreground-950">{value}</p>
+    </div>
+  );
+}
+
+function ClienteDetalle({
+  cliente,
+  nombreLista,
+  preciosEspeciales,
+  onEditar,
+  onToggleActivo,
+  onEliminar,
+  onVerTarifa,
+}: {
+  cliente: ProfesionalCliente;
+  nombreLista: string;
+  preciosEspeciales: number;
+  onEditar: () => void;
+  onToggleActivo: () => void;
+  onEliminar: () => void;
+  onVerTarifa: () => void;
+}) {
+  return (
+    <div className="bg-background-50 border border-background-200/70 rounded-xl shadow-card p-4">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground-950 truncate">{cliente.nombre_negocio}</p>
+          <p className="text-xs text-foreground-400 font-mono mt-0.5">{cliente.codigo_acceso}</p>
+        </div>
+        <span className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium ${cliente.activo ? 'bg-emerald-100/80 text-emerald-700' : 'bg-background-200/70 text-foreground-500'}`}>
+          {cliente.activo ? 'Activo' : 'Desactivado'}
+        </span>
+      </div>
+
+      <dl className="space-y-2 text-xs mb-3">
+        <div className="flex items-center justify-between">
+          <dt className="text-foreground-400">Tarifa</dt>
+          <dd>
+            <button type="button" onClick={onVerTarifa} className="text-primary-600 hover:text-primary-700 font-medium">
+              {nombreLista}
+            </button>
+          </dd>
+        </div>
+        <div className="flex items-center justify-between">
+          <dt className="text-foreground-400">Precios especiales</dt>
+          <dd className="text-foreground-700">{preciosEspeciales}</dd>
+        </div>
+        <div className="flex items-center justify-between">
+          <dt className="text-foreground-400">Alta</dt>
+          <dd className="text-foreground-700">{new Date(cliente.created_at).toLocaleDateString('es-ES')}</dd>
+        </div>
+      </dl>
+
+      {cliente.notas && <p className="text-xs text-foreground-600 bg-background-100 rounded-lg p-2.5 mb-3">{cliente.notas}</p>}
+
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <button type="button" onClick={onEditar} className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70">
+          Editar
+        </button>
+        <button type="button" onClick={onToggleActivo} className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70">
+          {cliente.activo ? 'Desactivar' : 'Activar'}
+        </button>
+        <button type="button" onClick={onEliminar} className="ml-auto px-2 py-1 rounded-full text-[11px] font-medium text-foreground-400 hover:text-red-600">
+          <i className="ri-delete-bin-line"></i>
         </button>
       </div>
     </div>
@@ -155,9 +255,12 @@ export default function ProfesionalesPanel({ productos }: { productos: Producto[
   const [listaAbierta, setListaAbierta] = useState<string | null>(null);
   const [nuevaTarifaNombre, setNuevaTarifaNombre] = useState('');
   const [creandoTarifa, setCreandoTarifa] = useState(false);
+  const [clienteSeleccionadoId, setClienteSeleccionadoId] = useState<string | null>(null);
 
   const pendientesCount = solicitudes.filter((s) => s.estado === 'pendiente').length;
   const listaActiva = listas.find((l) => l.id === listaAbierta) ?? null;
+  const clienteSeleccionado = clientes.find((c) => c.id === clienteSeleccionadoId) ?? null;
+  const clientesActivos = clientes.filter((c) => c.activo).length;
 
   const handleDarDeAlta = (solicitud: ProfesionalSolicitud) => {
     setPrefillNombre(solicitud.nombre_negocio);
@@ -221,88 +324,125 @@ export default function ProfesionalesPanel({ productos }: { productos: Producto[
           </div>
         )
       ) : (
-        <>
-          <div className="mb-5">
-            <p className="text-xs font-medium text-foreground-500 mb-2">Tarifas de precios</p>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {listas.map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  onClick={() => setListaAbierta(l.id)}
-                  className="px-3 py-1.5 rounded-full text-xs font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70 inline-flex items-center gap-1.5"
-                >
-                  <i className="ri-price-tag-3-line"></i>
-                  {l.nombre}
-                </button>
-              ))}
-              {creandoTarifa ? (
-                <div className="inline-flex items-center gap-1.5">
-                  <input
-                    autoFocus
-                    type="text"
-                    value={nuevaTarifaNombre}
-                    onChange={(e) => setNuevaTarifaNombre(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleCrearTarifaRapida()}
-                    placeholder="Nombre de la tarifa"
-                    className="px-3 py-1.5 bg-background-100 border border-background-200/70 rounded-full text-xs focus:outline-none focus:border-foreground-300/60"
-                  />
-                  <button type="button" onClick={handleCrearTarifaRapida} className="px-2.5 py-1.5 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600">
-                    Crear
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
+          <div className="min-w-0">
+            <div className="mb-5">
+              <p className="text-xs font-medium text-foreground-500 mb-2">Tarifas de precios</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {listas.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => setListaAbierta(l.id)}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70 inline-flex items-center gap-1.5"
+                  >
+                    <i className="ri-price-tag-3-line"></i>
+                    {l.nombre}
                   </button>
+                ))}
+                {creandoTarifa ? (
+                  <div className="inline-flex items-center gap-1.5">
+                    <input
+                      autoFocus
+                      type="text"
+                      value={nuevaTarifaNombre}
+                      onChange={(e) => setNuevaTarifaNombre(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleCrearTarifaRapida()}
+                      placeholder="Nombre de la tarifa"
+                      className="px-3 py-1.5 bg-background-100 border border-background-200/70 rounded-full text-xs focus:outline-none focus:border-foreground-300/60"
+                    />
+                    <button type="button" onClick={handleCrearTarifaRapida} className="px-2.5 py-1.5 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600">
+                      Crear
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setCreandoTarifa(true)}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-background-300 text-foreground-500 hover:bg-background-100 inline-flex items-center gap-1.5"
+                  >
+                    <i className="ri-add-line"></i>
+                    Nueva tarifa
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-foreground-500">Clientes profesionales</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setPrefillNombre(undefined);
+                  setSolicitudEnAlta(null);
+                  setModalCliente('new');
+                }}
+                disabled={listas.length === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <i className="ri-add-line"></i>
+                Nuevo cliente
+              </button>
+            </div>
+
+            {loadingClientes ? (
+              <p className="text-sm text-foreground-400">Cargando…</p>
+            ) : clientes.length === 0 ? (
+              <p className="text-sm text-foreground-400">
+                {listas.length === 0 ? 'Crea primero una tarifa de precios para poder dar de alta clientes.' : 'Todavía no hay ningún cliente profesional.'}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {clientes.map((c) => (
+                  <ClienteCard
+                    key={c.id}
+                    cliente={c}
+                    nombreLista={listas.find((l) => l.id === c.lista_precio_id)?.nombre ?? '—'}
+                    seleccionado={c.id === clienteSeleccionadoId}
+                    onSeleccionar={() => setClienteSeleccionadoId((prev) => (prev === c.id ? null : c.id))}
+                    onEditar={() => setModalCliente(c)}
+                    onEliminar={() => {
+                      if (confirm(`¿Eliminar el acceso de "${c.nombre_negocio}"? Dejará de poder entrar a su catálogo.`)) {
+                        if (clienteSeleccionadoId === c.id) setClienteSeleccionadoId(null);
+                        eliminarCliente(c.id);
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <aside className="space-y-4 lg:sticky lg:top-6">
+            <div className="grid grid-cols-2 gap-2">
+              <StatCard icon="ri-store-2-line" label="Clientes activos" value={clientesActivos} />
+              <StatCard icon="ri-price-tag-3-line" label="Tarifas" value={listas.length} />
+            </div>
+
+            {clienteSeleccionado ? (
+              <ClienteDetalle
+                cliente={clienteSeleccionado}
+                nombreLista={listas.find((l) => l.id === clienteSeleccionado.lista_precio_id)?.nombre ?? '—'}
+                preciosEspeciales={precios.filter((p) => p.lista_id === clienteSeleccionado.lista_precio_id).length}
+                onEditar={() => setModalCliente(clienteSeleccionado)}
+                onToggleActivo={() => actualizar(clienteSeleccionado.id, { activo: !clienteSeleccionado.activo })}
+                onVerTarifa={() => setListaAbierta(clienteSeleccionado.lista_precio_id)}
+                onEliminar={() => {
+                  if (confirm(`¿Eliminar el acceso de "${clienteSeleccionado.nombre_negocio}"? Dejará de poder entrar a su catálogo.`)) {
+                    setClienteSeleccionadoId(null);
+                    eliminarCliente(clienteSeleccionado.id);
+                  }
+                }}
+              />
+            ) : (
+              clientes.length > 0 && (
+                <div className="bg-background-50 border border-dashed border-background-300 rounded-xl p-4 text-center">
+                  <p className="text-xs text-foreground-400">Selecciona un cliente para ver su ficha.</p>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setCreandoTarifa(true)}
-                  className="px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-background-300 text-foreground-500 hover:bg-background-100 inline-flex items-center gap-1.5"
-                >
-                  <i className="ri-add-line"></i>
-                  Nueva tarifa
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-foreground-500">Clientes profesionales</p>
-            <button
-              type="button"
-              onClick={() => {
-                setPrefillNombre(undefined);
-                setSolicitudEnAlta(null);
-                setModalCliente('new');
-              }}
-              disabled={listas.length === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <i className="ri-add-line"></i>
-              Nuevo cliente
-            </button>
-          </div>
-
-          {loadingClientes ? (
-            <p className="text-sm text-foreground-400">Cargando…</p>
-          ) : clientes.length === 0 ? (
-            <p className="text-sm text-foreground-400">
-              {listas.length === 0 ? 'Crea primero una tarifa de precios para poder dar de alta clientes.' : 'Todavía no hay ningún cliente profesional.'}
-            </p>
-          ) : (
-            <div className="space-y-2 max-w-[700px]">
-              {clientes.map((c) => (
-                <ClienteCard
-                  key={c.id}
-                  cliente={c}
-                  nombreLista={listas.find((l) => l.id === c.lista_precio_id)?.nombre ?? '—'}
-                  onEditar={() => setModalCliente(c)}
-                  onEliminar={() => {
-                    if (confirm(`¿Eliminar el acceso de "${c.nombre_negocio}"? Dejará de poder entrar a su catálogo.`)) eliminarCliente(c.id);
-                  }}
-                />
-              ))}
-            </div>
-          )}
-        </>
+              )
+            )}
+          </aside>
+        </div>
       )}
 
       {modalCliente !== null && (
