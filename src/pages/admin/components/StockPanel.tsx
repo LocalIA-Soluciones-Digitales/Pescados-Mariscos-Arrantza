@@ -39,7 +39,8 @@ function StockRow({
       setEntrada('');
       return;
     }
-    const kg = movimiento === 'baja' ? -Math.abs(cantidad) : Math.abs(cantidad);
+    const esEntrada = movimiento === 'entrada';
+    const kg = esEntrada ? Math.abs(cantidad) : -Math.abs(cantidad);
     setSaving(true);
     const { data, error } = await supabase.rpc('sumar_stock', { p_producto_id: producto.id, p_kg: kg });
     setSaving(false);
@@ -49,7 +50,18 @@ function StockRow({
     }
     setEntrada('');
     setMovimiento('entrada');
-    onPatch({ stock_kg: data as number });
+    const nuevoStock = data as number;
+    // Refleja aquí lo que hace el trigger marcar_agotado_por_stock en la base
+    // de datos: solo una entrada real puede quitar el agotado; una bajada a 0
+    // (venta, báscula, merma) siempre lo pone.
+    const nuevoDisponible = producto.gestion_stock
+      ? nuevoStock <= 0
+        ? false
+        : esEntrada
+          ? true
+          : producto.disponible
+      : producto.disponible;
+    onPatch({ stock_kg: nuevoStock, disponible: nuevoDisponible });
   };
 
   const guardarMinimo = async (v: number) => {
@@ -98,6 +110,15 @@ function StockRow({
           <p className="text-sm font-medium text-foreground-950 truncate">{producto.nombre_es}</p>
           <p className="text-xs text-foreground-400">{producto.precio}</p>
         </div>
+
+        {!producto.disponible && (
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-foreground-800 text-background-50 flex-shrink-0"
+            title="Sin stock: se marcó agotado automáticamente. Registra una entrada para volver a ponerlo disponible."
+          >
+            <i className="ri-close-circle-line"></i> Agotado
+          </span>
+        )}
 
         {stockBajo && (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 text-red-700 flex-shrink-0">

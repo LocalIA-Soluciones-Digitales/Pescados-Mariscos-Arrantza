@@ -688,17 +688,43 @@ create trigger trg_pedidos_descontar_stock
 
 -- Suma al stock lo que trae el pescadero cada mañana, de forma atómica
 -- (evita condiciones de carrera frente a un simple "leer y volver a
--- escribir" desde el cliente).
+-- escribir" desde el cliente). Una entrada positiva (p_kg > 0) es la
+-- única forma de quitar el "agotado" automático que pone
+-- marcar_agotado_por_stock: si es una baja (p_kg < 0, se puso malo, hay
+-- que tirar) no reactiva el producto por sí sola.
 create or replace function public.sumar_stock(p_producto_id uuid, p_kg numeric)
 returns numeric as $$
   update public.productos
-  set stock_kg = stock_kg + p_kg
+  set stock_kg = stock_kg + p_kg,
+      disponible = case when p_kg > 0 then true else disponible end
   where id = p_producto_id
   returning stock_kg;
 $$ language sql set search_path = public;
 
 revoke all on function public.sumar_stock(uuid, numeric) from public;
 grant execute on function public.sumar_stock(uuid, numeric) to authenticated;
+
+-- Marca el producto como agotado (disponible = false) en cuanto su stock
+-- llega a 0, venga la bajada de una venta en báscula, un pedido web o una
+-- baja manual — así el catálogo público deja de ofrecerlo sin que el
+-- pescadero tenga que acordarse de hacerlo a mano. Solo actúa "hacia
+-- abajo": volver a ponerlo disponible exige una entrada real vía
+-- sumar_stock (ver arriba) o el toggle manual del panel de Productos, no
+-- ocurre solo porque stock_kg vuelva a subir por casualidad.
+create or replace function public.marcar_agotado_por_stock()
+returns trigger as $$
+begin
+  if coalesce(new.gestion_stock, true) and new.stock_kg <= 0 then
+    new.disponible := false;
+  end if;
+  return new;
+end;
+$$ language plpgsql set search_path = public;
+
+drop trigger if exists trg_productos_agotado_stock on public.productos;
+create trigger trg_productos_agotado_stock
+  before update of stock_kg on public.productos
+  for each row execute function public.marcar_agotado_por_stock();
 
 -- Avisa por correo cuando el stock de un producto cae por debajo de su
 -- mínimo (una sola vez por caída). Mismo aviso sobre tenant-scoping
