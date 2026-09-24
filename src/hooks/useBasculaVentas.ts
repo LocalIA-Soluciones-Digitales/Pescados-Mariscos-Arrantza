@@ -74,6 +74,39 @@ export async function fetchBasculaVentasResumenProductos(fechas: string[], orige
   return Array.from(map.values()).sort((a, b) => b.importe - a.importe);
 }
 
+export type BasculaVentaBusqueda = Pick<BasculaVenta, 'fecha' | 'origen' | 'designacion' | 'unidad' | 'cantidad' | 'importe'>;
+
+// Líneas no anuladas cuyo producto encaja con `patron` (ilike) entre dos
+// fechas opcionales, para el buscador de Caja. Pagina de 1000 en 1000
+// (tope de PostgREST por petición) hasta `max` líneas, porque un producto
+// frecuente buscado en todo el histórico supera de sobra una sola página.
+export async function buscarBasculaVentas(
+  patron: string,
+  desde: string | null,
+  hasta: string | null,
+  max = 20_000,
+): Promise<BasculaVentaBusqueda[]> {
+  const PAGINA = 1000;
+  const lineas: BasculaVentaBusqueda[] = [];
+  for (let from = 0; from < max; from += PAGINA) {
+    let query = supabase
+      .from('bascula_ventas')
+      .select('fecha, origen, designacion, unidad, cantidad, importe')
+      .eq('anulado', false)
+      .ilike('designacion', patron)
+      .order('fecha', { ascending: false })
+      .order('id')
+      .range(from, from + PAGINA - 1);
+    if (desde) query = query.gte('fecha', desde);
+    if (hasta) query = query.lte('fecha', hasta);
+    const { data, error } = await query;
+    if (error || !data) break;
+    lineas.push(...data);
+    if (data.length < PAGINA) break;
+  }
+  return lineas;
+}
+
 // Borra una línea de venta sincronizada de la báscula (p.ej. si se coló una
 // venta errónea) sin riesgo de que la sincronización la vuelva a traer: esa
 // función solo mira si el oid es mayor que el último visto, no si la fila
