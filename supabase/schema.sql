@@ -2463,3 +2463,224 @@ begin
     end if;
   end loop;
 end $$;
+
+-- ============================================================
+-- Notificaciones push al móvil del pescadero (web app instalada) cada
+-- vez que entra un pedido, una reserva o una solicitud de hostelería,
+-- para que no dependa de que el cliente le escriba por WhatsApp.
+--
+-- Cada dispositivo que activa los avisos desde el panel guarda aquí su
+-- suscripción Web Push. La Edge Function push-notify (invocada por los
+-- triggers de abajo) envía el aviso a todas las del cliente_id y borra
+-- las que el navegador ya ha dado de baja (404/410).
+--
+-- Settings por cliente: 'push_notify_url' (URL de la función) y
+-- 'push_notify_secret' (= secreto PUSH_NOTIFY_SECRET de la función).
+-- ============================================================
+
+create table if not exists public.push_suscripciones (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  user_id uuid references auth.users (id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  user_agent text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.push_suscripciones enable row level security;
+
+-- Alta/actualización siempre vía guardar_suscripcion_push (fija el
+-- cliente_id en el servidor); desde el panel solo se lee y se borra.
+drop policy if exists "push_suscripciones_select_admin" on public.push_suscripciones;
+create policy "push_suscripciones_select_admin"
+  on public.push_suscripciones for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+drop policy if exists "push_suscripciones_delete_admin" on public.push_suscripciones;
+create policy "push_suscripciones_delete_admin"
+  on public.push_suscripciones for delete
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_push_suscripciones_cliente on public.push_suscripciones (cliente_id);
+
+-- Un desarrollador no tiene fila en usuarios_negocio: para él se usa el
+-- negocio del site_key de la web desde la que activa los avisos.
+create or replace function public.guardar_suscripcion_push(
+  p_site_key uuid, p_endpoint text, p_p256dh text, p_auth text, p_user_agent text
+)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_cliente_id uuid;
+begin
+  v_cliente_id := public.mi_cliente_id();
+  if v_cliente_id is null and public.is_developer() then
+    v_cliente_id := public.cliente_id_from_site_key(p_site_key);
+  end if;
+  if v_cliente_id is null then
+    raise exception 'No autorizado';
+  end if;
+
+  insert into public.push_suscripciones (cliente_id, user_id, endpoint, p256dh, auth, user_agent)
+  values (v_cliente_id, auth.uid(), p_endpoint, p_p256dh, p_auth, p_user_agent)
+  on conflict (endpoint) do update
+    set cliente_id = excluded.cliente_id,
+        user_id = excluded.user_id,
+        p256dh = excluded.p256dh,
+        auth = excluded.auth,
+        user_agent = excluded.user_agent,
+        updated_at = now();
+end;
+$$;
+
+revoke all on function public.guardar_suscripcion_push(uuid, text, text, text, text) from public, anon;
+grant execute on function public.guardar_suscripcion_push(uuid, text, text, text, text) to authenticated;
+
+create or replace function public.enviar_push(p_cliente_id uuid, p_titulo text, p_cuerpo text, p_tab text, p_tag text)
+returns void
+language plpgsql security definer set search_path = public, extensions
+as $$
+declare
+  v_url text;
+  v_secret text;
+begin
+  select value #>> '{}' into v_url from public.settings
+    where key = 'push_notify_url' and cliente_id = p_cliente_id;
+  select value #>> '{}' into v_secret from public.settings
+    where key = 'push_notify_secret' and cliente_id = p_cliente_id;
+
+  if v_url is not null then
+    perform net.http_post(
+      url := v_url,
+      headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', coalesce(v_secret, '')),
+      body := jsonb_build_object(
+        'cliente_id', p_cliente_id,
+        'titulo', p_titulo,
+        'cuerpo', p_cuerpo,
+        'url', '/admin?tab=' || p_tab,
+        'tag', p_tag
+      )
+    );
+  end if;
+-- Un fallo del aviso nunca debe tumbar el insert del pedido/reserva.
+exception when others then
+  raise warning 'enviar_push: %', sqlerrm;
+end;
+$$;
+
+revoke all on function public.enviar_push(uuid, text, text, text, text) from public, anon, authenticated;
+
+-- Texto del aviso: "Nombre · 32.50 € · Recogida 26/09 11:00".
+create or replace function public.resumen_push_pedido(p public.pedidos)
+returns text
+language sql immutable set search_path = public
+as $$
+  select concat_ws(' · ',
+    coalesce(nullif(trim(p.cliente_negocio), ''), nullif(trim(p.cliente_nombre), ''), 'Cliente'),
+    case when p.importe_estimado is not null then to_char(p.importe_estimado, 'FM999990.00') || ' €' end,
+    trim(concat_ws(' ',
+      case when p.metodo_entrega = 'home' then 'Envío' else 'Recogida' end,
+      case when p.fecha_preferida ~ '^\d{4}-\d{2}-\d{2}$'
+           then substr(p.fecha_preferida, 9, 2) || '/' || substr(p.fecha_preferida, 6, 2)
+           else nullif(p.fecha_preferida, '') end,
+      nullif(p.hora_preferida, '')
+    ))
+  );
+$$;
+
+-- Pedidos pagados con tarjeta: se avisa cuando Stripe confirma el pago
+-- (antes el pedido está 'pendiente' y puede no llegar a pagarse nunca).
+-- El resto (WhatsApp, Bizum, a cuenta de hostelería) se avisa al entrar.
+create or replace function public.notificar_push_pedido()
+returns trigger as $$
+declare
+  v_titulo text;
+begin
+  if tg_op = 'INSERT' then
+    if new.metodo_pago = 'stripe' then
+      return new;
+    end if;
+    v_titulo := case new.metodo_pago
+      when 'cuenta' then '🍽️ Pedido de hostelería'
+      when 'bizum' then '🐟 Nuevo pedido · Bizum pendiente'
+      else '🐟 Nuevo pedido'
+    end;
+  else
+    if not (new.metodo_pago = 'stripe' and new.estado_pago = 'pagado'
+            and old.estado_pago is distinct from 'pagado') then
+      return new;
+    end if;
+    v_titulo := '💳 Nuevo pedido pagado online';
+  end if;
+
+  perform public.enviar_push(new.cliente_id, v_titulo, public.resumen_push_pedido(new), 'ventas', 'pedido-' || new.id);
+  return new;
+exception when others then
+  raise warning 'notificar_push_pedido: %', sqlerrm;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public, extensions;
+
+revoke all on function public.notificar_push_pedido() from public, anon, authenticated;
+
+drop trigger if exists trg_pedidos_push_insert on public.pedidos;
+create trigger trg_pedidos_push_insert
+  after insert on public.pedidos
+  for each row execute function public.notificar_push_pedido();
+
+drop trigger if exists trg_pedidos_push_pagado on public.pedidos;
+create trigger trg_pedidos_push_pagado
+  after update of estado_pago on public.pedidos
+  for each row execute function public.notificar_push_pedido();
+
+create or replace function public.notificar_push_reserva()
+returns trigger as $$
+begin
+  perform public.enviar_push(
+    new.cliente_id,
+    '📅 Nueva reserva',
+    concat_ws(' · ',
+      new.cliente_nombre,
+      case when new.importe_estimado is not null then to_char(new.importe_estimado, 'FM999990.00') || ' €' end,
+      nullif(new.fecha_deseada, '')
+    ),
+    'reservas',
+    'reserva-' || new.id
+  );
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public, extensions;
+
+revoke all on function public.notificar_push_reserva() from public, anon, authenticated;
+
+drop trigger if exists trg_reservas_push on public.reservas;
+create trigger trg_reservas_push
+  after insert on public.reservas
+  for each row execute function public.notificar_push_reserva();
+
+create or replace function public.notificar_push_solicitud_hosteleria()
+returns trigger as $$
+begin
+  perform public.enviar_push(
+    new.cliente_id,
+    '🍽️ Solicitud de hostelería',
+    new.nombre_negocio || ' · ' || new.persona_contacto,
+    'hosteleria',
+    'host-solicitud-' || new.id
+  );
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public, extensions;
+
+revoke all on function public.notificar_push_solicitud_hosteleria() from public, anon, authenticated;
+
+drop trigger if exists trg_hosteleria_solicitudes_push on public.hosteleria_solicitudes;
+create trigger trg_hosteleria_solicitudes_push
+  after insert on public.hosteleria_solicitudes
+  for each row execute function public.notificar_push_solicitud_hosteleria();

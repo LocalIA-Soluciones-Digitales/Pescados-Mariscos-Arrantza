@@ -36,6 +36,7 @@ import { usePulse } from '@/hooks/usePulse';
 import { useOrderAlertSound } from '@/hooks/useOrderAlertSound';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import ViewSwitcher from './ViewSwitcher';
+import PushToggle from './PushToggle';
 import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
 
@@ -206,7 +207,12 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
   const [soloAgotados, setSoloAgotados] = useState(false);
   const [soloDestacados, setSoloDestacados] = useState(false);
-  const [tab, setTab] = useState<Tab>('hoy');
+  // ?tab=... lo usan los avisos push para abrir directamente la pestaña
+  // del pedido/reserva/solicitud que acaba de entrar.
+  const [tab, setTab] = useState<Tab>(() => {
+    const inicial = new URLSearchParams(window.location.search).get('tab');
+    return TABS.some((t) => t.value === inicial) ? (inicial as Tab) : 'hoy';
+  });
   const tabsScroll = useHorizontalWheelScroll<HTMLDivElement>();
   const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
   const headerRef = useRef<HTMLElement>(null);
@@ -399,6 +405,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
             <div className="hidden md:block">{tabsNav}</div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
+            <PushToggle />
             <div className="hidden md:flex items-center gap-3">
               {viewSwitch && <ViewSwitcher current="Panel de gestión" viewSwitch={viewSwitch} />}
               <button type="button" onClick={onSignOut} className="text-xs font-medium text-foreground-500 hover:text-foreground-950">
