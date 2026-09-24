@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useCatalogoProfesional } from '@/hooks/useCatalogoProfesional';
+import { useCatalogoHosteleria } from '@/hooks/useCatalogoHosteleria';
 import { useCart } from '@/hooks/useCart';
 import { useCartSound } from '@/hooks/useCartSound';
 import { CATEGORIA_FILTROS, type CategoriaFiltro, type Producto, normalizeSearch } from '@/types/producto';
-import type { ProductoProfesional } from '@/types/profesional';
+import type { ProductoHosteleria } from '@/types/hosteleria';
 import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
 
 /* ── Tarjeta compacta de "¿ya tienes acceso?", visible en la landing pública ── */
-export function AccesoProfesionalCard({
+export function AccesoHosteleriaCard({
   onLogin,
   loading,
   error,
@@ -88,11 +88,11 @@ export function AccesoProfesionalCard({
   );
 }
 
-// El catálogo profesional no incluye los campos de gestión de stock (el
-// profesional no los necesita, y get_catalogo_profesional no los expone) —
+// El catálogo de hostelería no incluye los campos de gestión de stock (el
+// cliente no los necesita, y get_catalogo_hosteleria no los expone) —
 // se rellenan con valores neutros solo para encajar en el tipo Producto que
 // espera useCart/CartDrawer, que nunca los lee.
-function toProducto(p: ProductoProfesional): Producto {
+function toProducto(p: ProductoHosteleria): Producto {
   return {
     ...p,
     destacado: p.destacado,
@@ -106,7 +106,7 @@ function toProducto(p: ProductoProfesional): Producto {
 }
 
 /* ── Catálogo privado tras iniciar sesión ── */
-function ProductoProfesionalCard({
+function ProductoHosteleriaCard({
   producto,
   lang,
   kgEnCarrito,
@@ -114,7 +114,7 @@ function ProductoProfesionalCard({
   onIncrease,
   onDecrease,
 }: {
-  producto: ProductoProfesional;
+  producto: ProductoHosteleria;
   lang: string;
   kgEnCarrito: number | null;
   onAdd: () => void;
@@ -177,7 +177,7 @@ function ProductoProfesionalCard({
   );
 }
 
-export function CatalogoProfesionalView({
+export function CatalogoHosteleriaView({
   token,
   nombreNegocio,
   onLogout,
@@ -187,7 +187,7 @@ export function CatalogoProfesionalView({
   onLogout: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { productos, loading, invalida } = useCatalogoProfesional(token);
+  const { productos, loading, invalida } = useCatalogoHosteleria(token);
   const [search, setSearch] = useState('');
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -214,7 +214,7 @@ export function CatalogoProfesionalView({
     loadOrder,
   } = useCart();
 
-  // Rellena el negocio automáticamente con el nombre del cliente profesional
+  // Rellena el negocio automáticamente con el nombre del cliente de hostelería
   // — no tiene sentido pedírselo si ya sabemos quién es por su sesión.
   useEffect(() => {
     if (!customer.business.trim()) updateCustomer('business', nombreNegocio);
@@ -295,7 +295,7 @@ export function CatalogoProfesionalView({
           {visibles.map((producto) => {
             const item = getItem(producto.id);
             return (
-              <ProductoProfesionalCard
+              <ProductoHosteleriaCard
                 key={producto.id}
                 producto={producto}
                 lang={i18n.language}

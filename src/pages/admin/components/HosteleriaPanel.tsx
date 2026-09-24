@@ -1,22 +1,22 @@
 import { useState } from 'react';
 import type { Producto } from '@/types/producto';
-import type { ProfesionalCliente, ProfesionalSolicitud, ProfesionalSolicitudEstado } from '@/types/profesional';
-import { useProfesionalesSolicitudes } from '@/hooks/useProfesionalesSolicitudes';
-import { useProfesionalesListasPrecio } from '@/hooks/useProfesionalesListasPrecio';
-import { useProfesionalesClientes } from '@/hooks/useProfesionalesClientes';
-import ProfesionalClienteFormModal from './ProfesionalClienteFormModal';
+import type { HosteleriaCliente, HosteleriaSolicitud, HosteleriaSolicitudEstado } from '@/types/hosteleria';
+import { useHosteleriaSolicitudes } from '@/hooks/useHosteleriaSolicitudes';
+import { useHosteleriaListasPrecio } from '@/hooks/useHosteleriaListasPrecio';
+import { useHosteleriaClientes } from '@/hooks/useHosteleriaClientes';
+import HosteleriaClienteFormModal from './HosteleriaClienteFormModal';
 import ListaPrecioModal from './ListaPrecioModal';
 
 type Vista = 'solicitudes' | 'clientes';
 
-const SOLICITUD_ESTADO_LABELS: Record<ProfesionalSolicitudEstado, string> = {
+const SOLICITUD_ESTADO_LABELS: Record<HosteleriaSolicitudEstado, string> = {
   pendiente: 'Pendiente',
   contactado: 'Contactado',
   aprobada: 'Aprobada',
   rechazada: 'Rechazada',
 };
 
-const SOLICITUD_ESTADO_STYLES: Record<ProfesionalSolicitudEstado, string> = {
+const SOLICITUD_ESTADO_STYLES: Record<HosteleriaSolicitudEstado, string> = {
   pendiente: 'bg-sky-100/80 text-sky-700',
   contactado: 'bg-amber-100/80 text-amber-700',
   aprobada: 'bg-emerald-100/80 text-emerald-700',
@@ -37,8 +37,8 @@ function SolicitudCard({
   onEliminar,
   onDarDeAlta,
 }: {
-  solicitud: ProfesionalSolicitud;
-  onSetEstado: (estado: ProfesionalSolicitudEstado) => void;
+  solicitud: HosteleriaSolicitud;
+  onSetEstado: (estado: HosteleriaSolicitudEstado) => void;
   onEliminar: () => void;
   onDarDeAlta: () => void;
 }) {
@@ -115,7 +115,7 @@ function ClienteCard({
   onEditar,
   onEliminar,
 }: {
-  cliente: ProfesionalCliente;
+  cliente: HosteleriaCliente;
   nombreLista: string;
   seleccionado: boolean;
   onSeleccionar: () => void;
@@ -187,7 +187,7 @@ function ClienteDetalle({
   onEliminar,
   onVerTarifa,
 }: {
-  cliente: ProfesionalCliente;
+  cliente: HosteleriaCliente;
   nombreLista: string;
   preciosEspeciales: number;
   onEditar: () => void;
@@ -243,13 +243,13 @@ function ClienteDetalle({
   );
 }
 
-export default function ProfesionalesPanel({ productos }: { productos: Producto[] }) {
-  const { solicitudes, loading: loadingSolicitudes, setEstado, eliminar: eliminarSolicitud } = useProfesionalesSolicitudes();
-  const { listas, precios, crearLista, renombrarLista, eliminarLista, guardarPrecio } = useProfesionalesListasPrecio();
-  const { clientes, loading: loadingClientes, crear, actualizar, cambiarPin, eliminar: eliminarCliente } = useProfesionalesClientes();
+export default function HosteleriaPanel({ productos }: { productos: Producto[] }) {
+  const { solicitudes, loading: loadingSolicitudes, setEstado, eliminar: eliminarSolicitud } = useHosteleriaSolicitudes();
+  const { listas, precios, crearLista, renombrarLista, eliminarLista, guardarPrecio } = useHosteleriaListasPrecio();
+  const { clientes, loading: loadingClientes, crear, actualizar, cambiarPin, eliminar: eliminarCliente } = useHosteleriaClientes();
 
   const [vista, setVista] = useState<Vista>('solicitudes');
-  const [modalCliente, setModalCliente] = useState<'new' | ProfesionalCliente | null>(null);
+  const [modalCliente, setModalCliente] = useState<'new' | HosteleriaCliente | null>(null);
   const [prefillNombre, setPrefillNombre] = useState<string | undefined>(undefined);
   const [solicitudEnAlta, setSolicitudEnAlta] = useState<string | null>(null);
   const [listaAbierta, setListaAbierta] = useState<string | null>(null);
@@ -262,7 +262,7 @@ export default function ProfesionalesPanel({ productos }: { productos: Producto[
   const clienteSeleccionado = clientes.find((c) => c.id === clienteSeleccionadoId) ?? null;
   const clientesActivos = clientes.filter((c) => c.activo).length;
 
-  const handleDarDeAlta = (solicitud: ProfesionalSolicitud) => {
+  const handleDarDeAlta = (solicitud: HosteleriaSolicitud) => {
     setPrefillNombre(solicitud.nombre_negocio);
     setSolicitudEnAlta(solicitud.id);
     setModalCliente('new');
@@ -308,7 +308,7 @@ export default function ProfesionalesPanel({ productos }: { productos: Producto[
               <i className="ri-inbox-line"></i>
             </span>
             <p className="text-sm font-medium text-foreground-700 mb-1">Todavía no hay solicitudes</p>
-            <p className="text-xs text-foreground-400">Aparecerán aquí cuando alguien rellene el formulario de "/profesionales".</p>
+            <p className="text-xs text-foreground-400">Aparecerán aquí cuando alguien rellene el formulario de "/hosteleria".</p>
           </div>
         ) : (
           <div className="space-y-2 max-w-[700px]">
@@ -369,7 +369,7 @@ export default function ProfesionalesPanel({ productos }: { productos: Producto[
             </div>
 
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-foreground-500">Clientes profesionales</p>
+              <p className="text-xs font-medium text-foreground-500">Clientes de hostelería</p>
               <button
                 type="button"
                 onClick={() => {
@@ -389,7 +389,7 @@ export default function ProfesionalesPanel({ productos }: { productos: Producto[
               <p className="text-sm text-foreground-400">Cargando…</p>
             ) : clientes.length === 0 ? (
               <p className="text-sm text-foreground-400">
-                {listas.length === 0 ? 'Crea primero una tarifa de precios para poder dar de alta clientes.' : 'Todavía no hay ningún cliente profesional.'}
+                {listas.length === 0 ? 'Crea primero una tarifa de precios para poder dar de alta clientes.' : 'Todavía no hay ningún cliente de hostelería.'}
               </p>
             ) : (
               <div className="space-y-2">
@@ -446,7 +446,7 @@ export default function ProfesionalesPanel({ productos }: { productos: Producto[
       )}
 
       {modalCliente !== null && (
-        <ProfesionalClienteFormModal
+        <HosteleriaClienteFormModal
           cliente={modalCliente === 'new' ? null : modalCliente}
           listas={listas}
           prefillNombre={prefillNombre}

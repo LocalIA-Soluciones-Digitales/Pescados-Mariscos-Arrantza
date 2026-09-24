@@ -2088,20 +2088,20 @@ create trigger trg_promo_otorgadas_notificar
 -- "lista de precio" (p.ej. "Orotela", "Artebakarra", "Bares y
 -- restaurantes"); varias listas pueden compartir la misma lista. Los
 -- precios de una lista son overrides por producto: si un producto no
--- tiene fila en profesionales_precios para esa lista, se usa el precio
+-- tiene fila en hosteleria_precios para esa lista, se usa el precio
 -- público normal (productos.precio).
 --
 -- No usa Supabase Auth (no hace falta un email por restaurante): el
 -- pescadero da de alta un código de acceso + PIN numérico desde el
 -- panel de gestión, y el propio profesional entra con esos dos datos.
--- El login (profesional_login) valida el PIN y crea una fila de sesión
--- de corta vida en profesionales_sesiones; el frontend guarda solo el
+-- El login (hosteleria_login) valida el PIN y crea una fila de sesión
+-- de corta vida en hosteleria_sesiones; el frontend guarda solo el
 -- token (no el PIN) en localStorage y lo usa para pedir su catálogo.
 -- ============================================================
 
 create extension if not exists pgcrypto;
 
-create table if not exists public.profesionales_listas_precio (
+create table if not exists public.hosteleria_listas_precio (
   id uuid primary key default gen_random_uuid(),
   cliente_id uuid not null references public.clientes (id),
   nombre text not null,
@@ -2109,30 +2109,30 @@ create table if not exists public.profesionales_listas_precio (
   updated_at timestamptz not null default now()
 );
 
-drop trigger if exists trg_profesionales_listas_precio_updated_at on public.profesionales_listas_precio;
-create trigger trg_profesionales_listas_precio_updated_at
-  before update on public.profesionales_listas_precio
+drop trigger if exists trg_hosteleria_listas_precio_updated_at on public.hosteleria_listas_precio;
+create trigger trg_hosteleria_listas_precio_updated_at
+  before update on public.hosteleria_listas_precio
   for each row execute function public.set_updated_at();
 
-alter table public.profesionales_listas_precio enable row level security;
+alter table public.hosteleria_listas_precio enable row level security;
 
-drop policy if exists "prof_listas_precio_admin" on public.profesionales_listas_precio;
-create policy "prof_listas_precio_admin"
-  on public.profesionales_listas_precio for all
+drop policy if exists "host_listas_precio_admin" on public.hosteleria_listas_precio;
+create policy "host_listas_precio_admin"
+  on public.hosteleria_listas_precio for all
   to authenticated
   using (is_developer() or cliente_id = mi_cliente_id())
   with check (is_developer() or cliente_id = mi_cliente_id());
 
-create index if not exists idx_prof_listas_precio_cliente on public.profesionales_listas_precio (cliente_id);
+create index if not exists idx_host_listas_precio_cliente on public.hosteleria_listas_precio (cliente_id);
 
 -- Overrides de precio por producto dentro de una lista. El aislamiento
--- multi-cliente real está en profesionales_listas_precio.cliente_id;
+-- multi-cliente real está en hosteleria_listas_precio.cliente_id;
 -- aquí comprobamos que tanto la lista como el producto pertenecen al
 -- cliente del admin autenticado, para que no se pueda enlazar (aunque
 -- sea por error) el producto de otro negocio del mismo proyecto.
-create table if not exists public.profesionales_precios (
+create table if not exists public.hosteleria_precios (
   id uuid primary key default gen_random_uuid(),
-  lista_id uuid not null references public.profesionales_listas_precio (id) on delete cascade,
+  lista_id uuid not null references public.hosteleria_listas_precio (id) on delete cascade,
   producto_id uuid not null references public.productos (id) on delete cascade,
   precio text not null,
   created_at timestamptz not null default now(),
@@ -2140,38 +2140,38 @@ create table if not exists public.profesionales_precios (
   unique (lista_id, producto_id)
 );
 
-drop trigger if exists trg_profesionales_precios_updated_at on public.profesionales_precios;
-create trigger trg_profesionales_precios_updated_at
-  before update on public.profesionales_precios
+drop trigger if exists trg_hosteleria_precios_updated_at on public.hosteleria_precios;
+create trigger trg_hosteleria_precios_updated_at
+  before update on public.hosteleria_precios
   for each row execute function public.set_updated_at();
 
-alter table public.profesionales_precios enable row level security;
+alter table public.hosteleria_precios enable row level security;
 
-drop policy if exists "prof_precios_admin" on public.profesionales_precios;
-create policy "prof_precios_admin"
-  on public.profesionales_precios for all
+drop policy if exists "host_precios_admin" on public.hosteleria_precios;
+create policy "host_precios_admin"
+  on public.hosteleria_precios for all
   to authenticated
   using (
     is_developer() or exists (
-      select 1 from public.profesionales_listas_precio l
+      select 1 from public.hosteleria_listas_precio l
       where l.id = lista_id and l.cliente_id = mi_cliente_id()
     )
   )
   with check (
     is_developer() or (
-      exists (select 1 from public.profesionales_listas_precio l where l.id = lista_id and l.cliente_id = mi_cliente_id())
+      exists (select 1 from public.hosteleria_listas_precio l where l.id = lista_id and l.cliente_id = mi_cliente_id())
       and exists (select 1 from public.productos p where p.id = producto_id and p.cliente_id = mi_cliente_id())
     )
   );
 
-create index if not exists idx_prof_precios_lista on public.profesionales_precios (lista_id);
-create index if not exists idx_prof_precios_producto on public.profesionales_precios (producto_id);
+create index if not exists idx_host_precios_lista on public.hosteleria_precios (lista_id);
+create index if not exists idx_host_precios_producto on public.hosteleria_precios (producto_id);
 
 -- Cuentas de acceso de los clientes profesionales (código + PIN).
-create table if not exists public.profesionales_clientes (
+create table if not exists public.hosteleria_clientes (
   id uuid primary key default gen_random_uuid(),
   cliente_id uuid not null references public.clientes (id),
-  lista_precio_id uuid not null references public.profesionales_listas_precio (id),
+  lista_precio_id uuid not null references public.hosteleria_listas_precio (id),
   nombre_negocio text not null,
   codigo_acceso text not null check (codigo_acceso ~ '^[a-z0-9-]{3,40}$'),
   pin_hash text not null,
@@ -2182,50 +2182,50 @@ create table if not exists public.profesionales_clientes (
   unique (cliente_id, codigo_acceso)
 );
 
-drop trigger if exists trg_profesionales_clientes_updated_at on public.profesionales_clientes;
-create trigger trg_profesionales_clientes_updated_at
-  before update on public.profesionales_clientes
+drop trigger if exists trg_hosteleria_clientes_updated_at on public.hosteleria_clientes;
+create trigger trg_hosteleria_clientes_updated_at
+  before update on public.hosteleria_clientes
   for each row execute function public.set_updated_at();
 
-alter table public.profesionales_clientes enable row level security;
+alter table public.hosteleria_clientes enable row level security;
 
 -- Gestión desde el panel (alta/edición/borrado/activar-desactivar): el
 -- pescadero dueño o un desarrollador. El pin_hash nunca se expone a un
--- profesional (solo se compara dentro de profesional_login, security
+-- profesional (solo se compara dentro de hosteleria_login, security
 -- definer) ni se puede leer/escribir en texto plano desde aquí: el
--- panel de gestión lo cambia siempre vía admin_set_profesional_pin.
-drop policy if exists "prof_clientes_admin" on public.profesionales_clientes;
-create policy "prof_clientes_admin"
-  on public.profesionales_clientes for all
+-- panel de gestión lo cambia siempre vía admin_set_hosteleria_pin.
+drop policy if exists "host_clientes_admin" on public.hosteleria_clientes;
+create policy "host_clientes_admin"
+  on public.hosteleria_clientes for all
   to authenticated
   using (is_developer() or cliente_id = mi_cliente_id())
   with check (is_developer() or cliente_id = mi_cliente_id());
 
-create index if not exists idx_prof_clientes_cliente on public.profesionales_clientes (cliente_id);
-create index if not exists idx_prof_clientes_lista on public.profesionales_clientes (lista_precio_id);
+create index if not exists idx_host_clientes_cliente on public.hosteleria_clientes (cliente_id);
+create index if not exists idx_host_clientes_lista on public.hosteleria_clientes (lista_precio_id);
 
 -- Sesiones de acceso profesional: token de corta vida generado tras
--- validar código+PIN en profesional_login. Sin policies de
+-- validar código+PIN en hosteleria_login. Sin policies de
 -- select/insert/update: solo se manipula desde dentro de funciones
--- security definer (profesional_login / get_catalogo_profesional), así
+-- security definer (hosteleria_login / get_catalogo_hosteleria), así
 -- que ni un profesional ni otro cliente del proyecto pueden leer o
 -- fabricar tokens ajenos directamente contra la tabla.
-create table if not exists public.profesionales_sesiones (
+create table if not exists public.hosteleria_sesiones (
   token uuid primary key default gen_random_uuid(),
-  profesional_id uuid not null references public.profesionales_clientes (id) on delete cascade,
+  hosteleria_cliente_id uuid not null references public.hosteleria_clientes (id) on delete cascade,
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default (now() + interval '30 days')
 );
 
-alter table public.profesionales_sesiones enable row level security;
+alter table public.hosteleria_sesiones enable row level security;
 
-create index if not exists idx_prof_sesiones_profesional on public.profesionales_sesiones (profesional_id);
+create index if not exists idx_host_sesiones_profesional on public.hosteleria_sesiones (hosteleria_cliente_id);
 
 -- Solicitudes de alta enviadas desde el formulario público de
--- /profesionales ("Hablemos de tu negocio"). Sustituye al POST externo
+-- /hosteleria ("Hablemos de tu negocio"). Sustituye al POST externo
 -- a readdy.ai: ahora quedan visibles en el panel de gestión para que
 -- el pescadero pueda darlas de alta como cliente profesional.
-create table if not exists public.profesionales_solicitudes (
+create table if not exists public.hosteleria_solicitudes (
   id uuid primary key default gen_random_uuid(),
   cliente_id uuid not null references public.clientes (id),
   nombre_negocio text not null,
@@ -2238,21 +2238,21 @@ create table if not exists public.profesionales_solicitudes (
   created_at timestamptz not null default now()
 );
 
-alter table public.profesionales_solicitudes enable row level security;
+alter table public.hosteleria_solicitudes enable row level security;
 
-drop policy if exists "prof_solicitudes_admin" on public.profesionales_solicitudes;
-create policy "prof_solicitudes_admin"
-  on public.profesionales_solicitudes for all
+drop policy if exists "host_solicitudes_admin" on public.hosteleria_solicitudes;
+create policy "host_solicitudes_admin"
+  on public.hosteleria_solicitudes for all
   to authenticated
   using (is_developer() or cliente_id = mi_cliente_id())
   with check (is_developer() or cliente_id = mi_cliente_id());
 
-create index if not exists idx_prof_solicitudes_cliente on public.profesionales_solicitudes (cliente_id);
-create index if not exists idx_prof_solicitudes_estado on public.profesionales_solicitudes (estado);
+create index if not exists idx_host_solicitudes_cliente on public.hosteleria_solicitudes (cliente_id);
+create index if not exists idx_host_solicitudes_estado on public.hosteleria_solicitudes (estado);
 
 -- El formulario público inserta siempre vía esta función (nunca por
 -- insert directo), igual que crear_reserva/crear_error_log.
-create or replace function public.crear_solicitud_profesional(
+create or replace function public.crear_solicitud_hosteleria(
   p_site_key uuid,
   p_nombre_negocio text,
   p_persona_contacto text,
@@ -2277,7 +2277,7 @@ begin
     raise exception 'Faltan campos obligatorios';
   end if;
 
-  insert into public.profesionales_solicitudes
+  insert into public.hosteleria_solicitudes
     (cliente_id, nombre_negocio, persona_contacto, tipo_negocio, telefono, email, necesidades)
   values
     (v_cliente_id, trim(p_nombre_negocio), trim(p_persona_contacto), coalesce(nullif(trim(p_tipo_negocio), ''), 'otro'),
@@ -2291,44 +2291,44 @@ $$;
 -- incorrecto") para no facilitar tantear códigos de otros clientes.
 -- search_path incluye `extensions`: pgcrypto (crypt/gen_salt) vive ahí en
 -- este proyecto, no en `public` — mismo patrón que notificar_promo_otorgada().
-create or replace function public.profesional_login(p_site_key uuid, p_codigo text, p_pin text)
+create or replace function public.hosteleria_login(p_site_key uuid, p_codigo text, p_pin text)
 returns table (token uuid, nombre_negocio text)
 language plpgsql security definer set search_path = public, extensions
 as $$
 declare
   v_cliente_id uuid;
-  v_profesional public.profesionales_clientes%rowtype;
+  v_hosteleria_cliente public.hosteleria_clientes%rowtype;
 begin
   v_cliente_id := public.cliente_id_from_site_key(p_site_key);
   if v_cliente_id is null then
     raise exception 'site_key inválida';
   end if;
 
-  select * into v_profesional
-  from public.profesionales_clientes pc
+  select * into v_hosteleria_cliente
+  from public.hosteleria_clientes pc
   where pc.cliente_id = v_cliente_id
     and pc.codigo_acceso = lower(trim(coalesce(p_codigo, '')))
     and pc.activo
   limit 1;
 
-  if v_profesional.id is null or v_profesional.pin_hash <> crypt(coalesce(p_pin, ''), v_profesional.pin_hash) then
+  if v_hosteleria_cliente.id is null or v_hosteleria_cliente.pin_hash <> crypt(coalesce(p_pin, ''), v_hosteleria_cliente.pin_hash) then
     raise exception 'Código o PIN incorrectos';
   end if;
 
-  delete from public.profesionales_sesiones
-    where profesional_id = v_profesional.id and expires_at < now();
+  delete from public.hosteleria_sesiones
+    where hosteleria_cliente_id = v_hosteleria_cliente.id and expires_at < now();
 
   return query
-    insert into public.profesionales_sesiones (profesional_id)
-    values (v_profesional.id)
-    returning profesionales_sesiones.token, v_profesional.nombre_negocio;
+    insert into public.hosteleria_sesiones (hosteleria_cliente_id)
+    values (v_hosteleria_cliente.id)
+    returning hosteleria_sesiones.token, v_hosteleria_cliente.nombre_negocio;
 end;
 $$;
 
 -- Catálogo privado de un profesional ya autenticado (token de sesión
 -- válido): mismo shape que get_productos_publico, pero con el precio
 -- de su lista si existe override, si no el precio público normal.
-create or replace function public.get_catalogo_profesional(p_token uuid)
+create or replace function public.get_catalogo_hosteleria(p_token uuid)
 returns table (
   id uuid, nombre_es text, nombre_eu text, descripcion_es text, descripcion_eu text,
   origen_es text, origen_eu text, precio text, categoria text, subcategoria text,
@@ -2337,17 +2337,17 @@ returns table (
 language plpgsql security definer set search_path = public
 as $$
 declare
-  v_profesional_id uuid;
+  v_hosteleria_cliente_id uuid;
   v_cliente_id uuid;
   v_lista_id uuid;
 begin
-  select s.profesional_id, pc.cliente_id, pc.lista_precio_id
-    into v_profesional_id, v_cliente_id, v_lista_id
-  from public.profesionales_sesiones s
-  join public.profesionales_clientes pc on pc.id = s.profesional_id
+  select s.hosteleria_cliente_id, pc.cliente_id, pc.lista_precio_id
+    into v_hosteleria_cliente_id, v_cliente_id, v_lista_id
+  from public.hosteleria_sesiones s
+  join public.hosteleria_clientes pc on pc.id = s.hosteleria_cliente_id
   where s.token = p_token and s.expires_at > now() and pc.activo;
 
-  if v_profesional_id is null then
+  if v_hosteleria_cliente_id is null then
     raise exception 'Sesión inválida o caducada';
   end if;
 
@@ -2356,7 +2356,7 @@ begin
            p.origen_es, p.origen_eu, coalesce(pp.precio, p.precio) as precio,
            p.categoria, p.subcategoria, p.imagen_url, p.estado, p.disponible, p.orden, p.destacado
     from public.productos p
-    left join public.profesionales_precios pp on pp.producto_id = p.id and pp.lista_id = v_lista_id
+    left join public.hosteleria_precios pp on pp.producto_id = p.id and pp.lista_id = v_lista_id
     where p.cliente_id = v_cliente_id and p.disponible
     order by p.orden asc, p.created_at asc;
 end;
@@ -2367,18 +2367,18 @@ $$;
 -- siquiera visible para el propio panel de admin. Autorización
 -- comprobada a mano porque, al ser security definer, aquí dentro no
 -- aplican las policies de RLS.
-create or replace function public.admin_crear_profesional(
+create or replace function public.admin_crear_hosteleria(
   p_lista_precio_id uuid, p_nombre_negocio text, p_codigo_acceso text, p_pin text, p_notas text
 )
-returns public.profesionales_clientes
+returns public.hosteleria_clientes
 language plpgsql security definer set search_path = public, extensions
 as $$
 declare
   v_cliente_id uuid;
   v_codigo text;
-  v_row public.profesionales_clientes%rowtype;
+  v_row public.hosteleria_clientes%rowtype;
 begin
-  select cliente_id into v_cliente_id from public.profesionales_listas_precio where id = p_lista_precio_id;
+  select cliente_id into v_cliente_id from public.hosteleria_listas_precio where id = p_lista_precio_id;
   if v_cliente_id is null or not (public.is_developer() or v_cliente_id = public.mi_cliente_id()) then
     raise exception 'No autorizado';
   end if;
@@ -2395,7 +2395,7 @@ begin
     raise exception 'Código de acceso inválido';
   end if;
 
-  insert into public.profesionales_clientes (cliente_id, lista_precio_id, nombre_negocio, codigo_acceso, pin_hash, notas)
+  insert into public.hosteleria_clientes (cliente_id, lista_precio_id, nombre_negocio, codigo_acceso, pin_hash, notas)
   values (v_cliente_id, p_lista_precio_id, trim(p_nombre_negocio), v_codigo, crypt(p_pin, gen_salt('bf')), nullif(trim(p_notas), ''))
   returning * into v_row;
 
@@ -2406,14 +2406,14 @@ $$;
 -- Cambiar el PIN de un cliente profesional existente (el panel de
 -- gestión nunca lee ni muestra el PIN actual, solo permite fijar uno
 -- nuevo).
-create or replace function public.admin_set_profesional_pin(p_profesional_id uuid, p_pin text)
+create or replace function public.admin_set_hosteleria_pin(p_hosteleria_cliente_id uuid, p_pin text)
 returns void
 language plpgsql security definer set search_path = public, extensions
 as $$
 declare
   v_cliente_id uuid;
 begin
-  select cliente_id into v_cliente_id from public.profesionales_clientes where id = p_profesional_id;
+  select cliente_id into v_cliente_id from public.hosteleria_clientes where id = p_hosteleria_cliente_id;
   if v_cliente_id is null or not (public.is_developer() or v_cliente_id = public.mi_cliente_id()) then
     raise exception 'No autorizado';
   end if;
@@ -2421,18 +2421,18 @@ begin
     raise exception 'El PIN debe tener entre 4 y 8 dígitos';
   end if;
 
-  update public.profesionales_clientes set pin_hash = crypt(p_pin, gen_salt('bf')) where id = p_profesional_id;
+  update public.hosteleria_clientes set pin_hash = crypt(p_pin, gen_salt('bf')) where id = p_hosteleria_cliente_id;
   -- Invalida las sesiones activas: si el PIN ha cambiado por sospecha de
   -- fuga, quien tuviera el token antiguo deja de poder usarlo.
-  delete from public.profesionales_sesiones where profesional_id = p_profesional_id;
+  delete from public.hosteleria_sesiones where hosteleria_cliente_id = p_hosteleria_cliente_id;
 end;
 $$;
 
 -- ============================================================
 -- Realtime: el panel de gestión (usePedidos, useReservas, useResenas,
 -- useProductos, useNewsletter, useReservasEventos, useReservasAjustes,
--- useSolicitudesStock, useCaja, useProfesionalesSolicitudes,
--- useProfesionalesClientes) se suscribe a estas tablas con Postgres Changes
+-- useSolicitudesStock, useCaja, useHosteleriaSolicitudes,
+-- useHosteleriaClientes) se suscribe a estas tablas con Postgres Changes
 -- para refrescarse solo en cuanto cambian, sin recargar la página.
 -- Postgres Changes solo emite eventos de una tabla si está añadida a la
 -- publicación `supabase_realtime` — no ocurre automáticamente al crear la
@@ -2452,7 +2452,7 @@ begin
     'bascula_ventas',
     'caja_movimientos',
     'promo_reglas', 'promo_otorgadas',
-    'profesionales_solicitudes', 'profesionales_clientes'
+    'hosteleria_solicitudes', 'hosteleria_clientes'
   ]
   loop
     if not exists (

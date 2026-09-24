@@ -10,7 +10,7 @@ export default function Footer() {
   const footerLinks = [
     { href: '#about', key: 'nav.about' },
     { href: '/productos', key: 'nav.products' },
-    { href: '/profesionales', key: 'nav.restaurants' },
+    { href: '/hosteleria', key: 'nav.restaurants' },
     { href: '#contact', key: 'nav.contact' },
   ];
 

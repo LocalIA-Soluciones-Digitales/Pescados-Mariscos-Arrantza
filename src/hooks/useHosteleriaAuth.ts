@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase, SITE_KEY } from '@/lib/supabaseClient';
 
-const TOKEN_KEY = 'arrantza_profesional_token';
-const NOMBRE_KEY = 'arrantza_profesional_nombre';
+const TOKEN_KEY = 'arrantza_hosteleria_token';
+const NOMBRE_KEY = 'arrantza_hosteleria_nombre';
 
 function readStoredSession(): { token: string; nombreNegocio: string } | null {
   try {
@@ -15,12 +15,12 @@ function readStoredSession(): { token: string; nombreNegocio: string } | null {
   return null;
 }
 
-// Sesión de un cliente profesional (restaurante/bar): no usa Supabase Auth,
+// Sesión de un cliente de hostelería (restaurante/bar): no usa Supabase Auth,
 // solo un token de corta vida guardado en localStorage tras validar
-// código+PIN en profesional_login. Si el token es inválido/ha caducado, el
-// catálogo (useCatalogoProfesional) avisa vía onSessionInvalid y aquí se
+// código+PIN en hosteleria_login. Si el token es inválido/ha caducado, el
+// catálogo (useCatalogoHosteleria) avisa vía onSessionInvalid y aquí se
 // limpia la sesión guardada.
-export function useProfesionalAuth() {
+export function useHosteleriaAuth() {
   const [session, setSession] = useState<{ token: string; nombreNegocio: string } | null>(() => readStoredSession());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export function useProfesionalAuth() {
     setLoading(true);
     setError(null);
     const { data, error: rpcError } = await supabase
-      .rpc('profesional_login', { p_site_key: SITE_KEY, p_codigo: codigo, p_pin: pin })
+      .rpc('hosteleria_login', { p_site_key: SITE_KEY, p_codigo: codigo, p_pin: pin })
       .single();
 
     setLoading(false);

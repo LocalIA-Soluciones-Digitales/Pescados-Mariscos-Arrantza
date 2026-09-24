@@ -9,8 +9,8 @@ import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { pickLang } from '@/types/producto';
 import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 import { supabase, SITE_KEY } from '@/lib/supabaseClient';
-import { useProfesionalAuth } from '@/hooks/useProfesionalAuth';
-import { AccesoProfesionalCard, CatalogoProfesionalView } from './components/AccesoProfesional';
+import { useHosteleriaAuth } from '@/hooks/useHosteleriaAuth';
+import { AccesoHosteleriaCard, CatalogoHosteleriaView } from './components/AccesoHosteleria';
 
 /* ── Daily selection shows whatever the fishmonger marks as        ── */
 /* ── "Destacado" in the admin panel (shared with the home carousel). ── */
@@ -40,7 +40,7 @@ function HeroSection() {
       {/* Content */}
       <div className={`relative z-10 w-full max-w-[900px] mx-auto px-6 md:px-8 text-center transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
         <span className="inline-block text-xs md:text-sm font-semibold uppercase tracking-[0.22em] mb-5 md:mb-7 animate-text-shine drop-shadow-[0_1px_4px_rgba(0,0,0,0.35)]">
-          Arrantza para profesionales
+          Arrantza para hostelería
         </span>
         <h1 className="font-heading text-3xl md:text-5xl lg:text-6xl font-semibold text-background-50 leading-[1.1] mb-5 md:mb-6 max-w-[700px] mx-auto">
           {t('pro.hero.title')}
@@ -385,7 +385,7 @@ function ContactForm() {
     setFormState('sending');
     setFormError('');
 
-    const { error } = await supabase.rpc('crear_solicitud_profesional', {
+    const { error } = await supabase.rpc('crear_solicitud_hosteleria', {
       p_site_key: SITE_KEY,
       p_nombre_negocio: businessName.trim(),
       p_persona_contacto: contactPerson.trim(),
@@ -432,7 +432,7 @@ function ContactForm() {
           </div>
         ) : (
           <form
-            id="profesionales-form"
+            id="hosteleria-form"
             onSubmit={handleSubmit}
             className={`space-y-5 md:space-y-6 transition-all duration-500 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
           >
@@ -606,22 +606,22 @@ function WhatsAppSection() {
 }
 
 /* ── Main page ── */
-export default function Profesionales() {
+export default function Hosteleria() {
   const [visible, setVisible] = useState(false);
-  const { session, loading: loginLoading, error: loginError, login, logout } = useProfesionalAuth();
+  const { session, loading: loginLoading, error: loginError, login, logout } = useHosteleriaAuth();
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setVisible(true));
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  // Un cliente profesional con sesión activa ve directamente su catálogo
+  // Un cliente de hostelería con sesión activa ve directamente su catálogo
   // privado (con sus precios), no la landing de marketing/captación.
   if (session) {
     return (
       <>
         <Navbar />
-        <CatalogoProfesionalView token={session.token} nombreNegocio={session.nombreNegocio} onLogout={logout} />
+        <CatalogoHosteleriaView token={session.token} nombreNegocio={session.nombreNegocio} onLogout={logout} />
         <Footer />
       </>
     );
@@ -632,7 +632,7 @@ export default function Profesionales() {
       <Navbar />
       <main id="main-content" className={`transition-all duration-[600ms] ease-out ${visible ? 'opacity-100' : 'opacity-0'}`}>
         <HeroSection />
-        <AccesoProfesionalCard onLogin={login} loading={loginLoading} error={loginError} />
+        <AccesoHosteleriaCard onLogin={login} loading={loginLoading} error={loginError} />
         <BusinessCards />
         <DailySelection />
         <ProcessSteps />

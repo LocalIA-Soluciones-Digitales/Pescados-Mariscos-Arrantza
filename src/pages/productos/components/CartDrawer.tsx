@@ -552,7 +552,7 @@ interface CartDrawerProps {
   orderHistory: OrderHistoryEntry[];
   onSaveLastOrder: () => void;
   onLoadOrder: (orderId: string) => void;
-  // Solo para el catálogo privado de profesionales: añade una tercera forma
+  // Solo para el catálogo privado de hostelería: añade una tercera forma
   // de pago que no pasa por WhatsApp ni Stripe — registra el pedido para que
   // el pescadero lo apunte en su albarán y lo facture con el resto de la
   // cuenta del cliente (semanal o mensual, según el trato con cada uno).
@@ -651,7 +651,7 @@ export default function CartDrawer({
   const validateOrder = useCallback((): boolean => {
     const errors: Record<string, string> = {};
 
-    // Payment method — local vs online vs (profesionales) account, always
+    // Payment method — local vs online vs (hostelería) account, always
     // required, checked first since it decides which button in the footer
     // even applies.
     if (paymentChoice !== 'local' && paymentChoice !== 'online' && paymentChoice !== 'account') {
@@ -814,7 +814,7 @@ export default function CartDrawer({
     setOrderConfirmed(true);
   };
 
-  // Pedido "a cuenta" (solo profesionales): no pasa por WhatsApp ni Stripe —
+  // Pedido "a cuenta" (solo hostelería): no pasa por WhatsApp ni Stripe —
   // simplemente queda registrado en Pedidos para que el pescadero lo apunte
   // en su albarán, igual que si se lo hubieran pedido en persona o por
   // teléfono, y lo facture junto con el resto de su cuenta.

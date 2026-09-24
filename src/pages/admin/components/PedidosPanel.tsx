@@ -6,7 +6,8 @@ import DiaNavigator from '@/components/base/DiaNavigator';
 const ESTADO_PAGO_LABELS: Record<PedidoEstadoPago, string> = {
   no_aplica: '',
   pendiente: 'Pago pendiente',
-  pagado: 'Pagado con tarjeta',
+  // Stripe cobra tanto tarjeta como Bizum y ambos llegan como 'stripe'.
+  pagado: 'Pagado online',
   fallido: 'Pago fallido',
 };
 

@@ -36,7 +36,7 @@ const WEEKDAY_LABELS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'S
 const PAGE_LABELS: Record<string, string> = {
   '/': 'Inicio',
   '/productos': 'Catálogo',
-  '/profesionales': 'Profesionales',
+  '/hosteleria': 'Hostelería',
   '/admin': 'Panel de administración',
   '/admin/restablecer-password': 'Restablecer contraseña',
   '/aviso-legal': 'Aviso legal',

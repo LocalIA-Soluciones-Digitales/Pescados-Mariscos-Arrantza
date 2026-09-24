@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ProfesionalCliente, ProfesionalListaPrecio } from '@/types/profesional';
+import type { HosteleriaCliente, HosteleriaListaPrecio } from '@/types/hosteleria';
 
 function slugify(text: string): string {
   return text
@@ -10,7 +10,7 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-export default function ProfesionalClienteFormModal({
+export default function HosteleriaClienteFormModal({
   cliente,
   listas,
   prefillNombre,
@@ -20,14 +20,14 @@ export default function ProfesionalClienteFormModal({
   onChangePin,
   onCreateLista,
 }: {
-  cliente: ProfesionalCliente | null;
-  listas: ProfesionalListaPrecio[];
+  cliente: HosteleriaCliente | null;
+  listas: HosteleriaListaPrecio[];
   prefillNombre?: string;
   onClose: () => void;
   onCreate: (input: { listaPrecioId: string; nombreNegocio: string; codigoAcceso: string; pin: string; notas: string }) => Promise<{ ok: boolean; error?: string }>;
-  onUpdate: (id: string, patch: Partial<Pick<ProfesionalCliente, 'nombre_negocio' | 'lista_precio_id' | 'activo' | 'notas'>>) => Promise<boolean>;
+  onUpdate: (id: string, patch: Partial<Pick<HosteleriaCliente, 'nombre_negocio' | 'lista_precio_id' | 'activo' | 'notas'>>) => Promise<boolean>;
   onChangePin: (id: string, pin: string) => Promise<boolean>;
-  onCreateLista: (nombre: string) => Promise<ProfesionalListaPrecio | null>;
+  onCreateLista: (nombre: string) => Promise<HosteleriaListaPrecio | null>;
 }) {
   const isNew = !cliente;
   const [nombreNegocio, setNombreNegocio] = useState(cliente?.nombre_negocio ?? prefillNombre ?? '');
@@ -146,7 +146,7 @@ export default function ProfesionalClienteFormModal({
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-background-200/70 flex-shrink-0">
           <h2 className="text-base font-heading font-semibold text-foreground-950">
-            {isNew ? 'Nuevo cliente profesional' : 'Editar cliente profesional'}
+            {isNew ? 'Nuevo cliente de hostelería' : 'Editar cliente de hostelería'}
           </h2>
           <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-100 hover:text-foreground-950">
             <i className="ri-close-line"></i>

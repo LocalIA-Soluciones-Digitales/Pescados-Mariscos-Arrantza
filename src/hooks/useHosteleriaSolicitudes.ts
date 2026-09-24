@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRealtimeTable } from './useRealtimeTable';
-import type { ProfesionalSolicitud, ProfesionalSolicitudEstado } from '@/types/profesional';
+import type { HosteleriaSolicitud, HosteleriaSolicitudEstado } from '@/types/hosteleria';
 
-export function useProfesionalesSolicitudes() {
-  const [solicitudes, setSolicitudes] = useState<ProfesionalSolicitud[]>([]);
+export function useHosteleriaSolicitudes() {
+  const [solicitudes, setSolicitudes] = useState<HosteleriaSolicitud[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSolicitudes = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    const { data } = await supabase.from('profesionales_solicitudes').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase.from('hosteleria_solicitudes').select('*').order('created_at', { ascending: false });
     setSolicitudes(data ?? []);
     if (!silent) setLoading(false);
   }, []);
@@ -19,17 +19,17 @@ export function useProfesionalesSolicitudes() {
   }, [fetchSolicitudes]);
 
   const fetchSolicitudesSilent = useCallback(() => fetchSolicitudes(true), [fetchSolicitudes]);
-  useRealtimeTable('profesionales_solicitudes', fetchSolicitudesSilent);
+  useRealtimeTable('hosteleria_solicitudes', fetchSolicitudesSilent);
 
-  const setEstado = useCallback(async (id: string, estado: ProfesionalSolicitudEstado) => {
-    const { error } = await supabase.from('profesionales_solicitudes').update({ estado }).eq('id', id);
+  const setEstado = useCallback(async (id: string, estado: HosteleriaSolicitudEstado) => {
+    const { error } = await supabase.from('hosteleria_solicitudes').update({ estado }).eq('id', id);
     if (error) return false;
     setSolicitudes((prev) => prev.map((s) => (s.id === id ? { ...s, estado } : s)));
     return true;
   }, []);
 
   const eliminar = useCallback(async (id: string) => {
-    const { error } = await supabase.from('profesionales_solicitudes').delete().eq('id', id);
+    const { error } = await supabase.from('hosteleria_solicitudes').delete().eq('id', id);
     if (error) return false;
     setSolicitudes((prev) => prev.filter((s) => s.id !== id));
     return true;

@@ -94,17 +94,14 @@ Deno.serve(async (req: Request) => {
     const pedidoId = session.metadata?.pedido_id;
     const pagado = session.payment_status === 'paid';
 
+    // Solo registra el pago: el pedido sigue en "nuevo" hasta que el
+    // pescadero lo confirma a mano desde el panel, que es lo que avisa al
+    // cliente de que su pedido sigue adelante.
     if (pedidoId) {
       await patchPedido(pedidoId, {
         estado_pago: pagado ? 'pagado' : 'fallido',
         stripe_payment_intent_id: session.payment_intent,
       });
-
-      // Solo confirma automáticamente si el pescadero no ha tocado ya el
-      // estado del pedido (evita pisar un cambio manual desde el panel).
-      if (pagado) {
-        await patchPedido(pedidoId, { estado: 'confirmado' }, '&estado=eq.nuevo');
-      }
     }
   }
 

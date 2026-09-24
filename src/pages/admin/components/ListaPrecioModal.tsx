@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Producto } from '@/types/producto';
-import type { ProfesionalListaPrecio, ProfesionalPrecio } from '@/types/profesional';
+import type { HosteleriaListaPrecio, HosteleriaPrecio } from '@/types/hosteleria';
 
 function FilaProducto({
   producto,
@@ -53,9 +53,9 @@ export default function ListaPrecioModal({
   onRenombrar,
   onEliminar,
 }: {
-  lista: ProfesionalListaPrecio;
+  lista: HosteleriaListaPrecio;
   productos: Producto[];
-  precios: ProfesionalPrecio[];
+  precios: HosteleriaPrecio[];
   onClose: () => void;
   onGuardarPrecio: (listaId: string, productoId: string, precio: string) => Promise<boolean>;
   onRenombrar: (id: string, nombre: string) => Promise<boolean>;
@@ -90,10 +90,10 @@ export default function ListaPrecioModal({
   };
 
   const handleEliminar = async () => {
-    if (!confirm(`¿Eliminar la tarifa "${lista.nombre}"? Solo es posible si no tiene ningún cliente profesional asignado.`)) return;
+    if (!confirm(`¿Eliminar la tarifa "${lista.nombre}"? Solo es posible si no tiene ningún cliente de hostelería asignado.`)) return;
     const ok = await onEliminar(lista.id);
     if (!ok) {
-      alert('No se pudo eliminar: hay clientes profesionales usando esta tarifa. Reasígnalos a otra tarifa primero.');
+      alert('No se pudo eliminar: hay clientes de hostelería usando esta tarifa. Reasígnalos a otra tarifa primero.');
       return;
     }
     onClose();

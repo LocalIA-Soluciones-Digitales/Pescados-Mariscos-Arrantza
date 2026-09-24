@@ -934,7 +934,293 @@ function VistaAnio({
   );
 }
 
-type Vista = 'dia' | 'mes' | 'anio';
+// Normaliza para buscar sin que importen mayúsculas ni tildes
+// ("gasolína" encuentra "Gasolina").
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+function mesISO(d: Date): string {
+  return d.toLocaleDateString('sv-SE').slice(0, 7);
+}
+
+function formatMes(prefijo: string): string {
+  const [y, m] = prefijo.split('-').map(Number);
+  return `${MESES[m - 1]} ${y}`;
+}
+
+type PeriodoBusqueda = 'mes' | 'mes_pasado' | 'anio' | 'todo' | `m:${string}`;
+type TipoBusqueda = 'todos' | 'gasto_factura' | 'gasto_extra';
+
+const PERIODOS_RAPIDOS: { value: PeriodoBusqueda; label: string }[] = [
+  { value: 'mes', label: 'Este mes' },
+  { value: 'mes_pasado', label: 'Mes pasado' },
+  { value: 'anio', label: 'Este año' },
+  { value: 'todo', label: 'Todo' },
+];
+
+function coincidePeriodo(fecha: string, periodo: PeriodoBusqueda): boolean {
+  const hoy = new Date();
+  if (periodo === 'todo') return true;
+  if (periodo === 'anio') return fecha.startsWith(String(hoy.getFullYear()));
+  if (periodo === 'mes') return fecha.startsWith(mesISO(hoy));
+  if (periodo === 'mes_pasado') return fecha.startsWith(mesISO(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)));
+  return fecha.startsWith(periodo.slice(2));
+}
+
+function etiquetaPeriodo(periodo: PeriodoBusqueda): string {
+  const hoy = new Date();
+  if (periodo === 'todo') return 'desde el principio';
+  if (periodo === 'anio') return `en ${hoy.getFullYear()}`;
+  if (periodo === 'mes') return `en ${formatMes(mesISO(hoy)).toLowerCase()}`;
+  if (periodo === 'mes_pasado') return `en ${formatMes(mesISO(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1))).toLowerCase()}`;
+  return `en ${formatMes(periodo.slice(2)).toLowerCase()}`;
+}
+
+// Agrupa por concepto (ignorando mayúsculas/tildes para que "Viñas" y
+// "viñas" sumen juntos) conservando la primera forma escrita como etiqueta.
+function agruparPorConcepto(lista: CajaMovimiento[]) {
+  const map = new Map<string, { label: string; total: number; n: number }>();
+  lista.forEach((m) => {
+    const label = m.concepto?.trim() || 'Sin concepto';
+    const key = normalizar(label);
+    const actual = map.get(key) ?? { label, total: 0, n: 0 };
+    actual.total += Number(m.importe);
+    actual.n += 1;
+    map.set(key, actual);
+  });
+  return [...map.values()].sort((a, b) => b.total - a.total);
+}
+
+// Buscador de gastos por concepto: responde de un vistazo a preguntas como
+// "¿cuánto me he dejado en gasolina en septiembre?". Trabaja sobre los
+// movimientos que useCaja ya tiene en memoria, así que filtra al teclear sin
+// ir a la base de datos. Los conceptos más gastados del periodo salen como
+// atajos para no tener que escribir.
+function VistaBuscarGastos({ movimientos, onIrADia }: { movimientos: CajaMovimiento[]; onIrADia: (fecha: string) => void }) {
+  const [texto, setTexto] = useState('');
+  const [periodo, setPeriodo] = useState<PeriodoBusqueda>('mes');
+  const [tipo, setTipo] = useState<TipoBusqueda>('todos');
+  const periodosScroll = useHorizontalWheelScroll<HTMLDivElement>();
+
+  const gastos = useMemo(() => movimientos.filter((m) => !esCajaIngreso(m.tipo)), [movimientos]);
+
+  const mesesConGastos = useMemo(
+    () => [...new Set(gastos.map((m) => m.fecha.slice(0, 7)))].sort((a, b) => b.localeCompare(a)),
+    [gastos],
+  );
+
+  const gastosPeriodo = useMemo(
+    () => gastos.filter((m) => coincidePeriodo(m.fecha, periodo) && (tipo === 'todos' || m.tipo === tipo)),
+    [gastos, periodo, tipo],
+  );
+
+  const busqueda = normalizar(texto);
+  const resultados = useMemo(
+    () => (busqueda ? gastosPeriodo.filter((m) => normalizar(m.concepto ?? '').includes(busqueda)) : gastosPeriodo),
+    [gastosPeriodo, busqueda],
+  );
+
+  const total = resultados.reduce((n, m) => n + Number(m.importe), 0);
+  const media = resultados.length > 0 ? total / resultados.length : 0;
+
+  const sugerencias = useMemo(
+    () => agruparPorConcepto(gastosPeriodo).filter((c) => c.label !== 'Sin concepto').slice(0, 10),
+    [gastosPeriodo],
+  );
+  const porConcepto = useMemo(() => agruparPorConcepto(resultados), [resultados]);
+  const maxConcepto = porConcepto[0]?.total ?? 0;
+
+  const porMes = useMemo(() => {
+    const map = new Map<string, number>();
+    resultados.forEach((m) => map.set(m.fecha.slice(0, 7), (map.get(m.fecha.slice(0, 7)) ?? 0) + Number(m.importe)));
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [resultados]);
+  const maxMes = Math.max(0, ...porMes.map(([, v]) => v));
+
+  const chip = (activo: boolean) =>
+    `flex-shrink-0 whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+      activo ? 'bg-primary-500 text-background-50' : 'bg-background-50 border border-background-200/70 text-foreground-500 hover:bg-background-200/70'
+    }`;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card space-y-3">
+        <div className="relative">
+          <i className="ri-search-line absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground-400"></i>
+          <input
+            type="search"
+            autoFocus
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setTexto('');
+            }}
+            placeholder="Buscar gasto por concepto — gasolina, Bizkaimar, luz…"
+            className="h-12 w-full pl-10 pr-10 bg-background-100 border border-background-200/70 rounded-lg text-base"
+          />
+          {texto && (
+            <button
+              type="button"
+              onClick={() => setTexto('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-200/70"
+            >
+              <i className="ri-close-line"></i>
+            </button>
+          )}
+        </div>
+
+        <div ref={periodosScroll.ref} onWheel={periodosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          {PERIODOS_RAPIDOS.map((p) => (
+            <button key={p.value} type="button" onClick={() => setPeriodo(p.value)} className={chip(periodo === p.value)}>
+              {p.label}
+            </button>
+          ))}
+          <select
+            value={periodo.startsWith('m:') ? periodo : ''}
+            onChange={(e) => e.target.value && setPeriodo(e.target.value as PeriodoBusqueda)}
+            className={`${chip(periodo.startsWith('m:'))} pr-2 appearance-auto`}
+          >
+            <option value="">Otro mes…</option>
+            {mesesConGastos.map((p) => (
+              <option key={p} value={`m:${p}`}>{formatMes(p)}</option>
+            ))}
+          </select>
+          <span className="w-px h-5 bg-background-200 mx-1 flex-shrink-0"></span>
+          {([
+            { value: 'todos', label: 'Todos' },
+            { value: 'gasto_factura', label: 'Facturas' },
+            { value: 'gasto_extra', label: 'Gastos extra' },
+          ] as { value: TipoBusqueda; label: string }[]).map((t) => (
+            <button key={t.value} type="button" onClick={() => setTipo(t.value)} className={chip(tipo === t.value)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {sugerencias.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-foreground-400 mr-0.5">Más gastado:</span>
+            {sugerencias.map((s) => {
+              const activo = busqueda === normalizar(s.label);
+              return (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => setTexto(activo ? '' : s.label)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors ${
+                    activo ? 'bg-red-500 text-background-50' : 'bg-red-50 text-red-700 hover:bg-red-100'
+                  }`}
+                >
+                  {s.label}
+                  <span className={`tabular-nums ${activo ? 'text-background-50/80' : 'text-red-500/80'}`}>{formatEUR(s.total)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-background-50 border border-background-200/70 rounded-xl p-4 shadow-card">
+        <p className="text-xs text-foreground-400">
+          {texto.trim() ? <>Gastado en «<span className="text-foreground-800 font-medium">{texto.trim()}</span>»</> : 'Gastos totales'}{' '}
+          {etiquetaPeriodo(periodo)}
+        </p>
+        <p className="text-3xl font-semibold text-red-600 tabular-nums mt-1">{formatEUR(total)}</p>
+        <p className="text-xs text-foreground-400 mt-1">
+          {resultados.length} gasto{resultados.length === 1 ? '' : 's'}
+          {resultados.length > 1 && ` · media ${formatEUR(media)}`}
+        </p>
+      </div>
+
+      {resultados.length > 0 && (porConcepto.length > 1 || porMes.length > 1) && (
+        <div className="grid sm:grid-cols-2 gap-3">
+          {porConcepto.length > 1 && (
+            <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
+              <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500 mb-2">Por concepto</p>
+              <div className="space-y-1.5">
+                {porConcepto.slice(0, 8).map((c) => (
+                  <button
+                    key={c.label}
+                    type="button"
+                    onClick={() => c.label !== 'Sin concepto' && setTexto(c.label)}
+                    className="w-full text-left group"
+                  >
+                    <div className="flex items-baseline justify-between gap-2 text-xs">
+                      <span className="truncate text-foreground-800 group-hover:underline">
+                        {c.label} <span className="text-foreground-400">· {c.n}</span>
+                      </span>
+                      <span className="tabular-nums text-red-600 flex-shrink-0">{formatEUR(c.total)}</span>
+                    </div>
+                    <div className="h-1.5 mt-1 rounded-full bg-background-100 overflow-hidden">
+                      <div className="h-full rounded-full bg-red-400" style={{ width: `${maxConcepto ? (c.total / maxConcepto) * 100 : 0}%` }}></div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {porMes.length > 1 && (
+            <div className="bg-background-50 border border-background-200/70 rounded-xl p-3 shadow-card">
+              <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500 mb-2">Por mes</p>
+              <div className="space-y-1.5">
+                {porMes.map(([prefijo, importe]) => (
+                  <button key={prefijo} type="button" onClick={() => setPeriodo(`m:${prefijo}`)} className="w-full text-left group">
+                    <div className="flex items-baseline justify-between gap-2 text-xs">
+                      <span className="text-foreground-800 group-hover:underline">{formatMes(prefijo)}</span>
+                      <span className="tabular-nums text-red-600">{formatEUR(importe)}</span>
+                    </div>
+                    <div className="h-1.5 mt-1 rounded-full bg-background-100 overflow-hidden">
+                      <div className="h-full rounded-full bg-red-400" style={{ width: `${maxMes ? (importe / maxMes) * 100 : 0}%` }}></div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
+        <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500">Gastos</p>
+          <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] bg-red-50 text-red-500">
+            {resultados.length}
+          </span>
+        </div>
+        {resultados.length === 0 ? (
+          <p className="text-xs text-foreground-400 px-3 pb-3">
+            {texto.trim() ? `Ningún gasto con «${texto.trim()}» ${etiquetaPeriodo(periodo)}.` : `Sin gastos ${etiquetaPeriodo(periodo)}.`}
+          </p>
+        ) : (
+          resultados.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => onIrADia(m.fecha)}
+              title="Ver el día en caja"
+              className="w-full text-left flex items-center gap-3 px-3 py-2.5 border-b border-background-200/50 last:border-b-0 hover:bg-background-100/60 transition-colors"
+            >
+              <span className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm bg-red-50 text-red-500">
+                <i className={ICONO_POR_TIPO[m.tipo]}></i>
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-foreground-950 truncate">{m.concepto?.trim() || CAJA_TIPO_LABELS[m.tipo]}</p>
+                <p className="text-xs text-foreground-400 truncate">
+                  {formatFechaLarga(m.fecha)} · {CAJA_TIPO_LABELS[m.tipo]}
+                </p>
+              </div>
+              <span className="text-sm font-medium flex-shrink-0 tabular-nums text-red-600">-{formatEUR(m.importe)}</span>
+              <i className="ri-arrow-right-s-line text-foreground-300 flex-shrink-0"></i>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+type Vista = 'dia' | 'mes' | 'anio' | 'buscar';
 
 export default function CajaPanel() {
   const { movimientos, loading: loadingMovimientos, crearMovimiento, eliminarMovimiento } = useCaja();
@@ -992,15 +1278,17 @@ export default function CajaPanel() {
             { value: 'dia', label: 'Día' },
             { value: 'mes', label: 'Mes' },
             { value: 'anio', label: 'Año' },
-          ] as { value: Vista; label: string }[]).map((v) => (
+            { value: 'buscar', label: 'Buscar gastos', icon: 'ri-search-line' },
+          ] as { value: Vista; label: string; icon?: string }[]).map((v) => (
             <button
               key={v.value}
               type="button"
               onClick={() => setVista(v.value)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              className={`inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 vista === v.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
               }`}
             >
+              {v.icon && <i className={v.icon}></i>}
               {v.label}
             </button>
           ))}
@@ -1037,6 +1325,8 @@ export default function CajaPanel() {
             movimientos={movimientos}
             onIrADia={irADia}
           />
+        ) : vista === 'buscar' ? (
+          <VistaBuscarGastos movimientos={movimientos} onIrADia={irADia} />
         ) : (
           <VistaAnio
             anio={anio}

@@ -490,7 +490,7 @@ export default function ProductoFormModal({
           {/* Destacado toggle */}
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input type="checkbox" checked={form.destacado} onChange={(e) => update('destacado', e.target.checked)} className="w-4 h-4" />
-            <span className="text-sm text-foreground-700">Destacado (aparece en la "Selección del día" de portada y profesionales)</span>
+            <span className="text-sm text-foreground-700">Destacado (aparece en la "Selección del día" de portada y hostelería)</span>
           </label>
 
           {error && <p className="text-xs text-red-600 mt-3">{error}</p>}

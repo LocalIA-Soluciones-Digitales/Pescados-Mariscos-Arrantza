@@ -3,7 +3,7 @@ import NotFound from "../pages/NotFound";
 import Home from "../pages/home/page";
 import Productos from "../pages/productos/page";
 import Reservas from "../pages/reservas/page";
-import Profesionales from "../pages/profesionales/page";
+import Hosteleria from "../pages/hosteleria/page";
 import Admin from "../pages/admin/page";
 import AdminResetPassword from "../pages/admin/components/AdminResetPassword";
 import AvisoLegal from "../pages/legal/AvisoLegal";
@@ -27,8 +27,8 @@ const routes: RouteObject[] = [
     element: <Reservas />,
   },
   {
-    path: "/profesionales",
-    element: <Profesionales />,
+    path: "/hosteleria",
+    element: <Hosteleria />,
   },
   {
     path: "/admin",

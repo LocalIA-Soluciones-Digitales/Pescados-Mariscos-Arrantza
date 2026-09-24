@@ -818,7 +818,7 @@ const common = {
 
   "pedido_confirmado.checking": "Ordainketa egiaztatzen...",
   "pedido_confirmado.success_title": "Ordainketa berretsi da!",
-  "pedido_confirmado.success_body": "Zure ordainketa jaso dugu eta eskaera berretsita dago jada. Prest dagoenean emailez abisatuko dizugu.",
+  "pedido_confirmado.success_body": "Zure ordainketa jaso dugu. Laster zure eskaera berrikusiko dugu eta berresten dugunean abisatuko dizugu.",
   "pedido_confirmado.pending_title": "Ordainketa prozesatzen",
   "pedido_confirmado.pending_body": "Zure ordainketa oraindik prozesatzen ari da. Berretsi bezain laster emailez abisatuko dizugu — ez duzu ezer gehiago egin behar.",
   "pedido_confirmado.invalid_title": "Ezin izan dugu ordainketa berretsi",

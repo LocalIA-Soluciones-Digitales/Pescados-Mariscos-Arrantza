@@ -817,7 +817,7 @@ const common = {
 
   "pedido_confirmado.checking": "Comprobando el pago...",
   "pedido_confirmado.success_title": "¡Pago confirmado!",
-  "pedido_confirmado.success_body": "Hemos recibido tu pago y tu pedido ya está confirmado. Te avisaremos por email cuando esté listo.",
+  "pedido_confirmado.success_body": "Hemos recibido tu pago. En breve revisaremos tu pedido y te avisaremos en cuanto lo confirmemos.",
   "pedido_confirmado.pending_title": "Pago en proceso",
   "pedido_confirmado.pending_body": "Tu pago se está procesando todavía. En cuanto se confirme te avisaremos por email — no hace falta que hagas nada más.",
   "pedido_confirmado.invalid_title": "No hemos podido confirmar el pago",

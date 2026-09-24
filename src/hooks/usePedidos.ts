@@ -37,23 +37,11 @@ export function usePedidos() {
     setPedidos((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
-  // Marca a mano un pago (Bizum, transferencia...) como recibido. Si el
-  // pedido seguía en "nuevo" lo pasa también a "confirmado", igual que hace
-  // el webhook de Stripe con las tarjetas — así dispara el mismo email de
-  // confirmación al cliente sin duplicar esa lógica.
+  // Marca a mano un pago (Bizum, transferencia...) como recibido. No toca el
+  // estado del pedido: confirmarlo es siempre un paso manual aparte.
   const setEstadoPago = useCallback(async (id: string, estadoPago: PedidoEstadoPago) => {
     await supabase.from('pedidos').update({ estado_pago: estadoPago }).eq('id', id);
-    setPedidos((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
-        const next = { ...p, estado_pago: estadoPago };
-        if (estadoPago === 'pagado' && p.estado === 'nuevo') next.estado = 'confirmado';
-        return next;
-      }),
-    );
-    if (estadoPago === 'pagado') {
-      await supabase.from('pedidos').update({ estado: 'confirmado' }).eq('id', id).eq('estado', 'nuevo');
-    }
+    setPedidos((prev) => prev.map((p) => (p.id === id ? { ...p, estado_pago: estadoPago } : p)));
   }, []);
 
   return { pedidos, loading, refetch: fetchPedidos, setEstado, setEstadoPago, deletePedido };

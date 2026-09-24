@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRealtimeTable } from './useRealtimeTable';
-import type { ProfesionalCliente } from '@/types/profesional';
+import type { HosteleriaCliente } from '@/types/hosteleria';
 
-export function useProfesionalesClientes() {
-  const [clientes, setClientes] = useState<ProfesionalCliente[]>([]);
+export function useHosteleriaClientes() {
+  const [clientes, setClientes] = useState<HosteleriaCliente[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchClientes = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    const { data } = await supabase.from('profesionales_clientes').select('*').order('nombre_negocio', { ascending: true });
+    const { data } = await supabase.from('hosteleria_clientes').select('*').order('nombre_negocio', { ascending: true });
     setClientes(data ?? []);
     if (!silent) setLoading(false);
   }, []);
@@ -19,13 +19,13 @@ export function useProfesionalesClientes() {
   }, [fetchClientes]);
 
   const fetchClientesSilent = useCallback(() => fetchClientes(true), [fetchClientes]);
-  useRealtimeTable('profesionales_clientes', fetchClientesSilent);
+  useRealtimeTable('hosteleria_clientes', fetchClientesSilent);
 
   // El PIN se hashea siempre en el servidor (pgcrypto) — nunca se guarda ni
   // se mueve en texto plano por el cliente más allá de este RPC.
   const crear = useCallback(
     async (input: { listaPrecioId: string; nombreNegocio: string; codigoAcceso: string; pin: string; notas: string }) => {
-      const { data, error } = await supabase.rpc('admin_crear_profesional', {
+      const { data, error } = await supabase.rpc('admin_crear_hosteleria', {
         p_lista_precio_id: input.listaPrecioId,
         p_nombre_negocio: input.nombreNegocio,
         p_codigo_acceso: input.codigoAcceso,
@@ -34,14 +34,14 @@ export function useProfesionalesClientes() {
       });
       if (error || !data) return { ok: false as const, error: error?.message ?? 'No se pudo crear el cliente' };
       setClientes((prev) => [...prev, data].sort((a, b) => a.nombre_negocio.localeCompare(b.nombre_negocio, 'es')));
-      return { ok: true as const, cliente: data as ProfesionalCliente };
+      return { ok: true as const, cliente: data as HosteleriaCliente };
     },
     [],
   );
 
   const actualizar = useCallback(
-    async (id: string, patch: Partial<Pick<ProfesionalCliente, 'nombre_negocio' | 'lista_precio_id' | 'activo' | 'notas'>>) => {
-      const { error } = await supabase.from('profesionales_clientes').update(patch).eq('id', id);
+    async (id: string, patch: Partial<Pick<HosteleriaCliente, 'nombre_negocio' | 'lista_precio_id' | 'activo' | 'notas'>>) => {
+      const { error } = await supabase.from('hosteleria_clientes').update(patch).eq('id', id);
       if (error) return false;
       setClientes((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
       return true;
@@ -50,12 +50,12 @@ export function useProfesionalesClientes() {
   );
 
   const cambiarPin = useCallback(async (id: string, pin: string) => {
-    const { error } = await supabase.rpc('admin_set_profesional_pin', { p_profesional_id: id, p_pin: pin });
+    const { error } = await supabase.rpc('admin_set_hosteleria_pin', { p_hosteleria_cliente_id: id, p_pin: pin });
     return !error;
   }, []);
 
   const eliminar = useCallback(async (id: string) => {
-    const { error } = await supabase.from('profesionales_clientes').delete().eq('id', id);
+    const { error } = await supabase.from('hosteleria_clientes').delete().eq('id', id);
     if (error) return false;
     setClientes((prev) => prev.filter((c) => c.id !== id));
     return true;

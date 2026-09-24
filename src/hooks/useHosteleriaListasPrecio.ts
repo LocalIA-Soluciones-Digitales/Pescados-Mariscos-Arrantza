@@ -2,18 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getMiClienteId } from '@/lib/clienteContext';
 import { useRealtimeTable } from './useRealtimeTable';
-import type { ProfesionalListaPrecio, ProfesionalPrecio } from '@/types/profesional';
+import type { HosteleriaListaPrecio, HosteleriaPrecio } from '@/types/hosteleria';
 
-export function useProfesionalesListasPrecio() {
-  const [listas, setListas] = useState<ProfesionalListaPrecio[]>([]);
-  const [precios, setPrecios] = useState<ProfesionalPrecio[]>([]);
+export function useHosteleriaListasPrecio() {
+  const [listas, setListas] = useState<HosteleriaListaPrecio[]>([]);
+  const [precios, setPrecios] = useState<HosteleriaPrecio[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchTodo = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     const [listasRes, preciosRes] = await Promise.all([
-      supabase.from('profesionales_listas_precio').select('*').order('nombre', { ascending: true }),
-      supabase.from('profesionales_precios').select('*'),
+      supabase.from('hosteleria_listas_precio').select('*').order('nombre', { ascending: true }),
+      supabase.from('hosteleria_precios').select('*'),
     ]);
     setListas(listasRes.data ?? []);
     setPrecios(preciosRes.data ?? []);
@@ -25,30 +25,30 @@ export function useProfesionalesListasPrecio() {
   }, [fetchTodo]);
 
   const fetchTodoSilent = useCallback(() => fetchTodo(true), [fetchTodo]);
-  useRealtimeTable('profesionales_listas_precio', fetchTodoSilent);
-  useRealtimeTable('profesionales_precios', fetchTodoSilent);
+  useRealtimeTable('hosteleria_listas_precio', fetchTodoSilent);
+  useRealtimeTable('hosteleria_precios', fetchTodoSilent);
 
   const crearLista = useCallback(async (nombre: string) => {
     const clienteId = await getMiClienteId();
     const { data, error } = await supabase
-      .from('profesionales_listas_precio')
+      .from('hosteleria_listas_precio')
       .insert({ cliente_id: clienteId, nombre: nombre.trim() })
       .select()
       .single();
     if (error || !data) return null;
     setListas((prev) => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')));
-    return data as ProfesionalListaPrecio;
+    return data as HosteleriaListaPrecio;
   }, []);
 
   const renombrarLista = useCallback(async (id: string, nombre: string) => {
-    const { error } = await supabase.from('profesionales_listas_precio').update({ nombre: nombre.trim() }).eq('id', id);
+    const { error } = await supabase.from('hosteleria_listas_precio').update({ nombre: nombre.trim() }).eq('id', id);
     if (error) return false;
     setListas((prev) => prev.map((l) => (l.id === id ? { ...l, nombre: nombre.trim() } : l)));
     return true;
   }, []);
 
   const eliminarLista = useCallback(async (id: string) => {
-    const { error } = await supabase.from('profesionales_listas_precio').delete().eq('id', id);
+    const { error } = await supabase.from('hosteleria_listas_precio').delete().eq('id', id);
     if (error) return false;
     setListas((prev) => prev.filter((l) => l.id !== id));
     return true;
@@ -59,7 +59,7 @@ export function useProfesionalesListasPrecio() {
     const limpio = precio.trim();
     if (!limpio) {
       const { error } = await supabase
-        .from('profesionales_precios')
+        .from('hosteleria_precios')
         .delete()
         .eq('lista_id', listaId)
         .eq('producto_id', productoId);
@@ -69,7 +69,7 @@ export function useProfesionalesListasPrecio() {
     }
 
     const { data, error } = await supabase
-      .from('profesionales_precios')
+      .from('hosteleria_precios')
       .upsert({ lista_id: listaId, producto_id: productoId, precio: limpio }, { onConflict: 'lista_id,producto_id' })
       .select()
       .single();
