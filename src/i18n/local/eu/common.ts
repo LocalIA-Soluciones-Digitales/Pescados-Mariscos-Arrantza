@@ -826,6 +826,7 @@ const common = {
   "pedido_confirmado.back": "Webgunera itzuli",
   "pedido_confirmado.whatsapp_button": "Davidi WhatsApp bidez abisatu",
   "pedido_confirmado.whatsapp_button_sent": "WhatsApp-en irekita ✓",
+  "pedido_confirmado.whatsapp_required": "Amaitzeko, bidali eskaera WhatsApp bidez goiko botoia sakatuz.",
 
   // Footer
   "footer.rights": "Eskubide guztiak erreserbatuta.",

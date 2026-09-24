@@ -825,6 +825,7 @@ const common = {
   "pedido_confirmado.back": "Volver a la web",
   "pedido_confirmado.whatsapp_button": "Avisar a David por WhatsApp",
   "pedido_confirmado.whatsapp_button_sent": "Abierto en WhatsApp ✓",
+  "pedido_confirmado.whatsapp_required": "Para terminar, envía el pedido por WhatsApp pulsando el botón de arriba.",
 
   // Footer
   "footer.rights": "Todos los derechos reservados.",

@@ -153,7 +153,17 @@ export default function PedidoConfirmado() {
   const sessionId = searchParams.get('session_id');
   const [status, setStatus] = useState<Status>('checking');
   const [pedido, setPedido] = useState<Pedido | null>(null);
-  const [whatsappSent, setWhatsappSent] = useState(false);
+  // Se recuerda por sesión de Stripe: al volver de WhatsApp el navegador
+  // móvil puede recargar la página y no queremos volver a bloquear al cliente.
+  const sentKey = sessionId ? `pedido_whatsapp_sent_${sessionId}` : null;
+  const [whatsappSent, setWhatsappSent] = useState(() => {
+    if (!sentKey) return false;
+    try {
+      return localStorage.getItem(sentKey) === '1';
+    } catch {
+      return false;
+    }
+  });
   const attemptsRef = useRef(0);
 
   useEffect(() => {
@@ -206,7 +216,18 @@ export default function PedidoConfirmado() {
     const whatsappUrl = `https://api.whatsapp.com/send?phone=${PESCADERO_WHATSAPP}&text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
     setWhatsappSent(true);
+    if (sentKey) {
+      try {
+        localStorage.setItem(sentKey, '1');
+      } catch {
+        // sin almacenamiento solo se pierde el recuerdo tras recargar
+      }
+    }
   };
+
+  // Con el pago confirmado, el cliente tiene que avisar por WhatsApp antes
+  // de poder salir de la pantalla.
+  const mustSendWhatsApp = status === 'pagado' && !!pedido && !whatsappSent;
 
   const title =
     status === 'pagado'
@@ -261,13 +282,17 @@ export default function PedidoConfirmado() {
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="text-xs text-foreground-400 hover:text-foreground-700 transition-colors cursor-pointer"
-            >
-              {t('pedido_confirmado.back')}
-            </button>
+            {mustSendWhatsApp ? (
+              <p className="text-xs text-foreground-400">{t('pedido_confirmado.whatsapp_required')}</p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="text-xs text-foreground-400 hover:text-foreground-700 transition-colors cursor-pointer"
+              >
+                {t('pedido_confirmado.back')}
+              </button>
+            )}
           </>
         )}
       </div>
