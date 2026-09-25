@@ -234,6 +234,10 @@ export default function Reservas() {
       setError(t('reservas.error_date'));
       return;
     }
+    if (fechaDeseada < evento.fecha_entrega || (evento.fecha_limite && fechaDeseada > evento.fecha_limite)) {
+      setError(t('reservas.error_date_range'));
+      return;
+    }
     setError(null);
     setSending(true);
 

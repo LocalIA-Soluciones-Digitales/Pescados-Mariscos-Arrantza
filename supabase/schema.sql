@@ -1521,9 +1521,13 @@ create index if not exists idx_reservas_device_id on public.reservas (device_id)
 
 -- El cliente envía la reserva desde la web (sin sesión) siempre vía esta
 -- función, nunca por insert directo. p_fecha_deseada es el día que el
--- propio cliente quiere recoger su pedido (texto libre, igual que
--- pedidos.fecha_preferida) — la campaña solo marca el periodo en que se
--- aceptan reservas, no impone una única fecha de entrega para todos.
+-- propio cliente quiere recoger su pedido, dentro del periodo que marca
+-- la campaña (desde fecha_entrega hasta fecha_limite, si la tiene) — cada
+-- cliente elige su propio día (Nochebuena, Nochevieja, Reyes...), pero no
+-- fuera de ese periodo. El <input type="date"> del formulario ya limita
+-- esto con min/max, pero eso es solo una pista de UI que se puede saltar
+-- (escribiendo la fecha a mano, o llamando a la función directo), así que
+-- se revalida aquí también.
 create or replace function public.crear_reserva(
   p_site_key uuid, p_evento_id uuid, p_items jsonb, p_total_productos integer, p_peso_total numeric,
   p_importe_estimado numeric, p_cliente_nombre text, p_cliente_telefono text, p_cliente_email text,
@@ -1547,6 +1551,19 @@ begin
       and (fecha_limite is null or fecha_limite >= current_date)
   ) then
     raise exception 'evento de reserva inválido o cerrado';
+  end if;
+
+  if p_fecha_deseada is null or p_fecha_deseada = '' then
+    raise exception 'indica la fecha en que quieres recoger tu reserva';
+  end if;
+
+  if not exists (
+    select 1 from public.reservas_eventos
+    where id = p_evento_id
+      and p_fecha_deseada::date >= fecha_entrega
+      and (fecha_limite is null or p_fecha_deseada::date <= fecha_limite)
+  ) then
+    raise exception 'la fecha de recogida elegida está fuera del periodo de esta campaña';
   end if;
 
   if char_length(p_cliente_nombre) < 1 or char_length(p_cliente_nombre) > 150 then

@@ -1081,6 +1081,7 @@ const common = {
   "reservas.popup_close": "Itxi abisua",
   "reservas.form_date": "Zein egunetan jaso nahi duzu?",
   "reservas.error_date": "Adierazi zure erreserba jaso nahi duzun eguna.",
+  "reservas.error_date_range": "Aukeratu kanpaina honen jasotze-epearen barruko data bat.",
   "reservas.event_switch_label": "Kanpaina",
   "reservas.no_active_title": "Momentu honetan ez dago erreserbarik zabalik",
   "reservas.no_active_subtitle": "Erreserba kanpaina berri bat irekitzen dugunean (Eguberriak, Urtezahar gaua...) hemen ikusiko duzu. Bitartean, ohiko eskaera egin dezakezu katalogotik.",

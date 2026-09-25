@@ -1080,6 +1080,7 @@ const common = {
   "reservas.popup_close": "Cerrar aviso",
   "reservas.form_date": "¿Qué día quieres recogerlo?",
   "reservas.error_date": "Indica el día en que quieres recoger tu reserva.",
+  "reservas.error_date_range": "Elige una fecha dentro del periodo de recogida de esta campaña.",
   "reservas.event_switch_label": "Campaña",
   "reservas.no_active_title": "No hay reservas abiertas en este momento",
   "reservas.no_active_subtitle": "En cuanto abramos una nueva campaña de reservas (Navidad, Nochevieja...) la verás aquí. Mientras tanto, puedes hacer tu pedido habitual desde el catálogo.",
