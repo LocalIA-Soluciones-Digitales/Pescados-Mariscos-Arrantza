@@ -8,7 +8,7 @@ import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import OrigenBadge from '@/components/base/OrigenBadge';
-import CajaBuscador from './CajaBuscador';
+import CajaBuscador, { type ResaltarObjetivo } from './CajaBuscador';
 
 const ICONO_POR_TIPO: Record<CajaMovimientoTipo, string> = {
   ingreso_tarjeta: 'ri-bank-card-line',
@@ -222,24 +222,33 @@ function FormNuevoMovimiento({
 }
 
 function FilaCaja({
+  id,
   icon,
   titulo,
   subtitulo,
   origen,
   importe,
   ingreso,
+  resaltado,
   onEliminar,
 }: {
+  id?: string;
   icon: string;
   titulo: string;
   subtitulo?: string | null;
   origen?: Origen | null;
   importe: number;
   ingreso: boolean;
+  resaltado?: boolean;
   onEliminar: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 border-b border-background-200/50 last:border-b-0">
+    <div
+      id={id}
+      className={`flex items-center gap-3 px-3 py-2.5 border-b border-background-200/50 last:border-b-0 transition-colors duration-700 ${
+        resaltado ? 'bg-amber-50 ring-2 ring-inset ring-amber-400' : ''
+      }`}
+    >
       <span
         className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm ${
           ingreso ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
@@ -268,16 +277,26 @@ function FilaCaja({
   );
 }
 
-function FilaMovimiento({ m, onEliminar }: { m: CajaMovimiento; onEliminar: (m: CajaMovimiento) => void }) {
+function FilaMovimiento({
+  m,
+  resaltado,
+  onEliminar,
+}: {
+  m: CajaMovimiento;
+  resaltado?: boolean;
+  onEliminar: (m: CajaMovimiento) => void;
+}) {
   const hora = formatHora(m.created_at);
   return (
     <FilaCaja
+      id={`mov-${m.id}`}
       icon={ICONO_POR_TIPO[m.tipo]}
       titulo={CAJA_TIPO_LABELS[m.tipo]}
       subtitulo={m.concepto ? `${hora} · ${m.concepto}` : hora}
       origen={m.origen}
       importe={m.importe}
       ingreso={esCajaIngreso(m.tipo)}
+      resaltado={resaltado}
       onEliminar={() => onEliminar(m)}
     />
   );
@@ -327,14 +346,23 @@ function agruparPorTicket(lineas: BasculaVenta[]): TicketBascula[] {
 // (tienda, anulado, editado) debajo, porque compartir una sola línea con
 // ellas era lo que hacía ilegible el número (ver comentario de
 // TicketDetalleModal).
-function FilaTicketBascula({ ticket, onClick }: { ticket: TicketBascula; onClick: () => void }) {
+function FilaTicketBascula({
+  ticket,
+  resaltado,
+  onClick,
+}: {
+  ticket: TicketBascula;
+  resaltado?: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
+      id={`ticket-${ticket.key}`}
       type="button"
       onClick={onClick}
-      className={`w-full text-left flex items-center gap-3 px-3 py-2.5 border-b border-background-200/50 last:border-b-0 hover:bg-background-100/60 transition-colors ${
+      className={`w-full text-left flex items-center gap-3 px-3 py-2.5 border-b border-background-200/50 last:border-b-0 hover:bg-background-100/60 transition-colors duration-700 ${
         ticket.anulado ? 'opacity-60' : ''
-      }`}
+      } ${resaltado ? 'bg-amber-50 ring-2 ring-inset ring-amber-400' : ''}`}
     >
       <span
         className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-sm ${
@@ -481,6 +509,8 @@ function VistaDia({
   movimientosDelDia,
   onCrear,
   onEliminar,
+  resaltar,
+  onResaltadoConsumido,
 }: {
   fecha: string;
   onFechaChange: (fecha: string) => void;
@@ -489,6 +519,8 @@ function VistaDia({
   movimientosDelDia: CajaMovimiento[];
   onCrear: (input: NewCajaMovimientoInput) => Promise<CajaMovimiento | null>;
   onEliminar: (id: string) => Promise<boolean>;
+  resaltar?: ResaltarObjetivo | null;
+  onResaltadoConsumido?: () => void;
 }) {
   const ingresosManuales = movimientosDelDia.filter((m) => esCajaIngreso(m.tipo));
   const gastos = movimientosDelDia.filter((m) => !esCajaIngreso(m.tipo));
@@ -535,6 +567,36 @@ function VistaDia({
     () => (ticketAbiertoKey ? (ticketsBascula.find((t) => t.key === ticketAbiertoKey) ?? null) : null),
     [ticketsBascula, ticketAbiertoKey],
   );
+
+  // Al llegar desde una búsqueda con un objetivo concreto (p.ej. "Capotinas
+  // del 18 de septiembre"), localiza esa fila exacta — por id si es un
+  // movimiento a mano, por nombre de producto si es una venta de báscula —
+  // y la desplaza a la vista con un resalte temporal, en vez de dejar al
+  // usuario en lo alto de la vista del día (donde antes aterrizaba siempre
+  // en la sección de Ingresos, aunque el resultado fuera un gasto).
+  const [resaltadoId, setResaltadoId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!resaltar || cargandoBascula) return;
+    if (resaltar.origen) setFiltroOrigen(resaltar.origen);
+    const t = setTimeout(() => {
+      let targetId: string | null = null;
+      if (resaltar.fuente === 'manual') {
+        targetId = `mov-${resaltar.key}`;
+      } else {
+        const ticket = ticketsBascula.find((tk) => tk.lineas.some((l) => l.designacion === resaltar.titulo));
+        targetId = ticket ? `ticket-${ticket.key}` : null;
+      }
+      const el = document.getElementById(targetId ?? 'caja-ingresos-panel');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (targetId) {
+        setResaltadoId(targetId);
+        setTimeout(() => setResaltadoId(null), 2200);
+      }
+      onResaltadoConsumido?.();
+    }, 60);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resaltar, cargandoBascula, ticketsBascula]);
 
   // Filtrado por tienda (usado también para los totales, que nunca deben
   // depender de si se está buscando anulados/editados o no) y, aparte,
@@ -706,7 +768,7 @@ function VistaDia({
       <p className="text-sm font-medium text-foreground-950">{formatFechaLarga(fecha)}</p>
 
       <div className="grid sm:grid-cols-2 gap-3">
-        <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
+        <div id="caja-ingresos-panel" className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden shadow-card">
           <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5">
             <p className="text-xs font-semibold uppercase tracking-wide text-foreground-500">Ingresos</p>
             <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] bg-emerald-50 text-emerald-600">
@@ -720,10 +782,15 @@ function VistaDia({
           ) : (
             <>
               {ticketsBasculaFiltrados.map((t) => (
-                <FilaTicketBascula key={t.key} ticket={t} onClick={() => setTicketAbiertoKey(t.key)} />
+                <FilaTicketBascula
+                  key={t.key}
+                  ticket={t}
+                  resaltado={resaltadoId === `ticket-${t.key}`}
+                  onClick={() => setTicketAbiertoKey(t.key)}
+                />
               ))}
               {ingresosManualesFiltrados.map((m) => (
-                <FilaMovimiento key={m.id} m={m} onEliminar={eliminar} />
+                <FilaMovimiento key={m.id} m={m} resaltado={resaltadoId === `mov-${m.id}`} onEliminar={eliminar} />
               ))}
             </>
           )}
@@ -738,7 +805,7 @@ function VistaDia({
           {gastos.length === 0 ? (
             <p className="text-xs text-foreground-400 px-3 pb-3">Sin gastos registrados.</p>
           ) : (
-            gastos.map((m) => <FilaMovimiento key={m.id} m={m} onEliminar={eliminar} />)
+            gastos.map((m) => <FilaMovimiento key={m.id} m={m} resaltado={resaltadoId === `mov-${m.id}`} onEliminar={eliminar} />)
           )}
         </div>
       </div>
@@ -945,6 +1012,7 @@ export default function CajaPanel() {
   const [fecha, setFecha] = useState(hoyISO());
   const [mes, setMes] = useState(new Date().getMonth());
   const [anio, setAnio] = useState(new Date().getFullYear());
+  const [resaltar, setResaltar] = useState<ResaltarObjetivo | null>(null);
 
   const ingresosPorFecha = useMemo(() => {
     const map = new Map<string, number>();
@@ -970,9 +1038,10 @@ export default function CajaPanel() {
 
   const movimientosDelDia = useMemo(() => movimientos.filter((m) => m.fecha === fecha), [movimientos, fecha]);
 
-  const irADia = (nuevaFecha: string) => {
+  const irADia = (nuevaFecha: string, objetivo?: ResaltarObjetivo) => {
     setFecha(nuevaFecha);
     setVista('dia');
+    setResaltar(objetivo ?? null);
   };
 
   const irAMes = (nuevoMes: number) => {
@@ -1028,6 +1097,8 @@ export default function CajaPanel() {
             movimientosDelDia={movimientosDelDia}
             onCrear={crearMovimiento}
             onEliminar={eliminarMovimiento}
+            resaltar={resaltar}
+            onResaltadoConsumido={() => setResaltar(null)}
           />
         ) : vista === 'mes' ? (
           <VistaMes

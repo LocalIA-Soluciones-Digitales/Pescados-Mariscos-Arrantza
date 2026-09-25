@@ -59,6 +59,30 @@ function mesISO(d: Date): string {
   return d.toLocaleDateString('sv-SE').slice(0, 7);
 }
 
+// Exporta los resultados visibles (ya filtrados por texto/periodo/clase) a
+// un CSV descargable, para llevar la búsqueda a una hoja de cálculo — con
+// BOM para que Excel abra bien los acentos.
+function exportarCSV(resultados: Resultado[]) {
+  const cabecera = ['Fecha', 'Tipo', 'Concepto', 'Tienda', 'Importe'];
+  const filas = resultados.map((r) => [
+    r.fecha,
+    r.clase === 'ingreso' ? 'Ingreso' : 'Gasto',
+    r.titulo,
+    r.origen ? ORIGEN_LABELS[r.origen] : '',
+    (r.clase === 'gasto' ? -r.importe : r.importe).toFixed(2).replace('.', ','),
+  ]);
+  const csv = [cabecera, ...filas]
+    .map((fila) => fila.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';'))
+    .join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `caja-busqueda-${new Date().toLocaleDateString('sv-SE')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 type Periodo = 'mes' | 'mes_pasado' | 'anio' | 'todo' | `m:${string}`;
 type Clase = 'todo' | 'ingreso' | 'gasto';
 type FiltroTienda = Origen | 'todas';
@@ -106,6 +130,17 @@ interface Resultado {
   importe: number;
   origen: Origen | null;
   icon: string;
+}
+
+// Lo que necesita VistaDia para localizar y resaltar la fila exacta de un
+// resultado dentro del día al que navega: los movimientos a mano se
+// localizan por id (resaltar.key), las ventas de báscula por el nombre
+// exacto del producto (resaltar.titulo coincide con designacion).
+export interface ResaltarObjetivo {
+  key: string;
+  fuente: 'bascula' | 'manual';
+  titulo: string;
+  origen: Origen | null;
 }
 
 function desdeMovimiento(m: CajaMovimiento): Resultado {
@@ -156,6 +191,10 @@ function agruparLineasBascula(lineas: BasculaVentaBusqueda[]): Resultado[] {
   return [...map.values()].map(({ cantidad, unidad, ...r }) => ({ ...r, detalle: `Báscula · ${formatCantidad(cantidad)} ${unidad}` }));
 }
 
+// flex-wrap (en vez de scroll horizontal) para que en móvil las opciones
+// bajen a una segunda línea en vez de quedar cortadas fuera de la pantalla
+// sin ninguna pista de que hay más — eso es lo que hacía que el filtro de
+// Periodo pareciera roto en pantallas estrechas.
 function Segmented<T extends string>({
   value,
   onChange,
@@ -166,7 +205,7 @@ function Segmented<T extends string>({
   options: { value: T; label: string; icon?: string; dot?: string }[];
 }) {
   return (
-    <div className="inline-flex max-w-full overflow-x-auto scrollbar-hide p-1 gap-0.5 rounded-xl bg-background-100 border border-background-200/70">
+    <div className="flex flex-wrap gap-1 p-1 rounded-xl bg-background-100 border border-background-200/70">
       {options.map((o) => {
         const activo = o.value === value;
         return (
@@ -174,7 +213,7 @@ function Segmented<T extends string>({
             key={o.value}
             type="button"
             onClick={() => onChange(o.value)}
-            className={`flex-shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+            className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
               activo
                 ? 'bg-background-50 text-foreground-950 shadow-sm ring-1 ring-background-200/70'
                 : 'text-foreground-500 hover:text-foreground-950'
@@ -192,9 +231,9 @@ function Segmented<T extends string>({
 
 function GrupoFiltro({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5 min-w-0">
+    <div className="flex flex-col gap-1.5 min-w-0 w-full sm:w-auto">
       <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground-400">{label}</span>
-      <div className="flex items-center gap-2 min-w-0">{children}</div>
+      <div className="flex flex-wrap items-center gap-2 min-w-0">{children}</div>
     </div>
   );
 }
@@ -267,7 +306,7 @@ export default function CajaBuscador({
 }: {
   movimientos: CajaMovimiento[];
   basculaPorTienda: BasculaVentaDiariaPorTienda[];
-  onIrADia: (fecha: string) => void;
+  onIrADia: (fecha: string, resaltar?: ResaltarObjetivo) => void;
 }) {
   const [texto, setTexto] = useState('');
   const [periodo, setPeriodo] = useState<Periodo>('mes');
@@ -276,7 +315,12 @@ export default function CajaBuscador({
   const [fuente, setFuente] = useState<FiltroFuente>('todas');
   const [tipoGasto, setTipoGasto] = useState<FiltroTipoGasto>('todos');
   const [maxFilas, setMaxFilas] = useState(MAX_FILAS_INICIALES);
+  const [sugerenciasAbiertas, setSugerenciasAbiertas] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const irAResultado = (r: Resultado) => {
+    onIrADia(r.fecha, { key: r.key, fuente: r.fuente, titulo: r.titulo, origen: r.origen });
+  };
 
   const busqueda = normalizar(texto);
   const rango = useMemo(() => rangoDelPeriodo(periodo), [periodo]);
@@ -375,9 +419,10 @@ export default function CajaBuscador({
   const nIngresos = candidatos.filter((r) => r.clase === 'ingreso').length;
   const nGastos = candidatos.length - nIngresos;
 
-  // Atajos: los conceptos de caja con más dinero del periodo, para buscar
-  // de un toque sin escribir.
-  const atajos = useMemo(() => {
+  // Conceptos de caja con más dinero del periodo. Antes se mostraban
+  // siempre en una tira fija ("Rápido"); ahora alimentan el desplegable de
+  // sugerencias del buscador, filtrados por lo que se va escribiendo.
+  const conceptosFrecuentes = useMemo(() => {
     const map = new Map<string, { label: string; total: number; clase: 'ingreso' | 'gasto' }>();
     movimientos
       .filter((m) => enRango(m.fecha) && m.concepto?.trim())
@@ -391,6 +436,29 @@ export default function CajaBuscador({
     return [...map.values()].sort((a, b) => b.total - a.total).slice(0, 10);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movimientos, rango]);
+
+  const sugerenciasConceptos = useMemo(() => {
+    const base = busqueda ? conceptosFrecuentes.filter((c) => normalizar(c.label).includes(busqueda)) : conceptosFrecuentes;
+    return base.slice(0, 5);
+  }, [conceptosFrecuentes, busqueda]);
+
+  // Resultados concretos (con fecha) que encajan con lo escrito, para poder
+  // saltar directamente a uno sin pasar por la lista de abajo — es lo que
+  // resuelve ir a "Capotinas del 18 de septiembre" de un toque.
+  const sugerenciasMovimientos = useMemo(() => (busqueda.length >= 2 ? candidatos.slice(0, 5) : []), [candidatos, busqueda]);
+
+  const hayAlgunaSugerencia = sugerenciasMovimientos.length > 0 || sugerenciasConceptos.length > 0;
+
+  const elegirSugerenciaConcepto = (label: string) => {
+    setTexto(label);
+    setSugerenciasAbiertas(false);
+  };
+
+  const elegirSugerenciaMovimiento = (r: Resultado) => {
+    setSugerenciasAbiertas(false);
+    inputRef.current?.blur();
+    irAResultado(r);
+  };
 
   const desglose = useMemo(() => {
     const map = new Map<string, { label: string; total: number; n: number; clase: 'ingreso' | 'gasto' }>();
@@ -476,7 +544,12 @@ export default function CajaBuscador({
               type="search"
               autoFocus
               value={texto}
-              onChange={(e) => setTexto(e.target.value)}
+              onChange={(e) => {
+                setTexto(e.target.value);
+                setSugerenciasAbiertas(true);
+              }}
+              onFocus={() => setSugerenciasAbiertas(true)}
+              onBlur={() => setTimeout(() => setSugerenciasAbiertas(false), 120)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') setTexto('');
               }}
@@ -502,6 +575,63 @@ export default function CajaBuscador({
                 </kbd>
               )}
             </div>
+
+            {sugerenciasAbiertas && hayAlgunaSugerencia && (
+              <div className="absolute z-20 left-0 right-0 top-[calc(100%+0.5rem)] bg-background-50 border border-background-200/70 rounded-xl shadow-lg overflow-hidden max-h-[60vh] overflow-y-auto">
+                {sugerenciasMovimientos.length > 0 && (
+                  <div className="py-1.5">
+                    <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">Ir directamente a</p>
+                    {sugerenciasMovimientos.map((r) => (
+                      <button
+                        key={r.key}
+                        type="button"
+                        onClick={() => elegirSugerenciaMovimiento(r)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-background-100"
+                      >
+                        <span
+                          className={`w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full text-xs ${
+                            r.clase === 'ingreso' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+                          }`}
+                        >
+                          <i className={r.icon}></i>
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm text-foreground-900 truncate">{r.titulo}</span>
+                          <span className="block text-xs text-foreground-400 truncate">{formatFechaLarga(r.fecha)}</span>
+                        </span>
+                        <span
+                          className={`text-xs font-semibold tabular-nums flex-shrink-0 ${
+                            r.clase === 'ingreso' ? 'text-emerald-700' : 'text-red-600'
+                          }`}
+                        >
+                          {r.clase === 'ingreso' ? '+' : '-'}
+                          {formatEUR(r.importe)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {sugerenciasConceptos.length > 0 && (
+                  <div className={`py-1.5 ${sugerenciasMovimientos.length > 0 ? 'border-t border-background-200/70' : ''}`}>
+                    <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">
+                      {busqueda ? 'Coincidencias' : 'Frecuentes'}
+                    </p>
+                    {sugerenciasConceptos.map((c) => (
+                      <button
+                        key={c.label}
+                        type="button"
+                        onClick={() => elegirSugerenciaConcepto(c.label)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-background-100"
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.clase === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                        <span className="flex-1 min-w-0 truncate text-sm text-foreground-800">{c.label}</span>
+                        <span className="text-xs text-foreground-400 tabular-nums flex-shrink-0">{formatEUR(c.total)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
@@ -529,11 +659,11 @@ export default function CajaBuscador({
                 ]}
               />
               <div className="relative flex-shrink-0">
-                <i className="ri-calendar-line absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground-400 pointer-events-none"></i>
+                <i className="ri-calendar-line absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-foreground-400 pointer-events-none"></i>
                 <select
                   value={periodo.startsWith('m:') ? periodo : ''}
                   onChange={(e) => e.target.value && setPeriodo(e.target.value as Periodo)}
-                  className={`h-10 pl-8 pr-3 rounded-xl border text-xs font-medium transition-colors ${
+                  className={`h-8 pl-7 pr-3 rounded-lg border text-xs font-medium transition-colors ${
                     periodo.startsWith('m:')
                       ? 'bg-primary-500 border-primary-500 text-background-50'
                       : 'bg-background-100 border-background-200/70 text-foreground-500'
@@ -599,33 +729,6 @@ export default function CajaBuscador({
             )}
           </div>
         </div>
-
-        {atajos.length > 0 && (
-          <div className="flex items-center gap-2 px-4 sm:px-5 py-3 border-t border-background-200/70 bg-background-100/50 overflow-x-auto scrollbar-hide">
-            <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wider text-foreground-400 mr-1">
-              <i className="ri-flashlight-line mr-0.5"></i>Rápido
-            </span>
-            {atajos.map((a) => {
-              const activo = busqueda === normalizar(a.label);
-              return (
-                <button
-                  key={a.label}
-                  type="button"
-                  onClick={() => setTexto(activo ? '' : a.label)}
-                  className={`flex-shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-xs border transition-colors ${
-                    activo
-                      ? 'bg-foreground-950 border-foreground-950 text-background-50'
-                      : 'bg-background-50 border-background-200/70 text-foreground-800 hover:border-foreground-300'
-                  }`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${a.clase === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-                  {a.label}
-                  <span className={`tabular-nums ${activo ? 'text-background-50/70' : 'text-foreground-400'}`}>{formatEUR(a.total)}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </section>
 
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-1">
@@ -763,6 +866,16 @@ export default function CajaBuscador({
           <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-medium bg-background-100 text-foreground-500">
             {resultados.length}
           </span>
+          {resultados.length > 0 && (
+            <button
+              type="button"
+              onClick={() => exportarCSV(resultados)}
+              className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium text-foreground-500 hover:bg-background-100 hover:text-foreground-950"
+            >
+              <i className="ri-download-2-line"></i>
+              Exportar CSV
+            </button>
+          )}
         </div>
         {resultados.length === 0 ? (
           <div className="flex flex-col items-center text-center px-4 py-10">
@@ -782,7 +895,7 @@ export default function CajaBuscador({
               <button
                 key={r.key}
                 type="button"
-                onClick={() => onIrADia(r.fecha)}
+                onClick={() => irAResultado(r)}
                 title="Ver el día en caja"
                 className="w-full text-left flex items-center gap-3 px-4 py-2.5 border-b border-background-200/50 last:border-b-0 hover:bg-background-100/60 transition-colors"
               >
