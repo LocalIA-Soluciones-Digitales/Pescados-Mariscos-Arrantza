@@ -8,7 +8,7 @@ import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import OrigenBadge from '@/components/base/OrigenBadge';
-import CajaBuscador, { type Clase, type ResaltarObjetivo } from './CajaBuscador';
+import CajaBuscador, { type ResaltarObjetivo } from './CajaBuscador';
 
 const ICONO_POR_TIPO: Record<CajaMovimientoTipo, string> = {
   ingreso_tarjeta: 'ri-bank-card-line',
@@ -511,7 +511,7 @@ function VistaDia({
   onEliminar,
   resaltar,
   onResaltadoConsumido,
-  onBuscarGastos,
+  onAbrirBuscador,
 }: {
   fecha: string;
   onFechaChange: (fecha: string) => void;
@@ -522,7 +522,7 @@ function VistaDia({
   onEliminar: (id: string) => Promise<boolean>;
   resaltar?: ResaltarObjetivo | null;
   onResaltadoConsumido?: () => void;
-  onBuscarGastos?: () => void;
+  onAbrirBuscador?: () => void;
 }) {
   const ingresosManuales = movimientosDelDia.filter((m) => esCajaIngreso(m.tipo));
   const gastos = movimientosDelDia.filter((m) => !esCajaIngreso(m.tipo));
@@ -656,6 +656,18 @@ function VistaDia({
 
   return (
     <div className="space-y-4">
+      {onAbrirBuscador && (
+        <button
+          type="button"
+          onClick={onAbrirBuscador}
+          className="w-full flex items-center gap-2.5 h-12 px-4 bg-background-50 border border-background-200/70 rounded-xl text-sm text-foreground-400 shadow-card hover:border-foreground-300/60 hover:text-foreground-500 transition-colors"
+        >
+          <i className="ri-search-line text-base flex-shrink-0"></i>
+          <span className="flex-1 text-left truncate">Buscar en ingresos y gastos…</span>
+          <i className="ri-arrow-right-s-line flex-shrink-0"></i>
+        </button>
+      )}
+
       <FormNuevoMovimiento fecha={fecha} onFechaChange={onFechaChange} onCrear={onCrear} />
 
       <div ref={filtrosScroll.ref} onWheel={filtrosScroll.onWheel} className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
@@ -803,17 +815,6 @@ function VistaDia({
             <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[10px] bg-red-50 text-red-500">
               {gastos.length}
             </span>
-            {onBuscarGastos && (
-              <button
-                type="button"
-                onClick={onBuscarGastos}
-                title="Buscar en gastos"
-                aria-label="Buscar en gastos"
-                className="ml-auto w-6 h-6 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-100 hover:text-foreground-950"
-              >
-                <i className="ri-search-line text-sm"></i>
-              </button>
-            )}
           </div>
           {gastos.length === 0 ? (
             <p className="text-xs text-foreground-400 px-3 pb-3">Sin gastos registrados.</p>
@@ -1026,7 +1027,6 @@ export default function CajaPanel() {
   const [mes, setMes] = useState(new Date().getMonth());
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [resaltar, setResaltar] = useState<ResaltarObjetivo | null>(null);
-  const [claseBuscador, setClaseBuscador] = useState<Clase | undefined>(undefined);
 
   const ingresosPorFecha = useMemo(() => {
     const map = new Map<string, number>();
@@ -1063,10 +1063,7 @@ export default function CajaPanel() {
     setVista('mes');
   };
 
-  const irABuscarGastos = () => {
-    setClaseBuscador('gasto');
-    setVista('buscar');
-  };
+  const irABuscar = () => setVista('buscar');
 
   const loading = loadingMovimientos || loadingBascula;
 
@@ -1086,10 +1083,7 @@ export default function CajaPanel() {
             <button
               key={v.value}
               type="button"
-              onClick={() => {
-                if (v.value === 'buscar') setClaseBuscador(undefined);
-                setVista(v.value);
-              }}
+              onClick={() => setVista(v.value)}
               className={`inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 vista === v.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
               }`}
@@ -1121,7 +1115,7 @@ export default function CajaPanel() {
             onEliminar={eliminarMovimiento}
             resaltar={resaltar}
             onResaltadoConsumido={() => setResaltar(null)}
-            onBuscarGastos={irABuscarGastos}
+            onAbrirBuscador={irABuscar}
           />
         ) : vista === 'mes' ? (
           <VistaMes
@@ -1135,7 +1129,7 @@ export default function CajaPanel() {
             onIrADia={irADia}
           />
         ) : vista === 'buscar' ? (
-          <CajaBuscador movimientos={movimientos} basculaPorTienda={porTienda} onIrADia={irADia} claseInicial={claseBuscador} />
+          <CajaBuscador movimientos={movimientos} basculaPorTienda={porTienda} onIrADia={irADia} />
         ) : (
           <VistaAnio
             anio={anio}

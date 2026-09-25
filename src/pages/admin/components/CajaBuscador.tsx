@@ -59,26 +59,80 @@ function mesISO(d: Date): string {
   return d.toLocaleDateString('sv-SE').slice(0, 7);
 }
 
+const VERDE_INGRESO = 'FF047857';
+const ROJO_GASTO = 'FFDC2626';
+
 // Exporta los resultados visibles (ya filtrados por texto/periodo/clase) a
-// un CSV descargable, para llevar la búsqueda a una hoja de cálculo — con
-// BOM para que Excel abra bien los acentos.
-function exportarCSV(resultados: Resultado[]) {
-  const cabecera = ['Fecha', 'Tipo', 'Concepto', 'Tienda', 'Importe'];
-  const filas = resultados.map((r) => [
-    r.fecha,
-    r.clase === 'ingreso' ? 'Ingreso' : 'Gasto',
-    r.titulo,
-    r.origen ? ORIGEN_LABELS[r.origen] : '',
-    (r.clase === 'gasto' ? -r.importe : r.importe).toFixed(2).replace('.', ','),
-  ]);
-  const csv = [cabecera, ...filas]
-    .map((fila) => fila.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';'))
-    .join('\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+// un .xlsx real — no un .csv de texto plano — con cabecera en negrita,
+// columnas con ancho legible, importes coloreados y una fila de totales,
+// para que sirva de verdad como hoja de cálculo. exceljs se carga con
+// import() dinámico para no engordar el bundle público: solo se descarga
+// al pulsar "Exportar", no en la carga inicial de la web.
+async function exportarExcel(resultados: Resultado[], periodo: Periodo) {
+  const ExcelJS = (await import('exceljs')).default;
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Pescados y Mariscos Arrantza';
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet('Movimientos');
+  sheet.columns = [{ width: 14 }, { width: 12 }, { width: 32 }, { width: 16 }, { width: 16 }];
+
+  const tituloRow = sheet.addRow([`Movimientos de caja — ${etiquetaPeriodo(periodo)}`]);
+  tituloRow.font = { bold: true, size: 13 };
+  sheet.mergeCells(tituloRow.number, 1, tituloRow.number, 5);
+
+  const subRow = sheet.addRow([`Generado el ${new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
+  subRow.font = { italic: true, color: { argb: 'FF6C7376' } };
+  sheet.mergeCells(subRow.number, 1, subRow.number, 5);
+
+  sheet.addRow([]);
+
+  const headerRow = sheet.addRow(['Fecha', 'Tipo', 'Concepto', 'Tienda', 'Importe (€)']);
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF182B38' } };
+  });
+  sheet.views = [{ state: 'frozen', ySplit: headerRow.number }];
+
+  let totalIngresos = 0;
+  let totalGastos = 0;
+  resultados.forEach((r) => {
+    if (r.clase === 'ingreso') totalIngresos += r.importe;
+    else totalGastos += r.importe;
+
+    const row = sheet.addRow([
+      new Date(`${r.fecha}T00:00:00`),
+      r.clase === 'ingreso' ? 'Ingreso' : 'Gasto',
+      r.titulo,
+      r.origen ? ORIGEN_LABELS[r.origen] : '',
+      r.clase === 'gasto' ? -r.importe : r.importe,
+    ]);
+    row.getCell(1).numFmt = 'dd/mm/yyyy';
+    const celdaImporte = row.getCell(5);
+    celdaImporte.numFmt = '#,##0.00 "€"';
+    celdaImporte.font = { color: { argb: r.clase === 'ingreso' ? VERDE_INGRESO : ROJO_GASTO } };
+  });
+
+  sheet.addRow([]);
+  const balance = totalIngresos - totalGastos;
+  const filas = [
+    { label: 'Total ingresos', valor: totalIngresos, color: VERDE_INGRESO },
+    { label: 'Total gastos', valor: -totalGastos, color: ROJO_GASTO },
+    { label: 'Balance', valor: balance, color: balance >= 0 ? VERDE_INGRESO : ROJO_GASTO },
+  ];
+  filas.forEach(({ label, valor, color }) => {
+    const row = sheet.addRow(['', '', '', label, valor]);
+    row.getCell(4).font = { bold: true };
+    row.getCell(5).font = { bold: true, color: { argb: color } };
+    row.getCell(5).numFmt = '#,##0.00 "€"';
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `caja-busqueda-${new Date().toLocaleDateString('sv-SE')}.csv`;
+  a.download = `caja-movimientos-${new Date().toLocaleDateString('sv-SE')}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -303,21 +357,31 @@ export default function CajaBuscador({
   movimientos,
   basculaPorTienda,
   onIrADia,
-  claseInicial,
 }: {
   movimientos: CajaMovimiento[];
   basculaPorTienda: BasculaVentaDiariaPorTienda[];
   onIrADia: (fecha: string, resaltar?: ResaltarObjetivo) => void;
-  claseInicial?: Clase;
 }) {
   const [texto, setTexto] = useState('');
   const [periodo, setPeriodo] = useState<Periodo>('mes');
-  const [clase, setClase] = useState<Clase>(claseInicial ?? 'todo');
+  const [clase, setClase] = useState<Clase>('todo');
   const [tienda, setTienda] = useState<FiltroTienda>('todas');
   const [fuente, setFuente] = useState<FiltroFuente>('todas');
   const [tipoGasto, setTipoGasto] = useState<FiltroTipoGasto>('todos');
   const [maxFilas, setMaxFilas] = useState(MAX_FILAS_INICIALES);
   const [sugerenciasAbiertas, setSugerenciasAbiertas] = useState(false);
+  const [exportando, setExportando] = useState(false);
+
+  const handleExportar = async () => {
+    setExportando(true);
+    try {
+      await exportarExcel(resultados, periodo);
+    } catch {
+      alert('No se pudo generar el Excel. Inténtalo de nuevo.');
+    } finally {
+      setExportando(false);
+    }
+  };
   const inputRef = useRef<HTMLInputElement>(null);
 
   const irAResultado = (r: Resultado) => {
@@ -829,11 +893,12 @@ export default function CajaBuscador({
           {resultados.length > 0 && (
             <button
               type="button"
-              onClick={() => exportarCSV(resultados)}
-              className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium text-foreground-500 hover:bg-background-100 hover:text-foreground-950"
+              onClick={handleExportar}
+              disabled={exportando}
+              className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium text-foreground-500 hover:bg-background-100 hover:text-foreground-950 disabled:opacity-50"
             >
-              <i className="ri-download-2-line"></i>
-              Exportar CSV
+              <i className={exportando ? 'ri-loader-4-line animate-spin' : 'ri-file-excel-2-line'}></i>
+              {exportando ? 'Generando…' : 'Exportar Excel'}
             </button>
           )}
         </div>
