@@ -437,27 +437,20 @@ export default function CajaBuscador({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [movimientos, rango]);
 
+  // Sugerencias por asunto (concepto), no por movimiento concreto: "cap"
+  // debe proponer "Capotinas", no ya un gasto de un día suelto — para ir
+  // directo a un movimiento en concreto está la lista de Movimientos de
+  // abajo, que ya salta a la fila exacta al pulsarla (ver irAResultado).
   const sugerenciasConceptos = useMemo(() => {
     const base = busqueda ? conceptosFrecuentes.filter((c) => normalizar(c.label).includes(busqueda)) : conceptosFrecuentes;
-    return base.slice(0, 5);
+    return base.slice(0, 6);
   }, [conceptosFrecuentes, busqueda]);
 
-  // Resultados concretos (con fecha) que encajan con lo escrito, para poder
-  // saltar directamente a uno sin pasar por la lista de abajo — es lo que
-  // resuelve ir a "Capotinas del 18 de septiembre" de un toque.
-  const sugerenciasMovimientos = useMemo(() => (busqueda.length >= 2 ? candidatos.slice(0, 5) : []), [candidatos, busqueda]);
-
-  const hayAlgunaSugerencia = sugerenciasMovimientos.length > 0 || sugerenciasConceptos.length > 0;
+  const hayAlgunaSugerencia = sugerenciasConceptos.length > 0;
 
   const elegirSugerenciaConcepto = (label: string) => {
     setTexto(label);
     setSugerenciasAbiertas(false);
-  };
-
-  const elegirSugerenciaMovimiento = (r: Resultado) => {
-    setSugerenciasAbiertas(false);
-    inputRef.current?.blur();
-    irAResultado(r);
   };
 
   const desglose = useMemo(() => {
@@ -578,58 +571,23 @@ export default function CajaBuscador({
 
             {sugerenciasAbiertas && hayAlgunaSugerencia && (
               <div className="absolute z-20 left-0 right-0 top-[calc(100%+0.5rem)] bg-background-50 border border-background-200/70 rounded-xl shadow-lg overflow-hidden max-h-[60vh] overflow-y-auto">
-                {sugerenciasMovimientos.length > 0 && (
-                  <div className="py-1.5">
-                    <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">Ir directamente a</p>
-                    {sugerenciasMovimientos.map((r) => (
-                      <button
-                        key={r.key}
-                        type="button"
-                        onClick={() => elegirSugerenciaMovimiento(r)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-background-100"
-                      >
-                        <span
-                          className={`w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full text-xs ${
-                            r.clase === 'ingreso' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
-                          }`}
-                        >
-                          <i className={r.icon}></i>
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm text-foreground-900 truncate">{r.titulo}</span>
-                          <span className="block text-xs text-foreground-400 truncate">{formatFechaLarga(r.fecha)}</span>
-                        </span>
-                        <span
-                          className={`text-xs font-semibold tabular-nums flex-shrink-0 ${
-                            r.clase === 'ingreso' ? 'text-emerald-700' : 'text-red-600'
-                          }`}
-                        >
-                          {r.clase === 'ingreso' ? '+' : '-'}
-                          {formatEUR(r.importe)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {sugerenciasConceptos.length > 0 && (
-                  <div className={`py-1.5 ${sugerenciasMovimientos.length > 0 ? 'border-t border-background-200/70' : ''}`}>
-                    <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">
-                      {busqueda ? 'Coincidencias' : 'Frecuentes'}
-                    </p>
-                    {sugerenciasConceptos.map((c) => (
-                      <button
-                        key={c.label}
-                        type="button"
-                        onClick={() => elegirSugerenciaConcepto(c.label)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-background-100"
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.clase === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-                        <span className="flex-1 min-w-0 truncate text-sm text-foreground-800">{c.label}</span>
-                        <span className="text-xs text-foreground-400 tabular-nums flex-shrink-0">{formatEUR(c.total)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div className="py-1.5">
+                  <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-foreground-400">
+                    {busqueda ? 'Coincidencias' : 'Frecuentes'}
+                  </p>
+                  {sugerenciasConceptos.map((c) => (
+                    <button
+                      key={c.label}
+                      type="button"
+                      onClick={() => elegirSugerenciaConcepto(c.label)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-background-100"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.clase === 'ingreso' ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                      <span className="flex-1 min-w-0 truncate text-sm text-foreground-800">{c.label}</span>
+                      <span className="text-xs text-foreground-400 tabular-nums flex-shrink-0">{formatEUR(c.total)}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
