@@ -84,7 +84,7 @@ function exportarCSV(resultados: Resultado[]) {
 }
 
 type Periodo = 'mes' | 'mes_pasado' | 'anio' | 'todo' | `m:${string}`;
-type Clase = 'todo' | 'ingreso' | 'gasto';
+export type Clase = 'todo' | 'ingreso' | 'gasto';
 type FiltroTienda = Origen | 'todas';
 type FiltroFuente = 'todas' | 'bascula' | 'manual';
 type FiltroTipoGasto = 'todos' | 'gasto_factura' | 'gasto_extra';
@@ -303,14 +303,16 @@ export default function CajaBuscador({
   movimientos,
   basculaPorTienda,
   onIrADia,
+  claseInicial,
 }: {
   movimientos: CajaMovimiento[];
   basculaPorTienda: BasculaVentaDiariaPorTienda[];
   onIrADia: (fecha: string, resaltar?: ResaltarObjetivo) => void;
+  claseInicial?: Clase;
 }) {
   const [texto, setTexto] = useState('');
   const [periodo, setPeriodo] = useState<Periodo>('mes');
-  const [clase, setClase] = useState<Clase>('todo');
+  const [clase, setClase] = useState<Clase>(claseInicial ?? 'todo');
   const [tienda, setTienda] = useState<FiltroTienda>('todas');
   const [fuente, setFuente] = useState<FiltroFuente>('todas');
   const [tipoGasto, setTipoGasto] = useState<FiltroTipoGasto>('todos');
