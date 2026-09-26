@@ -127,6 +127,7 @@ function buildMensajeConfirmacion(pedido: Pedido): string {
   lines.push('');
   lines.push('¡Gracias por su confianza! 🐟');
   lines.push('Pescados y Mariscos Arrantza');
+$L
 
   return lines.join('\n');
 }
@@ -145,6 +146,7 @@ function buildMensajeAgradecimiento(pedido: Pedido): string {
   lines.push('');
   lines.push('¡Hasta pronto! 🐟');
   lines.push('Pescados y Mariscos Arrantza');
+$L
 
   return lines.join('\n');
 }
