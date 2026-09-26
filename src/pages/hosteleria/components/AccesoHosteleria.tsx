@@ -6,6 +6,8 @@ import { useCartSound } from '@/hooks/useCartSound';
 import { type Producto, normalizeSearch } from '@/types/producto';
 import type { ProductoHosteleria } from '@/types/hosteleria';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
+import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
+import { formatCantidad, pasoCantidad } from '@/lib/unidadVenta';
 
 // El catálogo de hostelería no incluye los campos de gestión de stock (el
 // cliente no los necesita, y get_catalogo_hosteleria no los expone) —
@@ -28,9 +30,9 @@ function toProducto(p: ProductoHosteleria): Producto {
 }
 
 /* ── Catálogo privado tras iniciar sesión: lista de precios compacta ──
-   Los artículos vienen de la familia de la báscula de su tarifa (nombre y
-   precio tal cual los tiene programados el pescadero), así que no llevan
-   foto ni categoría: una lista tipo tarifa es más rápida de leer y de pedir. */
+   Los artículos vienen de la familia de la báscula de su tarifa, con la foto
+   del producto equivalente de la tienda en miniatura: una lista tipo tarifa
+   es más rápida de leer y de pedir que una rejilla de fichas. */
 function ArticuloHosteleriaRow({
   producto,
   kgEnCarrito,
@@ -49,6 +51,13 @@ function ArticuloHosteleriaRow({
 
   return (
     <li className="flex items-center gap-3 px-4 md:px-5 py-3 border-b border-background-200/60 last:border-b-0">
+      <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg overflow-hidden bg-background-100 flex-shrink-0">
+        {producto.imagen_url ? (
+          <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+        ) : (
+          <ProductImagePlaceholder className="[&>i]:text-base [&>span]:hidden" />
+        )}
+      </div>
       <p className="flex-1 min-w-0 text-sm md:text-[15px] font-medium text-foreground-900 truncate">{producto.nombre_es}</p>
       <p className="text-sm md:text-[15px] font-semibold text-foreground-950 tabular-nums whitespace-nowrap">
         {importe}
@@ -74,7 +83,7 @@ function ArticuloHosteleriaRow({
             >
               <i className="ri-subtract-line"></i>
             </button>
-            <span className="text-xs font-semibold text-foreground-950 tabular-nums">{kgEnCarrito} kg</span>
+            <span className="text-xs font-semibold text-foreground-950 tabular-nums">{formatCantidad(kgEnCarrito, producto.precio)}</span>
             <button
               type="button"
               onClick={onIncrease}
@@ -133,6 +142,8 @@ export function CatalogoHosteleriaView({
   }, [nombreNegocio]);
 
   const productosAdaptados = useMemo(() => productos.map(toProducto), [productos]);
+  // Paso de cantidad por artículo: 1 si va por unidad, 0,5 kg si no.
+  const pasoDe = (id: string) => pasoCantidad(productos.find((p) => p.id === id)?.precio ?? '');
 
   const iniciales = nombreNegocio
     .split(/\s+/)
@@ -207,13 +218,14 @@ export function CatalogoHosteleriaView({
                 producto={producto}
                 kgEnCarrito={item ? item.kg : null}
                 onAdd={() => {
-                  addItem(producto.id);
+                  addItem(producto.id, pasoCantidad(producto.precio));
                   playAddToCartSound();
                 }}
-                onIncrease={() => increaseKg(producto.id)}
+                onIncrease={() => increaseKg(producto.id, pasoCantidad(producto.precio))}
                 onDecrease={() => {
-                  if ((item?.kg ?? 0) <= 0.5) removeItem(producto.id);
-                  else decreaseKg(producto.id);
+                  const paso = pasoCantidad(producto.precio);
+                  if ((item?.kg ?? 0) <= paso) removeItem(producto.id);
+                  else decreaseKg(producto.id, paso);
                 }}
               />
             );
@@ -242,9 +254,9 @@ export function CatalogoHosteleriaView({
         productos={productosAdaptados}
         items={cartItems}
         customer={customer}
-        onIncrease={increaseKg}
-        onDecrease={decreaseKg}
-        onSetKg={setKg}
+        onIncrease={(id) => increaseKg(id, pasoDe(id))}
+        onDecrease={(id) => decreaseKg(id, pasoDe(id))}
+        onSetKg={(id, kg) => setKg(id, kg, pasoDe(id))}
         onRemove={removeItem}
         onClearCart={clearCart}
         onCustomerChange={updateCustomer}

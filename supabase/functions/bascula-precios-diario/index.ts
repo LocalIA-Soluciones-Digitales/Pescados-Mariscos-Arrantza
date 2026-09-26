@@ -28,6 +28,9 @@
 //      La categoría web sigue a la familia (1 Pescado, 2 Pescado de carta,
 //      3 Marisco, 4 Congelado, 5 Varios); si un artículo pasa a otra familia
 //      (Navidad, hostelería) o desaparece de la báscula, se oculta de la tienda.
+//      Las tarifas de hostelería y las campañas de reserva enlazadas a una
+//      familia se mantienen como lista cerrada: el artículo que entra en la
+//      familia se da de alta (sin foto) y el que sale o se borra se oculta.
 //   4. Guarda la foto nueva y manda un push al pescadero con el resumen.
 //
 // La primera ejecución solo guarda la foto de partida (no hay con qué
@@ -213,6 +216,42 @@ function compararCatalogos(anterior: Map<string, Articulo>, actual: Map<string, 
   return cambios;
 }
 
+interface FilaLista {
+  id: string;
+  codigo_bascula: string | null;
+  activo: boolean;
+}
+
+// Qué dar de alta, reactivar, ocultar o renombrar en una lista cerrada
+// enlazada a una familia de la báscula (tarifa de hostelería, campaña de
+// reservas). Solo se actúa sobre los códigos que han cambiado hoy en la
+// báscula, para no pisar lo que el pescadero haya activado u ocultado a mano.
+function cambiosLista(familia: string, filas: FilaLista[], actual: Map<string, Articulo>, cambios: Cambio[]) {
+  const porCodigo = new Map(filas.filter((x) => x.codigo_bascula).map((x) => [x.codigo_bascula as string, x]));
+  const altas: Articulo[] = [];
+  const reactivar: string[] = [];
+  const ocultar: string[] = [];
+  const renombrar: { id: string; articulo: Articulo }[] = [];
+  const tocados = new Set(cambios.filter((c) => c.tipo !== 'precio' && c.tipo !== 'unidades').map((c) => c.codigo));
+  const renombrados = new Set(cambios.filter((c) => c.tipo === 'renombrado').map((c) => c.codigo));
+  for (const codigo of tocados) {
+    const a = actual.get(codigo);
+    const fila = porCodigo.get(codigo);
+    const enFamilia = !!a && a.familia === familia;
+    if (enFamilia && !fila) altas.push(a!);
+    else if (enFamilia && fila && !fila.activo) reactivar.push(fila.id);
+    else if (!enFamilia && fila && fila.activo) ocultar.push(fila.id);
+    if (enFamilia && fila && renombrados.has(codigo)) renombrar.push({ id: fila.id, articulo: a! });
+  }
+  return { altas, reactivar, ocultar, renombrar };
+}
+
+// "LUBINA menu" → "Lubina (menú)"; el pescadero puede afinarlo luego en el panel.
+function nombreArticulo(nombre: string): string {
+  const t = nombre.toLowerCase().replace(/\bmenu\b/, '(menú)').replace(/\s+/g, ' ').trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 const euros = (n: number) => `${n.toFixed(2).replace('.', ',')}€`;
 
 // Texto corto para la notificación: primero lo que cambia de producto
@@ -395,7 +434,7 @@ Deno.serve(async (req: Request) => {
   // el código sigue en la misma familia de la que se importó la tarifa.
   const { data: listas, error: errListas } = await supabase
     .from('hosteleria_listas_precio')
-    .select('id, bascula_familia, hosteleria_articulos (id, codigo_bascula, nombre, precio, unidad)')
+    .select('id, bascula_familia, hosteleria_articulos (id, codigo_bascula, nombre, precio, unidad, activo)')
     .eq('cliente_id', clienteId)
     .eq('bascula_origen', origen);
   if (errListas) return json({ error: errListas.message }, 500);
@@ -411,12 +450,16 @@ Deno.serve(async (req: Request) => {
       }
     }
   }
+  const listasHosteleria = (listas ?? []).map((l) => ({
+    id: l.id as string,
+    ...cambiosLista(l.bascula_familia as string, (l.hosteleria_articulos ?? []) as FilaLista[], actual, cambios),
+  }));
 
   // Precios de campañas de reserva (Navidad…): artículos de reservas_articulos
   // de las campañas enlazadas a esta báscula, mismo criterio que hostelería.
   const { data: campanas, error: errCampanas } = await supabase
     .from('reservas_eventos')
-    .select('id, bascula_familia, reservas_articulos (id, codigo_bascula, nombre_es, precio, unidad)')
+    .select('id, cliente_id, bascula_familia, reservas_articulos (id, codigo_bascula, nombre_es, precio, unidad, activo)')
     .eq('cliente_id', clienteId)
     .eq('bascula_origen', origen);
   if (errCampanas) return json({ error: errCampanas.message }, 500);
@@ -432,12 +475,19 @@ Deno.serve(async (req: Request) => {
       }
     }
   }
+  const listasReservas = (campanas ?? []).map((e) => ({
+    id: e.id as string,
+    cliente_id: e.cliente_id as string,
+    ...cambiosLista(e.bascula_familia as string, (e.reservas_articulos ?? []) as FilaLista[], actual, cambios),
+  }));
 
   const resultado = {
     origen, fecha, primeraVez, simulado: simular,
     articulos: actual.size,
     cambios: cambios.map((c) => ({ codigo: c.codigo, tipo: c.tipo, antes: c.antes, despues: c.despues })),
     preciosProductos, categoriasProductos, preciosHosteleria, preciosReservas, sinActualizar,
+    listasHosteleria: listasHosteleria.map((l) => ({ id: l.id, altas: l.altas.map((a) => a.codigo), reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length })),
+    listasReservas: listasReservas.map((l) => ({ id: l.id, altas: l.altas.map((a) => a.codigo), reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length })),
   };
   if (simular) return json(resultado);
 
@@ -458,6 +508,34 @@ Deno.serve(async (req: Request) => {
   for (const r of preciosReservas) {
     const { error } = await supabase.from('reservas_articulos').update({ precio: r.despues, unidad: r.unidad }).eq('id', r.id);
     if (error) return json({ error: `Actualizando ${r.nombre} (reservas): ${error.message}` }, 500);
+  }
+
+  const unidadDe = (a: Articulo) => (a.unidades === 'un' ? 'un' : 'kg');
+  for (const l of listasHosteleria) {
+    if (l.altas.length > 0) {
+      const { error } = await supabase.from('hosteleria_articulos').insert(l.altas.map((a) => ({
+        lista_id: l.id, codigo_bascula: a.codigo, nombre: nombreArticulo(a.nombre), precio: a.precio, unidad: unidadDe(a), orden: Number(a.codigo) || 0,
+      })));
+      if (error) return json({ error: `Alta en hostelería: ${error.message}` }, 500);
+    }
+    if (l.reactivar.length > 0) await supabase.from('hosteleria_articulos').update({ activo: true }).in('id', l.reactivar);
+    if (l.ocultar.length > 0) await supabase.from('hosteleria_articulos').update({ activo: false }).in('id', l.ocultar);
+    for (const x of l.renombrar) {
+      await supabase.from('hosteleria_articulos').update({ nombre: nombreArticulo(x.articulo.nombre), precio: x.articulo.precio, unidad: unidadDe(x.articulo), imagen_url: null }).eq('id', x.id);
+    }
+  }
+  for (const l of listasReservas) {
+    if (l.altas.length > 0) {
+      const { error } = await supabase.from('reservas_articulos').insert(l.altas.map((a) => ({
+        evento_id: l.id, cliente_id: l.cliente_id, codigo_bascula: a.codigo, nombre_es: nombreArticulo(a.nombre), precio: a.precio, unidad: unidadDe(a), orden: Number(a.codigo) || 0,
+      })));
+      if (error) return json({ error: `Alta en reservas: ${error.message}` }, 500);
+    }
+    if (l.reactivar.length > 0) await supabase.from('reservas_articulos').update({ activo: true }).in('id', l.reactivar);
+    if (l.ocultar.length > 0) await supabase.from('reservas_articulos').update({ activo: false }).in('id', l.ocultar);
+    for (const x of l.renombrar) {
+      await supabase.from('reservas_articulos').update({ nombre_es: nombreArticulo(x.articulo.nombre), nombre_eu: null, precio: x.articulo.precio, unidad: unidadDe(x.articulo), imagen_url: null }).eq('id', x.id);
+    }
   }
 
   if (cambios.length > 0) {

@@ -2229,6 +2229,12 @@ create table if not exists public.hosteleria_articulos (
   unique (lista_id, codigo_bascula)
 );
 
+-- Foto en miniatura en la lista del cliente (la del producto equivalente de
+-- la tienda). Las tarifas Orotela / Artebakarra / Bares-Restaurantes son las
+-- familias 7, 8 y 9 de pescaderia_1; bascula-precios-diario mantiene sus
+-- precios y altas/bajas.
+alter table public.hosteleria_articulos add column if not exists imagen_url text;
+
 drop trigger if exists trg_hosteleria_articulos_updated_at on public.hosteleria_articulos;
 create trigger trg_hosteleria_articulos_updated_at
   before update on public.hosteleria_articulos
@@ -2445,7 +2451,7 @@ begin
     select a.id, a.nombre, null::text, null::text, null::text,
            null::text, null::text,
            replace(to_char(a.precio, 'FM999990.00'), '.', ',') || '€/' || case when a.unidad = 'un' then 'ud' else 'kg' end,
-           'pescado'::text, null::text, null::text, 'disponible'::text, true, a.orden, false,
+           'pescado'::text, null::text, a.imagen_url, 'disponible'::text, true, a.orden, false,
            a.precio, a.unidad
     from public.hosteleria_articulos a
     where a.lista_id = v_lista_id and a.activo
