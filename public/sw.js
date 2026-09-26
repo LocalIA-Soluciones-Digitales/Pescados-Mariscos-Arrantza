@@ -51,6 +51,11 @@ self.addEventListener('push', (event) => {
       icon: '/logo-192.png',
       badge: '/logo-192.png',
       tag: data.tag,
+      // Que suene y vibre (si el móvil no está en silencio): nunca aviso
+      // silencioso, y si llega otro con la misma etiqueta vuelve a sonar.
+      silent: false,
+      renotify: Boolean(data.tag),
+      vibrate: [200, 100, 200, 100, 400],
       data: { url: data.url || '/admin' },
     }),
   );
