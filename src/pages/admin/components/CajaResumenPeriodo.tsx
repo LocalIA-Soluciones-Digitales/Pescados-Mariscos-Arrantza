@@ -150,7 +150,7 @@ function Destacado({ icon, iconClass, titulo, valor, detalle, onClick }: { icon:
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      className="text-left flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-background-50 border border-background-200/70 rounded-2xl px-3 sm:px-4 py-3 shadow-card enabled:hover:bg-background-100/60 transition-colors min-w-0"
+      className="text-left flex items-center gap-3 bg-background-50 border border-background-200/70 rounded-2xl px-4 py-2.5 sm:py-3 shadow-card enabled:hover:bg-background-100/60 transition-colors min-w-0"
     >
       <span className={`w-8 h-8 sm:w-9 sm:h-9 flex-shrink-0 flex items-center justify-center rounded-full ${iconClass}`}>
         <i className={icon}></i>
@@ -182,18 +182,56 @@ function ComparativaCard({ actual, anterior, anteriorLabel, comparadoCon }: { ac
     { label: 'Ticket medio', a: tm(actual), b: tm(anterior), decimales: true },
   ];
   const fmt = (n: number, entero?: boolean) => (entero ? Math.round(n).toLocaleString('es-ES') : formatEUR(n));
+  const anteriorCap = anteriorLabel.charAt(0).toUpperCase() + anteriorLabel.slice(1);
   return (
     <div className="h-full bg-background-50 border border-background-200/70 rounded-2xl shadow-card overflow-hidden">
       <div className="px-4 pt-3 pb-2">
         <p className="text-sm font-medium text-foreground-950">Comparativa</p>
         <p className="text-[11px] text-foreground-400">{comparadoCon.replace(/^vs\. /, 'Frente a ')}</p>
       </div>
-      <table className="w-full text-xs">
+      {/* Móvil: una fila por indicador, "ahora" grande a la derecha y la
+          referencia + diferencia debajo, para que nada se salga de la pantalla. */}
+      <div className="sm:hidden divide-y divide-background-200/50 border-t border-background-200/50">
+        {filas.map((f) => {
+          const diff = f.a - f.b;
+          const v = variacion(f.a, f.b);
+          return (
+            <div key={f.label} className="px-4 py-2.5 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className={`flex items-center gap-1.5 text-sm ${f.fuerte ? 'font-medium text-foreground-950' : 'text-foreground-600'}`}>
+                  {f.dot && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${f.dot}`}></span>}
+                  {f.label}
+                </p>
+                <p className="text-[11px] text-foreground-400 tabular-nums truncate">
+                  {anteriorCap}: {fmt(f.b, f.entero)}
+                </p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className={`text-sm tabular-nums ${f.fuerte ? 'font-semibold text-foreground-950' : 'text-foreground-800'}`}>{fmt(f.a, f.entero)}</p>
+                <p className="flex items-center justify-end gap-1.5 mt-0.5">
+                  <span className="text-[11px] tabular-nums text-foreground-500">
+                    {diff >= 0 ? '+' : '−'}
+                    {f.entero ? Math.abs(Math.round(diff)).toLocaleString('es-ES') : f.decimales ? formatEUR(Math.abs(diff)) : formatEURRedondo(Math.abs(diff))}
+                  </span>
+                  {v !== null && (
+                    <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium tabular-nums ${colorDelta(v, f.subirEsBueno ?? true)}`}>
+                      {v >= 0 ? '+' : ''}
+                      {formatPct(v)}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <table className="hidden sm:table w-full text-xs">
         <thead>
           <tr className="text-[10px] uppercase tracking-wide text-foreground-400 bg-background-100/50">
             <th className="pl-4 pr-2 py-1.5 text-left font-medium"></th>
             <th className="px-2 py-1.5 text-right font-medium">Ahora</th>
-            <th className="px-2 py-1.5 text-right font-medium capitalize">{anteriorLabel}</th>
+            <th className="px-2 py-1.5 text-right font-medium">{anteriorCap}</th>
             <th className="pl-2 pr-4 py-1.5 text-right font-medium">Diferencia</th>
           </tr>
         </thead>
@@ -274,17 +312,21 @@ function PatronSemanalCard({ patron, completo }: { patron: PatronDia[]; completo
         <span className="w-14 text-right">Tickets</span>
         <span className="w-16 text-right">Ticket m.</span>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-3 sm:space-y-1.5">
         {patron.map((d, i) => {
           const normal = esDiaNormal(d, max);
           const pct = mediaGeneral > 0 ? ((d.media - mediaGeneral) / mediaGeneral) * 100 : 0;
           return (
-            <div key={d.label} className="flex items-center gap-3 text-xs">
-              <span className={`w-20 sm:w-24 flex-shrink-0 ${i === hoyIdx ? 'font-semibold text-primary-500' : 'text-foreground-600'}`}>
+            <div key={d.label} className="grid grid-cols-[1fr_auto_auto] sm:flex items-center gap-x-3 gap-y-1 text-xs">
+              <span className={`sm:w-24 flex-shrink-0 ${i === hoyIdx ? 'font-semibold text-primary-500' : 'text-foreground-600'}`}>
                 {d.label}
                 {i === hoyIdx && <span className="ml-1 text-[10px] font-normal">(hoy)</span>}
               </span>
-              <div className={`flex-1 h-5 rounded-md bg-background-100 overflow-hidden flex gap-[2px] ${d === mejor ? 'ring-2 ring-emerald-500/40' : ''}`}>
+              <div
+                className={`order-last col-span-3 sm:order-none sm:col-span-1 flex-1 h-2.5 sm:h-5 rounded-full sm:rounded-md bg-background-100 overflow-hidden flex gap-[2px] ${
+                  d === mejor ? 'ring-2 ring-emerald-500/40' : ''
+                }`}
+              >
                 {d.dias > 0 &&
                   ORIGENES.map((o) => {
                     const v = d.porTienda[o] ?? 0;
@@ -293,18 +335,18 @@ function PatronSemanalCard({ patron, completo }: { patron: PatronDia[]; completo
                       <div
                         key={o}
                         title={`${ORIGEN_LABELS[o]}: ${formatEURRedondo(v)}`}
-                        className={`h-full first:rounded-l-md last:rounded-r-md ${ORIGEN_COLORS[o].dot} ${normal ? '' : 'opacity-40'}`}
+                        className={`h-full first:rounded-l-full last:rounded-r-full sm:first:rounded-l-md sm:last:rounded-r-md ${ORIGEN_COLORS[o].dot} ${normal ? '' : 'opacity-40'}`}
                         style={{ width: `${(v / max) * 100}%` }}
                       ></div>
                     );
                   })}
               </div>
               {d.dias === 0 ? (
-                <span className="w-32 sm:w-[17.5rem] text-right text-[11px] text-foreground-300">Cerrado</span>
+                <span className="col-span-2 sm:w-[17.5rem] text-right text-[11px] text-foreground-300">Cerrado</span>
               ) : (
                 <>
-                  <span className={`w-20 text-right tabular-nums font-medium ${normal ? 'text-foreground-950' : 'text-foreground-400'}`}>{formatEURRedondo(d.media)}</span>
-                  <span className={`w-12 text-right tabular-nums text-[11px] ${!normal ? 'text-foreground-300' : pct >= 0 ? 'text-emerald-700' : 'text-foreground-400'}`}>
+                  <span className={`sm:w-20 text-right tabular-nums font-medium ${normal ? 'text-foreground-950' : 'text-foreground-400'}`}>{formatEURRedondo(d.media)}</span>
+                  <span className={`w-14 sm:w-12 text-right tabular-nums text-[11px] ${!normal ? 'text-foreground-300' : pct >= 0 ? 'text-emerald-700' : 'text-foreground-400'}`}>
                     {normal ? `${pct >= 0 ? '+' : ''}${formatPct(pct)}` : 'puntual'}
                   </span>
                   <span className="hidden sm:inline w-14 text-right tabular-nums text-foreground-600">{Math.round(d.tickets)}</span>
@@ -331,8 +373,19 @@ function PatronSemanalCard({ patron, completo }: { patron: PatronDia[]; completo
     mejor && peor && mejor !== peor ? (
       <>
         Los <span className="font-medium text-foreground-950">{plural(mejor.label)}</span> se vende un{' '}
-        <span className="font-medium text-emerald-700">{formatPct(((mejor.media - peor.media) / peor.media) * 100)} más</span> que los {plural(peor.label)} (unos{' '}
-        {Math.round(mejor.tickets)} tickets frente a {Math.round(peor.tickets)}).
+        <span className="font-medium text-emerald-700">{formatPct(((mejor.media - peor.media) / peor.media) * 100)} más</span> que los {plural(peor.label)}
+        {mejor.tickets > peor.tickets * 1.1 ? (
+          <>
+            {' '}
+            (unos {Math.round(mejor.tickets)} tickets frente a {Math.round(peor.tickets)}).
+          </>
+        ) : mejor.tickets > 0 && peor.tickets > 0 ? (
+          <>
+            , sobre todo por un ticket medio más alto ({formatEURRedondo(mejor.media / mejor.tickets)} frente a {formatEURRedondo(peor.media / peor.tickets)}).
+          </>
+        ) : (
+          '.'
+        )}
       </>
     ) : null;
 
@@ -757,7 +810,7 @@ export default function CajaResumenPeriodo({
           <CajaGraficoPeriodo filas={filas} filasAnteriores={filasAnteriores} anteriorLabel={anteriorLabel} unidad={unidad} onFilaClick={onFilaClick} />
 
           {mejor && (
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
               <Destacado
                 icon="ri-trophy-line"
                 iconClass="bg-emerald-50 text-emerald-600"
@@ -923,11 +976,10 @@ export default function CajaResumenPeriodo({
                     }`}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-2 text-sm text-foreground-950">
-                        {f.label}
-                        {f.anterior && !f.futuro && f.totales.ingresos > 0 && <DeltaMini actual={f.totales.ingresos} anterior={f.anterior.totales.ingresos} />}
+                      <p className="flex items-center gap-2 text-sm font-medium text-foreground-950">
+                        <span className="truncate">{f.label}</span>
                         {f.esActual && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-primary-500 text-background-50">
+                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-primary-500 text-background-50">
                             {unidad === 'día' ? 'Hoy' : 'Actual'}
                           </span>
                         )}
@@ -946,16 +998,31 @@ export default function CajaResumenPeriodo({
                         )}
                       </p>
                     </div>
-                    <span className={`text-sm font-semibold tabular-nums ${Math.abs(n) < 0.005 ? 'text-foreground-300' : n >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                      {Math.abs(n) < 0.005 ? '—' : formatEUR(n)}
-                    </span>
-                    {!f.futuro && <i className="ri-arrow-right-s-line text-foreground-300"></i>}
+                    <div className="flex-shrink-0 text-right">
+                      <p className={`text-sm font-semibold tabular-nums ${Math.abs(n) < 0.005 ? 'text-foreground-300' : n >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                        {Math.abs(n) < 0.005 ? '—' : formatEUR(n)}
+                      </p>
+                      {f.anterior && !f.futuro && f.totales.ingresos > 0 && f.anterior.totales.ingresos > 0 && (
+                        <p className="flex items-center justify-end gap-1 mt-0.5 text-[10px] text-foreground-400">
+                          {comparaFilaLabel}
+                          <DeltaMini actual={f.totales.ingresos} anterior={f.anterior.totales.ingresos} />
+                        </p>
+                      )}
+                    </div>
+                    {!f.futuro && <i className="ri-arrow-right-s-line text-foreground-300 flex-shrink-0"></i>}
                   </button>
                 );
               })}
               <div className="px-4 py-3 flex items-center gap-3 bg-background-100/50">
-                <p className="flex-1 text-sm font-semibold text-foreground-950">{totalLabel}</p>
-                <span className={`text-sm font-semibold tabular-nums ${neto >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatEUR(neto)}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground-950">{totalLabel}</p>
+                  <p className="text-[11px] tabular-nums mt-0.5">
+                    <span className="text-emerald-700">+{formatEUR(total.totales.ingresos)}</span>
+                    <span className="text-foreground-400"> · </span>
+                    <span className="text-red-600">−{formatEUR(gastos)}</span>
+                  </p>
+                </div>
+                <span className={`text-base font-semibold tabular-nums ${neto >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatEUR(neto)}</span>
               </div>
             </div>
           </div>
