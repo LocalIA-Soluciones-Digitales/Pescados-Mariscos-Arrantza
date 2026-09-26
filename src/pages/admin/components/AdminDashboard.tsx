@@ -14,6 +14,7 @@ import SolicitudesStockPanel from './SolicitudesStockPanel';
 import HoyPanel from './HoyPanel';
 import ClientesPanel from './ClientesPanel';
 import HosteleriaPanel from './HosteleriaPanel';
+import EtiquetasPanel from './EtiquetasPanel';
 import {
   HOY_INFO_ITEMS,
   VENTAS_INFO_ITEMS,
@@ -25,6 +26,7 @@ import {
   CLIENTES_INFO_ITEMS,
   RESENAS_INFO_ITEMS,
   HOSTELERIA_INFO_ITEMS,
+  ETIQUETAS_INFO_ITEMS,
 } from './infoItems';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
@@ -40,7 +42,7 @@ import PushToggle from './PushToggle';
 import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
 
-type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes' | 'hosteleria';
+type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes' | 'hosteleria' | 'etiquetas';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -193,6 +195,7 @@ const TABS: { value: Tab; label: string; info: { icon: string; text: string }[] 
   { value: 'solicitudes', label: 'Solicitudes', info: SOLICITUDES_INFO_ITEMS },
   { value: 'productos', label: 'Productos', info: PRODUCTOS_INFO_ITEMS },
   { value: 'stock', label: 'Stock', info: STOCK_INFO_ITEMS },
+  { value: 'etiquetas', label: 'Etiquetas', info: ETIQUETAS_INFO_ITEMS },
   { value: 'clientes', label: 'Clientes', info: CLIENTES_INFO_ITEMS },
   { value: 'resenas', label: 'Reseñas', info: RESENAS_INFO_ITEMS },
 ];
@@ -457,6 +460,8 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         />
       ) : tab === 'stock' ? (
         <StockPanel productos={productos} loading={loading} onPatch={patchLocal} />
+      ) : tab === 'etiquetas' ? (
+        <EtiquetasPanel productos={productos} />
       ) : tab === 'hosteleria' ? (
         <HosteleriaPanel />
       ) : (
