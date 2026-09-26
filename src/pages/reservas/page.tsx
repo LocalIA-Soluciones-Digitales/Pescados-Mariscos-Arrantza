@@ -412,16 +412,54 @@ export default function Reservas() {
         {loading ? (
           <div className="container-wide px-4 md:px-6 lg:px-12 py-24 text-center text-sm text-foreground-400">Cargando…</div>
         ) : !evento ? (
-          <div className="container-wide px-4 md:px-6 lg:px-12 py-24 max-w-lg mx-auto text-center">
-            <span className="w-16 h-16 flex items-center justify-center mx-auto mb-5 rounded-full bg-background-100 text-foreground-400 text-2xl">
-              <i className="ri-calendar-event-line"></i>
-            </span>
-            <h1 className="text-xl md:text-2xl font-heading font-semibold text-foreground-950 mb-2">{t('reservas.no_active_title')}</h1>
-            <p className="text-sm text-foreground-500 leading-relaxed mb-6">{t('reservas.no_active_subtitle')}</p>
-            <Link to="/productos" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary-500 text-background-50 text-sm font-medium hover:bg-primary-600">
-              {t('reservas.no_active_cta')}
-              <i className="ri-arrow-right-line"></i>
-            </Link>
+          <div className="container-wide px-4 md:px-6 lg:px-12 py-16 md:py-24">
+            <div className="max-w-xl mx-auto text-center">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 mb-5 rounded-full border border-background-200 bg-background-100/60 text-[11px] font-medium uppercase tracking-[0.14em] text-foreground-500">
+                <i className="ri-calendar-event-line text-sm"></i>
+                {t('reservas.no_active_eyebrow')}
+              </span>
+              <h1 className="text-2xl md:text-4xl font-heading font-semibold text-foreground-950 leading-tight text-balance mb-3">{t('reservas.no_active_title')}</h1>
+              <p className="text-sm md:text-base text-foreground-500 leading-relaxed text-pretty mb-8">{t('reservas.no_active_subtitle')}</p>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
+                <Link to="/productos" className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary-500 text-background-50 text-sm font-medium hover:bg-primary-600 transition-colors">
+                  {t('reservas.no_active_cta')}
+                  <i className="ri-arrow-right-line"></i>
+                </Link>
+                <a
+                  href={`https://api.whatsapp.com/send?phone=34619609888&text=${encodeURIComponent(t('reservas.no_active_whatsapp_msg'))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-background-200 bg-white text-foreground-700 text-sm font-medium hover:border-background-300 hover:bg-background-100/60 transition-colors"
+                >
+                  <i className="ri-whatsapp-line text-base text-emerald-600"></i>
+                  {t('reservas.no_active_whatsapp')}
+                </a>
+              </div>
+            </div>
+
+            <section className="max-w-4xl mx-auto mt-16 md:mt-20" aria-labelledby="reservas-como-funciona">
+              <h2 id="reservas-como-funciona" className="text-center text-xs font-medium uppercase tracking-[0.14em] text-foreground-400 mb-6">
+                {t('reservas.no_active_how_title')}
+              </h2>
+              <ol className="grid gap-3 sm:grid-cols-3">
+                {[
+                  { icon: 'ri-megaphone-line', n: 1 },
+                  { icon: 'ri-scales-3-line', n: 2 },
+                  { icon: 'ri-shopping-bag-3-line', n: 3 },
+                ].map(({ icon, n }) => (
+                  <li key={n} className="rounded-2xl border border-background-200 bg-white p-5 text-left">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="w-9 h-9 flex items-center justify-center rounded-full bg-primary-50 text-primary-600 text-lg">
+                        <i className={icon}></i>
+                      </span>
+                      <span className="text-xs font-medium text-foreground-400 tabular-nums">0{n}</span>
+                    </div>
+                    <h3 className="text-sm font-semibold text-foreground-900 mb-1">{t(`reservas.no_active_step${n}_title`)}</h3>
+                    <p className="text-sm text-foreground-500 leading-relaxed">{t(`reservas.no_active_step${n}_body`)}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
           </div>
         ) : success ? (
           <div className="container-wide px-4 md:px-6 lg:px-12 py-24 max-w-lg mx-auto text-center">
