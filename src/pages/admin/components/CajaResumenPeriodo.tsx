@@ -1,20 +1,16 @@
 import { useMemo, useState } from 'react';
-import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS } from '@/types/origen';
+import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
+import CajaGraficoPeriodo from './CajaGraficoPeriodo';
 import { agregar, totalGastos, totalNeto, type Agregado, type FilaPeriodo, type Totales } from './cajaTotales';
 
 // Resumen compartido por las vistas Semana, Mes y Año de Contabilidad:
 // cabecera con navegación entre periodos, indicadores con comparativa
-// frente al periodo anterior, gráfico de barras (ingresos por tienda
-// apilados junto a los gastos), días/meses destacados y tabla de detalle
-// exportable a Excel. Cada vista solo decide qué filas forman el periodo.
+// frente al periodo anterior, previsión de cierre, gráfico (ver
+// CajaGraficoPeriodo), días/meses destacados y tabla de detalle
+// ordenable y exportable a Excel. Cada vista solo decide qué filas forman el periodo.
 
 function formatEUR(n: number): string {
   return n.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
-}
-
-function formatEURCompacto(n: number): string {
-  if (Math.abs(n) >= 1000) return `${(n / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })}k €`;
-  return `${Math.round(n)} €`;
 }
 
 function formatPct(n: number): string {
@@ -29,7 +25,7 @@ function variacion(actual: number, anterior: number): number | null {
 }
 
 function DeltaChip({ valor, subirEsBueno, comparadoCon }: { valor: number | null; subirEsBueno: boolean; comparadoCon: string }) {
-  if (valor === null) return <p className="text-[11px] text-foreground-400 mt-1">Sin datos para comparar</p>;
+  if (valor === null) return null;
   const sube = valor >= 0;
   const bueno = Math.abs(valor) < 0.5 ? null : sube === subirEsBueno;
   const color = bueno === null ? 'bg-background-100 text-foreground-500' : bueno ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600';
@@ -106,143 +102,6 @@ function RepartoTiendas({ totales }: { totales: Totales }) {
   );
 }
 
-// Gráfico de barras: por cada día/mes, ingresos apilados por tienda y, al
-// lado, los gastos. Una sola escala en euros. Al pasar por encima se ve el
-// desglose; al pulsar se entra en ese día/mes.
-function GraficoPeriodo({
-  filas,
-  unidad,
-  onFilaClick,
-}: {
-  filas: FilaPeriodo[];
-  unidad: 'día' | 'mes';
-  onFilaClick: (key: string) => void;
-}) {
-  const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(1, ...filas.map((f) => Math.max(f.totales.ingresos, totalGastos(f.totales))));
-  const conVenta = filas.filter((f) => !f.futuro && f.totales.ingresos > 0);
-  const media = conVenta.length ? conVenta.reduce((n, f) => n + f.totales.ingresos, 0) / conVenta.length : 0;
-  const marcas = [max, max / 2];
-  const densa = filas.length > 12;
-  const f = hover !== null ? filas[hover] : null;
-
-  return (
-    <div className="bg-background-50 border border-background-200/70 rounded-2xl p-4 shadow-card">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4">
-        <p className="w-full sm:w-auto text-sm font-medium text-foreground-950 sm:mr-auto">Ingresos y gastos por {unidad}</p>
-        {ORIGENES.map((o) => (
-          <span key={o} className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500">
-            <span className={`w-2.5 h-2.5 rounded-sm ${ORIGEN_COLORS[o].dot}`}></span>
-            {ORIGEN_LABELS[o]}
-          </span>
-        ))}
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500">
-          <span className="w-2.5 h-2.5 rounded-sm bg-red-400"></span>
-          Gastos
-        </span>
-        {media > 0 && (
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500">
-            <span className="w-3 border-t border-dashed border-foreground-400"></span>
-            Media de ingresos
-          </span>
-        )}
-      </div>
-
-      <div className="overflow-x-auto scrollbar-hide -mx-1 px-1 pt-2">
-        <div className={`relative ${densa ? 'min-w-[620px]' : ''}`}>
-          <div className="relative h-44 ml-10">
-            {marcas.map((v) => (
-              <div key={v} className="absolute inset-x-0 border-t border-background-200/70" style={{ bottom: `${(v / max) * 100}%` }}>
-                <span className="absolute -left-10 -translate-y-1/2 w-9 text-right text-[10px] text-foreground-400 tabular-nums">{formatEURCompacto(v)}</span>
-              </div>
-            ))}
-            {media > 0 && (
-              <div className="absolute inset-x-0 border-t border-dashed border-foreground-400/70 z-[1] pointer-events-none" style={{ bottom: `${(media / max) * 100}%` }}></div>
-            )}
-            <div className="absolute inset-0 flex items-end border-b border-background-300">
-              {filas.map((fila, i) => {
-                const gastos = totalGastos(fila.totales);
-                const activo = hover === i;
-                return (
-                  <button
-                    key={fila.key}
-                    type="button"
-                    disabled={fila.futuro}
-                    onPointerEnter={() => setHover(i)}
-                    onPointerLeave={() => setHover((h) => (h === i ? null : h))}
-                    onFocus={() => setHover(i)}
-                    onBlur={() => setHover(null)}
-                    onClick={() => onFilaClick(fila.key)}
-                    aria-label={`${fila.label}: ingresos ${formatEUR(fila.totales.ingresos)}, gastos ${formatEUR(gastos)}`}
-                    className={`relative flex-1 h-full flex items-end justify-center gap-[2px] rounded-t-md transition-colors ${
-                      activo ? 'bg-background-100' : ''
-                    } ${fila.futuro ? 'cursor-default' : 'cursor-pointer'}`}
-                  >
-                    <div className="flex flex-col-reverse gap-[2px] w-[38%] max-w-[22px]" style={{ height: `${(fila.totales.ingresos / max) * 100}%` }}>
-                      {ORIGENES.map((o) => {
-                        const v = fila.totales.ingresos_por_tienda[o] ?? 0;
-                        if (v <= 0 || fila.totales.ingresos <= 0) return null;
-                        return <div key={o} className={`${ORIGEN_COLORS[o].dot} first:rounded-b-[2px] last:rounded-t-[4px] min-h-[2px]`} style={{ flexGrow: v }}></div>;
-                      })}
-                    </div>
-                    <div
-                      className="w-[30%] max-w-[16px] bg-red-400 rounded-t-[4px]"
-                      style={{ height: gastos > 0 ? `max(2px, ${(gastos / max) * 100}%)` : 0 }}
-                    ></div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {f && (
-              <div
-                className="absolute z-10 top-1 pointer-events-none w-52 -translate-x-1/2"
-                style={{ left: `clamp(104px, ${((hover! + 0.5) / filas.length) * 100}%, calc(100% - 104px))` }}
-              >
-                <div className="bg-foreground-950 text-background-50 rounded-xl px-3 py-2.5 shadow-xl text-[11px]">
-                  <p className="font-medium text-xs mb-1.5">{f.label}</p>
-                  {ORIGENES.map((o) => (
-                    <p key={o} className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${ORIGEN_COLORS[o].dot}`}></span>
-                      <span className="opacity-80">{ORIGEN_LABELS[o]}</span>
-                      <span className="ml-auto tabular-nums">{formatEUR(f.totales.ingresos_por_tienda[o] ?? 0)}</span>
-                    </p>
-                  ))}
-                  <p className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
-                    <span className="opacity-80">Gastos</span>
-                    <span className="ml-auto tabular-nums">{formatEUR(totalGastos(f.totales))}</span>
-                  </p>
-                  <p className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-background-50/20 font-medium">
-                    Neto
-                    <span className={`ml-auto tabular-nums ${totalNeto(f.totales) >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                      {formatEUR(totalNeto(f.totales))}
-                    </span>
-                  </p>
-                  {f.tickets > 0 && <p className="opacity-60 mt-1">{f.tickets} tickets de báscula</p>}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex ml-10 mt-1.5">
-            {filas.map((fila, i) => (
-              <span
-                key={fila.key}
-                className={`flex-1 text-center text-[10px] tabular-nums truncate ${
-                  fila.esActual ? 'font-semibold text-primary-500' : hover === i ? 'text-foreground-950' : 'text-foreground-400'
-                }`}
-              >
-                {densa && i % 2 === 1 && !fila.esActual && hover !== i ? '' : fila.labelCorto}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Destacado({ icon, iconClass, titulo, valor, detalle, onClick }: { icon: string; iconClass: string; titulo: string; valor: string; detalle: string; onClick?: () => void }) {
   return (
     <button
@@ -260,6 +119,55 @@ function Destacado({ icon, iconClass, titulo, valor, detalle, onClick }: { icon:
         <span className="block text-[11px] text-foreground-500 truncate">{detalle}</span>
       </span>
     </button>
+  );
+}
+
+type ColOrden = 'periodo' | Origen | 'ingresos' | 'gasto_factura' | 'gasto_extra' | 'neto';
+
+function valorOrden(f: FilaPeriodo, col: ColOrden, i: number): number {
+  switch (col) {
+    case 'periodo':
+      return i;
+    case 'ingresos':
+      return f.totales.ingresos;
+    case 'gasto_factura':
+      return f.totales.gasto_factura;
+    case 'gasto_extra':
+      return f.totales.gasto_extra;
+    case 'neto':
+      return totalNeto(f.totales);
+    default:
+      return f.totales.ingresos_por_tienda[col] ?? 0;
+  }
+}
+
+function Th({
+  col,
+  orden,
+  onOrdenar,
+  alinear = 'right',
+  children,
+}: {
+  col: ColOrden;
+  orden: { col: ColOrden; desc: boolean };
+  onOrdenar: (col: ColOrden) => void;
+  alinear?: 'left' | 'right';
+  children: React.ReactNode;
+}) {
+  const activo = orden.col === col;
+  const icono = <i className={`text-xs ${activo ? (orden.desc ? 'ri-arrow-down-s-fill' : 'ri-arrow-up-s-fill') : 'ri-expand-up-down-fill opacity-30'}`}></i>;
+  return (
+    <th className={`px-3 first:pl-4 py-2 font-medium ${alinear === 'left' ? 'text-left' : 'text-right'}`} aria-sort={activo ? (orden.desc ? 'descending' : 'ascending') : 'none'}>
+      <button
+        type="button"
+        onClick={() => onOrdenar(col)}
+        className={`inline-flex items-center gap-1.5 uppercase tracking-wide hover:text-foreground-950 transition-colors ${activo ? 'text-foreground-950' : ''}`}
+      >
+        {alinear === 'right' && icono}
+        {children}
+        {alinear === 'left' && icono}
+      </button>
+    </th>
   );
 }
 
@@ -351,6 +259,9 @@ export default function CajaResumenPeriodo({
 }) {
   const [ocultarVacios, setOcultarVacios] = useState(ocultarVaciosInicial);
   const [exportando, setExportando] = useState(false);
+  const [orden, setOrden] = useState<{ col: ColOrden; desc: boolean }>({ col: 'periodo', desc: false });
+  const ordenar = (col: ColOrden) =>
+    setOrden((o) => (o.col === col ? { col, desc: !o.desc } : { col, desc: col !== 'periodo' }));
 
   const total = useMemo(() => agregar(filas), [filas]);
   const gastos = totalGastos(total.totales);
@@ -364,8 +275,32 @@ export default function CajaResumenPeriodo({
   const peor = conVenta.reduce<FilaPeriodo | null>((m, f) => (!m || f.totales.ingresos < m.totales.ingresos ? f : m), null);
   const media = conVenta.length ? total.totales.ingresos / conVenta.length : 0;
 
+  // Previsión de ingresos al cierre de un periodo en curso (solo por días):
+  // media de los días ya cerrados con venta × proporción de días que se
+  // abre × días que faltan. Hoy cuenta como pendiente mientras vaya por
+  // debajo de lo esperado para un día normal.
+  const prevision = useMemo(() => {
+    if (unidad !== 'día') return null;
+    const futuras = filas.filter((f) => f.futuro).length;
+    const cerradas = filas.filter((f) => !f.futuro && !f.esActual);
+    const cerradasConVenta = cerradas.filter((f) => f.totales.ingresos > 0);
+    if (futuras === 0 || cerradasConVenta.length < 2) return null;
+    const esperadoDia = (cerradasConVenta.reduce((n, f) => n + f.totales.ingresos, 0) / cerradasConVenta.length) * (cerradasConVenta.length / cerradas.length);
+    const hoy = filas.find((f) => f.esActual)?.totales.ingresos ?? 0;
+    return total.totales.ingresos + esperadoDia * futuras + Math.max(0, esperadoDia - hoy);
+  }, [filas, unidad, total]);
+
+  const maxIngresos = Math.max(1, ...filas.map((f) => f.totales.ingresos));
+
   const vacia = (f: FilaPeriodo) => f.totales.ingresos === 0 && totalGastos(f.totales) === 0;
-  const filasTabla = ocultarVacios ? filas.filter((f) => !vacia(f)) : filas;
+  const filasTabla = useMemo(() => {
+    const base = filas.map((f, i) => ({ f, i })).filter(({ f }) => !ocultarVacios || !vacia(f));
+    base.sort((a, b) => {
+      const d = valorOrden(a.f, orden.col, a.i) - valorOrden(b.f, orden.col, b.i);
+      return orden.desc ? -d : d;
+    });
+    return base.map(({ f }) => f);
+  }, [filas, ocultarVacios, orden]);
   const hayVacias = filas.some(vacia);
   const sinDatos = filas.every(vacia);
   const unidadPlural = unidad === 'día' ? 'días' : 'meses';
@@ -422,6 +357,13 @@ export default function CajaResumenPeriodo({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi className="col-span-2 lg:col-span-1" icon="ri-arrow-up-line" iconClass="bg-emerald-50 text-emerald-600" titulo="Ingresos" valor={formatEUR(total.totales.ingresos)}>
           <DeltaChip valor={variacion(total.totales.ingresos, anterior.totales.ingresos)} subirEsBueno comparadoCon={comparadoCon} />
+          {prevision !== null && (
+            <p className="flex items-center gap-1.5 mt-1.5 text-[11px] text-foreground-500" title="Estimación con la media de los días ya cerrados">
+              <i className="ri-sparkling-line text-primary-500"></i>
+              Previsión al cierre
+              <span className="font-medium tabular-nums text-foreground-950">≈ {formatEUR(Math.round(prevision))}</span>
+            </p>
+          )}
           <RepartoTiendas totales={total.totales} />
         </Kpi>
         <Kpi icon="ri-arrow-down-line" iconClass="bg-red-50 text-red-500" titulo="Gastos" valor={formatEUR(gastos)}>
@@ -484,7 +426,7 @@ export default function CajaResumenPeriodo({
         </div>
       ) : (
         <>
-          <GraficoPeriodo filas={filas} unidad={unidad} onFilaClick={onFilaClick} />
+          <CajaGraficoPeriodo filas={filas} unidad={unidad} onFilaClick={onFilaClick} />
 
           {mejor && (
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -515,8 +457,22 @@ export default function CajaResumenPeriodo({
           )}
 
           <div className="bg-background-50 border border-background-200/70 rounded-2xl overflow-hidden shadow-card">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-background-200/70">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-background-200/70">
               <p className="text-sm font-medium text-foreground-950">Detalle por {unidad}</p>
+              <select
+                value={`${orden.col}|${orden.desc ? 'desc' : 'asc'}`}
+                onChange={(e) => {
+                  const [col, dir] = e.target.value.split('|');
+                  setOrden({ col: col as ColOrden, desc: dir === 'desc' });
+                }}
+                className="md:hidden h-7 pl-2 pr-6 rounded-full bg-background-100 border border-background-200/70 text-[11px] text-foreground-600"
+                aria-label="Ordenar"
+              >
+                <option value="periodo|asc">Por fecha</option>
+                <option value="ingresos|desc">Más ingresos</option>
+                <option value="neto|desc">Más neto</option>
+                <option value="neto|asc">Menos neto</option>
+              </select>
               {hayVacias && (
                 <label className="ml-auto inline-flex items-center gap-2 text-[11px] text-foreground-500 cursor-pointer select-none">
                   <input type="checkbox" checked={ocultarVacios} onChange={(e) => setOcultarVacios(e.target.checked)} className="accent-primary-500" />
@@ -530,19 +486,19 @@ export default function CajaResumenPeriodo({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[11px] uppercase tracking-wide text-foreground-400 bg-background-100/50">
-                    <th className="px-4 py-2 text-left font-medium">{unidad === 'día' ? 'Día' : 'Mes'}</th>
+                    <Th col="periodo" orden={orden} onOrdenar={ordenar} alinear="left">
+                      {unidad === 'día' ? 'Día' : 'Mes'}
+                    </Th>
                     {ORIGENES.map((o) => (
-                      <th key={o} className="px-3 py-2 text-right font-medium">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full ${ORIGEN_COLORS[o].dot}`}></span>
-                          {ORIGEN_LABELS[o]}
-                        </span>
-                      </th>
+                      <Th key={o} col={o} orden={orden} onOrdenar={ordenar}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${ORIGEN_COLORS[o].dot}`}></span>
+                        {ORIGEN_LABELS[o]}
+                      </Th>
                     ))}
-                    <th className="px-3 py-2 text-right font-medium">Ingresos</th>
-                    <th className="px-3 py-2 text-right font-medium">Facturas</th>
-                    <th className="px-3 py-2 text-right font-medium">Gastos extra</th>
-                    <th className="px-3 py-2 text-right font-medium">Neto</th>
+                    <Th col="ingresos" orden={orden} onOrdenar={ordenar}>Ingresos</Th>
+                    <Th col="gasto_factura" orden={orden} onOrdenar={ordenar}>Facturas</Th>
+                    <Th col="gasto_extra" orden={orden} onOrdenar={ordenar}>Gastos extra</Th>
+                    <Th col="neto" orden={orden} onOrdenar={ordenar}>Neto</Th>
                     <th className="w-8"></th>
                   </tr>
                 </thead>
@@ -575,6 +531,11 @@ export default function CajaResumenPeriodo({
                         ))}
                         <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums font-medium">
                           <Importe valor={f.totales.ingresos} clase="text-emerald-700" />
+                          {f.totales.ingresos > 0 && (
+                            <div className="ml-auto mt-1 w-20 h-1 rounded-full bg-background-100 overflow-hidden">
+                              <div className="ml-auto h-full rounded-full bg-emerald-500/70" style={{ width: `${(f.totales.ingresos / maxIngresos) * 100}%` }}></div>
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums">
                           <Importe valor={f.totales.gasto_factura} clase="text-red-600" />
