@@ -8,6 +8,8 @@ import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import OrigenBadge from '@/components/base/OrigenBadge';
+import CajaResumenPeriodo from './CajaResumenPeriodo';
+import { acumularTotales, agregar, totalesVacios, type FilaPeriodo, type Totales } from './cajaTotales';
 import CajaBuscador, { type ResaltarObjetivo } from './CajaBuscador';
 
 const ICONO_POR_TIPO: Record<CajaMovimientoTipo, string> = {
@@ -103,25 +105,6 @@ function WatchdogBascula({ origen, info }: { origen: Origen; info?: BasculaSyncI
       )}
     </span>
   );
-}
-
-interface Totales {
-  ingresos: number;
-  ingresos_por_tienda: Partial<Record<Origen, number>>;
-  gasto_factura: number;
-  gasto_extra: number;
-}
-
-function totalesVacios(): Totales {
-  return { ingresos: 0, ingresos_por_tienda: {}, gasto_factura: 0, gasto_extra: 0 };
-}
-
-function totalGastos(t: Totales): number {
-  return t.gasto_factura + t.gasto_extra;
-}
-
-function totalNeto(t: Totales): number {
-  return t.ingresos - totalGastos(t);
 }
 
 function NetoBadge({ valor }: { valor: number }) {
@@ -849,254 +832,188 @@ function VistaDia({
   );
 }
 
-function TablaTotales({
-  filas,
-  totalRow,
-  onFilaClick,
-}: {
-  filas: { key: string; label: string; totales: Totales }[];
-  totalRow: { label: string; totales: Totales };
-  onFilaClick?: (key: string) => void;
-}) {
-  const Row = ({ label, totales, onClick, bold }: { label: string; totales: Totales; onClick?: () => void; bold?: boolean }) => (
-    <tr onClick={onClick} className={`${onClick ? 'cursor-pointer hover:bg-background-100' : ''} ${bold ? 'font-semibold border-t-2 border-background-200' : 'border-b border-background-200/50'}`}>
-      <td className="px-3 py-2 whitespace-nowrap">{label}</td>
-      {ORIGENES.map((o) => (
-        <td key={o} className="px-3 py-2 text-right whitespace-nowrap text-emerald-700">{formatEUR(totales.ingresos_por_tienda[o] ?? 0)}</td>
-      ))}
-      <td className="px-3 py-2 text-right whitespace-nowrap text-red-600">{formatEUR(totales.gasto_factura)}</td>
-      <td className="px-3 py-2 text-right whitespace-nowrap text-red-600">{formatEUR(totales.gasto_extra)}</td>
-      <td className="px-3 py-2 text-right whitespace-nowrap"><NetoBadge valor={totalNeto(totales)} /></td>
-    </tr>
+interface DiaResumen {
+  totales: Totales;
+  tickets: number;
+  bascula: number;
+}
+
+type ResumenDia = (fecha: string) => DiaResumen;
+
+function fechasEntre(desde: string, hasta: string): string[] {
+  const out: string[] = [];
+  for (let f = desde; f <= hasta; f = sumarDias(f, 1)) out.push(f);
+  return out;
+}
+
+function fechaISO(anio: number, mes: number, dia: number): string {
+  return `${anio}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+}
+
+function diasDelMes(anio: number, mes: number): string[] {
+  const n = new Date(anio, mes + 1, 0).getDate();
+  return Array.from({ length: n }, (_, i) => fechaISO(anio, mes, i + 1));
+}
+
+// Número de semana ISO 8601 (la que usa el calendario de pared).
+function numeroSemana(fecha: string): number {
+  const [y, m, d] = fecha.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dia = dt.getUTCDay() || 7;
+  dt.setUTCDate(dt.getUTCDate() + 4 - dia);
+  const inicio = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+  return Math.ceil(((dt.getTime() - inicio.getTime()) / 86400000 + 1) / 7);
+}
+
+// Para comparar un periodo en curso con el anterior de forma justa, del
+// anterior solo se cuenta el mismo tramo transcurrido (p.ej. a jueves, la
+// semana pasada de lunes a jueves) — si no, el periodo actual siempre
+// saldría "peor" hasta que terminara.
+function VistaSemana({ lunes, onLunesChange, resumenDia, onIrADia }: { lunes: string; onLunesChange: (l: string) => void; resumenDia: ResumenDia; onIrADia: (f: string) => void }) {
+  const hoy = hoyISO();
+  const domingo = sumarDias(lunes, 6);
+  const lunesActual = lunesDe(hoy);
+  const enCurso = lunes === lunesActual;
+
+  const filas = useMemo<FilaPeriodo[]>(
+    () =>
+      fechasEntre(lunes, domingo).map((fecha) => ({
+        key: fecha,
+        label: formatFechaSemana(fecha),
+        labelCorto: formatFechaSemana(fecha).split(',')[0],
+        ...resumenDia(fecha),
+        esActual: fecha === hoy,
+        futuro: fecha > hoy,
+      })),
+    [lunes, domingo, hoy, resumenDia],
   );
+
+  const anterior = useMemo(() => {
+    const lunesAnt = sumarDias(lunes, -7);
+    const hasta = sumarDias(lunesAnt, enCurso ? (new Date().getDay() + 6) % 7 : 6);
+    return agregar(fechasEntre(lunesAnt, hasta).map(resumenDia));
+  }, [lunes, enCurso, resumenDia]);
 
   return (
-    <div className="overflow-x-auto bg-background-50 border border-background-200/70 rounded-xl shadow-card">
-      <table className="w-full text-sm min-w-[640px]">
-        <thead>
-          <tr className="text-[11px] uppercase tracking-wide text-foreground-400 border-b border-background-200/70">
-            <th className="px-3 py-2 text-left font-medium"></th>
-            {ORIGENES.map((o) => (
-              <th key={o} className="px-3 py-2 text-right font-medium">
-                <span className="inline-flex items-center gap-1 justify-end">
-                  <OrigenBadge origen={o} />
-                </span>
-              </th>
-            ))}
-            <th className="px-3 py-2 text-right font-medium">Facturas</th>
-            <th className="px-3 py-2 text-right font-medium">Gastos extra</th>
-            <th className="px-3 py-2 text-right font-medium">Neto</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filas.length === 0 ? (
-            <tr>
-              <td colSpan={4 + ORIGENES.length} className="px-3 py-4 text-center text-foreground-400">Sin movimientos.</td>
-            </tr>
-          ) : (
-            filas.map((f) => <Row key={f.key} label={f.label} totales={f.totales} onClick={onFilaClick ? () => onFilaClick(f.key) : undefined} />)
-          )}
-          <Row label={totalRow.label} totales={totalRow.totales} bold />
-        </tbody>
-      </table>
-    </div>
+    <CajaResumenPeriodo
+      titulo={`${formatFechaCorta(lunes)} – ${formatFechaCorta(domingo)}`}
+      subtitulo={`${enCurso ? 'Esta semana' : `Semana ${numeroSemana(lunes)}`} · ${domingo.slice(0, 4)}`}
+      onAnterior={() => onLunesChange(sumarDias(lunes, -7))}
+      onSiguiente={() => onLunesChange(sumarDias(lunes, 7))}
+      onIrAActual={enCurso ? undefined : () => onLunesChange(lunesActual)}
+      actualLabel="Esta semana"
+      filas={filas}
+      anterior={anterior}
+      comparadoCon={enCurso ? 'vs. mismo tramo sem. anterior' : 'vs. semana anterior'}
+      unidad="día"
+      totalLabel="Total de la semana"
+      nombreArchivo={`contabilidad-semana-${lunes}`}
+      onFilaClick={onIrADia}
+    />
   );
-}
-
-// Suma el ingreso automático de báscula de ese día más cualquier ingreso
-// manual (de respaldo) registrado, y acumula los gastos por tipo.
-function acumularTotales(t: Totales, m: CajaMovimiento): Totales {
-  if (esCajaIngreso(m.tipo) && m.origen) {
-    return {
-      ...t,
-      ingresos: t.ingresos + Number(m.importe),
-      ingresos_por_tienda: { ...t.ingresos_por_tienda, [m.origen]: (t.ingresos_por_tienda[m.origen] ?? 0) + Number(m.importe) },
-    };
-  }
-  return { ...t, [m.tipo]: t[m.tipo] + Number(m.importe) };
-}
-
-function sumarTotales(a: Totales, b: Totales): Totales {
-  const ingresos_por_tienda: Partial<Record<Origen, number>> = {};
-  ORIGENES.forEach((o) => {
-    ingresos_por_tienda[o] = (a.ingresos_por_tienda[o] ?? 0) + (b.ingresos_por_tienda[o] ?? 0);
-  });
-  return {
-    ingresos: a.ingresos + b.ingresos,
-    ingresos_por_tienda,
-    gasto_factura: a.gasto_factura + b.gasto_factura,
-    gasto_extra: a.gasto_extra + b.gasto_extra,
-  };
 }
 
 function VistaMes({
   anio,
   mes,
-  onAnioChange,
   onMesChange,
-  ingresosPorFecha,
-  ingresosPorFechaPorTienda,
-  movimientos,
+  resumenDia,
   onIrADia,
 }: {
   anio: number;
   mes: number;
-  onAnioChange: (anio: number) => void;
-  onMesChange: (mes: number) => void;
-  ingresosPorFecha: Map<string, number>;
-  ingresosPorFechaPorTienda: Map<string, Partial<Record<Origen, number>>>;
-  movimientos: CajaMovimiento[];
-  onIrADia: (fecha: string) => void;
+  onMesChange: (anio: number, mes: number) => void;
+  resumenDia: ResumenDia;
+  onIrADia: (f: string) => void;
 }) {
-  const prefijo = `${anio}-${String(mes + 1).padStart(2, '0')}`;
+  const hoy = hoyISO();
+  const [anioHoy, mesHoy, diaHoy] = hoy.split('-').map(Number);
+  const enCurso = anio === anioHoy && mes === mesHoy - 1;
 
-  const porDia = useMemo(() => {
-    const map = new Map<string, Totales>();
-    ingresosPorFecha.forEach((importe, fecha) => {
-      if (!fecha.startsWith(prefijo)) return;
-      map.set(fecha, { ...(map.get(fecha) ?? totalesVacios()), ingresos: importe, ingresos_por_tienda: { ...(ingresosPorFechaPorTienda.get(fecha) ?? {}) } });
-    });
-    movimientos
-      .filter((m) => m.fecha.startsWith(prefijo))
-      .forEach((m) => map.set(m.fecha, acumularTotales(map.get(m.fecha) ?? totalesVacios(), m)));
-    return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([fecha, totales]) => ({ key: fecha, label: formatFechaCorta(fecha), totales }));
-  }, [ingresosPorFecha, ingresosPorFechaPorTienda, movimientos, prefijo]);
-
-  const totalMes = porDia.reduce((acc, f) => sumarTotales(acc, f.totales), totalesVacios());
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <select value={mes} onChange={(e) => onMesChange(Number(e.target.value))} className="px-3 py-1.5 bg-background-50 border border-background-200/70 rounded-full text-sm">
-          {MESES.map((nombre, i) => <option key={nombre} value={i}>{nombre}</option>)}
-        </select>
-        <select value={anio} onChange={(e) => onAnioChange(Number(e.target.value))} className="px-3 py-1.5 bg-background-50 border border-background-200/70 rounded-full text-sm">
-          {[anio - 1, anio, anio + 1].map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
-      </div>
-
-      <TablaTotales filas={porDia} totalRow={{ label: 'Total del mes', totales: totalMes }} onFilaClick={onIrADia} />
-    </div>
-  );
-}
-
-function VistaSemana({
-  lunes,
-  onLunesChange,
-  ingresosPorFecha,
-  ingresosPorFechaPorTienda,
-  movimientos,
-  onIrADia,
-}: {
-  lunes: string;
-  onLunesChange: (lunes: string) => void;
-  ingresosPorFecha: Map<string, number>;
-  ingresosPorFechaPorTienda: Map<string, Partial<Record<Origen, number>>>;
-  movimientos: CajaMovimiento[];
-  onIrADia: (fecha: string) => void;
-}) {
-  const domingo = sumarDias(lunes, 6);
-  const esSemanaActual = lunes === lunesDe(hoyISO());
-
-  // Se muestran los 7 días aunque alguno no tenga movimientos, para que la
-  // semana se lea completa de lunes a domingo.
-  const porDia = useMemo(
+  const filas = useMemo<FilaPeriodo[]>(
     () =>
-      Array.from({ length: 7 }, (_, i) => {
-        const fecha = sumarDias(lunes, i);
-        const base: Totales = {
-          ...totalesVacios(),
-          ingresos: ingresosPorFecha.get(fecha) ?? 0,
-          ingresos_por_tienda: { ...(ingresosPorFechaPorTienda.get(fecha) ?? {}) },
-        };
-        const totales = movimientos.filter((m) => m.fecha === fecha).reduce(acumularTotales, base);
-        return { key: fecha, label: formatFechaSemana(fecha), totales };
-      }),
-    [ingresosPorFecha, ingresosPorFechaPorTienda, movimientos, lunes],
+      diasDelMes(anio, mes).map((fecha) => ({
+        key: fecha,
+        label: formatFechaSemana(fecha),
+        labelCorto: String(Number(fecha.slice(8))),
+        ...resumenDia(fecha),
+        esActual: fecha === hoy,
+        futuro: fecha > hoy,
+      })),
+    [anio, mes, hoy, resumenDia],
   );
 
-  const totalSemana = porDia.reduce((acc, f) => sumarTotales(acc, f.totales), totalesVacios());
-  const botonFlecha = 'w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-background-50 border border-background-200/70 text-foreground-500 hover:bg-background-200/70';
+  const anterior = useMemo(() => {
+    const ant = new Date(anio, mes - 1, 1);
+    const dias = diasDelMes(ant.getFullYear(), ant.getMonth());
+    return agregar((enCurso ? dias.slice(0, diaHoy) : dias).map(resumenDia));
+  }, [anio, mes, enCurso, diaHoy, resumenDia]);
+
+  const mover = (delta: number) => {
+    const d = new Date(anio, mes + delta, 1);
+    onMesChange(d.getFullYear(), d.getMonth());
+  };
+  const mesAnterior = MESES[(mes + 11) % 12].toLowerCase();
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <button type="button" onClick={() => onLunesChange(sumarDias(lunes, -7))} className={botonFlecha}>
-          <i className="ri-arrow-left-s-line"></i>
-        </button>
-        <p className="text-sm font-medium text-foreground-950 tabular-nums">
-          {formatFechaCorta(lunes)} – {formatFechaCorta(domingo)}
-        </p>
-        <button type="button" onClick={() => onLunesChange(sumarDias(lunes, 7))} className={botonFlecha}>
-          <i className="ri-arrow-right-s-line"></i>
-        </button>
-        {!esSemanaActual && (
-          <button
-            type="button"
-            onClick={() => onLunesChange(lunesDe(hoyISO()))}
-            className="px-3 py-1.5 rounded-full text-xs font-medium bg-background-50 border border-background-200/70 text-foreground-500 hover:bg-background-200/70"
-          >
-            Esta semana
-          </button>
-        )}
-      </div>
-
-      <TablaTotales filas={porDia} totalRow={{ label: 'Total de la semana', totales: totalSemana }} onFilaClick={onIrADia} />
-    </div>
+    <CajaResumenPeriodo
+      titulo={`${MESES[mes]} ${anio}`}
+      subtitulo={enCurso ? `Mes en curso · día ${diaHoy} de ${filas.length}` : `${filas.length} días`}
+      onAnterior={() => mover(-1)}
+      onSiguiente={() => mover(1)}
+      onIrAActual={enCurso ? undefined : () => onMesChange(anioHoy, mesHoy - 1)}
+      actualLabel="Este mes"
+      filas={filas}
+      anterior={anterior}
+      comparadoCon={enCurso ? `vs. mismo tramo de ${mesAnterior}` : `vs. ${mesAnterior}`}
+      unidad="día"
+      totalLabel="Total del mes"
+      nombreArchivo={`contabilidad-${anio}-${String(mes + 1).padStart(2, '0')}`}
+      ocultarVaciosInicial
+      onFilaClick={onIrADia}
+    />
   );
 }
 
-function VistaAnio({
-  anio,
-  onAnioChange,
-  ingresosPorFecha,
-  ingresosPorFechaPorTienda,
-  movimientos,
-  onIrAMes,
-}: {
-  anio: number;
-  onAnioChange: (anio: number) => void;
-  ingresosPorFecha: Map<string, number>;
-  ingresosPorFechaPorTienda: Map<string, Partial<Record<Origen, number>>>;
-  movimientos: CajaMovimiento[];
-  onIrAMes: (mes: number) => void;
-}) {
-  const porMes = useMemo(() => {
-    const totalesPorMes: Totales[] = Array.from({ length: 12 }, totalesVacios);
-    ingresosPorFecha.forEach((importe, fecha) => {
-      if (!fecha.startsWith(String(anio))) return;
-      const mes = Number(fecha.split('-')[1]) - 1;
-      totalesPorMes[mes].ingresos += importe;
-      const porTienda = ingresosPorFechaPorTienda.get(fecha) ?? {};
-      ORIGENES.forEach((o) => {
-        totalesPorMes[mes].ingresos_por_tienda[o] = (totalesPorMes[mes].ingresos_por_tienda[o] ?? 0) + (porTienda[o] ?? 0);
-      });
-    });
-    movimientos
-      .filter((m) => m.fecha.startsWith(String(anio)))
-      .forEach((m) => {
-        const mes = Number(m.fecha.split('-')[1]) - 1;
-        totalesPorMes[mes] = acumularTotales(totalesPorMes[mes], m);
-      });
-    return totalesPorMes.map((totales, i) => ({ key: String(i), label: MESES[i], totales }));
-  }, [ingresosPorFecha, ingresosPorFechaPorTienda, movimientos, anio]);
+function VistaAnio({ anio, onAnioChange, resumenDia, onIrAMes }: { anio: number; onAnioChange: (a: number) => void; resumenDia: ResumenDia; onIrAMes: (mes: number) => void }) {
+  const hoy = hoyISO();
+  const [anioHoy, mesHoy] = hoy.split('-').map(Number);
+  const enCurso = anio === anioHoy;
 
-  const totalAnio = porMes.reduce((acc, f) => sumarTotales(acc, f.totales), totalesVacios());
+  const filas = useMemo<FilaPeriodo[]>(
+    () =>
+      MESES.map((nombre, mes) => ({
+        key: String(mes),
+        label: nombre,
+        labelCorto: nombre.slice(0, 3),
+        ...agregar(diasDelMes(anio, mes).map(resumenDia)),
+        esActual: enCurso && mes === mesHoy - 1,
+        futuro: fechaISO(anio, mes, 1) > hoy,
+      })),
+    [anio, hoy, enCurso, mesHoy, resumenDia],
+  );
+
+  const anterior = useMemo(() => {
+    const hasta = enCurso ? `${anio - 1}${hoy.slice(4)}` : `${anio - 1}-12-31`;
+    return agregar(fechasEntre(`${anio - 1}-01-01`, hasta).map(resumenDia));
+  }, [anio, enCurso, hoy, resumenDia]);
 
   return (
-    <div className="space-y-4">
-      <select value={anio} onChange={(e) => onAnioChange(Number(e.target.value))} className="px-3 py-1.5 bg-background-50 border border-background-200/70 rounded-full text-sm">
-        {[anio - 1, anio, anio + 1].map((a) => <option key={a} value={a}>{a}</option>)}
-      </select>
-
-      <TablaTotales
-        filas={porMes.filter((f) => f.totales.ingresos > 0 || totalGastos(f.totales) > 0)}
-        totalRow={{ label: 'Total del año', totales: totalAnio }}
-        onFilaClick={(key) => onIrAMes(Number(key))}
-      />
-    </div>
+    <CajaResumenPeriodo
+      titulo={String(anio)}
+      subtitulo={enCurso ? `Año en curso · hasta el ${formatFechaCorta(hoy)}` : 'Año completo'}
+      onAnterior={() => onAnioChange(anio - 1)}
+      onSiguiente={() => onAnioChange(anio + 1)}
+      onIrAActual={enCurso ? undefined : () => onAnioChange(anioHoy)}
+      actualLabel="Este año"
+      filas={filas}
+      anterior={anterior}
+      comparadoCon={enCurso ? `vs. ${anio - 1} a misma fecha` : `vs. ${anio - 1}`}
+      unidad="mes"
+      totalLabel="Total del año"
+      nombreArchivo={`contabilidad-${anio}`}
+      onFilaClick={(key) => onIrAMes(Number(key))}
+    />
   );
 }
 
@@ -1136,6 +1053,26 @@ export default function CajaPanel() {
   }, [dias]);
 
   const movimientosDelDia = useMemo(() => movimientos.filter((m) => m.fecha === fecha), [movimientos, fecha]);
+
+  const movimientosPorFecha = useMemo(() => {
+    const map = new Map<string, CajaMovimiento[]>();
+    movimientos.forEach((m) => map.set(m.fecha, [...(map.get(m.fecha) ?? []), m]));
+    return map;
+  }, [movimientos]);
+
+  // Totales de un día: ingresos de báscula por tienda + movimientos manuales.
+  const resumenDia = useCallback<ResumenDia>(
+    (f) => {
+      const bascula = ingresosPorFecha.get(f) ?? 0;
+      const base: Totales = { ...totalesVacios(), ingresos: bascula, ingresos_por_tienda: { ...(ingresosPorFechaPorTienda.get(f) ?? {}) } };
+      return {
+        totales: (movimientosPorFecha.get(f) ?? []).reduce(acumularTotales, base),
+        tickets: ticketsPorFecha.get(f) ?? 0,
+        bascula,
+      };
+    },
+    [ingresosPorFecha, ingresosPorFechaPorTienda, movimientosPorFecha, ticketsPorFecha],
+  );
 
   const irADia = (nuevaFecha: string, objetivo?: ResaltarObjetivo) => {
     setFecha(nuevaFecha);
@@ -1204,36 +1141,22 @@ export default function CajaPanel() {
             onAbrirBuscador={irABuscar}
           />
         ) : vista === 'semana' ? (
-          <VistaSemana
-            lunes={lunes}
-            onLunesChange={setLunes}
-            ingresosPorFecha={ingresosPorFecha}
-            ingresosPorFechaPorTienda={ingresosPorFechaPorTienda}
-            movimientos={movimientos}
-            onIrADia={irADia}
-          />
+          <VistaSemana lunes={lunes} onLunesChange={setLunes} resumenDia={resumenDia} onIrADia={irADia} />
         ) : vista === 'mes' ? (
           <VistaMes
             anio={anio}
             mes={mes}
-            onAnioChange={setAnio}
-            onMesChange={setMes}
-            ingresosPorFecha={ingresosPorFecha}
-            ingresosPorFechaPorTienda={ingresosPorFechaPorTienda}
-            movimientos={movimientos}
+            onMesChange={(a, m) => {
+              setAnio(a);
+              setMes(m);
+            }}
+            resumenDia={resumenDia}
             onIrADia={irADia}
           />
         ) : vista === 'buscar' ? (
           <CajaBuscador movimientos={movimientos} basculaPorTienda={porTienda} onIrADia={irADia} />
         ) : (
-          <VistaAnio
-            anio={anio}
-            onAnioChange={setAnio}
-            ingresosPorFecha={ingresosPorFecha}
-            ingresosPorFechaPorTienda={ingresosPorFechaPorTienda}
-            movimientos={movimientos}
-            onIrAMes={irAMes}
-          />
+          <VistaAnio anio={anio} onAnioChange={setAnio} resumenDia={resumenDia} onIrAMes={irAMes} />
         )}
       </div>
     </>
