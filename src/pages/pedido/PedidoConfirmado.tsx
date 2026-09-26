@@ -141,7 +141,8 @@ function buildWhatsAppMessage(pedido: Pedido, t: TFunction): string {
   lines.push('');
   lines.push('Pagado online — no hace falta cobrar.');
   lines.push('');
-  lines.push('Pescados y Mariscos Arrantza, del mar a su plantza.');
+  lines.push('Pescados y Mariscos Arrantza,');
+  lines.push('del mar a su plantza.');
 
   return lines.join('\n');
 }

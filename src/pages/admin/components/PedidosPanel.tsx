@@ -126,7 +126,8 @@ function buildMensajeConfirmacion(pedido: Pedido): string {
   lines.push('Si necesita cambiar algo, puede responder a este mensaje.');
   lines.push('');
   lines.push('¡Gracias por su confianza! 🐟');
-  lines.push('Pescados y Mariscos Arrantza, del mar a su plantza.');
+  lines.push('Pescados y Mariscos Arrantza,');
+  lines.push('del mar a su plantza.');
 
   return lines.join('\n');
 }
@@ -144,7 +145,8 @@ function buildMensajeAgradecimiento(pedido: Pedido): string {
   lines.push('Muchas gracias por su confianza. Esperamos que disfrute del producto y estaremos encantados de atenderle de nuevo en su próxima compra.');
   lines.push('');
   lines.push('¡Hasta pronto! 🐟');
-  lines.push('Pescados y Mariscos Arrantza, del mar a su plantza.');
+  lines.push('Pescados y Mariscos Arrantza,');
+  lines.push('del mar a su plantza.');
 
   return lines.join('\n');
 }
