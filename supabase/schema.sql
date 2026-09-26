@@ -397,7 +397,7 @@ create table if not exists public.pedidos (
   -- Cómo se envió el pedido y en qué punto está su cobro online. 'no_aplica'
   -- cubre el flujo histórico por WhatsApp, donde el cobro ocurre fuera de la
   -- web (en tienda o por transferencia) y nunca pasa por Stripe.
-  -- 'cuenta': pedido de un cliente profesional (catálogo privado) que se
+  -- 'cuenta': pedido de un cliente de hostelería (catálogo privado) que se
   -- apunta en su albarán y se factura junto al resto de su cuenta, sin
   -- cobro al momento — mismo estado_pago 'no_aplica' que 'whatsapp'.
   metodo_pago text not null default 'whatsapp' check (metodo_pago in ('whatsapp', 'stripe', 'bizum', 'cuenta')),
@@ -421,7 +421,7 @@ alter table public.pedidos
   add column if not exists stripe_payment_intent_id text;
 
 -- El check de metodo_pago ya existía sin 'bizum'/'cuenta' antes de añadir el
--- pago manual por Bizum y los pedidos "a cuenta" de profesionales — en una
+-- pago manual por Bizum y los pedidos "a cuenta" de hostelería — en una
 -- instalación nueva el create table de arriba ya lo incluye (no-op); en la
 -- base real, esto amplía el constraint existente.
 alter table public.pedidos drop constraint if exists pedidos_metodo_pago_check;
@@ -2098,10 +2098,10 @@ create trigger trg_promo_otorgadas_notificar
   for each row execute function public.notificar_promo_otorgada();
 
 -- ============================================================
--- Profesionales: solicitudes de alta + acceso privado con
+-- Hostelería: solicitudes de alta + acceso privado con
 -- código + PIN a un catálogo con precios propios por cliente.
 --
--- Modelo: cada cliente profesional (restaurante/bar) pertenece a una
+-- Modelo: cada cliente de hostelería (restaurante/bar) pertenece a una
 -- "lista de precio" (p.ej. "Orotela", "Artebakarra", "Bares y
 -- restaurantes"); varias listas pueden compartir la misma lista. Los
 -- precios de una lista son overrides por producto: si un producto no
@@ -2110,7 +2110,7 @@ create trigger trg_promo_otorgadas_notificar
 --
 -- No usa Supabase Auth (no hace falta un email por restaurante): el
 -- pescadero da de alta un código de acceso + PIN numérico desde el
--- panel de gestión, y el propio profesional entra con esos dos datos.
+-- panel de gestión, y el propio cliente entra con esos dos datos.
 -- El login (hosteleria_login) valida el PIN y crea una fila de sesión
 -- de corta vida en hosteleria_sesiones; el frontend guarda solo el
 -- token (no el PIN) en localStorage y lo usa para pedir su catálogo.
@@ -2184,7 +2184,60 @@ create policy "host_precios_admin"
 create index if not exists idx_host_precios_lista on public.hosteleria_precios (lista_id);
 create index if not exists idx_host_precios_producto on public.hosteleria_precios (producto_id);
 
--- Cuentas de acceso de los clientes profesionales (código + PIN).
+-- Cada tarifa de hostelería se corresponde con una "familia" de la
+-- báscula (la forma en que el pescadero ya tiene programados los precios
+-- de cada restaurante en el táctil). Se guarda el enlace para poder
+-- volver a importar sus artículos cuando cambien los precios.
+alter table public.hosteleria_listas_precio
+  add column if not exists bascula_origen text,
+  add column if not exists bascula_familia text;
+
+-- Artículos propios de cada tarifa de hostelería, importados de su familia
+-- de la báscula. A diferencia de hosteleria_precios (overrides sobre el
+-- catálogo público), aquí cada tarifa tiene SU PROPIA lista cerrada de
+-- productos: un bar solo ve los artículos de su tarifa, y nunca el
+-- catálogo ni los precios de la pescadería (ni al revés).
+create table if not exists public.hosteleria_articulos (
+  id uuid primary key default gen_random_uuid(),
+  lista_id uuid not null references public.hosteleria_listas_precio (id) on delete cascade,
+  codigo_bascula text,
+  nombre text not null,
+  precio numeric(10, 2) not null check (precio >= 0),
+  unidad text not null default 'kg' check (unidad in ('kg', 'un')),
+  orden integer not null default 0,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (lista_id, codigo_bascula)
+);
+
+drop trigger if exists trg_hosteleria_articulos_updated_at on public.hosteleria_articulos;
+create trigger trg_hosteleria_articulos_updated_at
+  before update on public.hosteleria_articulos
+  for each row execute function public.set_updated_at();
+
+alter table public.hosteleria_articulos enable row level security;
+
+drop policy if exists "host_articulos_admin" on public.hosteleria_articulos;
+create policy "host_articulos_admin"
+  on public.hosteleria_articulos for all
+  to authenticated
+  using (
+    is_developer() or exists (
+      select 1 from public.hosteleria_listas_precio l
+      where l.id = lista_id and l.cliente_id = mi_cliente_id()
+    )
+  )
+  with check (
+    is_developer() or exists (
+      select 1 from public.hosteleria_listas_precio l
+      where l.id = lista_id and l.cliente_id = mi_cliente_id()
+    )
+  );
+
+create index if not exists idx_host_articulos_lista on public.hosteleria_articulos (lista_id);
+
+-- Cuentas de acceso de los clientes de hostelería (código + PIN).
 create table if not exists public.hosteleria_clientes (
   id uuid primary key default gen_random_uuid(),
   cliente_id uuid not null references public.clientes (id),
@@ -2208,7 +2261,7 @@ alter table public.hosteleria_clientes enable row level security;
 
 -- Gestión desde el panel (alta/edición/borrado/activar-desactivar): el
 -- pescadero dueño o un desarrollador. El pin_hash nunca se expone a un
--- profesional (solo se compara dentro de hosteleria_login, security
+-- cliente de hostelería (solo se compara dentro de hosteleria_login, security
 -- definer) ni se puede leer/escribir en texto plano desde aquí: el
 -- panel de gestión lo cambia siempre vía admin_set_hosteleria_pin.
 drop policy if exists "host_clientes_admin" on public.hosteleria_clientes;
@@ -2221,11 +2274,11 @@ create policy "host_clientes_admin"
 create index if not exists idx_host_clientes_cliente on public.hosteleria_clientes (cliente_id);
 create index if not exists idx_host_clientes_lista on public.hosteleria_clientes (lista_precio_id);
 
--- Sesiones de acceso profesional: token de corta vida generado tras
+-- Sesiones de acceso de hostelería: token de corta vida generado tras
 -- validar código+PIN en hosteleria_login. Sin policies de
 -- select/insert/update: solo se manipula desde dentro de funciones
 -- security definer (hosteleria_login / get_catalogo_hosteleria), así
--- que ni un profesional ni otro cliente del proyecto pueden leer o
+-- que ni un cliente de hostelería ni otro cliente del proyecto pueden leer o
 -- fabricar tokens ajenos directamente contra la tabla.
 create table if not exists public.hosteleria_sesiones (
   token uuid primary key default gen_random_uuid(),
@@ -2236,12 +2289,12 @@ create table if not exists public.hosteleria_sesiones (
 
 alter table public.hosteleria_sesiones enable row level security;
 
-create index if not exists idx_host_sesiones_profesional on public.hosteleria_sesiones (hosteleria_cliente_id);
+create index if not exists idx_host_sesiones_cliente on public.hosteleria_sesiones (hosteleria_cliente_id);
 
 -- Solicitudes de alta enviadas desde el formulario público de
 -- /hosteleria ("Hablemos de tu negocio"). Sustituye al POST externo
 -- a readdy.ai: ahora quedan visibles en el panel de gestión para que
--- el pescadero pueda darlas de alta como cliente profesional.
+-- el pescadero pueda darlas de alta como cliente de hostelería.
 create table if not exists public.hosteleria_solicitudes (
   id uuid primary key default gen_random_uuid(),
   cliente_id uuid not null references public.clientes (id),
@@ -2302,7 +2355,7 @@ begin
 end;
 $$;
 
--- Valida código de acceso + PIN de un profesional. Si son correctos,
+-- Valida código de acceso + PIN de un cliente de hostelería. Si son correctos,
 -- crea una sesión de 30 días y devuelve su token. El mensaje de error
 -- es deliberadamente genérico (no distingue "código no existe" de "PIN
 -- incorrecto") para no facilitar tantear códigos de otros clientes.
@@ -2342,24 +2395,26 @@ begin
 end;
 $$;
 
--- Catálogo privado de un profesional ya autenticado (token de sesión
--- válido): mismo shape que get_productos_publico, pero con el precio
--- de su lista si existe override, si no el precio público normal.
+-- Catálogo privado de un cliente de hostelería ya autenticado (token de
+-- sesión válido): SOLO los artículos activos de su tarifa, con el precio
+-- ya formateado igual que el catálogo público ("12,90€/kg"). Mantiene el
+-- shape de get_productos_publico para reutilizar el carrito.
+drop function if exists public.get_catalogo_hosteleria(uuid);
 create or replace function public.get_catalogo_hosteleria(p_token uuid)
 returns table (
   id uuid, nombre_es text, nombre_eu text, descripcion_es text, descripcion_eu text,
   origen_es text, origen_eu text, precio text, categoria text, subcategoria text,
-  imagen_url text, estado text, disponible boolean, orden integer, destacado boolean
+  imagen_url text, estado text, disponible boolean, orden integer, destacado boolean,
+  precio_num numeric, unidad text
 )
 language plpgsql security definer set search_path = public
 as $$
 declare
   v_hosteleria_cliente_id uuid;
-  v_cliente_id uuid;
   v_lista_id uuid;
 begin
-  select s.hosteleria_cliente_id, pc.cliente_id, pc.lista_precio_id
-    into v_hosteleria_cliente_id, v_cliente_id, v_lista_id
+  select s.hosteleria_cliente_id, pc.lista_precio_id
+    into v_hosteleria_cliente_id, v_lista_id
   from public.hosteleria_sesiones s
   join public.hosteleria_clientes pc on pc.id = s.hosteleria_cliente_id
   where s.token = p_token and s.expires_at > now() and pc.activo;
@@ -2369,17 +2424,18 @@ begin
   end if;
 
   return query
-    select p.id, p.nombre_es, p.nombre_eu, p.descripcion_es, p.descripcion_eu,
-           p.origen_es, p.origen_eu, coalesce(pp.precio, p.precio) as precio,
-           p.categoria, p.subcategoria, p.imagen_url, p.estado, p.disponible, p.orden, p.destacado
-    from public.productos p
-    left join public.hosteleria_precios pp on pp.producto_id = p.id and pp.lista_id = v_lista_id
-    where p.cliente_id = v_cliente_id and p.disponible
-    order by p.orden asc, p.created_at asc;
+    select a.id, a.nombre, null::text, null::text, null::text,
+           null::text, null::text,
+           replace(to_char(a.precio, 'FM999990.00'), '.', ',') || '€/' || case when a.unidad = 'un' then 'ud' else 'kg' end,
+           'pescado'::text, null::text, null::text, 'disponible'::text, true, a.orden, false,
+           a.precio, a.unidad
+    from public.hosteleria_articulos a
+    where a.lista_id = v_lista_id and a.activo
+    order by a.orden asc, a.nombre asc;
 end;
 $$;
 
--- Alta de un cliente profesional desde el panel de gestión: hashea el
+-- Alta de un cliente de hostelería desde el panel de gestión: hashea el
 -- PIN con pgcrypto (bcrypt) para que nunca quede en texto plano, ni
 -- siquiera visible para el propio panel de admin. Autorización
 -- comprobada a mano porque, al ser security definer, aquí dentro no
@@ -2420,7 +2476,7 @@ begin
 end;
 $$;
 
--- Cambiar el PIN de un cliente profesional existente (el panel de
+-- Cambiar el PIN de un cliente de hostelería existente (el panel de
 -- gestión nunca lee ni muestra el PIN actual, solo permite fijar uno
 -- nuevo).
 create or replace function public.admin_set_hosteleria_pin(p_hosteleria_cliente_id uuid, p_pin text)

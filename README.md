@@ -33,7 +33,7 @@ src/
 │   ├── legal/           # Aviso legal y política de cookies
 │   ├── newsletter/       # Confirmación y baja de suscripción por token
 │   ├── productos/       # Catálogo de productos + carrito
-│   ├── profesionales/    # Página para clientes profesionales (suministro al por mayor)
+│   ├── hosteleria/       # Página y acceso privado para clientes de hostelería (suministro al por mayor)
 │   └── NotFound.tsx
 ├── router/            # Configuración de rutas
 └── types/             # Tipos compartidos (Producto, Pedido, Reseña...)

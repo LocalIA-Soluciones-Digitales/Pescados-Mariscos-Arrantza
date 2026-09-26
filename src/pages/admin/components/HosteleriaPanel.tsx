@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import type { Producto } from '@/types/producto';
 import type { HosteleriaCliente, HosteleriaSolicitud, HosteleriaSolicitudEstado } from '@/types/hosteleria';
 import { useHosteleriaSolicitudes } from '@/hooks/useHosteleriaSolicitudes';
 import { useHosteleriaListasPrecio } from '@/hooks/useHosteleriaListasPrecio';
@@ -217,7 +216,7 @@ function ClienteDetalle({
           </dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-foreground-400">Precios especiales</dt>
+          <dt className="text-foreground-400">Artículos en su tarifa</dt>
           <dd className="text-foreground-700">{preciosEspeciales}</dd>
         </div>
         <div className="flex items-center justify-between">
@@ -243,9 +242,9 @@ function ClienteDetalle({
   );
 }
 
-export default function HosteleriaPanel({ productos }: { productos: Producto[] }) {
+export default function HosteleriaPanel() {
   const { solicitudes, loading: loadingSolicitudes, setEstado, eliminar: eliminarSolicitud } = useHosteleriaSolicitudes();
-  const { listas, precios, crearLista, renombrarLista, eliminarLista, guardarPrecio } = useHosteleriaListasPrecio();
+  const { listas, articulos, crearLista, renombrarLista, eliminarLista, actualizarArticulo, crearArticulo, eliminarArticulo } = useHosteleriaListasPrecio();
   const { clientes, loading: loadingClientes, crear, actualizar, cambiarPin, eliminar: eliminarCliente } = useHosteleriaClientes();
 
   const [vista, setVista] = useState<Vista>('solicitudes');
@@ -423,7 +422,7 @@ export default function HosteleriaPanel({ productos }: { productos: Producto[] }
               <ClienteDetalle
                 cliente={clienteSeleccionado}
                 nombreLista={listas.find((l) => l.id === clienteSeleccionado.lista_precio_id)?.nombre ?? '—'}
-                preciosEspeciales={precios.filter((p) => p.lista_id === clienteSeleccionado.lista_precio_id).length}
+                preciosEspeciales={articulos.filter((a) => a.lista_id === clienteSeleccionado.lista_precio_id && a.activo).length}
                 onEditar={() => setModalCliente(clienteSeleccionado)}
                 onToggleActivo={() => actualizar(clienteSeleccionado.id, { activo: !clienteSeleccionado.activo })}
                 onVerTarifa={() => setListaAbierta(clienteSeleccionado.lista_precio_id)}
@@ -465,10 +464,11 @@ export default function HosteleriaPanel({ productos }: { productos: Producto[] }
       {listaActiva && (
         <ListaPrecioModal
           lista={listaActiva}
-          productos={productos}
-          precios={precios}
+          articulos={articulos}
           onClose={() => setListaAbierta(null)}
-          onGuardarPrecio={guardarPrecio}
+          onActualizarArticulo={actualizarArticulo}
+          onCrearArticulo={crearArticulo}
+          onEliminarArticulo={eliminarArticulo}
           onRenombrar={renombrarLista}
           onEliminar={eliminarLista}
         />

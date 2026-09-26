@@ -458,7 +458,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
       ) : tab === 'stock' ? (
         <StockPanel productos={productos} loading={loading} onPatch={patchLocal} />
       ) : tab === 'hosteleria' ? (
-        <HosteleriaPanel productos={productos} />
+        <HosteleriaPanel />
       ) : (
         <>
       {/* Filtros */}

@@ -290,17 +290,17 @@ async function main() {
     {
       path: '/hosteleria',
       dir: 'hosteleria',
-      title: 'Suministro de Pescado Fresco para Hostelería | Arrantza Profesionales',
+      title: 'Suministro de Pescado Fresco para Hostelería | Arrantza Hostelería',
       description:
         'Servicio profesional de suministro diario de pescado y marisco fresco del Cantábrico para restaurantes y hoteles en Bizkaia. Más de 20 establecimientos confían en Arrantza.',
-      lastmod: '2026-08-11',
+      lastmod: '2026-09-24',
       schemas: [
         localBusiness(),
         organization(),
         website(),
         breadcrumbList([
           { name: 'Inicio', path: '/' },
-          { name: 'Profesionales', path: '/hosteleria' },
+          { name: 'Hostelería', path: '/hosteleria' },
         ]),
         serviceSchema(),
       ],

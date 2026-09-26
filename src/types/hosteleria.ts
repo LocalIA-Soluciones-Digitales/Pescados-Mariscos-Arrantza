@@ -15,15 +15,10 @@ export interface HosteleriaSolicitud {
 export interface HosteleriaListaPrecio {
   id: string;
   nombre: string;
+  bascula_origen: string | null;
+  bascula_familia: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface HosteleriaPrecio {
-  id: string;
-  lista_id: string;
-  producto_id: string;
-  precio: string;
 }
 
 export interface HosteleriaCliente {
@@ -36,8 +31,20 @@ export interface HosteleriaCliente {
   created_at: string;
 }
 
-// Shape devuelto por get_catalogo_hosteleria — mismos campos que Producto,
-// pero sin los de gestión de stock (el cliente de hostelería no los necesita).
+// Artículo propio de una tarifa de hostelería (importado de su familia de la báscula).
+export interface HosteleriaArticulo {
+  id: string;
+  lista_id: string;
+  codigo_bascula: string | null;
+  nombre: string;
+  precio: number;
+  unidad: 'kg' | 'un';
+  orden: number;
+  activo: boolean;
+}
+
+// Shape devuelto por get_catalogo_hosteleria — mismos campos que Producto
+// (para reutilizar el carrito), pero cada fila es un artículo de la tarifa.
 export interface ProductoHosteleria {
   id: string;
   nombre_es: string;
@@ -54,4 +61,6 @@ export interface ProductoHosteleria {
   disponible: boolean;
   orden: number;
   destacado: boolean;
+  precio_num: number;
+  unidad: 'kg' | 'un';
 }

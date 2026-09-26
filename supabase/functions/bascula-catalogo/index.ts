@@ -5,6 +5,9 @@
 // báscula de golpe, en vez de esperar a que cada producto se venda una vez.
 //
 //   POST /bascula-catalogo   { "origen": "pescaderia_1" }   (o pescaderia_2)
+//   Opcional: "tabla": "familias" (o cualquier otra tabla de la base "year")
+//   para leerla entera en vez de /year/artigos — p.ej. los nombres de las
+//   familias/tarifas. "tabla": "" lista los recursos disponibles (GET /year).
 //   Header: x-webhook-secret: <BASCULA_SYNC_SECRET>
 //
 // Reutiliza las mismas credenciales por origen que bascula-sync (ver
@@ -104,15 +107,18 @@ interface RecursoETWS {
   indexes: string[];
 }
 
-// Descubre las columnas del índice de /year/artigos preguntando a ETWS,
-// en vez de asumirlas — así no dependemos de adivinar el esquema interno.
-async function obtenerCamposIndiceArtigos(cfg: CfgETWS, puerto: number): Promise<string[]> {
+async function listarRecursosYear(cfg: CfgETWS, puerto: number): Promise<RecursoETWS[]> {
   const { res } = await llamarETWSConReintento(cfg, puerto, 'GET', '/year', '');
   if (!res.ok) throw new Error(`No se pudo listar la base "year" (HTTP ${res.status})`);
-  const recursos = (await res.json()) as RecursoETWS[];
-  const artigos = recursos.find((r) => r.uri === '/year/artigos');
-  if (!artigos || artigos.indexes.length === 0) return ['codigo'];
-  return artigos.indexes[0].split(',').map((c) => c.trim());
+  return (await res.json()) as RecursoETWS[];
+}
+
+// Descubre las columnas del índice de la tabla preguntando a ETWS, en vez
+// de asumirlas — así no dependemos de adivinar el esquema interno.
+function camposIndice(recursos: RecursoETWS[], uri: string): string[] {
+  const recurso = recursos.find((r) => r.uri === uri);
+  if (!recurso || recurso.indexes.length === 0) return ['codigo'];
+  return recurso.indexes[0].split(',').map((c) => c.trim());
 }
 
 Deno.serve(async (req: Request) => {
@@ -133,9 +139,20 @@ Deno.serve(async (req: Request) => {
     return new Response(`Faltan secretos de configuración de la báscula para el origen "${origen}"`, { status: 500 });
   }
 
+  const tabla = typeof body.tabla === 'string' ? body.tabla : 'artigos';
+
   try {
     let puerto = await obtenerPuertoActual(cfg.proxyId);
-    const campos = await obtenerCamposIndiceArtigos(cfg, puerto);
+    const recursos = await listarRecursosYear(cfg, puerto);
+    if (!tabla) {
+      return new Response(JSON.stringify({ origen, recursos }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    const uri = `/year/${tabla}`;
+    // Solo tablas que ETWS anuncia en /year: nunca se construye una ruta libre.
+    if (!recursos.some((r) => r.uri === uri)) {
+      return new Response(`Tabla "${tabla}" no existe en la base "year"`, { status: 400 });
+    }
+    const campos = camposIndice(recursos, uri);
 
     const vistos = new Set<string>();
     const articulos: Record<string, unknown>[] = [];
@@ -143,9 +160,9 @@ Deno.serve(async (req: Request) => {
 
     for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
       const query = seek ? `?seek=${encodeURIComponent(JSON.stringify(seek))}&limit=${LOTE_MAX}` : `?limit=${LOTE_MAX}`;
-      const { res, puerto: puertoUsado } = await llamarETWSConReintento(cfg, puerto, 'GET', '/year/artigos', query);
+      const { res, puerto: puertoUsado } = await llamarETWSConReintento(cfg, puerto, 'GET', uri, query);
       puerto = puertoUsado;
-      if (!res.ok) throw new Error(`Error consultando /year/artigos (HTTP ${res.status})`);
+      if (!res.ok) throw new Error(`Error consultando ${uri} (HTTP ${res.status})`);
       const filas = (await res.json()) as Record<string, unknown>[];
 
       let nuevas = 0;
@@ -165,7 +182,7 @@ Deno.serve(async (req: Request) => {
       if (nuevas === 0) break; // no avanzamos: evita bucle infinito
     }
 
-    return new Response(JSON.stringify({ origen, campos_indice: campos, total: articulos.length, articulos }), {
+    return new Response(JSON.stringify({ origen, tabla, campos_indice: campos, total: articulos.length, articulos }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

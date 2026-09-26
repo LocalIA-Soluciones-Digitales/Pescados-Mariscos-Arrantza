@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/feature/Navbar';
 import Footer from '@/pages/home/components/Footer';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
@@ -19,7 +18,6 @@ const MAX_DAILY = 4;
 /* ── Hero section ── */
 function HeroSection() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.1, rootMargin: '0px' });
 
   return (
@@ -43,28 +41,25 @@ function HeroSection() {
           Arrantza para hostelería
         </span>
         <h1 className="font-heading text-3xl md:text-5xl lg:text-6xl font-semibold text-background-50 leading-[1.1] mb-5 md:mb-6 max-w-[700px] mx-auto">
-          {t('pro.hero.title')}
+          {t('host.hero.title')}
         </h1>
         <p className="text-white/80 text-sm md:text-lg leading-relaxed max-w-[550px] mx-auto mb-8 md:mb-10">
-          {t('pro.hero.subtitle')}
+          {t('host.hero.subtitle')}
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-4">
-          <button
-            type="button"
-            onClick={() => navigate('/productos')}
+          <a
+            href="#acceso"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 md:px-8 md:py-4 bg-primary-500 text-background-50 rounded-full text-sm md:text-base font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-primary-600 hover:scale-[1.03] active:scale-95 group"
           >
-            {t('pro.hero.cta.catalog')}
-            <span className="w-4 h-4 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
-              <i className="ri-arrow-right-line"></i>
-            </span>
-          </button>
+            <i className="ri-lock-line"></i>
+            {t('host.hero.cta.catalog')}
+          </a>
           <a
             href="#contact-form"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 md:px-8 md:py-4 bg-background-50/15 backdrop-blur-sm border border-background-50/30 text-background-50 rounded-full text-sm md:text-base font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-background-50/25 hover:border-background-50/50 active:scale-95 group"
           >
-            {t('pro.hero.cta.contact')}
+            {t('host.hero.cta.contact')}
             <span className="w-4 h-4 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
               <i className="ri-arrow-down-line"></i>
             </span>
@@ -88,10 +83,10 @@ function BusinessCards() {
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
 
   const cards = [
-    { icon: 'ri-restaurant-2-line', titleKey: 'pro.business.card1.title', descKey: 'pro.business.card1.desc' },
-    { icon: 'ri-hotel-line', titleKey: 'pro.business.card2.title', descKey: 'pro.business.card2.desc' },
-    { icon: 'ri-cake-2-line', titleKey: 'pro.business.card3.title', descKey: 'pro.business.card3.desc' },
-    { icon: 'ri-building-2-line', titleKey: 'pro.business.card4.title', descKey: 'pro.business.card4.desc' },
+    { icon: 'ri-restaurant-2-line', titleKey: 'host.business.card1.title', descKey: 'host.business.card1.desc' },
+    { icon: 'ri-hotel-line', titleKey: 'host.business.card2.title', descKey: 'host.business.card2.desc' },
+    { icon: 'ri-cake-2-line', titleKey: 'host.business.card3.title', descKey: 'host.business.card3.desc' },
+    { icon: 'ri-building-2-line', titleKey: 'host.business.card4.title', descKey: 'host.business.card4.desc' },
   ];
 
   return (
@@ -99,10 +94,10 @@ function BusinessCards() {
       <div ref={ref} className="max-w-[1200px] mx-auto px-4 md:px-6 lg:px-12 py-16 md:py-24">
         <div className={`text-center mb-12 md:mb-16 transition-all duration-800 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <h2 className="font-heading text-2xl md:text-4xl font-semibold text-foreground-950 leading-[1.15] mb-4">
-            {t('pro.business.title')}
+            {t('host.business.title')}
           </h2>
           <p className="text-sm md:text-base text-foreground-500 leading-relaxed max-w-[650px] mx-auto">
-            {t('pro.business.subtitle')}
+            {t('host.business.subtitle')}
           </p>
         </div>
 
@@ -133,7 +128,6 @@ function BusinessCards() {
 /* ── Daily selection section ── */
 function DailySelection() {
   const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
   const { productos } = useProductosPublicos();
 
@@ -150,10 +144,10 @@ function DailySelection() {
       <div ref={ref} className="max-w-[1200px] mx-auto px-4 md:px-6 lg:px-12 py-16 md:py-24">
         <div className={`text-center mb-12 md:mb-16 transition-all duration-800 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <h2 className="font-heading text-2xl md:text-4xl font-semibold text-foreground-950 leading-[1.15] mb-4">
-            {t('pro.daily.title')}
+            {t('host.daily.title')}
           </h2>
           <p className="text-sm md:text-base text-foreground-500 leading-relaxed max-w-[600px] mx-auto">
-            {t('pro.daily.subtitle')}
+            {t('host.daily.subtitle')}
           </p>
         </div>
 
@@ -162,11 +156,9 @@ function DailySelection() {
             const nombre = pickLang(producto, 'nombre', i18n.language);
             const origen = pickLang(producto, 'origen', i18n.language);
             return (
-              <button
+              <div
                 key={producto.id}
-                type="button"
-                onClick={() => navigate('/productos')}
-                className={`group bg-background-50 rounded-lg border border-background-200/70 overflow-hidden text-left cursor-pointer transition-all duration-500 ease-out hover:-translate-y-1 hover:border-background-300/80 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+                className={`group bg-background-50 rounded-lg border border-background-200/70 overflow-hidden text-left transition-all duration-500 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
                 style={{ transitionDelay: `${idx * 100}ms` }}
               >
                 <div className="relative aspect-[4/3] overflow-hidden bg-background-100">
@@ -193,24 +185,26 @@ function DailySelection() {
                       </span>
                     </p>
                   )}
-                  <span className="text-sm md:text-base font-semibold text-foreground-950">{producto.precio}</span>
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground-400">
+                    <i className="ri-lock-line"></i>
+                    {t('host.daily.price_hidden')}
+                  </span>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
 
         <div className="text-center">
-          <button
-            type="button"
-            onClick={() => navigate('/productos')}
+          <a
+            href="#contact-form"
             className="inline-flex items-center gap-2 px-6 py-3 md:px-8 md:py-4 bg-primary-500 text-background-50 rounded-full text-sm md:text-base font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-primary-600 hover:scale-[1.03] active:scale-95 group"
           >
-            {t('pro.daily.cta')}
-            <span className="w-4 h-4 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
-              <i className="ri-arrow-right-line"></i>
+            {t('host.daily.cta')}
+            <span className="w-4 h-4 flex items-center justify-center transition-transform duration-300 group-hover:translate-y-0.5">
+              <i className="ri-arrow-down-line"></i>
             </span>
-          </button>
+          </a>
         </div>
       </div>
     </section>
@@ -223,9 +217,9 @@ function ProcessSteps() {
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
 
   const steps = [
-    { numberKey: 'pro.process.step1.number', titleKey: 'pro.process.step1.title', descKey: 'pro.process.step1.desc' },
-    { numberKey: 'pro.process.step2.number', titleKey: 'pro.process.step2.title', descKey: 'pro.process.step2.desc' },
-    { numberKey: 'pro.process.step3.number', titleKey: 'pro.process.step3.title', descKey: 'pro.process.step3.desc' },
+    { numberKey: 'host.process.step1.number', titleKey: 'host.process.step1.title', descKey: 'host.process.step1.desc' },
+    { numberKey: 'host.process.step2.number', titleKey: 'host.process.step2.title', descKey: 'host.process.step2.desc' },
+    { numberKey: 'host.process.step3.number', titleKey: 'host.process.step3.title', descKey: 'host.process.step3.desc' },
   ];
 
   return (
@@ -233,7 +227,7 @@ function ProcessSteps() {
       <div ref={ref} className="max-w-[1200px] mx-auto px-4 md:px-6 lg:px-12 py-16 md:py-24">
         <div className={`text-center mb-12 md:mb-16 transition-all duration-800 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <h2 className="font-heading text-2xl md:text-4xl font-semibold text-foreground-950 leading-[1.15]">
-            {t('pro.process.title')}
+            {t('host.process.title')}
           </h2>
         </div>
 
@@ -278,10 +272,10 @@ function RecurringOrders() {
       <div ref={ref} className="relative z-10 max-w-[700px] mx-auto px-4 md:px-6 lg:px-12 py-16 md:py-24 text-center">
         <div className={`transition-all duration-800 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <h2 className="font-heading text-2xl md:text-4xl font-semibold text-background-50 leading-[1.15] mb-5 md:mb-6">
-            {t('pro.recurring.title')}
+            {t('host.recurring.title')}
           </h2>
           <p className="text-base md:text-lg text-white/70 leading-relaxed mb-8 md:mb-10 max-w-[550px] mx-auto">
-            {t('pro.recurring.subtitle')}
+            {t('host.recurring.subtitle')}
           </p>
           <a
             href="https://wa.me/34619609888"
@@ -293,7 +287,7 @@ function RecurringOrders() {
             <span className="w-5 h-5 flex items-center justify-center">
               <i className="ri-whatsapp-line text-lg"></i>
             </span>
-            {t('pro.recurring.cta')}
+            {t('host.recurring.cta')}
             <span className="w-4 h-4 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
               <i className="ri-arrow-right-line"></i>
             </span>
@@ -314,16 +308,16 @@ function SpecialOrders() {
       <div ref={ref} className="max-w-[700px] mx-auto px-4 md:px-6 lg:px-12 py-16 md:py-24 text-center">
         <div className={`transition-all duration-800 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <h2 className="font-heading text-2xl md:text-4xl font-semibold text-foreground-950 leading-[1.15] mb-4">
-            {t('pro.special.title')}
+            {t('host.special.title')}
           </h2>
           <p className="text-sm md:text-base text-foreground-500 leading-relaxed max-w-[500px] mx-auto mb-8 md:mb-10">
-            {t('pro.special.subtitle')}
+            {t('host.special.subtitle')}
           </p>
           <a
             href="#contact-form"
             className="inline-flex items-center gap-2 px-7 py-3.5 md:px-8 md:py-4 bg-secondary-500 text-background-50 rounded-full text-sm md:text-base font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-secondary-600 hover:scale-[1.03] active:scale-95 group"
           >
-            {t('pro.special.cta')}
+            {t('host.special.cta')}
             <span className="w-4 h-4 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
               <i className="ri-arrow-right-line"></i>
             </span>
@@ -344,11 +338,11 @@ function ContactForm() {
   const [businessType, setBusinessType] = useState('');
 
   const businessTypes = [
-    { value: 'restaurante', labelKey: 'pro.form.business_type.restaurant' },
-    { value: 'hotel', labelKey: 'pro.form.business_type.hotel' },
-    { value: 'catering', labelKey: 'pro.form.business_type.catering' },
-    { value: 'comercio', labelKey: 'pro.form.business_type.commerce' },
-    { value: 'otro', labelKey: 'pro.form.business_type.other' },
+    { value: 'restaurante', labelKey: 'host.form.business_type.restaurant' },
+    { value: 'hotel', labelKey: 'host.form.business_type.hotel' },
+    { value: 'catering', labelKey: 'host.form.business_type.catering' },
+    { value: 'comercio', labelKey: 'host.form.business_type.commerce' },
+    { value: 'otro', labelKey: 'host.form.business_type.other' },
   ];
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -411,10 +405,10 @@ function ContactForm() {
       <div ref={ref} className="max-w-[800px] mx-auto px-4 md:px-6 lg:px-12 py-16 md:py-24">
         <div className={`text-center mb-10 md:mb-14 transition-all duration-800 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <h2 className="font-heading text-2xl md:text-4xl font-semibold text-foreground-950 leading-[1.15] mb-4">
-            {t('pro.form.title')}
+            {t('host.form.title')}
           </h2>
           <p className="text-sm md:text-base text-foreground-500 leading-relaxed max-w-[500px] mx-auto">
-            {t('pro.form.subtitle')}
+            {t('host.form.subtitle')}
           </p>
         </div>
 
@@ -424,10 +418,10 @@ function ContactForm() {
               <i className="ri-check-line"></i>
             </span>
             <h3 className="font-heading text-xl font-semibold text-foreground-950 mb-2">
-              {t('pro.form.success_title')}
+              {t('host.form.success_title')}
             </h3>
             <p className="text-sm text-foreground-500">
-              {t('pro.form.success_message')}
+              {t('host.form.success_message')}
             </p>
           </div>
         ) : (
@@ -439,33 +433,33 @@ function ContactForm() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:gap-6">
               <div>
                 <label htmlFor="business_name" className="block text-sm font-medium text-foreground-700 mb-1.5">
-                  {t('pro.form.business_name')} *
+                  {t('host.form.business_name')} *
                 </label>
                 <input
                   type="text"
                   id="business_name"
                   name="business_name"
                   required
-                  placeholder={t('pro.form.business_name_placeholder')}
+                  placeholder={t('host.form.business_name_placeholder')}
                   className="w-full px-4 py-3 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-300"
                 />
               </div>
               <div>
                 <label htmlFor="contact_person" className="block text-sm font-medium text-foreground-700 mb-1.5">
-                  {t('pro.form.contact_person')} *
+                  {t('host.form.contact_person')} *
                 </label>
                 <input
                   type="text"
                   id="contact_person"
                   name="contact_person"
                   required
-                  placeholder={t('pro.form.contact_person_placeholder')}
+                  placeholder={t('host.form.contact_person_placeholder')}
                   className="w-full px-4 py-3 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-300"
                 />
               </div>
               <div>
                 <label htmlFor="business_type" className="block text-sm font-medium text-foreground-700 mb-1.5">
-                  {t('pro.form.business_type')} *
+                  {t('host.form.business_type')} *
                 </label>
                 <select
                   id="business_type"
@@ -481,7 +475,7 @@ function ContactForm() {
                     paddingRight: '2.5rem',
                   }}
                 >
-                  <option value="" disabled>{t('pro.form.business_type_placeholder')}</option>
+                  <option value="" disabled>{t('host.form.business_type_placeholder')}</option>
                   {businessTypes.map((bt) => (
                     <option key={bt.value} value={bt.value}>{t(bt.labelKey)}</option>
                   ))}
@@ -489,14 +483,14 @@ function ContactForm() {
               </div>
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-foreground-700 mb-1.5">
-                  {t('pro.form.phone')} *
+                  {t('host.form.phone')} *
                 </label>
                 <input
                   type="tel"
                   id="phone"
                   name="phone"
                   required
-                  placeholder={t('pro.form.phone_placeholder')}
+                  placeholder={t('host.form.phone_placeholder')}
                   className="w-full px-4 py-3 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-300"
                 />
               </div>
@@ -504,20 +498,20 @@ function ContactForm() {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-foreground-700 mb-1.5">
-                {t('pro.form.email')}
+                {t('host.form.email')}
               </label>
               <input
                 type="email"
                 id="email"
                 name="email"
-                placeholder={t('pro.form.email_placeholder')}
+                placeholder={t('host.form.email_placeholder')}
                 className="w-full px-4 py-3 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-300"
               />
             </div>
 
             <div>
               <label htmlFor="needs" className="block text-sm font-medium text-foreground-700 mb-1.5">
-                {t('pro.form.needs')} *
+                {t('host.form.needs')} *
               </label>
               <textarea
                 id="needs"
@@ -525,7 +519,7 @@ function ContactForm() {
                 required
                 rows={4}
                 maxLength={500}
-                placeholder={t('pro.form.needs_placeholder')}
+                placeholder={t('host.form.needs_placeholder')}
                 className="w-full px-4 py-3 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40 transition-all duration-300 resize-none"
               ></textarea>
             </div>
@@ -546,16 +540,16 @@ function ContactForm() {
               disabled={formState === 'sending'}
               className="inline-flex items-center gap-2 px-7 py-3.5 md:px-8 md:py-4 bg-primary-500 text-background-50 rounded-full text-sm md:text-base font-semibold cursor-pointer whitespace-nowrap transition-all duration-300 hover:bg-primary-600 hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {formState === 'sending' ? t('pro.form.sending') : t('pro.form.submit')}
+              {formState === 'sending' ? t('host.form.sending') : t('host.form.submit')}
               <span className="w-4 h-4 flex items-center justify-center">
                 <i className="ri-arrow-right-line"></i>
               </span>
             </button>
 
             <p className="text-xs text-foreground-400 leading-relaxed">
-              {t('pro.form.privacy_pre')}{' '}
+              {t('host.form.privacy_pre')}{' '}
               <a href="/privacidad" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground-600">
-                {t('pro.form.privacy_link')}
+                {t('host.form.privacy_link')}
               </a>
               .
             </p>
@@ -579,10 +573,10 @@ function WhatsAppSection() {
             <i className="ri-whatsapp-line"></i>
           </span>
           <h2 className="font-heading text-2xl md:text-3xl font-semibold text-foreground-950 leading-[1.15] mb-3">
-            {t('pro.whatsapp.title')}
+            {t('host.whatsapp.title')}
           </h2>
           <p className="text-sm md:text-base text-foreground-500 leading-relaxed mb-8">
-            {t('pro.whatsapp.subtitle')}
+            {t('host.whatsapp.subtitle')}
           </p>
           <a
             href="https://wa.me/34619609888"
@@ -594,7 +588,7 @@ function WhatsAppSection() {
             <span className="w-5 h-5 flex items-center justify-center">
               <i className="ri-whatsapp-line text-lg"></i>
             </span>
-            {t('pro.whatsapp.cta')}
+            {t('host.whatsapp.cta')}
             <span className="w-4 h-4 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
               <i className="ri-arrow-right-line"></i>
             </span>

@@ -2,21 +2,26 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getMiClienteId } from '@/lib/clienteContext';
 import { useRealtimeTable } from './useRealtimeTable';
-import type { HosteleriaListaPrecio, HosteleriaPrecio } from '@/types/hosteleria';
+import type { HosteleriaArticulo, HosteleriaListaPrecio } from '@/types/hosteleria';
 
+type ArticuloCambios = Partial<Pick<HosteleriaArticulo, 'nombre' | 'precio' | 'unidad' | 'activo'>>;
+
+// Tarifas de hostelería y sus artículos. Cada tarifa tiene su propia lista
+// cerrada de artículos (importada de su familia de la báscula), que es lo
+// único que ve el bar que la tiene asignada.
 export function useHosteleriaListasPrecio() {
   const [listas, setListas] = useState<HosteleriaListaPrecio[]>([]);
-  const [precios, setPrecios] = useState<HosteleriaPrecio[]>([]);
+  const [articulos, setArticulos] = useState<HosteleriaArticulo[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchTodo = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    const [listasRes, preciosRes] = await Promise.all([
+    const [listasRes, articulosRes] = await Promise.all([
       supabase.from('hosteleria_listas_precio').select('*').order('nombre', { ascending: true }),
-      supabase.from('hosteleria_precios').select('*'),
+      supabase.from('hosteleria_articulos').select('*').order('orden', { ascending: true }),
     ]);
     setListas(listasRes.data ?? []);
-    setPrecios(preciosRes.data ?? []);
+    setArticulos((articulosRes.data ?? []).map((a) => ({ ...a, precio: Number(a.precio) })));
     if (!silent) setLoading(false);
   }, []);
 
@@ -26,7 +31,7 @@ export function useHosteleriaListasPrecio() {
 
   const fetchTodoSilent = useCallback(() => fetchTodo(true), [fetchTodo]);
   useRealtimeTable('hosteleria_listas_precio', fetchTodoSilent);
-  useRealtimeTable('hosteleria_precios', fetchTodoSilent);
+  useRealtimeTable('hosteleria_articulos', fetchTodoSilent);
 
   const crearLista = useCallback(async (nombre: string) => {
     const clienteId = await getMiClienteId();
@@ -54,29 +59,42 @@ export function useHosteleriaListasPrecio() {
     return true;
   }, []);
 
-  // precio vacío/null = quitar el override y volver al precio público normal.
-  const guardarPrecio = useCallback(async (listaId: string, productoId: string, precio: string) => {
-    const limpio = precio.trim();
-    if (!limpio) {
-      const { error } = await supabase
-        .from('hosteleria_precios')
-        .delete()
-        .eq('lista_id', listaId)
-        .eq('producto_id', productoId);
-      if (error) return false;
-      setPrecios((prev) => prev.filter((p) => !(p.lista_id === listaId && p.producto_id === productoId)));
-      return true;
-    }
-
-    const { data, error } = await supabase
-      .from('hosteleria_precios')
-      .upsert({ lista_id: listaId, producto_id: productoId, precio: limpio }, { onConflict: 'lista_id,producto_id' })
-      .select()
-      .single();
-    if (error || !data) return false;
-    setPrecios((prev) => [...prev.filter((p) => !(p.lista_id === listaId && p.producto_id === productoId)), data]);
+  const actualizarArticulo = useCallback(async (id: string, cambios: ArticuloCambios) => {
+    const { error } = await supabase.from('hosteleria_articulos').update(cambios).eq('id', id);
+    if (error) return false;
+    setArticulos((prev) => prev.map((a) => (a.id === id ? { ...a, ...cambios } : a)));
     return true;
   }, []);
 
-  return { listas, precios, loading, refetch: fetchTodo, crearLista, renombrarLista, eliminarLista, guardarPrecio };
+  const crearArticulo = useCallback(async (listaId: string, nombre: string, precio: number, unidad: 'kg' | 'un') => {
+    const orden = articulos.filter((a) => a.lista_id === listaId).reduce((max, a) => Math.max(max, a.orden), 0) + 1;
+    const { data, error } = await supabase
+      .from('hosteleria_articulos')
+      .insert({ lista_id: listaId, nombre: nombre.trim(), precio, unidad, orden })
+      .select()
+      .single();
+    if (error || !data) return false;
+    setArticulos((prev) => [...prev, { ...data, precio: Number(data.precio) }]);
+    return true;
+  }, [articulos]);
+
+  const eliminarArticulo = useCallback(async (id: string) => {
+    const { error } = await supabase.from('hosteleria_articulos').delete().eq('id', id);
+    if (error) return false;
+    setArticulos((prev) => prev.filter((a) => a.id !== id));
+    return true;
+  }, []);
+
+  return {
+    listas,
+    articulos,
+    loading,
+    refetch: fetchTodo,
+    crearLista,
+    renombrarLista,
+    eliminarLista,
+    actualizarArticulo,
+    crearArticulo,
+    eliminarArticulo,
+  };
 }
