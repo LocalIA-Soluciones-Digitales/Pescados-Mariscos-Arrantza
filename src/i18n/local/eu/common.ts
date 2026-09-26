@@ -1017,6 +1017,8 @@ const common = {
   "host.access.subtitle": "Sartu Arrantzak eman dizun kodearekin eta PINarekin.",
   "host.access.code_placeholder": "Sarbide-kodea",
   "host.access.pin_placeholder": "PINa",
+  "host.access.show_pin": "PINa erakutsi",
+  "host.access.hide_pin": "PINa ezkutatu",
   "host.access.submit": "Sartu",
   "host.access.entering": "Sartzen...",
   "host.catalog.private_label": "Ostalaritza-kontua",

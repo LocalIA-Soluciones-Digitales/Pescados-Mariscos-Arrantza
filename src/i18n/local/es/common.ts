@@ -1016,6 +1016,8 @@ const common = {
   "host.access.subtitle": "Entra con el código y el PIN que te ha dado Arrantza.",
   "host.access.code_placeholder": "Código de acceso",
   "host.access.pin_placeholder": "PIN",
+  "host.access.show_pin": "Mostrar PIN",
+  "host.access.hide_pin": "Ocultar PIN",
   "host.access.submit": "Acceder",
   "host.access.entering": "Accediendo...",
   "host.catalog.private_label": "Cuenta de hostelería",

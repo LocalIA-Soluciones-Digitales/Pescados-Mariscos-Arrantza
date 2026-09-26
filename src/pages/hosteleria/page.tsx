@@ -25,6 +25,7 @@ function LoginForm({
   const { t } = useTranslation();
   const [codigo, setCodigo] = useState('');
   const [pin, setPin] = useState('');
+  const [verPin, setVerPin] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,17 +50,27 @@ function LoginForm({
         spellCheck={false}
         className={inputClass}
       />
-      <input
-        type="password"
-        name="hosteleria-pin"
-        inputMode="numeric"
-        value={pin}
-        onChange={(e) => setPin(e.target.value)}
-        placeholder={t('host.access.pin_placeholder')}
-        aria-label={t('host.access.pin_placeholder')}
-        autoComplete="off"
-        className={inputClass}
-      />
+      <div className="relative">
+        <input
+          type={verPin ? 'text' : 'password'}
+          name="hosteleria-pin"
+          inputMode="numeric"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          placeholder={t('host.access.pin_placeholder')}
+          aria-label={t('host.access.pin_placeholder')}
+          autoComplete="off"
+          className={`${inputClass} pr-11`}
+        />
+        <button
+          type="button"
+          onClick={() => setVerPin((v) => !v)}
+          aria-label={verPin ? t('host.access.hide_pin') : t('host.access.show_pin')}
+          className="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-foreground-400 hover:text-foreground-700 transition-colors"
+        >
+          <i className={verPin ? 'ri-eye-off-line' : 'ri-eye-line'}></i>
+        </button>
+      </div>
       {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200/60 rounded-lg px-3 py-2">{error}</p>}
       <button
         type="submit"
