@@ -6,116 +6,6 @@ import { useCartSound } from '@/hooks/useCartSound';
 import { type Producto, normalizeSearch } from '@/types/producto';
 import type { ProductoHosteleria } from '@/types/hosteleria';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
-import { logConversion } from '@/lib/visitLog';
-
-/* ── Bloque de acceso de la landing pública: a la izquierda entrar con
-   código+PIN (clientes ya dados de alta), a la derecha pedir acceso. Los
-   precios de hostelería nunca se muestran en la parte pública: solo se ven
-   tras iniciar sesión, cada negocio con su propia tarifa. ── */
-export function AccesoHosteleriaCard({
-  onLogin,
-  loading,
-  error,
-}: {
-  onLogin: (codigo: string, pin: string) => Promise<boolean>;
-  loading: boolean;
-  error: string | null;
-}) {
-  const { t } = useTranslation();
-  const [codigo, setCodigo] = useState('');
-  const [pin, setPin] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!codigo.trim() || !pin.trim()) return;
-    await onLogin(codigo.trim(), pin.trim());
-  };
-
-  const inputClass =
-    'w-full px-4 py-3 bg-background-50 border border-background-200/70 rounded-lg text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-foreground-300/60 focus:ring-1 focus:ring-foreground-200/40';
-
-  return (
-    <section id="acceso" className="bg-background-100/60 border-b border-background-200/50 scroll-mt-20">
-      <div className="max-w-[1000px] mx-auto px-4 md:px-6 lg:px-12 py-12 md:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          <form onSubmit={handleSubmit} className="bg-background-50 rounded-xl border border-background-200/70 p-6 md:p-8 flex flex-col">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="w-10 h-10 flex items-center justify-center rounded-full bg-primary-100 text-primary-700">
-                <i className="ri-lock-line"></i>
-              </span>
-              <h2 className="font-heading text-lg md:text-xl font-semibold text-foreground-950">{t('host.access.title')}</h2>
-            </div>
-            <p className="text-sm text-foreground-500 leading-relaxed mb-5">{t('host.access.subtitle')}</p>
-
-            <div className="space-y-3 mb-3">
-              <input
-                type="text"
-                value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
-                placeholder={t('host.access.code_placeholder')}
-                aria-label={t('host.access.code_placeholder')}
-                autoComplete="username"
-                autoCapitalize="none"
-                className={inputClass}
-              />
-              <input
-                type="password"
-                inputMode="numeric"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                placeholder={t('host.access.pin_placeholder')}
-                aria-label={t('host.access.pin_placeholder')}
-                autoComplete="current-password"
-                className={inputClass}
-              />
-            </div>
-
-            {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200/60 rounded-lg px-3 py-2 mb-3">{error}</p>}
-
-            <button
-              type="submit"
-              disabled={loading || !codigo.trim() || !pin.trim()}
-              className="mt-auto w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary-500 text-background-50 rounded-full text-sm font-semibold hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? t('host.access.entering') : t('host.access.submit')}
-              {!loading && <i className="ri-arrow-right-line"></i>}
-            </button>
-          </form>
-
-          <div className="bg-foreground-950 rounded-xl p-6 md:p-8 flex flex-col text-background-50">
-            <h2 className="font-heading text-lg md:text-xl font-semibold mb-2">{t('host.access.request_title')}</h2>
-            <p className="text-sm text-white/70 leading-relaxed mb-5">{t('host.access.request_text')}</p>
-            <ul className="space-y-2.5 mb-6">
-              {['host.access.bullet1', 'host.access.bullet2', 'host.access.bullet3'].map((key) => (
-                <li key={key} className="flex items-start gap-2.5 text-sm text-white/85">
-                  <i className="ri-check-line text-primary-300 mt-0.5"></i>
-                  {t(key)}
-                </li>
-              ))}
-            </ul>
-            <a
-              href="#contact-form"
-              className="mt-auto w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-background-50 text-foreground-950 rounded-full text-sm font-semibold hover:bg-background-100 transition-colors"
-            >
-              {t('host.access.request_cta')}
-              <i className="ri-arrow-down-line"></i>
-            </a>
-            <a
-              href="https://wa.me/34619609888"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => logConversion('whatsapp_click')}
-              className="mt-3 inline-flex items-center justify-center gap-1.5 text-xs text-white/70 hover:text-white"
-            >
-              <i className="ri-whatsapp-line"></i>
-              {t('host.access.request_whatsapp')}
-            </a>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 // El catálogo de hostelería no incluye los campos de gestión de stock (el
 // cliente no los necesita, y get_catalogo_hosteleria no los expone) —
@@ -242,6 +132,13 @@ export function CatalogoHosteleriaView({
 
   const productosAdaptados = useMemo(() => productos.map(toProducto), [productos]);
 
+  const iniciales = nombreNegocio
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('');
+
   const visibles = useMemo(() => {
     if (!search.trim()) return productos;
     const q = normalizeSearch(search.trim());
@@ -257,24 +154,29 @@ export function CatalogoHosteleriaView({
 
   return (
     <main id="main-content" className="min-h-[70vh] max-w-[860px] mx-auto px-4 md:px-6 py-10 md:py-14 pb-28">
-      <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-primary-600 font-semibold mb-1">{t('host.catalog.private_label')}</p>
-          <h1 className="font-heading text-2xl md:text-3xl font-semibold text-foreground-950">{nombreNegocio}</h1>
+      <section className="flex items-center gap-4 bg-background-50 border border-background-200/70 rounded-2xl p-4 md:p-5 mb-6">
+        <span className="w-12 h-12 md:w-14 md:h-14 flex-shrink-0 flex items-center justify-center rounded-full bg-primary-100 text-primary-700 font-heading text-lg md:text-xl font-semibold">
+          {iniciales}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] uppercase tracking-wide text-primary-600 font-semibold">{t('host.catalog.private_label')}</p>
+          <h1 className="font-heading text-xl md:text-2xl font-semibold text-foreground-950 truncate">{nombreNegocio}</h1>
+          {!loading && <p className="text-xs text-foreground-400 mt-0.5">{t('host.catalog.count', { count: productos.length })}</p>}
         </div>
         <button
           type="button"
           onClick={onLogout}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70"
+          className="inline-flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-full text-xs font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70 flex-shrink-0"
+          aria-label={t('host.catalog.logout')}
         >
           <i className="ri-logout-box-r-line"></i>
-          {t('host.catalog.logout')}
+          <span className="hidden sm:inline">{t('host.catalog.logout')}</span>
         </button>
-      </div>
+      </section>
 
       {productos.length > 0 && (
-        <div className="flex items-center gap-3 mb-4">
-          <div className="relative flex-1 sm:max-w-[340px]">
+        <div className="mb-4">
+          <div className="relative sm:max-w-[340px]">
             <i className="ri-search-line absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
             <input
               type="search"
@@ -284,7 +186,6 @@ export function CatalogoHosteleriaView({
               className="w-full pl-9 pr-4 py-2.5 bg-background-100 border border-background-200/70 rounded-full text-sm text-foreground-950 placeholder:text-foreground-400 focus:outline-none focus:border-foreground-300/60"
             />
           </div>
-          <span className="text-xs text-foreground-400 whitespace-nowrap">{t('host.catalog.count', { count: visibles.length })}</span>
         </div>
       )}
 
