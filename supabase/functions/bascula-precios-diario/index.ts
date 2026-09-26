@@ -21,12 +21,13 @@
 //      precio, familia o unidades.
 //   3. Copia el precio a la web: productos con código mapeado en
 //      productos_codigos_bascula para ese origen, y artículos de hostelería
-//      importados de esa báscula y familia. Si un código ha cambiado de
+//      importados de esa báscula y familia, y artículos de campañas de
+//      reserva (Navidad…) enlazadas a esa báscula y familia. Si un código ha cambiado de
 //      producto, NO se toca el precio del producto web enlazado (sería el
 //      precio de otro artículo) — solo se avisa.
 //      La categoría web sigue a la familia (1 Pescado, 2 Pescado de carta,
 //      3 Marisco, 4 Congelado, 5 Varios); si un artículo pasa a otra familia
-//      (Navidad, hostelería) se oculta de la tienda.
+//      (Navidad, hostelería) o desaparece de la báscula, se oculta de la tienda.
 //   4. Guarda la foto nueva y manda un push al pescadero con el resumen.
 //
 // La primera ejecución solo guarda la foto de partida (no hay con qué
@@ -254,7 +255,7 @@ function resumenAviso(cambios: Cambio[], preciosWeb: number, sinActualizar: stri
     partes.push(`${precios.length} precios cambiados`);
   }
   if (preciosWeb > 0) partes.push(`${preciosWeb} actualizados en la web`);
-  if (sinActualizar.length > 0) partes.push(`Revisar en la web (código cambiado): ${sinActualizar.slice(0, 3).join(', ')}`);
+  if (sinActualizar.length > 0) partes.push(`Revisar en la web (borrado u otro producto en su código): ${sinActualizar.slice(0, 3).join(', ')}${sinActualizar.length > 3 ? ` y ${sinActualizar.length - 3} más` : ''}`);
 
   const texto = partes.join(' · ');
   return texto.length > 300 ? `${texto.slice(0, 297)}…` : texto;
@@ -368,6 +369,12 @@ Deno.serve(async (req: Request) => {
       if (codigosEliminados.has(m.codigo_bascula as string) || codigosRenombrados.has(m.codigo_bascula as string)) {
         sinActualizar.push(p.nombre_es);
       }
+      // Si el artículo ya no está en la báscula, deja de venderse en la
+      // tienda (se oculta, no se borra: conserva foto e historial por si
+      // vuelve a darse de alta).
+      if (codigosEliminados.has(m.codigo_bascula as string) && p.visible_web) {
+        categoriasProductos.push({ id: p.id, nombre: p.nombre_es, categoria: null, visible_web: false });
+      }
       continue;
     }
     const nuevo = formatoPrecioWeb(a);
@@ -405,11 +412,32 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // Precios de campañas de reserva (Navidad…): artículos de reservas_articulos
+  // de las campañas enlazadas a esta báscula, mismo criterio que hostelería.
+  const { data: campanas, error: errCampanas } = await supabase
+    .from('reservas_eventos')
+    .select('id, bascula_familia, reservas_articulos (id, codigo_bascula, nombre_es, precio, unidad)')
+    .eq('cliente_id', clienteId)
+    .eq('bascula_origen', origen);
+  if (errCampanas) return json({ error: errCampanas.message }, 500);
+
+  const preciosReservas: { id: string; nombre: string; antes: number; despues: number; unidad: 'kg' | 'un' }[] = [];
+  for (const e of campanas ?? []) {
+    for (const r of (e.reservas_articulos ?? []) as { id: string; codigo_bascula: string | null; nombre_es: string; precio: number; unidad: string }[]) {
+      const a = r.codigo_bascula ? actual.get(r.codigo_bascula) : undefined;
+      if (!a || a.familia !== e.bascula_familia || codigosRenombrados.has(a.codigo)) continue;
+      const unidad = a.unidades === 'un' ? 'un' : 'kg';
+      if (Math.abs(Number(r.precio) - a.precio) > 0.001 || r.unidad !== unidad) {
+        preciosReservas.push({ id: r.id, nombre: r.nombre_es, antes: Number(r.precio), despues: a.precio, unidad });
+      }
+    }
+  }
+
   const resultado = {
     origen, fecha, primeraVez, simulado: simular,
     articulos: actual.size,
     cambios: cambios.map((c) => ({ codigo: c.codigo, tipo: c.tipo, antes: c.antes, despues: c.despues })),
-    preciosProductos, categoriasProductos, preciosHosteleria, sinActualizar,
+    preciosProductos, categoriasProductos, preciosHosteleria, preciosReservas, sinActualizar,
   };
   if (simular) return json(resultado);
 
@@ -427,6 +455,11 @@ Deno.serve(async (req: Request) => {
     if (error) return json({ error: `Actualizando ${h.nombre} (hostelería): ${error.message}` }, 500);
   }
 
+  for (const r of preciosReservas) {
+    const { error } = await supabase.from('reservas_articulos').update({ precio: r.despues, unidad: r.unidad }).eq('id', r.id);
+    if (error) return json({ error: `Actualizando ${r.nombre} (reservas): ${error.message}` }, 500);
+  }
+
   if (cambios.length > 0) {
     const { error } = await supabase.from('bascula_catalogo_cambios').insert(
       cambios.map((c) => ({ cliente_id: clienteId, origen, codigo: c.codigo, tipo: c.tipo, antes: c.antes, despues: c.despues })),
@@ -442,7 +475,7 @@ Deno.serve(async (req: Request) => {
     await supabase.from('bascula_catalogo').delete().eq('cliente_id', clienteId).eq('origen', origen).in('codigo', [...codigosEliminados]);
   }
 
-  const preciosWeb = preciosProductos.length + preciosHosteleria.length;
+  const preciosWeb = preciosProductos.length + preciosHosteleria.length + preciosReservas.length;
   if (cambios.length > 0 || preciosWeb > 0 || sinActualizar.length > 0) {
     const estructurales = cambios.some((c) => c.tipo !== 'precio');
     await avisar(

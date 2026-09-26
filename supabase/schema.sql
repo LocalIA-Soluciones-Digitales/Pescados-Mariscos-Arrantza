@@ -2949,3 +2949,66 @@ as $$
 $$;
 
 grant execute on function public.ventas_por_hora(date, integer) to authenticated;
+
+-- ============================================================
+-- Artículos propios de una campaña de reservas (Navidad…). Una campaña
+-- enlazada a una familia de la báscula (bascula_origen/bascula_familia)
+-- ofrece en /reservas estos artículos con su precio, en vez del catálogo de
+-- la tienda. bascula-precios-diario les copia cada día el precio de la
+-- báscula. Navidad 2026 = familia 6 de pescaderia_1.
+-- ============================================================
+
+alter table public.reservas_eventos
+  add column if not exists bascula_origen text,
+  add column if not exists bascula_familia text;
+
+create table if not exists public.reservas_articulos (
+  id uuid primary key default gen_random_uuid(),
+  evento_id uuid not null references public.reservas_eventos (id) on delete cascade,
+  cliente_id uuid not null references public.clientes (id),
+  codigo_bascula text,
+  nombre_es text not null,
+  nombre_eu text,
+  precio numeric(10, 2) not null default 0 check (precio >= 0),
+  unidad text not null default 'kg' check (unidad in ('kg', 'un')),
+  imagen_url text,
+  orden integer not null default 0,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (evento_id, codigo_bascula)
+);
+
+drop trigger if exists trg_reservas_articulos_updated_at on public.reservas_articulos;
+create trigger trg_reservas_articulos_updated_at
+  before update on public.reservas_articulos
+  for each row execute function public.set_updated_at();
+
+alter table public.reservas_articulos enable row level security;
+
+drop policy if exists "reservas_articulos_admin" on public.reservas_articulos;
+create policy "reservas_articulos_admin"
+  on public.reservas_articulos for all
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_reservas_articulos_evento on public.reservas_articulos (evento_id, orden);
+
+-- Uso público: solo artículos activos de una campaña activa del negocio de
+-- la web que pregunta (site_key), igual que get_reservas_eventos_publico.
+create or replace function public.get_reservas_articulos_publico(p_site_key uuid, p_evento_id uuid)
+returns table (id uuid, codigo_bascula text, nombre_es text, nombre_eu text, precio numeric, unidad text, imagen_url text, orden integer)
+language sql stable security definer set search_path = public
+as $$
+  select a.id, a.codigo_bascula, a.nombre_es, a.nombre_eu, a.precio, a.unidad, a.imagen_url, a.orden
+  from public.reservas_articulos a
+  join public.reservas_eventos e on e.id = a.evento_id
+  where e.id = p_evento_id
+    and e.cliente_id = public.cliente_id_from_site_key(p_site_key)
+    and e.activo and a.activo
+  order by a.orden, a.nombre_es;
+$$;
+
+revoke all on function public.get_reservas_articulos_publico(uuid, uuid) from public;
+grant execute on function public.get_reservas_articulos_publico(uuid, uuid) to anon, authenticated;

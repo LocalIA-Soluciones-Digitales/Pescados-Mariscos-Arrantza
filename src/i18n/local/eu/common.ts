@@ -1059,6 +1059,7 @@ const common = {
   "reservas.summary_title": "Zure erreserba",
   "reservas.summary_empty": "Oraindik ez duzu produkturik gehitu.",
   "reservas.total_weight": "Pisu osoa",
+  "reservas.total_estimated": "Gutxi gorabeherako zenbatekoa",
   "reservas.reserve_now": "Erreserbatu orain",
   "reservas.form_title": "Zure datuak",
   "reservas.form_name": "Izen-abizenak",

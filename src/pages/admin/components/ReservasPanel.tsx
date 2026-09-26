@@ -102,9 +102,15 @@ interface ResumenRow {
   key: string;
   nombre: string;
   productoId: string | null;
+  unidad?: 'kg' | 'ud';
   reservado: number;
   entregado: number;
   pendiente: number;
+}
+
+// Artículos de campaña por unidad (Navidad: ostras, angulas…) se cuentan en ud.
+function formatCant(row: ResumenRow, n: number): string {
+  return row.unidad === 'ud' ? `${Math.round(n * 100) / 100} ud` : formatKg(n);
 }
 
 function ResumenRowCard({
@@ -154,13 +160,13 @@ function ResumenRowCard({
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground-950 truncate">{row.nombre}</p>
           <p className="text-xs text-foreground-400 mt-0.5">
-            Reservado: {formatKg(row.reservado)} · Entregado: {formatKg(row.entregado)}
+            Reservado: {formatCant(row, row.reservado)} · Entregado: {formatCant(row, row.entregado)}
           </p>
         </div>
         <div className="flex items-center gap-4 flex-shrink-0">
           <div className="text-right">
             <p className={`text-lg font-bold leading-none tabular-nums ${completo ? 'text-emerald-600' : 'text-foreground-950'}`}>
-              {completo ? '✓' : formatKg(row.pendiente)}
+              {completo ? '✓' : formatCant(row, row.pendiente)}
             </p>
             <p className="text-[10px] uppercase tracking-wide text-foreground-400 mt-0.5">
               {completo ? 'Completado' : 'Pendiente de comprar'}
@@ -235,7 +241,7 @@ function imprimirResumenCompra(evento: ReservaEvento, grupos: ResumenFechaGroup[
       const filas = g.productos
         .map((row) => {
           const completo = row.pendiente <= 0 && row.reservado > 0;
-          return `<tr><td>${escapeHtml(row.nombre)}</td><td class="cantidad">${completo ? 'Completado' : formatKg(row.pendiente)}</td></tr>`;
+          return `<tr><td>${escapeHtml(row.nombre)}</td><td class="cantidad">${completo ? 'Completado' : formatCant(row, row.pendiente)}</td></tr>`;
         })
         .join('');
       return `
@@ -331,10 +337,10 @@ function ResumenFechaCard({ grupo, evento }: { grupo: ResumenFechaGroup; evento:
               <p className="text-sm text-foreground-800 truncate">{row.nombre}</p>
               <div className="text-right flex-shrink-0">
                 <p className={`text-sm font-bold tabular-nums ${completo ? 'text-emerald-600' : 'text-foreground-950'}`}>
-                  {completo ? '✓ Entregado' : formatKg(row.pendiente)}
+                  {completo ? '✓ Entregado' : formatCant(row, row.pendiente)}
                 </p>
                 {!completo && row.entregado > 0 && (
-                  <p className="text-[10px] text-foreground-400">de {formatKg(row.reservado)} reservado</p>
+                  <p className="text-[10px] text-foreground-400">de {formatCant(row, row.reservado)} reservado</p>
                 )}
               </div>
             </div>
@@ -398,7 +404,7 @@ function ReservaCard({
         <div className="bg-background-100 rounded-lg p-2.5 mb-2 space-y-1">
           {reserva.items.map((item, idx) => (
             <p key={idx} className="text-xs text-foreground-600">
-              {item.kg} kg — {item.nombre}
+              {item.kg} {item.unidad === 'ud' ? 'ud' : 'kg'} — {item.nombre}
               {item.nota ? ` — "${item.nota}"` : ''}
             </p>
           ))}
@@ -561,7 +567,7 @@ export default function ReservasPanel() {
       .forEach((r) => {
         r.items.forEach((item) => {
           const key = item.productoId || item.nombre;
-          const row = map.get(key) ?? { key, nombre: item.nombre, productoId: item.productoId || null, reservado: 0, entregado: 0, pendiente: 0 };
+          const row = map.get(key) ?? { key, nombre: item.nombre, productoId: item.productoId || null, unidad: item.unidad, reservado: 0, entregado: 0, pendiente: 0 };
           row.reservado += item.kg;
           if (r.estado === 'entregada') row.entregado += item.kg;
           map.set(key, row);
@@ -598,6 +604,7 @@ export default function ReservasPanel() {
             key,
             nombre: item.nombre,
             productoId: item.productoId || null,
+            unidad: item.unidad,
             reservado: 0,
             entregado: 0,
             pendiente: 0,

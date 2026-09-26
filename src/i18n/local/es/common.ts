@@ -1058,6 +1058,7 @@ const common = {
   "reservas.summary_title": "Tu reserva",
   "reservas.summary_empty": "Todavía no has añadido ningún producto.",
   "reservas.total_weight": "Peso total",
+  "reservas.total_estimated": "Importe aproximado",
   "reservas.reserve_now": "Reservar ahora",
   "reservas.form_title": "Tus datos",
   "reservas.form_name": "Nombre y apellidos",

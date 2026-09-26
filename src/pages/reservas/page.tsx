@@ -5,12 +5,32 @@ import Navbar from '@/components/feature/Navbar';
 import Footer from '@/pages/home/components/Footer';
 import { useReservasEventosPublico } from '@/hooks/useReservasEventosPublico';
 import { useProductosPublicos } from '@/hooks/useProductosPublicos';
+import { useReservasArticulosPublico } from '@/hooks/useReservasArticulosPublico';
+import { esPorUnidad, formatCantidad, pasoCantidad } from '@/lib/unidadVenta';
 import { logReserva } from '@/lib/reservasLog';
 import { getDeviceId } from '@/lib/deviceId';
 import { pickLang } from '@/types/producto';
-import type { Producto, ProductoCategoria } from '@/types/producto';
+import type { ProductoCategoria } from '@/types/producto';
 import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
-import type { ReservaEvento, ReservaItem } from '@/types/reserva';
+import type { ReservaArticulo, ReservaEvento, ReservaItem } from '@/types/reserva';
+
+// Lo que se puede reservar: un producto de la tienda o un artículo propio de
+// la campaña (Navidad…). precio va como texto, "45,00€/kg" o "3,50€/ud".
+interface Reservable {
+  id: string;
+  nombre: string;
+  imagen_url: string | null;
+  precio: string;
+  precioNum: number;
+}
+
+function precioArticulo(a: ReservaArticulo): string {
+  return `${a.precio.toFixed(2).replace('.', ',')}€/${a.unidad === 'un' ? 'ud' : 'kg'}`;
+}
+
+function formatEuros(n: number): string {
+  return `${n.toFixed(2).replace('.', ',')} €`;
+}
 
 const CATEGORIA_ORDEN: { value: ProductoCategoria; labelKey: string }[] = [
   { value: 'pescado', labelKey: 'products.filter_fish' },
@@ -37,6 +57,7 @@ function buildWhatsAppMessage(params: {
   evento: ReservaEvento;
   items: ReservaItem[];
   totalWeight: number;
+  importe: number | null;
   nombre: string;
   telefono: string;
   email: string;
@@ -44,7 +65,7 @@ function buildWhatsAppMessage(params: {
   notas: string;
   lang: string;
 }): string {
-  const { evento, items, totalWeight, nombre, telefono, email, fechaDeseada, notas, lang } = params;
+  const { evento, items, totalWeight, importe, nombre, telefono, email, fechaDeseada, notas, lang } = params;
   const sep = '━━━━━━━━━━━━━━━━━━━━━━';
   const lines: string[] = [];
 
@@ -74,7 +95,8 @@ function buildWhatsAppMessage(params: {
   for (const item of items) {
     lines.push('');
     lines.push(`🐟 ${item.nombre}`);
-    lines.push(`⚖ ${formatKg(item.kg)}`);
+    lines.push(item.unidad === 'ud' ? `📦 ${item.kg} ud` : `⚖ ${formatKg(item.kg)}`);
+    if (item.precioKg > 0) lines.push(`💶 ${formatEuros(item.precioKg)}/${item.unidad === 'ud' ? 'ud' : 'kg'}`);
   }
 
   lines.push('');
@@ -82,7 +104,8 @@ function buildWhatsAppMessage(params: {
   lines.push('');
   lines.push('📦 RESUMEN');
   lines.push(`Productos: ${items.length}`);
-  lines.push(`Peso total estimado: ${formatKg(totalWeight)}`);
+  if (totalWeight > 0) lines.push(`Peso total estimado: ${formatKg(totalWeight)}`);
+  if (importe !== null) lines.push(`Importe aproximado: ${formatEuros(importe)}`);
 
   if (notas.trim()) {
     lines.push('');
@@ -104,14 +127,14 @@ function ReservaProductCard({
   onDecrease,
   onRemove,
 }: {
-  product: Producto;
+  product: Reservable;
   kg: number;
   onAdd: () => void;
   onIncrease: () => void;
   onDecrease: () => void;
   onRemove: () => void;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const inCart = kg > 0;
 
   return (
@@ -122,14 +145,14 @@ function ReservaProductCard({
     >
       <div className="relative aspect-[5/4] overflow-hidden bg-background-100">
         {product.imagen_url ? (
-          <img src={product.imagen_url} alt={pickLang(product, 'nombre', i18n.language)} className="w-full h-full object-cover object-top" loading="lazy" />
+          <img src={product.imagen_url} alt={product.nombre} className="w-full h-full object-cover object-top" loading="lazy" />
         ) : (
           <ProductImagePlaceholder label={t('products.image_coming_soon')} />
         )}
       </div>
       <div className="px-3 pt-3 pb-3">
         <h3 className="text-[13px] md:text-sm font-heading font-semibold text-foreground-950 leading-tight mb-1">
-          {pickLang(product, 'nombre', i18n.language)}
+          {product.nombre}
         </h3>
         <p className="text-[11px] text-foreground-400 mb-2.5">{product.precio}</p>
 
@@ -148,7 +171,7 @@ function ReservaProductCard({
               <button type="button" onClick={onDecrease} className="w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950">
                 −
               </button>
-              <span className="min-w-[46px] text-center text-xs font-semibold text-foreground-950 tabular-nums">{formatKg(kg)}</span>
+              <span className="min-w-[46px] text-center text-xs font-semibold text-foreground-950 tabular-nums">{formatCantidad(kg, product.precio)}</span>
               <button type="button" onClick={onIncrease} className="w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950">
                 +
               </button>
@@ -187,21 +210,43 @@ export default function Reservas() {
   }, [eventos, selectedEventoId]);
 
   const evento = useMemo(() => eventos.find((e) => e.id === selectedEventoId) ?? eventos[0] ?? null, [eventos, selectedEventoId]);
+  const { articulos, loading: loadingArticulos } = useReservasArticulosPublico(evento?.id ?? null);
+  // Campaña con artículos propios (Navidad…): se reservan esos, con precio;
+  // si no tiene, se ofrece el catálogo de la tienda como hasta ahora.
+  const conArticulos = articulos.length > 0;
 
-  const productosPorCategoria = useMemo(() => {
-    const map = new Map<ProductoCategoria, Producto[]>();
+  const productosPorCategoria = useMemo((): { value: string; titulo: string; productos: Reservable[] }[] => {
+    if (conArticulos && evento) {
+      return [{
+        value: 'campana',
+        titulo: eventoNombre(evento, i18n.language),
+        productos: articulos.map((a) => ({
+          id: a.id,
+          nombre: i18n.language.startsWith('eu') && a.nombre_eu ? a.nombre_eu : a.nombre_es,
+          imagen_url: a.imagen_url,
+          precio: precioArticulo(a),
+          precioNum: a.precio,
+        })),
+      }];
+    }
+    const map = new Map<ProductoCategoria, Reservable[]>();
     productos.forEach((p) => {
       const grupo = map.get(p.categoria) ?? [];
-      grupo.push(p);
+      grupo.push({ id: p.id, nombre: pickLang(p, 'nombre', i18n.language), imagen_url: p.imagen_url, precio: p.precio, precioNum: 0 });
       map.set(p.categoria, grupo);
     });
     return CATEGORIA_ORDEN.map((c) => ({
-      ...c,
-      productos: (map.get(c.value) ?? []).sort((a, b) => a.nombre_es.localeCompare(b.nombre_es, 'es')),
+      value: c.value,
+      titulo: t(c.labelKey),
+      productos: (map.get(c.value) ?? []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
     })).filter((g) => g.productos.length > 0);
-  }, [productos]);
+  }, [productos, articulos, conArticulos, evento, i18n.language, t]);
 
-  const productMap = useMemo(() => new Map(productos.map((p) => [p.id, p])), [productos]);
+  const productMap = useMemo(
+    () => new Map(productosPorCategoria.flatMap((g) => g.productos).map((p) => [p.id, p])),
+    [productosPorCategoria],
+  );
+  const pasoDe = (id: string) => pasoCantidad(productMap.get(id)?.precio ?? '');
 
   const items: ReservaItem[] = useMemo(
     () =>
@@ -209,12 +254,26 @@ export default function Reservas() {
         .filter(([, kg]) => kg > 0)
         .map(([productoId, kg]) => {
           const p = productMap.get(productoId);
-          return { productoId, nombre: p ? pickLang(p, 'nombre', i18n.language) : '', kg, nota: '', precioKg: 0 };
+          const unidad = p && esPorUnidad(p.precio) ? ('ud' as const) : ('kg' as const);
+          return conArticulos
+            ? { productoId: '', articuloId: productoId, nombre: p?.nombre ?? '', kg, nota: '', precioKg: p?.precioNum ?? 0, unidad }
+            : { productoId, nombre: p?.nombre ?? '', kg, nota: '', precioKg: 0, unidad };
         }),
-    [cantidades, productMap, i18n.language],
+    [cantidades, productMap, conArticulos],
   );
 
-  const totalWeight = useMemo(() => items.reduce((sum, i) => sum + i.kg, 0), [items]);
+  // Las unidades no suman kilos; el importe solo se puede estimar cuando la
+  // campaña tiene precios propios.
+  const totalWeight = useMemo(() => items.filter((i) => i.unidad !== 'ud').reduce((sum, i) => sum + i.kg, 0), [items]);
+  const importe = useMemo(
+    () => (conArticulos ? Math.round(items.reduce((sum, i) => sum + i.precioKg * i.kg, 0) * 100) / 100 : null),
+    [items, conArticulos],
+  );
+
+  // Al cambiar de campaña, lo elegido en la otra deja de tener sentido.
+  useEffect(() => {
+    setCantidades({});
+  }, [evento?.id]);
 
   const setKg = (productId: string, kg: number) => {
     setCantidades((prev) => ({ ...prev, [productId]: Math.max(0, Math.round(kg * 100) / 100) }));
@@ -246,7 +305,7 @@ export default function Reservas() {
       items,
       totalProductos: items.length,
       pesoTotal: totalWeight,
-      importeEstimado: null,
+      importeEstimado: importe,
       clienteNombre: nombre.trim(),
       clienteTelefono: telefono.trim(),
       clienteEmail: email.trim(),
@@ -255,7 +314,7 @@ export default function Reservas() {
       deviceId: getDeviceId(),
     });
 
-    const message = buildWhatsAppMessage({ evento, items, totalWeight, nombre, telefono, email, fechaDeseada, notas, lang: i18n.language });
+    const message = buildWhatsAppMessage({ evento, items, totalWeight, importe, nombre, telefono, email, fechaDeseada, notas, lang: i18n.language });
     // api.whatsapp.com en vez de wa.me: evita el hop de redirección del
     // acortador que en algunos dispositivos corrompe los emojis de textos
     // largos (ver CartDrawer.tsx).
@@ -284,7 +343,7 @@ export default function Reservas() {
     setSuccess(false);
   };
 
-  const loading = loadingEventos || loadingProductos;
+  const loading = loadingEventos || loadingProductos || loadingArticulos;
 
   return (
     <>
@@ -392,7 +451,7 @@ export default function Reservas() {
                     {productosPorCategoria.map((grupo) => (
                       <div key={grupo.value}>
                         <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-500 mb-3 pb-2 border-b border-background-200/60">
-                          {t(grupo.labelKey)}
+                          {grupo.titulo}
                         </h3>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                           {grupo.productos.map((product) => (
@@ -400,9 +459,12 @@ export default function Reservas() {
                               key={product.id}
                               product={product}
                               kg={cantidades[product.id] ?? 0}
-                              onAdd={() => setKg(product.id, 0.5)}
-                              onIncrease={() => setKg(product.id, (cantidades[product.id] ?? 0) + 0.5)}
-                              onDecrease={() => setKg(product.id, Math.max(0, (cantidades[product.id] ?? 0) - 0.5))}
+                              onAdd={() => setKg(product.id, pasoDe(product.id))}
+                              onIncrease={() => setKg(product.id, (cantidades[product.id] ?? 0) + pasoDe(product.id))}
+                              onDecrease={() => {
+                                const actual = cantidades[product.id] ?? 0;
+                                setKg(product.id, actual <= pasoDe(product.id) ? 0 : actual - pasoDe(product.id));
+                              }}
                               onRemove={() => setKg(product.id, 0)}
                             />
                           ))}
@@ -424,15 +486,25 @@ export default function Reservas() {
                   ) : (
                     <div className="space-y-1.5 mb-4 max-h-[180px] overflow-y-auto pr-1">
                       {items.map((item) => (
-                        <div key={item.productoId} className="flex items-center justify-between text-xs">
+                        <div key={item.articuloId ?? item.productoId} className="flex items-center justify-between text-xs">
                           <span className="text-foreground-700 truncate">{item.nombre}</span>
-                          <span className="text-foreground-950 font-medium flex-shrink-0 ml-2 tabular-nums">{formatKg(item.kg)}</span>
+                          <span className="text-foreground-950 font-medium flex-shrink-0 ml-2 tabular-nums">
+                            {item.unidad === 'ud' ? `${item.kg} ud` : formatKg(item.kg)}
+                          </span>
                         </div>
                       ))}
-                      <div className="flex items-center justify-between text-xs pt-2 mt-1 border-t border-background-200/60">
-                        <span className="text-foreground-500">{t('reservas.total_weight')}</span>
-                        <span className="text-foreground-950 font-semibold tabular-nums">{formatKg(totalWeight)}</span>
-                      </div>
+                      {totalWeight > 0 && (
+                        <div className="flex items-center justify-between text-xs pt-2 mt-1 border-t border-background-200/60">
+                          <span className="text-foreground-500">{t('reservas.total_weight')}</span>
+                          <span className="text-foreground-950 font-semibold tabular-nums">{formatKg(totalWeight)}</span>
+                        </div>
+                      )}
+                      {importe !== null && (
+                        <div className="flex items-center justify-between text-xs pt-1">
+                          <span className="text-foreground-500">{t('reservas.total_estimated')}</span>
+                          <span className="text-foreground-950 font-semibold tabular-nums">{formatEuros(importe)}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
