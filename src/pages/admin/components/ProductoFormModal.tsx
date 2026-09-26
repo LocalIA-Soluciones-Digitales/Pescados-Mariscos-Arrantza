@@ -12,6 +12,7 @@ const CATEGORIAS: { value: ProductoCategoria; label: string }[] = [
   { value: 'raciones', label: 'Raciones' },
   { value: 'marisco', label: 'Marisco' },
   { value: 'congelados', label: 'Congelados' },
+  { value: 'preparados', label: 'Conservas y preparados' },
 ];
 
 const SUBCATEGORIAS: { value: string; label: string }[] = [
@@ -51,6 +52,7 @@ type FormState = {
   estado: ProductoEstado;
   disponible: boolean;
   destacado: boolean;
+  visible_web: boolean;
   imagen_url: string;
 };
 
@@ -59,7 +61,7 @@ function toFormState(p: Producto | null): FormState {
     return {
       nombre_es: '', nombre_eu: '', descripcion_es: '', descripcion_eu: '',
       origen_es: '', origen_eu: '', precio: '', categoria: 'pescado', subcategoria: '',
-      estado: 'available', disponible: true, destacado: false, imagen_url: '',
+      estado: 'available', disponible: true, destacado: false, visible_web: true, imagen_url: '',
     };
   }
   return {
@@ -67,7 +69,7 @@ function toFormState(p: Producto | null): FormState {
     descripcion_es: p.descripcion_es ?? '', descripcion_eu: p.descripcion_eu ?? '',
     origen_es: p.origen_es ?? '', origen_eu: p.origen_eu ?? '',
     precio: p.precio, categoria: p.categoria, subcategoria: p.subcategoria ?? '',
-    estado: p.estado, disponible: p.disponible, destacado: p.destacado, imagen_url: p.imagen_url ?? '',
+    estado: p.estado, disponible: p.disponible, destacado: p.destacado, visible_web: p.visible_web, imagen_url: p.imagen_url ?? '',
   };
 }
 
@@ -222,6 +224,7 @@ export default function ProductoFormModal({
       estado: form.estado,
       disponible: form.disponible,
       destacado: form.destacado,
+      visible_web: form.visible_web,
       imagen_url: form.imagen_url || null,
     };
 
@@ -491,6 +494,11 @@ export default function ProductoFormModal({
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input type="checkbox" checked={form.destacado} onChange={(e) => update('destacado', e.target.checked)} className="w-4 h-4" />
             <span className="text-sm text-foreground-700">Destacado (aparece en la "Selección del día" de portada y hostelería)</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={form.visible_web} onChange={(e) => update('visible_web', e.target.checked)} className="w-4 h-4" />
+            <span className="text-sm text-foreground-700">Visible en la tienda online</span>
           </label>
 
           {error && <p className="text-xs text-red-600 mt-3">{error}</p>}

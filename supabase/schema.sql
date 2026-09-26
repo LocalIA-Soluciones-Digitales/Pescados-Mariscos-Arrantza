@@ -83,7 +83,7 @@ create table if not exists public.productos (
   origen_es text,
   origen_eu text,
   precio text not null,
-  categoria text not null check (categoria in ('pescado', 'especial', 'raciones', 'marisco', 'congelados')),
+  categoria text not null check (categoria in ('pescado', 'especial', 'raciones', 'marisco', 'congelados', 'preparados')),
   subcategoria text,
   imagen_url text,
   estado text not null default 'available' check (estado in ('available', 'new', 'premium', 'seasonal')),
@@ -94,9 +94,18 @@ create table if not exists public.productos (
   stock_minimo numeric not null default 10,
   stock_alerta_enviada boolean not null default false,
   gestion_stock boolean not null default true,
+  -- false = no sale en la tienda online (ya no está en la báscula), pero se
+  -- conserva con su foto e historial de pedidos.
+  visible_web boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Para bases ya creadas:
+alter table public.productos add column if not exists visible_web boolean not null default true;
+alter table public.productos drop constraint if exists productos_categoria_check;
+alter table public.productos add constraint productos_categoria_check
+  check (categoria in ('pescado', 'especial', 'raciones', 'marisco', 'congelados', 'preparados'));
 
 drop trigger if exists trg_productos_updated_at on public.productos;
 create trigger trg_productos_updated_at
@@ -149,6 +158,7 @@ language sql stable security definer set search_path = public
 as $$
   select p.* from public.productos p
   where p.cliente_id = public.cliente_id_from_site_key(p_site_key)
+    and p.visible_web
   order by p.orden asc, p.created_at asc;
 $$;
 
@@ -2757,3 +2767,81 @@ drop trigger if exists trg_hosteleria_solicitudes_push on public.hosteleria_soli
 create trigger trg_hosteleria_solicitudes_push
   after insert on public.hosteleria_solicitudes
   for each row execute function public.notificar_push_solicitud_hosteleria();
+
+-- ============================================================
+-- Catálogo de la báscula: foto diaria y cambios detectados.
+-- La Edge Function bascula-precios-diario lee cada día a las 11:00
+-- (hora de Madrid) todos los artículos programados en la báscula
+-- (/year/artigos), los compara con la foto del día anterior guardada
+-- aquí, apunta cada diferencia en bascula_catalogo_cambios, copia los
+-- precios nuevos a la web (productos con código mapeado en
+-- productos_codigos_bascula y artículos de hostelería importados de esa
+-- báscula) y avisa por push al pescadero si algo ha cambiado.
+-- ============================================================
+
+create table if not exists public.bascula_catalogo (
+  cliente_id uuid not null references public.clientes (id),
+  origen text not null,
+  codigo text not null,
+  nombre text not null,
+  familia text not null default '',
+  precio numeric(10, 2) not null default 0,
+  unidades text not null default '',
+  iva numeric not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (cliente_id, origen, codigo)
+);
+
+drop trigger if exists trg_bascula_catalogo_updated_at on public.bascula_catalogo;
+create trigger trg_bascula_catalogo_updated_at
+  before update on public.bascula_catalogo
+  for each row execute function public.set_updated_at();
+
+alter table public.bascula_catalogo enable row level security;
+
+drop policy if exists "bascula_catalogo_select_admin" on public.bascula_catalogo;
+create policy "bascula_catalogo_select_admin"
+  on public.bascula_catalogo for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+-- tipo: nuevo | eliminado | renombrado (mismo código, otro producto) |
+-- precio | familia | unidades. antes/despues guardan la fila completa
+-- (nombre, familia, precio, unidades) en cada lado.
+create table if not exists public.bascula_catalogo_cambios (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  origen text not null,
+  codigo text not null,
+  tipo text not null check (tipo in ('nuevo', 'eliminado', 'renombrado', 'precio', 'familia', 'unidades')),
+  antes jsonb,
+  despues jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table public.bascula_catalogo_cambios enable row level security;
+
+drop policy if exists "bascula_catalogo_cambios_select_admin" on public.bascula_catalogo_cambios;
+create policy "bascula_catalogo_cambios_select_admin"
+  on public.bascula_catalogo_cambios for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+create index if not exists idx_bascula_catalogo_cambios_fecha
+  on public.bascula_catalogo_cambios (cliente_id, origen, created_at desc);
+
+-- El cron corre en UTC: se dispara cada media hora de 09:00 a 12:30 UTC y
+-- la función solo trabaja a partir de las 11:00 de Madrid y una vez al
+-- día (así cubre el cambio de hora y reintenta si la báscula da 502).
+-- select cron.schedule(
+--   'bascula-precios-diario-pescaderia-1',
+--   '0,30 9-12 * * *',
+--   $$
+--   select net.http_post(
+--     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/bascula-precios-diario',
+--     headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', '<BASCULA_SYNC_SECRET>'),
+--     body := jsonb_build_object('origen', 'pescaderia_1')
+--   );
+--   $$
+-- );

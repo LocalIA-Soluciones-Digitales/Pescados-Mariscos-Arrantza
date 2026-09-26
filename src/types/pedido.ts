@@ -10,6 +10,9 @@ export interface PedidoItem {
   preparacion: string;
   nota: string;
   precioKg: number;
+  // 'ud' = kg lleva unidades y precioKg es el precio por unidad. Los
+  // pedidos anteriores no traen el campo y son siempre por peso.
+  unidad?: 'kg' | 'ud';
 }
 
 export interface Pedido {

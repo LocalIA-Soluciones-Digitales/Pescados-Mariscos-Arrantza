@@ -13,6 +13,7 @@ import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { useCartSound } from '@/hooks/useCartSound';
 import { logAddToCart, logCategoryView, logConversion, logProductView } from '@/lib/visitLog';
 import { pickLang, normalizeSearch } from '@/types/producto';
+import { esPorUnidad, formatCantidad, pasoCantidad } from '@/lib/unidadVenta';
 import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 import InfoHint from '@/components/base/InfoHint';
 import type { Producto } from '@/types/producto';
@@ -27,6 +28,7 @@ type CategoryFilter =
   | 'raciones'
   | 'marisco'
   | 'congelados'
+  | 'preparados'
   | 'suministro'
   | 'azul'
   | 'blanco'
@@ -44,6 +46,7 @@ const categories: { key: CategoryFilter; labelKey: string }[] = [
   { key: 'pescado', labelKey: 'products.filter_fish' },
   { key: 'marisco', labelKey: 'products.filter_seafood' },
   { key: 'congelados', labelKey: 'products.filter_frozen' },
+  { key: 'preparados', labelKey: 'products.filter_prepared' },
   { key: 'raciones', labelKey: 'products.filter_portions' },
   { key: 'especial', labelKey: 'products.filter_special' },
   { key: 'suministro', labelKey: 'products.filter_suministro' },
@@ -64,7 +67,7 @@ const alwaysVisibleFilters: CategoryFilter[] = ['todos', 'agotado'];
 /* ------------------------------------------------------------------ */
 function computeCategoryCounts(productos: Producto[]): Record<CategoryFilter, number> {
   const counts: Partial<Record<CategoryFilter, number>> = {};
-  const mainCats = ['pescado', 'especial', 'raciones', 'marisco', 'congelados'] as CategoryFilter[];
+  const mainCats = ['pescado', 'especial', 'raciones', 'marisco', 'congelados', 'preparados'] as CategoryFilter[];
 
   counts.todos = productos.length;
   counts.agotado = productos.filter((p) => !p.disponible).length;
@@ -126,10 +129,6 @@ function getBadgeLabel(badge: Producto['estado']) {
   return map[badge] || 'products.badge_available';
 }
 
-function formatKg(kg: number): string {
-  return `${kg} kg`;
-}
-
 /* ------------------------------------------------------------------ */
 /*  Subcategory display config — icon + i18n label key               */
 /* ------------------------------------------------------------------ */
@@ -149,6 +148,7 @@ const subcategoryDisplay: Record<string, { labelKey: string; icon: string }> = {
   // Categorías sin subcategorías propias — agrupadas por su nombre de
   // categoría cuando se muestran junto al resto (ver `groupKey` en CatalogGrid).
   congelados:         { labelKey: 'products.filter_frozen',            icon: 'ri-snowflake-line' },
+  preparados:         { labelKey: 'products.filter_prepared',          icon: 'ri-archive-line' },
   especial:           { labelKey: 'products.filter_special',           icon: 'ri-award-line' },
 };
 
@@ -571,6 +571,11 @@ function StickyToolbar({
                       {renderGroupHeader('congelados', 'ri-snowflake-line')}
                     </div>
                   )}
+                  {visibleKeys.has('preparados') && (
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {renderGroupHeader('preparados', 'ri-archive-line')}
+                    </div>
+                  )}
                   {visibleKeys.has('raciones') && (
                     <div className="mt-2.5 pt-2 border-t border-background-200/60">
                       {renderGroupHeader('raciones', 'ri-scales-line')}
@@ -779,6 +784,8 @@ function ProductCard({
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
   const badgeStyle = badgeStyleMap[product.estado];
   const agotado = !product.disponible;
+  const porUnidad = esPorUnidad(product.precio);
+  const paso = pasoCantidad(product.precio);
 
   const [isEditingWeight, setIsEditingWeight] = useState(false);
   const [editWeightValue, setEditWeightValue] = useState('');
@@ -790,10 +797,9 @@ function ProductCard({
   };
 
   const handleConfirmEditWeight = () => {
-    const parsed = parseFloat(editWeightValue);
-    if (!isNaN(parsed) && parsed >= 0.5) {
-      const rounded = Math.max(0.5, Math.round(parsed * 100) / 100);
-      onSetKg(product.id, rounded);
+    const parsed = parseFloat(editWeightValue.replace(',', '.'));
+    if (!isNaN(parsed) && parsed >= paso) {
+      onSetKg(product.id, parsed);
     }
     setIsEditingWeight(false);
   };
@@ -898,12 +904,12 @@ function ProductCard({
               <button
                 type="button"
                 onClick={() => {
-                  if (cartItem.kg <= 0.5) return;
+                  if (cartItem.kg <= paso) return;
                   onDecrease(product.id);
                 }}
-                disabled={cartItem.kg <= 0.5}
+                disabled={cartItem.kg <= paso}
                 className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                  cartItem.kg <= 0.5
+                  cartItem.kg <= paso
                     ? 'text-foreground-300 cursor-not-allowed'
                     : 'text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer'
                 }`}
@@ -918,12 +924,12 @@ function ProductCard({
                   onChange={(e) => setEditWeightValue(e.target.value)}
                   onBlur={handleConfirmEditWeight}
                   onKeyDown={handleWeightKeyDown}
-                  step="0.1"
-                  min="0.5"
+                  step={porUnidad ? 1 : 0.1}
+                  min={paso}
                   autoFocus
-                  inputMode="decimal"
+                  inputMode={porUnidad ? 'numeric' : 'decimal'}
                   className="w-[42px] text-center text-[11px] md:text-xs font-semibold text-foreground-950 bg-transparent border-0 outline-none appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none tabular-nums"
-                  aria-label="Editar peso en kg"
+                  aria-label={porUnidad ? 'Editar unidades' : 'Editar peso en kg'}
                 />
               ) : (
                 <span
@@ -932,10 +938,10 @@ function ProductCard({
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStartEditWeight(); } }}
                   className="min-w-[38px] text-center text-[11px] md:text-xs font-semibold text-foreground-950 tabular-nums cursor-pointer hover:text-primary-600 transition-colors duration-200 select-none inline-block"
-                  title="Haz clic para editar el peso"
-                  aria-label="Haz clic para editar el peso"
+                  title={porUnidad ? 'Haz clic para editar las unidades' : 'Haz clic para editar el peso'}
+                  aria-label={porUnidad ? 'Haz clic para editar las unidades' : 'Haz clic para editar el peso'}
                 >
-                  {formatKg(cartItem.kg)}
+                  {formatCantidad(cartItem.kg, product.precio)}
                 </span>
               )}
               <button
@@ -983,6 +989,7 @@ const subcategoryOrder: string[] = [
   'crustaceos_grandes',
   'gambas_langostinos',
   'congelados',
+  'preparados',
   'raciones_porcion',
   'raciones_entero',
   'especial',
@@ -1401,7 +1408,6 @@ export default function Productos() {
     updateCustomer,
     isInCart,
     totalProducts,
-    totalWeight,
     cartVersion,
     setPreparation,
     setItemNote,
@@ -1449,7 +1455,7 @@ export default function Productos() {
     if (activeCategory === 'agotado') {
       result = result.filter(p => !p.disponible);
     } else if (activeCategory !== 'todos') {
-      const mainCategories = ['pescado', 'especial', 'raciones', 'marisco', 'congelados'];
+      const mainCategories = ['pescado', 'especial', 'raciones', 'marisco', 'congelados', 'preparados'];
       if (mainCategories.includes(activeCategory)) {
         result = result.filter(p => p.categoria === activeCategory);
       } else {
@@ -1488,9 +1494,20 @@ export default function Productos() {
 
   const { playAddToCartSound, playUndoSound } = useCartSound();
 
+  // Paso de cantidad de cada producto: 1 si se vende por unidad, 0,5 kg si no.
+  const pasoDe = useCallback(
+    (productId: string) => pasoCantidad(productos.find((p) => p.id === productId)?.precio ?? ''),
+    [productos],
+  );
+
+  const handleSetKg = useCallback(
+    (productId: string, kg: number) => setKg(productId, kg, pasoDe(productId)),
+    [setKg, pasoDe],
+  );
+
   const handleAddToCart = useCallback(
     (product: Producto) => {
-      addItem(product.id);
+      addItem(product.id, pasoCantidad(product.precio));
       logAddToCart(product.id);
       playAddToCartSound();
 
@@ -1549,18 +1566,18 @@ export default function Productos() {
 
   const handleIncreaseKg = useCallback(
     (productId: string) => {
-      increaseKg(productId);
+      increaseKg(productId, pasoDe(productId));
       playUndoSound();
     },
-    [increaseKg, playUndoSound],
+    [increaseKg, pasoDe, playUndoSound],
   );
 
   const handleDecreaseKg = useCallback(
     (productId: string) => {
-      decreaseKg(productId);
+      decreaseKg(productId, pasoDe(productId));
       playUndoSound();
     },
-    [decreaseKg, playUndoSound],
+    [decreaseKg, pasoDe, playUndoSound],
   );
 
   const handleRemoveItem = useCallback(
@@ -1676,7 +1693,7 @@ export default function Productos() {
                 onRemoveFromCart={handleRemoveFromCart}
                 onIncrease={handleIncreaseKg}
                 onDecrease={handleDecreaseKg}
-                onSetKg={setKg}
+                onSetKg={handleSetKg}
                 onRequestStock={setSolicitudProducto}
                 removingProductId={removingProductId}
                 highlightedProductId={highlightedCardId}
@@ -1701,14 +1718,13 @@ export default function Productos() {
         customer={customer}
         onIncrease={handleIncreaseKg}
         onDecrease={handleDecreaseKg}
-        onSetKg={setKg}
+        onSetKg={handleSetKg}
         onRemove={handleRemoveItem}
         onClearCart={clearCart}
         onCustomerChange={updateCustomer}
         onPreparationChange={setPreparation}
         onNoteChange={setItemNote}
         totalProducts={totalProducts}
-        totalWeight={totalWeight}
         justAddedId={justAddedId}
         orderHistory={orderHistory}
         onSaveLastOrder={saveLastOrder}

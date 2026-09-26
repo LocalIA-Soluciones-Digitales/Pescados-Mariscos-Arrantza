@@ -29,6 +29,7 @@ function getInitials(nombre: string): string {
 interface PrepararItem {
   nombre: string;
   kg: number;
+  unidad?: 'kg' | 'ud';
   preparacion?: string;
   nota?: string;
 }
@@ -242,7 +243,7 @@ export default function HoyPanel({
         cliente: p.cliente_nombre || 'Sin nombre',
         telefono: p.cliente_telefono,
         metodoEntrega: p.metodo_entrega,
-        items: p.items.map((item) => ({ nombre: item.nombre, kg: item.kg, preparacion: item.preparacion, nota: item.nota })),
+        items: p.items.map((item) => ({ nombre: item.nombre, kg: item.kg, unidad: item.unidad, preparacion: item.preparacion, nota: item.nota })),
         kgTotal: p.peso_total,
       });
     });
@@ -359,7 +360,7 @@ export default function HoyPanel({
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {entry.items.map((item, itemIdx) => (
                           <span key={itemIdx} className="inline-flex items-center gap-1 text-[11px] text-foreground-600 bg-background-100 rounded-md px-2 py-1">
-                            <span className="font-semibold text-foreground-900 tabular-nums">{formatKg(item.kg)}</span>
+                            <span className="font-semibold text-foreground-900 tabular-nums">{item.unidad === 'ud' ? `${item.kg} ud` : formatKg(item.kg)}</span>
                             {item.nombre}
                             {item.preparacion && item.preparacion !== 'whole' ? ` (${item.preparacion})` : ''}
                             {item.nota ? <span className="italic text-foreground-400"> — "{item.nota}"</span> : null}

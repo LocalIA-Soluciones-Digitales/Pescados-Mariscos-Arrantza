@@ -14,9 +14,10 @@ const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
   raciones: 'Raciones',
   marisco: 'Marisco',
   congelados: 'Congelados',
+  preparados: 'Conservas y preparados',
 };
 
-const CATEGORIA_ORDEN: ProductoCategoria[] = ['pescado', 'marisco', 'congelados', 'raciones', 'especial'];
+const CATEGORIA_ORDEN: ProductoCategoria[] = ['pescado', 'marisco', 'congelados', 'preparados', 'raciones', 'especial'];
 
 function StockRow({
   producto,

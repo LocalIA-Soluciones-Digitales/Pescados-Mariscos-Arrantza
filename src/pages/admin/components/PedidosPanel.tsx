@@ -216,7 +216,7 @@ function PedidoCard({
         <div className="bg-background-100 rounded-lg p-2.5 mb-2 space-y-1">
           {pedido.items.map((item, idx) => (
             <p key={idx} className="text-xs text-foreground-600">
-              {item.kg} kg — {item.nombre}
+              {item.kg} {item.unidad === 'ud' ? 'ud' : 'kg'} — {item.nombre}
               {item.preparacion && item.preparacion !== 'whole' ? ` (${item.preparacion})` : ''}
               {item.nota ? ` — "${item.nota}"` : ''}
             </p>

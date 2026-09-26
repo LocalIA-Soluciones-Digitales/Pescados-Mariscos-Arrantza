@@ -118,6 +118,11 @@ function ProductoCard({
         ) : (
           <ProductImagePlaceholder />
         )}
+        {!producto.visible_web && (
+          <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-foreground-800/85 text-background-50 text-[10px] font-medium">
+            Oculto en la web
+          </span>
+        )}
         <button
           type="button"
           onClick={toggleDestacado}

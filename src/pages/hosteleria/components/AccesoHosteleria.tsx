@@ -19,6 +19,7 @@ function toProducto(p: ProductoHosteleria): Producto {
     stock_minimo: 0,
     stock_alerta_enviada: false,
     gestion_stock: false,
+    visible_web: true,
     created_at: '',
     updated_at: '',
   } as Producto;
@@ -114,7 +115,6 @@ export function CatalogoHosteleriaView({
     updateCustomer,
     getItem,
     totalProducts,
-    totalWeight,
     setPreparation,
     setItemNote,
     justAddedId,
@@ -249,7 +249,6 @@ export function CatalogoHosteleriaView({
         onPreparationChange={setPreparation}
         onNoteChange={setItemNote}
         totalProducts={totalProducts}
-        totalWeight={totalWeight}
         justAddedId={justAddedId}
         orderHistory={orderHistory}
         onSaveLastOrder={saveLastOrder}

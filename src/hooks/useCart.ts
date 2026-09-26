@@ -257,19 +257,21 @@ export function useCart() {
     }
   }, [items, customer, isLoaded]);
 
-  const addItem = useCallback((productId: string) => {
+  // paso: 0,5 kg para lo que se vende al peso, 1 para lo que va por unidad
+  // (ver pasoCantidad en lib/unidadVenta).
+  const addItem = useCallback((productId: string, paso = 0.5) => {
     setItems(prev => {
       const existing = prev.find(item => item.productId === productId);
       if (existing) {
         return prev.map(item =>
-          item.productId === productId ? { ...item, kg: item.kg + 0.5 } : item,
+          item.productId === productId ? { ...item, kg: item.kg + paso } : item,
         );
       }
       // New item added — flash it
       setJustAddedId(productId);
       if (clearJustAddedTimeoutRef.current) clearTimeout(clearJustAddedTimeoutRef.current);
       clearJustAddedTimeoutRef.current = setTimeout(() => setJustAddedId(null), 750);
-      return [...prev, { productId, kg: 0.5, preparation: 'whole', note: '' }];
+      return [...prev, { productId, kg: paso, preparation: 'whole', note: '' }];
     });
     setCartVersion(v => v + 1);
   }, []);
@@ -279,29 +281,30 @@ export function useCart() {
     setCartVersion(v => v + 1);
   }, []);
 
-  const setKg = useCallback((productId: string, kg: number) => {
+  const setKg = useCallback((productId: string, kg: number, paso = 0.5) => {
+    const cantidad = paso >= 1 ? Math.round(kg) : Math.round(kg * 100) / 100;
     setItems(prev =>
       prev.map(item =>
-        item.productId === productId ? { ...item, kg: Math.max(0.5, Math.round(kg * 100) / 100) } : item,
+        item.productId === productId ? { ...item, kg: Math.max(paso, cantidad) } : item,
       ),
     );
   }, []);
 
-  const increaseKg = useCallback((productId: string) => {
+  const increaseKg = useCallback((productId: string, paso = 0.5) => {
     setItems(prev =>
       prev.map(item =>
-        item.productId === productId ? { ...item, kg: item.kg + 0.5 } : item,
+        item.productId === productId ? { ...item, kg: item.kg + paso } : item,
       ),
     );
     setCartVersion(v => v + 1);
   }, []);
 
-  const decreaseKg = useCallback((productId: string) => {
+  const decreaseKg = useCallback((productId: string, paso = 0.5) => {
     setItems(prev => {
       const item = prev.find(i => i.productId === productId);
-      if (!item || item.kg <= 0.5) return prev;
+      if (!item || item.kg <= paso) return prev;
       return prev.map(i =>
-        i.productId === productId ? { ...i, kg: i.kg - 0.5 } : i,
+        i.productId === productId ? { ...i, kg: i.kg - paso } : i,
       );
     });
     setCartVersion(v => v + 1);

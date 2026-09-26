@@ -137,6 +137,7 @@ const common = {
   "products.filter_special": "Berezia",
   "products.filter_portions": "Anoak",
   "products.filter_frozen": "Izoztuak",
+  "products.filter_prepared": "Kontserbak eta prestatuak",
   "products.filter_blue_fish": "Arrain Urdina",
   "products.filter_white_fish": "Arrain Zuria",
   "products.filter_cephalopods": "Zefalopodoak",

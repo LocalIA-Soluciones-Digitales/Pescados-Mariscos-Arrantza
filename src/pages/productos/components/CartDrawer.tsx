@@ -13,6 +13,7 @@ import { logConversion } from '@/lib/visitLog';
 import { logPedido } from '@/lib/pedidosLog';
 import { getDeviceId } from '@/lib/deviceId';
 import { crearSesionPagoStripe } from '@/lib/pagoStripe';
+import { esPorUnidad, formatCantidad, pasoCantidad } from '@/lib/unidadVenta';
 
 /* ------------------------------------------------------------------ */
 /*  Badge style — same muted palette as catalogue                     */
@@ -38,8 +39,9 @@ function getBadgeLabelKey(badge: Producto['estado']): string {
 /*  Price helpers                                                      */
 /* ------------------------------------------------------------------ */
 function extractPricePerKg(priceStr: string): number {
-  const match = priceStr.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : 0;
+  // Admite decimales con coma o punto: "19,90€/kg" y "7.90€/kg".
+  const match = priceStr.match(/(\d+(?:[.,]\d+)?)/);
+  return match ? parseFloat(match[1].replace(',', '.')) : 0;
 }
 
 function formatPrice(amount: number): string {
@@ -158,9 +160,10 @@ function generateWhatsAppMessage(params: {
     lines.push('');
     lines.push(`🐟 ${name}`);
     lines.push('');
-    lines.push(`⚖ Peso: ${formatKg(item.kg)}`);
+    const porUnidad = esPorUnidad(product?.precio ?? '');
+    lines.push(porUnidad ? `📦 Cantidad: ${item.kg} ud` : `⚖ Peso: ${formatKg(item.kg)}`);
     lines.push(`🔪 Preparación: ${prepLabel}`);
-    lines.push(`💶 Precio: ${pricePerKg} €/Kg`);
+    lines.push(`💶 Precio: ${pricePerKg} €/${porUnidad ? 'ud' : 'Kg'}`);
     lines.push('');
     lines.push(`Subtotal: ${formatPrice(subtotal)}`);
 
@@ -284,6 +287,8 @@ function CartLineItem({
   const badgeStyle = badgeStyleMap[product.estado];
   const pricePerKg = extractPricePerKg(product.precio);
   const subtotal = pricePerKg * cartItem.kg;
+  const porUnidad = esPorUnidad(product.precio);
+  const paso = pasoCantidad(product.precio);
 
   // ── Green flash when this item is newly added ──
   useEffect(() => {
@@ -323,10 +328,9 @@ function CartLineItem({
   };
 
   const handleConfirmEditWeight = () => {
-    const parsed = parseFloat(editWeightValue);
-    if (!isNaN(parsed) && parsed >= 0.5) {
-      const rounded = Math.max(0.5, Math.round(parsed * 100) / 100);
-      onSetKg(rounded);
+    const parsed = parseFloat(editWeightValue.replace(',', '.'));
+    if (!isNaN(parsed) && parsed >= paso) {
+      onSetKg(parsed);
     }
     setIsEditingWeight(false);
   };
@@ -402,16 +406,16 @@ function CartLineItem({
               <button
                 type="button"
                 onClick={() => {
-                  if (cartItem.kg <= 0.5) {
+                  if (cartItem.kg <= paso) {
                     setMinShaking(true);
                     setTimeout(() => setMinShaking(false), 500);
                     return;
                   }
                   onDecrease();
                 }}
-                disabled={cartItem.kg <= 0.5}
+                disabled={cartItem.kg <= paso}
                 className={`w-6 h-6 flex items-center justify-center rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-                  cartItem.kg <= 0.5
+                  cartItem.kg <= paso
                     ? `text-foreground-300 cursor-not-allowed ${minShaking ? 'animate-min-shake' : ''}`
                     : 'text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer'
                 }`}
@@ -419,9 +423,9 @@ function CartLineItem({
               >
                 −
               </button>
-              {cartItem.kg <= 0.5 && (
+              {cartItem.kg <= paso && (
                 <span className="absolute -top-[26px] left-1/2 -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-medium text-background-50 bg-foreground-800 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                  0.5 kg mín
+                  {porUnidad ? '1 ud mín' : '0.5 kg mín'}
                   <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-foreground-800"></span>
                 </span>
               )}
@@ -434,11 +438,11 @@ function CartLineItem({
                 onBlur={handleConfirmEditWeight}
                 onKeyDown={handleWeightKeyDown}
                 className="w-[48px] text-center text-xs font-semibold text-foreground-950 bg-transparent border-0 outline-none appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none tabular-nums"
-                step="0.1"
-                min="0.5"
+                step={porUnidad ? 1 : 0.1}
+                min={paso}
                 autoFocus
-                inputMode="decimal"
-                aria-label="Editar peso en kg"
+                inputMode={porUnidad ? 'numeric' : 'decimal'}
+                aria-label={porUnidad ? 'Editar unidades' : 'Editar peso en kg'}
               />
             ) : (
               <span
@@ -448,9 +452,9 @@ function CartLineItem({
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStartEditWeight(); } }}
-                aria-label="Haz clic para editar el peso"
+                aria-label={porUnidad ? 'Haz clic para editar las unidades' : 'Haz clic para editar el peso'}
               >
-                {formatKg(cartItem.kg)}
+                {formatCantidad(cartItem.kg, product.precio)}
               </span>
             )}
             <button
@@ -519,7 +523,7 @@ function CartLineItem({
         {/* Price per kg + subtotal, one compact line */}
         <div className="flex items-center justify-between mt-1.5">
           <span className="text-[10px] text-foreground-400 tabular-nums">
-            {pricePerKg} {t('cart.price_label')}
+            {pricePerKg} {porUnidad ? '€/ud' : t('cart.price_label')}
           </span>
           <span className="text-sm font-semibold text-foreground-950 whitespace-nowrap overflow-hidden">
             <RollingNumber value={formatPrice(subtotal)} />
@@ -548,7 +552,6 @@ interface CartDrawerProps {
   onNoteChange: (productId: string, note: string) => void;
   onSetKg: (productId: string, kg: number) => void;
   totalProducts: number;
-  totalWeight: number;
   justAddedId: string | null;
   orderHistory: OrderHistoryEntry[];
   onSaveLastOrder: () => void;
@@ -575,7 +578,6 @@ export default function CartDrawer({
   onNoteChange,
   onSetKg,
   totalProducts,
-  totalWeight,
   justAddedId,
   orderHistory,
   onSaveLastOrder,
@@ -584,6 +586,15 @@ export default function CartDrawer({
 }: CartDrawerProps) {
   const { t, i18n } = useTranslation();
   const productMap = useMemo(() => new Map(productos.map(p => [p.id, p])), [productos]);
+  // Peso estimado: solo lo que se vende al peso; las unidades no suman kilos.
+  const esKg = useCallback(
+    (productId: string) => !esPorUnidad(productMap.get(productId)?.precio ?? ''),
+    [productMap],
+  );
+  const totalWeight = useMemo(
+    () => items.filter(i => esKg(i.productId)).reduce((sum, i) => sum + i.kg, 0),
+    [items, esKg],
+  );
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [animating, setAnimating] = useState(false);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -786,6 +797,7 @@ export default function CartDrawer({
           preparacion: item.preparation,
           nota: item.note,
           precioKg: product ? extractPricePerKg(product.precio) : 0,
+          unidad: product && esPorUnidad(product.precio) ? ('ud' as const) : ('kg' as const),
         };
       }),
       totalProductos: totalProducts,
@@ -841,6 +853,7 @@ export default function CartDrawer({
           preparacion: item.preparation,
           nota: item.note,
           precioKg: product ? extractPricePerKg(product.precio) : 0,
+          unidad: product && esPorUnidad(product.precio) ? ('ud' as const) : ('kg' as const),
         };
       }),
       totalProductos: totalProducts,
@@ -926,7 +939,7 @@ export default function CartDrawer({
   const isEmpty = items.length === 0;
 
   const viewOrder = orderHistory.find(o => o.id === viewOrderId) ?? null;
-  const viewOrderWeight = viewOrder ? viewOrder.items.reduce((sum, i) => sum + i.kg, 0) : 0;
+  const viewOrderWeight = viewOrder ? viewOrder.items.filter(i => esKg(i.productId)).reduce((sum, i) => sum + i.kg, 0) : 0;
   const viewOrderDate = viewOrder
     ? new Date(viewOrder.date).toLocaleString(i18n.language === 'eu' ? 'eu-ES' : 'es-ES', {
         day: '2-digit',
@@ -1186,7 +1199,7 @@ export default function CartDrawer({
                                 {pickLang(product, 'nombre', i18n.language)}
                               </p>
                               <p className="text-[10px] text-foreground-400 tabular-nums">
-                                {formatKg(item.kg)} × {pricePerKg} {t('cart.price_label')}
+                                {formatCantidad(item.kg, product.precio)} × {pricePerKg} {esPorUnidad(product.precio) ? '€/ud' : t('cart.price_label')}
                               </p>
                             </div>
                             <span className="text-xs font-semibold text-foreground-950 tabular-nums whitespace-nowrap flex-shrink-0">
@@ -2011,8 +2024,8 @@ export default function CartDrawer({
                             {product ? pickLang(product, 'nombre', i18n.language) : item.productId}
                           </p>
                           <p className="text-[10px] text-foreground-400 tabular-nums">
-                            {formatKg(item.kg)}
-                            {pricePerKg !== null && ` × ${pricePerKg} ${t('cart.price_label')}`}
+                            {product ? formatCantidad(item.kg, product.precio) : formatKg(item.kg)}
+                            {pricePerKg !== null && ` × ${pricePerKg} ${esPorUnidad(product?.precio ?? '') ? '€/ud' : t('cart.price_label')}`}
                             {prepLabel && ` · ${t(prepLabel as any)}`}
                           </p>
                           {item.note && (

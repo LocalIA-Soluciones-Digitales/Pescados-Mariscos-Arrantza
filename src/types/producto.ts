@@ -1,4 +1,4 @@
-export type ProductoCategoria = 'pescado' | 'especial' | 'raciones' | 'marisco' | 'congelados';
+export type ProductoCategoria = 'pescado' | 'especial' | 'raciones' | 'marisco' | 'congelados' | 'preparados';
 export type ProductoEstado = 'available' | 'new' | 'premium' | 'seasonal';
 
 export type CategoriaFiltro = 'todos' | ProductoCategoria | string;
@@ -11,6 +11,7 @@ export const CATEGORIA_FILTROS: { value: CategoriaFiltro; label: string; tipo: '
   { value: 'pescado', label: 'Pescado', tipo: 'categoria' },
   { value: 'marisco', label: 'Marisco', tipo: 'categoria' },
   { value: 'congelados', label: 'Congelados', tipo: 'categoria' },
+  { value: 'preparados', label: 'Conservas y preparados', tipo: 'categoria' },
   { value: 'raciones', label: 'Raciones', tipo: 'categoria' },
   { value: 'especial', label: 'Especial', tipo: 'categoria' },
   { value: 'azul', label: 'Pescado Azul', tipo: 'subcategoria', parent: 'pescado' },
@@ -40,6 +41,9 @@ export interface Producto {
   stock_minimo: number;
   stock_alerta_enviada: boolean;
   gestion_stock: boolean;
+  // false = no sale en la tienda online (p. ej. ya no está en la báscula),
+  // pero se conserva con su foto e historial.
+  visible_web: boolean;
   orden: number;
   created_at: string;
   updated_at: string;

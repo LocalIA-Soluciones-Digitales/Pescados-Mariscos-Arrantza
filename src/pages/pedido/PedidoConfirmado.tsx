@@ -99,9 +99,10 @@ function buildWhatsAppMessage(pedido: Pedido, t: TFunction): string {
     lines.push('');
     lines.push(`🐟 ${item.nombre}`);
     lines.push('');
-    lines.push(`⚖ Peso: ${formatKg(item.kg)}`);
+    const porUnidad = item.unidad === 'ud';
+    lines.push(porUnidad ? `📦 Cantidad: ${item.kg} ud` : `⚖ Peso: ${formatKg(item.kg)}`);
     lines.push(`🔪 Preparación: ${prepLabel}`);
-    lines.push(`💶 Precio: ${item.precioKg} €/Kg`);
+    lines.push(`💶 Precio: ${item.precioKg} €/${porUnidad ? 'ud' : 'Kg'}`);
     lines.push('');
     lines.push(`Subtotal: ${formatPrice(subtotal)}`);
 
