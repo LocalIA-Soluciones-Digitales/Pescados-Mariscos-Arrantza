@@ -14,6 +14,7 @@ import { useCartSound } from '@/hooks/useCartSound';
 import { logAddToCart, logCategoryView, logConversion, logProductView } from '@/lib/visitLog';
 import { pickLang, normalizeSearch } from '@/types/producto';
 import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
+import InfoHint from '@/components/base/InfoHint';
 import type { Producto } from '@/types/producto';
 
 /* ------------------------------------------------------------------ */
@@ -302,9 +303,20 @@ function CompactHero() {
           <h1 className="text-xl md:text-2xl lg:text-3xl font-heading font-semibold text-foreground-950 leading-[1.15] mb-1.5 animate-fade-up-1 opacity-0">
             {t('products.catalog_title')}
           </h1>
-          <p className="text-xs md:text-sm text-foreground-400 leading-relaxed animate-fade-up-2 opacity-0">
-            {t('products.catalog_subtitle')}
-          </p>
+          <div className="inline-flex items-center justify-center gap-1 text-xs md:text-sm text-foreground-400 leading-relaxed animate-fade-up-2 opacity-0">
+            <i className="ri-scales-3-line text-foreground-300 flex-shrink-0" aria-hidden="true"></i>
+            <span>{t('products.catalog_subtitle')}</span>
+            <InfoHint
+              size="sm"
+              align="right"
+              title={t('products.price_info_title')}
+              items={[
+                { icon: 'ri-ship-line', text: t('products.price_info_1') },
+                { icon: 'ri-price-tag-3-line', text: t('products.price_info_2') },
+                { icon: 'ri-shopping-basket-line', text: t('products.price_info_3') },
+              ]}
+            />
+          </div>
         </div>
       </div>
     </section>
