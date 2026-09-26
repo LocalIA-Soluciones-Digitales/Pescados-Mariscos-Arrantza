@@ -907,7 +907,7 @@ function filaDia(fecha: string, labelCorto: string, hoy: string, resumenDia: Res
 function calcularPatronSemanal(hasta: string, resumenDia: ResumenDia): PatronDia[] {
   const hoy = hoyISO();
   const fin = hasta >= hoy ? sumarDias(hoy, -1) : hasta;
-  const acc = Array.from({ length: 7 }, () => ({ total: 0, dias: 0, tickets: 0 }));
+  const acc = Array.from({ length: 7 }, () => ({ total: 0, dias: 0, tickets: 0, porTienda: {} as Partial<Record<Origen, number>> }));
   fechasEntre(sumarDias(fin, -83), fin).forEach((f) => {
     const r = resumenDia(f);
     if (r.totales.ingresos <= 0) return;
@@ -916,10 +916,14 @@ function calcularPatronSemanal(hasta: string, resumenDia: ResumenDia): PatronDia
     acc[i].total += r.totales.ingresos;
     acc[i].dias += 1;
     acc[i].tickets += r.tickets;
+    ORIGENES.forEach((o) => {
+      acc[i].porTienda[o] = (acc[i].porTienda[o] ?? 0) + (r.totales.ingresos_por_tienda[o] ?? 0);
+    });
   });
   return ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((label, i) => ({
     label,
     media: acc[i].dias ? acc[i].total / acc[i].dias : 0,
+    porTienda: Object.fromEntries(ORIGENES.map((o) => [o, acc[i].dias ? (acc[i].porTienda[o] ?? 0) / acc[i].dias : 0])),
     tickets: acc[i].dias ? acc[i].tickets / acc[i].dias : 0,
     dias: acc[i].dias,
   }));
@@ -1085,6 +1089,7 @@ function VistaAnio({ anio, onAnioChange, resumenDia, onIrAMes }: { anio: number;
       unidad="mes"
       totalLabel="Total del año"
       nombreArchivo={`contabilidad-${anio}`}
+      ocultarVaciosInicial
       onFilaClick={(key) => onIrAMes(Number(key))}
     />
   );

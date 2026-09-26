@@ -70,6 +70,8 @@ export interface FilaPeriodo {
 export interface PatronDia {
   label: string;
   media: number;
+  // Media de ingresos de cada tienda en ese día de la semana.
+  porTienda: Partial<Record<Origen, number>>;
   tickets: number;
   dias: number;
 }

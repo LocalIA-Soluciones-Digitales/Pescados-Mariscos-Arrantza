@@ -131,9 +131,11 @@ function RepartoTiendas({ totales, anterior }: { totales: Totales; anterior: Tot
               <span className="truncate">{ORIGEN_LABELS[o]}</span>
               <span className="ml-auto tabular-nums text-foreground-800">{formatEUR(v)}</span>
               <span className="tabular-nums w-9 text-right">{formatPct((v / total) * 100)}</span>
-              <span className="w-12 text-right">
-                <DeltaMini actual={v} anterior={anterior.ingresos_por_tienda[o] ?? 0} />
-              </span>
+              {(anterior.ingresos_por_tienda[o] ?? 0) > 0 && (
+                <span className="w-12 text-right">
+                  <DeltaMini actual={v} anterior={anterior.ingresos_por_tienda[o] ?? 0} />
+                </span>
+              )}
             </p>
           );
         })}
@@ -181,7 +183,7 @@ function ComparativaCard({ actual, anterior, anteriorLabel, comparadoCon }: { ac
   ];
   const fmt = (n: number, entero?: boolean) => (entero ? Math.round(n).toLocaleString('es-ES') : formatEUR(n));
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card overflow-hidden">
+    <div className="h-full bg-background-50 border border-background-200/70 rounded-2xl shadow-card overflow-hidden">
       <div className="px-4 pt-3 pb-2">
         <p className="text-sm font-medium text-foreground-950">Comparativa</p>
         <p className="text-[11px] text-foreground-400">{comparadoCon.replace(/^vs\. /, 'Frente a ')}</p>
@@ -232,63 +234,173 @@ function ComparativaCard({ actual, anterior, anteriorLabel, comparadoCon }: { ac
   );
 }
 
-// Ventas medias por día de la semana: ayuda a decidir cuánto género pedir
-// cada día. Se basa en las últimas 12 semanas, no solo en el periodo visto.
 function plural(dia: string): string {
   const d = dia.toLowerCase();
   return d.endsWith('s') ? d : `${d}s`;
 }
 
-function PatronSemanalCard({ patron }: { patron: PatronDia[] }) {
-  const abiertos = patron.filter((d) => d.dias > 0);
-  if (abiertos.length === 0) return null;
-  const max = Math.max(...abiertos.map((d) => d.media));
-  const mediaGeneral = abiertos.reduce((n, d) => n + d.media, 0) / abiertos.length;
-  const mejor = abiertos.reduce((m, d) => (d.media > m.media ? d : m));
-  const peor = abiertos.reduce((m, d) => (d.media < m.media ? d : m));
+// Un día de la semana cuenta como "de apertura normal" si hubo venta al
+// menos 2 veces en la ventana y su media no es residual (un lunes con 10 €
+// sueltos de un cobro puntual no puede ser "el día más flojo").
+function esDiaNormal(d: PatronDia, max: number): boolean {
+  return d.dias >= 2 && d.media >= max * 0.15;
+}
+
+// Ventas medias por día de la semana: ayuda a decidir cuánto género pedir
+// cada día. Se basa en las últimas 12 semanas, no solo en el periodo visto.
+// A ancho completo (sin tarjeta de comparativa al lado) añade un panel
+// lateral con la previsión de mañana y los días extremos.
+function PatronSemanalCard({ patron, completo }: { patron: PatronDia[]; completo: boolean }) {
+  const conVenta = patron.filter((d) => d.dias > 0);
+  if (conVenta.length === 0) return null;
+  const max = Math.max(...conVenta.map((d) => d.media));
+  const normales = conVenta.filter((d) => esDiaNormal(d, max));
+  const mediaGeneral = normales.length ? normales.reduce((n, d) => n + d.media, 0) / normales.length : 0;
+  const mejor = normales.reduce((m, d) => (d.media > m.media ? d : m), normales[0]);
+  const peor = normales.reduce((m, d) => (d.media < m.media ? d : m), normales[0]);
   const hoyIdx = (new Date().getDay() + 6) % 7;
-  return (
-    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-4">
-      <p className="text-sm font-medium text-foreground-950">Ventas por día de la semana</p>
-      <p className="text-[11px] text-foreground-400 mb-3">Media de ingresos de las últimas 12 semanas · para planificar el género</p>
+  const manana = patron[(hoyIdx + 1) % 7];
+  const mananaNormal = esDiaNormal(manana, max);
+  const totalTiendas = ORIGENES.map((o) => normales.reduce((n, d) => n + (d.porTienda[o] ?? 0), 0));
+  const sumaTiendas = totalTiendas.reduce((a, b) => a + b, 0);
+
+  const filas = (
+    <div className="min-w-0">
+      <div className="hidden sm:flex items-center gap-3 text-[10px] uppercase tracking-wide text-foreground-400 mb-1.5">
+        <span className="w-24 flex-shrink-0"></span>
+        <span className="flex-1"></span>
+        <span className="w-20 text-right">Media/día</span>
+        <span className="w-12 text-right">vs media</span>
+        <span className="w-14 text-right">Tickets</span>
+        <span className="w-16 text-right">Ticket m.</span>
+      </div>
       <div className="space-y-1.5">
         {patron.map((d, i) => {
+          const normal = esDiaNormal(d, max);
           const pct = mediaGeneral > 0 ? ((d.media - mediaGeneral) / mediaGeneral) * 100 : 0;
           return (
             <div key={d.label} className="flex items-center gap-3 text-xs">
-              <span className={`w-20 flex-shrink-0 ${i === hoyIdx ? 'font-semibold text-primary-500' : 'text-foreground-600'}`}>
+              <span className={`w-20 sm:w-24 flex-shrink-0 ${i === hoyIdx ? 'font-semibold text-primary-500' : 'text-foreground-600'}`}>
                 {d.label}
                 {i === hoyIdx && <span className="ml-1 text-[10px] font-normal">(hoy)</span>}
               </span>
-              <div className="flex-1 h-5 rounded-md bg-background-100 overflow-hidden">
-                {d.dias > 0 && (
-                  <div
-                    className={`h-full rounded-md ${d === mejor ? 'bg-emerald-500' : 'bg-sky-500/60'}`}
-                    style={{ width: `${(d.media / max) * 100}%` }}
-                  ></div>
-                )}
+              <div className={`flex-1 h-5 rounded-md bg-background-100 overflow-hidden flex gap-[2px] ${d === mejor ? 'ring-2 ring-emerald-500/40' : ''}`}>
+                {d.dias > 0 &&
+                  ORIGENES.map((o) => {
+                    const v = d.porTienda[o] ?? 0;
+                    if (v <= 0) return null;
+                    return (
+                      <div
+                        key={o}
+                        title={`${ORIGEN_LABELS[o]}: ${formatEURRedondo(v)}`}
+                        className={`h-full first:rounded-l-md last:rounded-r-md ${ORIGEN_COLORS[o].dot} ${normal ? '' : 'opacity-40'}`}
+                        style={{ width: `${(v / max) * 100}%` }}
+                      ></div>
+                    );
+                  })}
               </div>
-              {d.dias > 0 ? (
-                <>
-                  <span className="w-20 text-right tabular-nums text-foreground-950 font-medium">{formatEURRedondo(d.media)}</span>
-                  <span className={`w-12 text-right tabular-nums text-[11px] ${pct >= 0 ? 'text-emerald-700' : 'text-foreground-400'}`}>
-                    {pct >= 0 ? '+' : ''}
-                    {formatPct(pct)}
-                  </span>
-                </>
+              {d.dias === 0 ? (
+                <span className="w-32 sm:w-[17.5rem] text-right text-[11px] text-foreground-300">Cerrado</span>
               ) : (
-                <span className="w-32 text-right text-[11px] text-foreground-300">Cerrado</span>
+                <>
+                  <span className={`w-20 text-right tabular-nums font-medium ${normal ? 'text-foreground-950' : 'text-foreground-400'}`}>{formatEURRedondo(d.media)}</span>
+                  <span className={`w-12 text-right tabular-nums text-[11px] ${!normal ? 'text-foreground-300' : pct >= 0 ? 'text-emerald-700' : 'text-foreground-400'}`}>
+                    {normal ? `${pct >= 0 ? '+' : ''}${formatPct(pct)}` : 'puntual'}
+                  </span>
+                  <span className="hidden sm:inline w-14 text-right tabular-nums text-foreground-600">{Math.round(d.tickets)}</span>
+                  <span className="hidden sm:inline w-16 text-right tabular-nums text-foreground-600">{d.tickets > 0 ? formatEUR(d.media / d.tickets) : '—'}</span>
+                </>
               )}
             </div>
           );
         })}
       </div>
-      {mejor !== peor && (
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-[11px] text-foreground-500">
+        {ORIGENES.map((o, i) => (
+          <span key={o} className="inline-flex items-center gap-1.5">
+            <span className={`w-2.5 h-2.5 rounded-sm ${ORIGEN_COLORS[o].dot}`}></span>
+            {ORIGEN_LABELS[o]}
+            {sumaTiendas > 0 && <span className="tabular-nums text-foreground-400">{formatPct((totalTiendas[i] / sumaTiendas) * 100)}</span>}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+
+  const consejo =
+    mejor && peor && mejor !== peor ? (
+      <>
+        Los <span className="font-medium text-foreground-950">{plural(mejor.label)}</span> se vende un{' '}
+        <span className="font-medium text-emerald-700">{formatPct(((mejor.media - peor.media) / peor.media) * 100)} más</span> que los {plural(peor.label)} (unos{' '}
+        {Math.round(mejor.tickets)} tickets frente a {Math.round(peor.tickets)}).
+      </>
+    ) : null;
+
+  return (
+    <div className="h-full bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-4">
+      <p className="text-sm font-medium text-foreground-950">Ventas por día de la semana</p>
+      <p className="text-[11px] text-foreground-400 mb-3">Media de ingresos de las últimas 12 semanas · para planificar el género</p>
+      {completo ? (
+        <div className="grid lg:grid-cols-[1fr_300px] gap-5">
+          {filas}
+          <div className="grid sm:grid-cols-3 lg:grid-cols-1 gap-2 content-start lg:border-l lg:border-background-200/70 lg:pl-5">
+            <div className="rounded-xl bg-primary-500/[0.05] border border-primary-500/10 px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-[11px] text-foreground-500">
+                <i className="ri-calendar-event-line text-primary-500"></i>
+                Mañana, {manana.label.toLowerCase()}
+              </p>
+              {manana.dias === 0 ? (
+                <p className="text-sm font-semibold text-foreground-400 mt-0.5">Normalmente cerrado</p>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-foreground-950 tabular-nums mt-0.5">≈ {formatEURRedondo(manana.media)}</p>
+                  <p className="text-[11px] text-foreground-500">
+                    unos {Math.round(manana.tickets)} tickets
+                    {mananaNormal && mediaGeneral > 0 && (
+                      <>
+                        {' · '}
+                        <span className={manana.media >= mediaGeneral ? 'text-emerald-700' : 'text-foreground-500'}>
+                          {manana.media >= mediaGeneral ? 'por encima' : 'por debajo'} de la media
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </>
+              )}
+            </div>
+            {mejor && (
+              <div className="rounded-xl bg-background-100/60 px-3 py-2.5">
+                <p className="flex items-center gap-1.5 text-[11px] text-foreground-500">
+                  <i className="ri-trophy-line text-emerald-600"></i>
+                  Día más fuerte
+                </p>
+                <p className="text-sm font-semibold text-foreground-950 mt-0.5">
+                  {mejor.label} · <span className="tabular-nums">{formatEURRedondo(mejor.media)}</span>
+                </p>
+                <p className="text-[11px] text-foreground-500">prepara más género la víspera</p>
+              </div>
+            )}
+            {peor && peor !== mejor && (
+              <div className="rounded-xl bg-background-100/60 px-3 py-2.5">
+                <p className="flex items-center gap-1.5 text-[11px] text-foreground-500">
+                  <i className="ri-arrow-down-circle-line text-amber-600"></i>
+                  Día más flojo
+                </p>
+                <p className="text-sm font-semibold text-foreground-950 mt-0.5">
+                  {peor.label} · <span className="tabular-nums">{formatEURRedondo(peor.media)}</span>
+                </p>
+                <p className="text-[11px] text-foreground-500">buen día para ofertas o menos pedido</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        filas
+      )}
+      {consejo && (
         <p className="mt-3 pt-3 border-t border-background-200/70 text-[11px] text-foreground-500 leading-relaxed">
           <i className="ri-lightbulb-flash-line text-amber-500 mr-1"></i>
-          Los <span className="font-medium text-foreground-950">{plural(mejor.label)}</span> se vende un{' '}
-          <span className="font-medium text-emerald-700">{formatPct(((mejor.media - peor.media) / peor.media) * 100)} más</span> que los{' '}
-          {plural(peor.label)} (unos {Math.round(mejor.tickets)} tickets frente a {Math.round(peor.tickets)}).
+          {consejo}
         </p>
       )}
     </div>
@@ -455,8 +567,14 @@ export default function CajaResumenPeriodo({
 
   const conVenta = filas.filter((f) => !f.futuro && f.totales.ingresos > 0);
   const mejor = conVenta.reduce<FilaPeriodo | null>((m, f) => (!m || f.totales.ingresos > m.totales.ingresos ? f : m), null);
-  const peor = conVenta.reduce<FilaPeriodo | null>((m, f) => (!m || f.totales.ingresos < m.totales.ingresos ? f : m), null);
-  const media = conVenta.length ? total.totales.ingresos / conVenta.length : 0;
+  // Para el más flojo y la media se descartan los días/meses con una venta
+  // residual (p.ej. el mes en que se empezó a usar la báscula, con 10 €),
+  // que si no se llevarían el "más flojo" y hundirían la media.
+  const maxVenta = mejor?.totales.ingresos ?? 0;
+  const significativas = conVenta.filter((f) => f.totales.ingresos >= maxVenta * 0.15);
+  const peor =
+    significativas.length > 1 ? significativas.reduce<FilaPeriodo | null>((m, f) => (!m || f.totales.ingresos < m.totales.ingresos ? f : m), null) : null;
+  const media = significativas.length ? significativas.reduce((n, f) => n + f.totales.ingresos, 0) / significativas.length : 0;
 
   // Previsión de ingresos al cierre de un periodo en curso (solo por días):
   // media de los días ya cerrados con venta × proporción de días que se
@@ -493,6 +611,7 @@ export default function CajaResumenPeriodo({
     return base.map(({ f }) => f);
   }, [filas, ocultarVacios, orden]);
   const hayVacias = filas.some(vacia);
+  const hayComparativa = anterior.totales.ingresos > 0 || totalGastos(anterior.totales) > 0;
   const sinDatos = filas.every(vacia);
   const unidadPlural = unidad === 'día' ? 'días' : 'meses';
 
@@ -660,16 +779,14 @@ export default function CajaResumenPeriodo({
                 iconClass="bg-background-100 text-foreground-500"
                 titulo={`Media por ${unidad} con venta`}
                 valor={formatEUR(media)}
-                detalle={`${conVenta.length} ${conVenta.length === 1 ? unidad : unidadPlural} con venta`}
+                detalle={`${significativas.length} ${significativas.length === 1 ? unidad : unidadPlural} con venta`}
               />
             </div>
           )}
 
-          <div className="grid lg:grid-cols-2 gap-3 items-start">
-            {(anterior.totales.ingresos > 0 || totalGastos(anterior.totales) > 0) && (
-              <ComparativaCard actual={total} anterior={anterior} anteriorLabel={anteriorLabel} comparadoCon={comparadoCon} />
-            )}
-            <PatronSemanalCard patron={patronSemanal} />
+          <div className={`grid gap-3 ${hayComparativa ? 'lg:grid-cols-2' : ''}`}>
+            {hayComparativa && <ComparativaCard actual={total} anterior={anterior} anteriorLabel={anteriorLabel} comparadoCon={comparadoCon} />}
+            <PatronSemanalCard patron={patronSemanal} completo={!hayComparativa} />
           </div>
 
           <div className="bg-background-50 border border-background-200/70 rounded-2xl overflow-hidden shadow-card">
