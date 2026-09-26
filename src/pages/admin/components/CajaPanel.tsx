@@ -1179,7 +1179,6 @@ export default function CajaPanel() {
             { value: 'semana', label: 'Semana' },
             { value: 'mes', label: 'Mes' },
             { value: 'anio', label: 'Año' },
-            { value: 'buscar', label: 'Buscar', icon: 'ri-search-line' },
           ] as { value: Vista; label: string; icon?: string }[]).map((v) => (
             <button
               key={v.value}
