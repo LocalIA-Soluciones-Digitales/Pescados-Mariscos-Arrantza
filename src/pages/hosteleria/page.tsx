@@ -206,13 +206,8 @@ export default function Hosteleria() {
 
   // Con sesión activa, cada negocio ve directamente su perfil y sus productos.
   if (session) {
-    return (
-      <>
-        <Navbar />
-        <CatalogoHosteleriaView token={session.token} nombreNegocio={session.nombreNegocio} onLogout={logout} />
-        <Footer />
-      </>
-    );
+    // El catálogo ya incluye su propia barra de navegación y pie (es el de la tienda).
+    return <CatalogoHosteleriaView token={session.token} nombreNegocio={session.nombreNegocio} onLogout={logout} />;
   }
 
   // Sin sesión: solo entrar o pedir cuenta. Los precios de hostelería son

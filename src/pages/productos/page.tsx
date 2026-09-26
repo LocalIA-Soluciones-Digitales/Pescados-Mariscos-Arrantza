@@ -931,11 +931,17 @@ function ProductCard({
           {pickLang(product, 'nombre', i18n.language)}
         </h3>
 
-        <p className="text-[10px] md:text-xs text-foreground-400 mb-3 md:mb-4">
-          <span className="w-3 h-3 md:w-3.5 md:h-3.5 inline-flex items-center justify-center mr-0.5 md:mr-1 align-middle">
-            <i className="ri-map-pin-line text-[9px] md:text-[10px]"></i>
-          </span>
-          {pickLang(product, 'origen', i18n.language)}
+        {/* Sin origen (p. ej. artículos de hostelería) se deja el hueco para
+            que todas las fichas de la fila queden alineadas. */}
+        <p className="text-[10px] md:text-xs text-foreground-400 mb-3 md:mb-4 min-h-[1.25em]">
+          {pickLang(product, 'origen', i18n.language) && (
+            <>
+              <span className="w-3 h-3 md:w-3.5 md:h-3.5 inline-flex items-center justify-center mr-0.5 md:mr-1 align-middle">
+                <i className="ri-map-pin-line text-[9px] md:text-[10px]"></i>
+              </span>
+              {pickLang(product, 'origen', i18n.language)}
+            </>
+          )}
         </p>
 
         <div className="flex items-center justify-between gap-1 md:gap-4">
