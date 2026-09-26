@@ -15,9 +15,11 @@ const SOURCE_SENTENCES: Record<SourceCategory, string> = {
 
 const CATEGORY_LABELS: Record<string, string> = {
   pescado: 'Pescado',
-  especial: 'Especial',
+  especial: 'Pescado de carta',
   raciones: 'Raciones',
   marisco: 'Marisco',
+  congelados: 'Congelado',
+  preparados: 'Varios',
   azul: 'Pescado Azul',
   blanco: 'Pescado Blanco',
   cefalopodos: 'Cefalópodos',

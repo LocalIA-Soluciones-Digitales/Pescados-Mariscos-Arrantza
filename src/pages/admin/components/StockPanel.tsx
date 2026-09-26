@@ -10,14 +10,14 @@ import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 
 const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
   pescado: 'Pescado',
-  especial: 'Especial',
+  especial: 'Pescado de carta',
   raciones: 'Raciones',
   marisco: 'Marisco',
-  congelados: 'Congelados',
-  preparados: 'Conservas y preparados',
+  congelados: 'Congelado',
+  preparados: 'Varios',
 };
 
-const CATEGORIA_ORDEN: ProductoCategoria[] = ['pescado', 'marisco', 'congelados', 'preparados', 'raciones', 'especial'];
+const CATEGORIA_ORDEN: ProductoCategoria[] = ['pescado', 'especial', 'marisco', 'congelados', 'preparados', 'raciones'];
 
 function StockRow({
   producto,

@@ -8,11 +8,11 @@ const FAMILIAS_ELIMINADAS_KEY = 'pm_familias_eliminadas';
 
 const CATEGORIAS: { value: ProductoCategoria; label: string }[] = [
   { value: 'pescado', label: 'Pescado' },
-  { value: 'especial', label: 'Especial' },
-  { value: 'raciones', label: 'Raciones' },
+  { value: 'especial', label: 'Pescado de carta' },
   { value: 'marisco', label: 'Marisco' },
-  { value: 'congelados', label: 'Congelados' },
-  { value: 'preparados', label: 'Conservas y preparados' },
+  { value: 'congelados', label: 'Congelado' },
+  { value: 'preparados', label: 'Varios' },
+  { value: 'raciones', label: 'Raciones' },
 ];
 
 const SUBCATEGORIAS: { value: string; label: string }[] = [

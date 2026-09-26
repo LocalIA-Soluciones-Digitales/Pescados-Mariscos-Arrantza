@@ -24,6 +24,9 @@
 //      importados de esa báscula y familia. Si un código ha cambiado de
 //      producto, NO se toca el precio del producto web enlazado (sería el
 //      precio de otro artículo) — solo se avisa.
+//      La categoría web sigue a la familia (1 Pescado, 2 Pescado de carta,
+//      3 Marisco, 4 Congelado, 5 Varios); si un artículo pasa a otra familia
+//      (Navidad, hostelería) se oculta de la tienda.
 //   4. Guarda la foto nueva y manda un push al pescadero con el resumen.
 //
 // La primera ejecución solo guarda la foto de partida (no hay con qué
@@ -46,6 +49,11 @@ const HORA_AVISO_FALLO_MIN = 13 * 60 + 30; // 13:30 Madrid
 // anterior, se da la lectura por incompleta en vez de marcar la otra mitad
 // como eliminada.
 const MIN_PROPORCION_LECTURA = 0.5;
+// Cada familia de la tienda (1-5 de la báscula) es una categoría de la web.
+// Las demás (6 Navidad, 7-9 hostelería…) no se muestran en la tienda.
+const CATEGORIA_POR_FAMILIA: Record<string, string> = {
+  '1': 'pescado', '2': 'especial', '3': 'marisco', '4': 'congelados', '5': 'preparados',
+};
 
 function safeEqual(a: string, b: string): boolean {
   const bufA = new TextEncoder().encode(a);
@@ -337,19 +345,21 @@ Deno.serve(async (req: Request) => {
   const cambios = primeraVez ? [] : compararCatalogos(anterior, actual);
   const codigosRenombrados = new Set(cambios.filter((c) => c.tipo === 'renombrado').map((c) => c.codigo));
   const codigosEliminados = new Set(cambios.filter((c) => c.tipo === 'eliminado').map((c) => c.codigo));
+  const codigosCambioFamilia = new Set(cambios.filter((c) => c.tipo === 'familia').map((c) => c.codigo));
 
   // Precios de la tienda online: productos con código de esta báscula.
   const { data: mapeos, error: errMapeos } = await supabase
     .from('productos_codigos_bascula')
-    .select('codigo_bascula, productos (id, nombre_es, precio)')
+    .select('codigo_bascula, productos (id, nombre_es, precio, categoria, visible_web)')
     .eq('cliente_id', clienteId)
     .eq('origen', origen);
   if (errMapeos) return json({ error: errMapeos.message }, 500);
 
   const preciosProductos: { id: string; nombre: string; antes: string; despues: string }[] = [];
   const sinActualizar: string[] = [];
+  const categoriasProductos: { id: string; nombre: string; categoria: string | null; visible_web: boolean }[] = [];
   for (const m of mapeos ?? []) {
-    const p = m.productos as unknown as { id: string; nombre_es: string; precio: string } | null;
+    const p = m.productos as unknown as { id: string; nombre_es: string; precio: string; categoria: string; visible_web: boolean } | null;
     const a = actual.get(m.codigo_bascula as string);
     if (!p) continue;
     // Solo se avisa el día en que el código desaparece o cambia de
@@ -362,6 +372,16 @@ Deno.serve(async (req: Request) => {
     }
     const nuevo = formatoPrecioWeb(a);
     if (p.precio !== nuevo) preciosProductos.push({ id: p.id, nombre: p.nombre_es, antes: p.precio, despues: nuevo });
+
+    // La categoría sigue a la familia. Solo el día que el artículo cambia de
+    // familia se toca la visibilidad, para no pisar un producto que el
+    // pescadero haya ocultado a mano desde el panel.
+    const categoria = CATEGORIA_POR_FAMILIA[a.familia] ?? null;
+    const cambiaFamilia = codigosCambioFamilia.has(a.codigo);
+    const visible = cambiaFamilia ? categoria !== null : p.visible_web;
+    if ((categoria && categoria !== p.categoria) || visible !== p.visible_web) {
+      categoriasProductos.push({ id: p.id, nombre: p.nombre_es, categoria, visible_web: visible });
+    }
   }
 
   // Precios de hostelería: artículos importados de esta báscula, solo si
@@ -389,13 +409,18 @@ Deno.serve(async (req: Request) => {
     origen, fecha, primeraVez, simulado: simular,
     articulos: actual.size,
     cambios: cambios.map((c) => ({ codigo: c.codigo, tipo: c.tipo, antes: c.antes, despues: c.despues })),
-    preciosProductos, preciosHosteleria, sinActualizar,
+    preciosProductos, categoriasProductos, preciosHosteleria, sinActualizar,
   };
   if (simular) return json(resultado);
 
   for (const p of preciosProductos) {
     const { error } = await supabase.from('productos').update({ precio: p.despues }).eq('id', p.id);
     if (error) return json({ error: `Actualizando ${p.nombre}: ${error.message}` }, 500);
+  }
+  for (const c of categoriasProductos) {
+    const datos = c.categoria ? { categoria: c.categoria, subcategoria: null, visible_web: c.visible_web } : { visible_web: c.visible_web };
+    const { error } = await supabase.from('productos').update(datos).eq('id', c.id);
+    if (error) return json({ error: `Actualizando la categoría de ${c.nombre}: ${error.message}` }, 500);
   }
   for (const h of preciosHosteleria) {
     const { error } = await supabase.from('hosteleria_articulos').update({ precio: h.despues, unidad: h.unidad }).eq('id', h.id);

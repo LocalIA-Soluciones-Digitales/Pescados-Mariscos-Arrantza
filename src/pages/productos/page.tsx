@@ -44,11 +44,11 @@ type CategoryFilter =
 const categories: { key: CategoryFilter; labelKey: string }[] = [
   { key: 'todos', labelKey: 'products.filter_all' },
   { key: 'pescado', labelKey: 'products.filter_fish' },
+  { key: 'especial', labelKey: 'products.filter_special' },
   { key: 'marisco', labelKey: 'products.filter_seafood' },
   { key: 'congelados', labelKey: 'products.filter_frozen' },
   { key: 'preparados', labelKey: 'products.filter_prepared' },
   { key: 'raciones', labelKey: 'products.filter_portions' },
-  { key: 'especial', labelKey: 'products.filter_special' },
   { key: 'suministro', labelKey: 'products.filter_suministro' },
   { key: 'azul', labelKey: 'products.filter_blue_fish' },
   { key: 'blanco', labelKey: 'products.filter_white_fish' },
@@ -145,6 +145,10 @@ const subcategoryDisplay: Record<string, { labelKey: string; icon: string }> = {
   gambas_langostinos: { labelKey: 'products.filter_prawns_shrimp',     icon: 'ri-restaurant-line' },
   raciones_porcion:   { labelKey: 'products.subcat_raciones_porcion',  icon: 'ri-scales-line' },
   raciones_entero:    { labelKey: 'products.subcat_raciones_entero',   icon: 'ri-restaurant-2-line' },
+  // Familias de la báscula: los productos del catálogo ya no llevan
+  // subcategoría y se agrupan directamente por su categoría.
+  pescado:            { labelKey: 'products.filter_fish',              icon: 'ri-water-flash-line' },
+  marisco:            { labelKey: 'products.filter_seafood',           icon: 'ri-restaurant-2-line' },
   // Categorías sin subcategorías propias — agrupadas por su nombre de
   // categoría cuando se muestran junto al resto (ver `groupKey` en CatalogGrid).
   congelados:         { labelKey: 'products.filter_frozen',            icon: 'ri-snowflake-line' },
@@ -551,6 +555,12 @@ function StickyToolbar({
                     </div>
                   )}
 
+                  {visibleKeys.has('especial') && (
+                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
+                      {renderGroupHeader('especial', 'ri-award-line')}
+                    </div>
+                  )}
+
                   {/* Marisco — same nesting for its subtypes */}
                   {(visibleKeys.has('marisco') || seafoodSubcats.length > 0) && (
                     <div className="mt-2.5 pt-2 border-t border-background-200/60">
@@ -579,11 +589,6 @@ function StickyToolbar({
                   {visibleKeys.has('raciones') && (
                     <div className="mt-2.5 pt-2 border-t border-background-200/60">
                       {renderGroupHeader('raciones', 'ri-scales-line')}
-                    </div>
-                  )}
-                  {visibleKeys.has('especial') && (
-                    <div className="mt-2.5 pt-2 border-t border-background-200/60">
-                      {renderGroupHeader('especial', 'ri-award-line')}
                     </div>
                   )}
                   {visibleKeys.has('suministro') && (
@@ -978,6 +983,12 @@ function ProductCard({
  *  subcategorías of their own, so they group directly by category name — see
  *  `groupKey` in CatalogGrid. */
 const subcategoryOrder: string[] = [
+  // Mismo orden que las familias 1-5 de la báscula
+  'pescado',
+  'especial',
+  'marisco',
+  'congelados',
+  'preparados',
   'azul',
   'semigraso',
   'blanco',
