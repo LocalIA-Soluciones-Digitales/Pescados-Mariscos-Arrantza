@@ -594,7 +594,7 @@ export default function CajaBuscador({
 
   return (
     <div className="space-y-4">
-      <section className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card overflow-hidden">
+      <section className="relative z-10 bg-background-50 border border-background-200/70 rounded-2xl shadow-card">
         <div className="p-4 sm:p-5 space-y-4">
           <div className="relative">
             <i className="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-lg text-foreground-400"></i>
