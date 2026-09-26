@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 
 interface InfoHintItem {
   icon: string;
@@ -17,20 +18,36 @@ interface InfoHintProps {
   title?: string;
   /** Selector del ancestro (p. ej. la pastilla completa de una pestaña) al que anclar el popup, en vez de al propio icono. Así el popup sale "del campo" de la pestaña entera, no solo del iconito. */
   anchorSelector?: string;
+  /** Abre también al pasar el ratón por encima (web pública). Sin velo oscuro, y el clic solo abre para que en móvil el toque no lo cierre al momento. */
+  hover?: boolean;
 }
 
-export default function InfoHint({ items, className = '', align = 'left', size = 'md', tone = 'neutral', title, anchorSelector }: InfoHintProps) {
+export default function InfoHint({ items, className = '', align = 'left', size = 'md', tone = 'neutral', title, anchorSelector, hover = false }: InfoHintProps) {
   const [open, setOpen] = useState(false);
   const [popupStyle, setPopupStyle] = useState<CSSProperties>({});
   const [arrowLeft, setArrowLeft] = useState(0);
   const [placement, setPlacement] = useState<'bottom' | 'top'>('bottom');
   const containerRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Pequeño margen al salir, para poder cruzar del icono al popup sin que se cierre.
+  const hoverOpen = () => {
+    clearTimeout(closeTimerRef.current);
+    setOpen(true);
+  };
+  const hoverClose = () => {
+    clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => setOpen(false), 150);
+  };
+  useEffect(() => () => clearTimeout(closeTimerRef.current), []);
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target) || popupRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -106,10 +123,15 @@ export default function InfoHint({ items, className = '', align = 'left', size =
   }, [open, align, anchorSelector]);
 
   return (
-    <div ref={containerRef} className={`relative inline-block ${className}`}>
+    <div
+      ref={containerRef}
+      className={`relative inline-block ${className}`}
+      onMouseEnter={hover ? hoverOpen : undefined}
+      onMouseLeave={hover ? hoverClose : undefined}
+    >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (hover ? setOpen(true) : setOpen((v) => !v))}
         aria-expanded={open}
         aria-label="Cómo funciona"
         className={`flex items-center justify-center rounded-full transition-colors flex-shrink-0 ${
@@ -127,14 +149,18 @@ export default function InfoHint({ items, className = '', align = 'left', size =
         <i className="ri-information-line"></i>
       </button>
 
-      {open && (
+      {/* En un portal: si algún ancestro tiene transform (p. ej. las animaciones fade-up) o overflow
+          oculto, el position:fixed dejaría de ser relativo a la ventana y el popup quedaría recortado. */}
+      {open && createPortal(
         <>
           {/* pointer-events-none: es solo un velo visual — el cierre al hacer clic fuera ya lo gestiona
               el listener de pointerdown de arriba, y así no bloquea el clic directo sobre otro icono. */}
-          <div className="fixed inset-0 z-40 bg-foreground-950/40 backdrop-blur-[2px] pointer-events-none"></div>
+          {!hover && <div className="fixed inset-0 z-40 bg-foreground-950/40 backdrop-blur-[2px] pointer-events-none"></div>}
           <div
             ref={popupRef}
             style={popupStyle}
+            onMouseEnter={hover ? hoverOpen : undefined}
+            onMouseLeave={hover ? hoverClose : undefined}
             className="z-50 w-max min-w-[220px] max-w-[min(460px,90vw)] whitespace-normal rounded-xl border border-background-200/70 bg-background-50 shadow-xl p-3 animate-fadeIn"
           >
             <span
@@ -155,7 +181,8 @@ export default function InfoHint({ items, className = '', align = 'left', size =
               ))}
             </ul>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
