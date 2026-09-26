@@ -91,10 +91,3 @@ export const RESENAS_INFO_ITEMS = [
   { icon: 'ri-shield-check-line', text: 'Apruébalas para que aparezcan en público — nada se publica solo.' },
   { icon: 'ri-delete-bin-line', text: 'Puedes rechazarlas o eliminarlas si no proceden.' },
 ];
-
-export const ETIQUETAS_INFO_ITEMS = [
-  { icon: 'ri-price-tag-3-line', text: 'Apunta cada tanda de botes que envasas y saca las pegatinas con el QR ya rellenas.' },
-  { icon: 'ri-hashtag', text: 'El nº de lote se pone solo (fecha + número del día) y queda guardado para la trazabilidad.' },
-  { icon: 'ri-history-line', text: 'Al elegir un producto se copian los días que dura y la procedencia del último lote.' },
-  { icon: 'ri-printer-line', text: '"Reimprimir" vuelve a sacar pegatinas de un lote anterior.' },
-];
