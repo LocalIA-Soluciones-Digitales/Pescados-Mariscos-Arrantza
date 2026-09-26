@@ -50,6 +50,24 @@ function formatFechaCorta(fecha: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
 }
 
+function formatFechaSemana(fecha: string): string {
+  const [y, m, d] = fecha.split('-').map(Number);
+  const texto = new Date(y, m - 1, d).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+function sumarDias(fecha: string, dias: number): string {
+  const [y, m, d] = fecha.split('-').map(Number);
+  return new Date(y, m - 1, d + dias).toLocaleDateString('sv-SE');
+}
+
+// Lunes de la semana (lunes a domingo) que contiene la fecha dada.
+function lunesDe(fecha: string): string {
+  const [y, m, d] = fecha.split('-').map(Number);
+  const diaSemana = (new Date(y, m - 1, d).getDay() + 6) % 7;
+  return sumarDias(fecha, -diaSemana);
+}
+
 function formatHora(isoTimestamp: string): string {
   return new Date(isoTimestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 }
@@ -964,6 +982,72 @@ function VistaMes({
   );
 }
 
+function VistaSemana({
+  lunes,
+  onLunesChange,
+  ingresosPorFecha,
+  ingresosPorFechaPorTienda,
+  movimientos,
+  onIrADia,
+}: {
+  lunes: string;
+  onLunesChange: (lunes: string) => void;
+  ingresosPorFecha: Map<string, number>;
+  ingresosPorFechaPorTienda: Map<string, Partial<Record<Origen, number>>>;
+  movimientos: CajaMovimiento[];
+  onIrADia: (fecha: string) => void;
+}) {
+  const domingo = sumarDias(lunes, 6);
+  const esSemanaActual = lunes === lunesDe(hoyISO());
+
+  // Se muestran los 7 días aunque alguno no tenga movimientos, para que la
+  // semana se lea completa de lunes a domingo.
+  const porDia = useMemo(
+    () =>
+      Array.from({ length: 7 }, (_, i) => {
+        const fecha = sumarDias(lunes, i);
+        const base: Totales = {
+          ...totalesVacios(),
+          ingresos: ingresosPorFecha.get(fecha) ?? 0,
+          ingresos_por_tienda: { ...(ingresosPorFechaPorTienda.get(fecha) ?? {}) },
+        };
+        const totales = movimientos.filter((m) => m.fecha === fecha).reduce(acumularTotales, base);
+        return { key: fecha, label: formatFechaSemana(fecha), totales };
+      }),
+    [ingresosPorFecha, ingresosPorFechaPorTienda, movimientos, lunes],
+  );
+
+  const totalSemana = porDia.reduce((acc, f) => sumarTotales(acc, f.totales), totalesVacios());
+  const botonFlecha = 'w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-background-50 border border-background-200/70 text-foreground-500 hover:bg-background-200/70';
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={() => onLunesChange(sumarDias(lunes, -7))} className={botonFlecha}>
+          <i className="ri-arrow-left-s-line"></i>
+        </button>
+        <p className="text-sm font-medium text-foreground-950 tabular-nums">
+          {formatFechaCorta(lunes)} – {formatFechaCorta(domingo)}
+        </p>
+        <button type="button" onClick={() => onLunesChange(sumarDias(lunes, 7))} className={botonFlecha}>
+          <i className="ri-arrow-right-s-line"></i>
+        </button>
+        {!esSemanaActual && (
+          <button
+            type="button"
+            onClick={() => onLunesChange(lunesDe(hoyISO()))}
+            className="px-3 py-1.5 rounded-full text-xs font-medium bg-background-50 border border-background-200/70 text-foreground-500 hover:bg-background-200/70"
+          >
+            Esta semana
+          </button>
+        )}
+      </div>
+
+      <TablaTotales filas={porDia} totalRow={{ label: 'Total de la semana', totales: totalSemana }} onFilaClick={onIrADia} />
+    </div>
+  );
+}
+
 function VistaAnio({
   anio,
   onAnioChange,
@@ -1016,7 +1100,7 @@ function VistaAnio({
   );
 }
 
-type Vista = 'dia' | 'mes' | 'anio' | 'buscar';
+type Vista = 'dia' | 'semana' | 'mes' | 'anio' | 'buscar';
 
 export default function CajaPanel() {
   const { movimientos, loading: loadingMovimientos, crearMovimiento, eliminarMovimiento } = useCaja();
@@ -1024,6 +1108,7 @@ export default function CajaPanel() {
   const { porOrigen: syncPorOrigen } = useBasculaSyncEstado();
   const [vista, setVista] = useState<Vista>('dia');
   const [fecha, setFecha] = useState(hoyISO());
+  const [lunes, setLunes] = useState(() => lunesDe(hoyISO()));
   const [mes, setMes] = useState(new Date().getMonth());
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [resaltar, setResaltar] = useState<ResaltarObjetivo | null>(null);
@@ -1073,9 +1158,10 @@ export default function CajaPanel() {
         className="sticky z-10 bg-background-100/95 backdrop-blur-sm border-b border-background-200/50 px-4 md:px-8 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-1.5"
         style={{ top: 'var(--admin-header-height, 0px)' }}
       >
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
           {([
             { value: 'dia', label: 'Día' },
+            { value: 'semana', label: 'Semana' },
             { value: 'mes', label: 'Mes' },
             { value: 'anio', label: 'Año' },
             { value: 'buscar', label: 'Buscar', icon: 'ri-search-line' },
@@ -1084,7 +1170,7 @@ export default function CajaPanel() {
               key={v.value}
               type="button"
               onClick={() => setVista(v.value)}
-              className={`inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              className={`flex-shrink-0 whitespace-nowrap inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 vista === v.value ? 'bg-primary-500 text-background-50' : 'bg-background-50 text-foreground-500 hover:bg-background-200/70'
               }`}
             >
@@ -1116,6 +1202,15 @@ export default function CajaPanel() {
             resaltar={resaltar}
             onResaltadoConsumido={() => setResaltar(null)}
             onAbrirBuscador={irABuscar}
+          />
+        ) : vista === 'semana' ? (
+          <VistaSemana
+            lunes={lunes}
+            onLunesChange={setLunes}
+            ingresosPorFecha={ingresosPorFecha}
+            ingresosPorFechaPorTienda={ingresosPorFechaPorTienda}
+            movimientos={movimientos}
+            onIrADia={irADia}
           />
         ) : vista === 'mes' ? (
           <VistaMes
