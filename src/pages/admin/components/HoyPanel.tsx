@@ -5,6 +5,7 @@ import type { Resena } from '@/types/resena';
 import type { Producto } from '@/types/producto';
 import { normalizePhone, telHref, whatsappHref } from '@/lib/phone';
 import InfoHint from '@/components/base/InfoHint';
+import { PrevisionGenero, RitmoDelDia } from './HoyPrevisiones';
 
 type Tab = 'hoy' | 'productos' | 'stock' | 'ventas' | 'reservas' | 'resenas' | 'clientes';
 
@@ -309,6 +310,8 @@ export default function HoyPanel({
         <StatTile label="Productos bajo mínimo" value={stockBajo.length} icon="ri-alert-line" urgent onClick={() => onNavigate('stock')} />
       </div>
 
+      <RitmoDelDia />
+
       <section>
         <SectionHeading
           kicker="Compromiso vivo con clientes"
@@ -401,6 +404,8 @@ export default function HoyPanel({
           </div>
         )}
       </section>
+
+      <PrevisionGenero productos={productos} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-9">
         <section>

@@ -2845,3 +2845,107 @@ create index if not exists idx_bascula_catalogo_cambios_fecha
 --   );
 --   $$
 -- );
+
+-- ============================================================
+-- Previsiones para la pestaña Hoy (a partir de bascula_ventas)
+-- ============================================================
+
+-- Lo que se suele vender de cada producto un día como p_fecha: media de los
+-- mismos días de la semana de las últimas p_semanas semanas (solo los que
+-- abrió cada tienda — un sábado cerrado no cuenta como "vendió 0").
+-- Agrupa por nombre normalizado para juntar el mismo producto de las dos
+-- básculas aunque solo uno de los dos códigos esté enlazado a productos.
+-- security invoker: se aplican las políticas RLS de bascula_ventas.
+create or replace function public.prevision_genero(p_fecha date, p_semanas integer default 6)
+returns table (
+  designacion text,
+  unidad text,
+  producto_id uuid,
+  media numeric,
+  media_p1 numeric,
+  media_p2 numeric,
+  maximo numeric,
+  dias_vendido integer,
+  dias_referencia integer,
+  importe_medio numeric
+)
+language sql stable set search_path = public
+as $$
+  with fechas as (
+    select (p_fecha - 7 * g)::date as fecha from generate_series(1, p_semanas) g
+  ),
+  ventas as (
+    select v.fecha, v.origen, lower(trim(v.designacion)) as clave, v.designacion, v.unidad,
+           v.producto_id, v.cantidad, v.importe
+    from public.bascula_ventas v
+    join fechas f on f.fecha = v.fecha
+    where not v.anulado
+  ),
+  abiertos as (
+    select origen, count(distinct fecha)::numeric as n from ventas group by origen
+  ),
+  por_origen as (
+    select clave, unidad, origen, sum(cantidad) as cant from ventas group by clave, unidad, origen
+  ),
+  por_dia as (
+    select clave, unidad, fecha, sum(cantidad) as cant from ventas group by clave, unidad, fecha
+  ),
+  productos as (
+    select clave, unidad,
+           mode() within group (order by designacion) as designacion,
+           (array_agg(producto_id) filter (where producto_id is not null))[1] as producto_id,
+           count(distinct fecha)::integer as dias_vendido,
+           sum(importe) as importe
+    from ventas group by clave, unidad
+  )
+  select
+    p.designacion,
+    p.unidad,
+    p.producto_id,
+    round((select coalesce(sum(o.cant / a.n), 0) from por_origen o join abiertos a using (origen)
+           where o.clave = p.clave and o.unidad = p.unidad), 2) as media,
+    round((select coalesce(sum(o.cant / a.n), 0) from por_origen o join abiertos a using (origen)
+           where o.clave = p.clave and o.unidad = p.unidad and o.origen = 'pescaderia_1'), 2) as media_p1,
+    round((select coalesce(sum(o.cant / a.n), 0) from por_origen o join abiertos a using (origen)
+           where o.clave = p.clave and o.unidad = p.unidad and o.origen = 'pescaderia_2'), 2) as media_p2,
+    round((select max(d.cant) from por_dia d where d.clave = p.clave and d.unidad = p.unidad), 2) as maximo,
+    p.dias_vendido,
+    (select count(distinct fecha)::integer from ventas) as dias_referencia,
+    round(p.importe / nullif((select count(distinct fecha) from ventas), 0), 2) as importe_medio
+  from productos p
+  order by importe_medio desc nulls last;
+$$;
+
+grant execute on function public.prevision_genero(date, integer) to authenticated;
+
+-- Ventas por hora de p_fecha frente a la media por hora de los mismos días
+-- de la semana de las últimas p_semanas semanas (solo días con venta), para
+-- el "ritmo del día" de la pestaña Hoy. Las horas son las del terminal.
+create or replace function public.ventas_por_hora(p_fecha date, p_semanas integer default 6)
+returns table (hora integer, importe_hoy numeric, tickets_hoy integer, importe_referencia numeric, dias_referencia integer)
+language sql stable set search_path = public
+as $$
+  with ref as (
+    select v.fecha, extract(hour from v.hora)::integer as h, v.importe
+    from public.bascula_ventas v
+    where not v.anulado and v.hora is not null
+      and v.fecha in (select (p_fecha - 7 * g)::date from generate_series(1, p_semanas) g)
+  ),
+  n_ref as (select count(distinct fecha) as n from ref),
+  hoy as (
+    select extract(hour from v.hora)::integer as h, v.importe,
+           (v.origen, v.ticket_tipo_doc, v.ticket_posto, v.ticket_numero) as ticket
+    from public.bascula_ventas v
+    where not v.anulado and v.hora is not null and v.fecha = p_fecha
+  )
+  select
+    g as hora,
+    coalesce((select sum(importe) from hoy where h = g), 0) as importe_hoy,
+    coalesce((select count(distinct ticket) from hoy where h = g), 0)::integer as tickets_hoy,
+    round(coalesce((select sum(importe) from ref where h = g) / nullif((select n from n_ref), 0), 0), 2) as importe_referencia,
+    (select n from n_ref)::integer as dias_referencia
+  from generate_series(6, 22) g
+  order by g;
+$$;
+
+grant execute on function public.ventas_por_hora(date, integer) to authenticated;
