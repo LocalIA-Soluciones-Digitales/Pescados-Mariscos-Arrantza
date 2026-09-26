@@ -3034,3 +3034,67 @@ $$;
 
 revoke all on function public.get_reservas_articulos_publico(uuid, uuid) from public;
 grant execute on function public.get_reservas_articulos_publico(uuid, uuid) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Avisos de reservas: clientes que, sin campaña abierta, piden que les
+-- avisemos por WhatsApp cuando se abra la siguiente. Uno por teléfono y
+-- negocio; avisado_at lo marca el pescadero desde el panel al escribirles.
+-- ---------------------------------------------------------------------------
+create table if not exists public.reservas_avisos (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  nombre text not null,
+  telefono text not null,
+  idioma text not null default 'es',
+  device_id uuid,
+  avisado_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint reservas_avisos_telefono_unico unique (cliente_id, telefono)
+);
+
+alter table public.reservas_avisos enable row level security;
+
+-- Sin policy de insert pública: se entra siempre por pedir_aviso_reservas.
+drop policy if exists "reservas_avisos_admin" on public.reservas_avisos;
+create policy "reservas_avisos_admin"
+  on public.reservas_avisos for all
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+-- Repetir con el mismo teléfono actualiza el nombre y lo vuelve a poner
+-- pendiente, en vez de duplicarlo.
+create or replace function public.pedir_aviso_reservas(p_site_key uuid, p_nombre text, p_telefono text, p_idioma text, p_device_id uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_cliente_id uuid;
+  v_tel text;
+begin
+  v_cliente_id := public.cliente_id_from_site_key(p_site_key);
+  if v_cliente_id is null then
+    raise exception 'site_key inválida';
+  end if;
+
+  if char_length(trim(coalesce(p_nombre, ''))) < 1 or char_length(p_nombre) > 150 then
+    raise exception 'nombre inválido';
+  end if;
+
+  v_tel := regexp_replace(coalesce(p_telefono, ''), '[^0-9]', '', 'g');
+  if v_tel ~ '^34[0-9]{9}$' then
+    v_tel := substr(v_tel, 3);
+  end if;
+  if char_length(v_tel) < 9 or char_length(v_tel) > 15 then
+    raise exception 'teléfono inválido';
+  end if;
+
+  insert into public.reservas_avisos (cliente_id, nombre, telefono, idioma, device_id)
+  values (v_cliente_id, trim(p_nombre), v_tel, case when p_idioma = 'eu' then 'eu' else 'es' end, p_device_id)
+  on conflict (cliente_id, telefono) do update
+    set nombre = excluded.nombre, idioma = excluded.idioma, avisado_at = null, created_at = now();
+end;
+$$;
+
+revoke all on function public.pedir_aviso_reservas(uuid, text, text, text, uuid) from public;
+grant execute on function public.pedir_aviso_reservas(uuid, text, text, text, uuid) to anon, authenticated;

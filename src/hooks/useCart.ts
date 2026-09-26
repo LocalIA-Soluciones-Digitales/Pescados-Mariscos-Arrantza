@@ -50,11 +50,18 @@ export interface OrderHistoryEntry {
 const STORAGE_KEY = 'arrantza_cart';
 const LAST_ORDER_KEY = 'arrantza_last_order';
 const ORDER_HISTORY_KEY = 'arrantza_order_history';
+
+// Cada catálogo guarda su propia cesta: la tienda usa las claves de siempre
+// y cada cliente de hostelería las suyas con sufijo (":hosteleria-orotela"),
+// para que los productos de uno nunca aparezcan en la cesta del otro.
+function clave(base: string, ambito?: string): string {
+  return ambito ? `${base}:${ambito}` : base;
+}
 const MAX_ORDER_HISTORY = 5;
 
-function loadCart(): CartState {
+function loadCart(ambito?: string): CartState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(clave(STORAGE_KEY, ambito));
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
@@ -91,17 +98,17 @@ function loadCart(): CartState {
   return { items: [], customer: { name: '', business: '', phone: '', email: '', pickupTime: '', notes: '', deliveryMethod: 'pickup', address: '', city: '', postalCode: '', deliveryInstructions: '', preferredDate: '', preferredTime: '' } };
 }
 
-function saveCart(state: CartState) {
+function saveCart(state: CartState, ambito?: string) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(clave(STORAGE_KEY, ambito), JSON.stringify(state));
   } catch {
     // storage full or unavailable — silently ignore
   }
 }
 
-function readLastOrder(): LastOrderData | null {
+function readLastOrder(ambito?: string): LastOrderData | null {
   try {
-    const raw = localStorage.getItem(LAST_ORDER_KEY);
+    const raw = localStorage.getItem(clave(LAST_ORDER_KEY, ambito));
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
@@ -132,9 +139,9 @@ function sanitizeOrderItems(items: unknown): CartItem[] {
     }));
 }
 
-function readOrderHistory(): OrderHistoryEntry[] {
+function readOrderHistory(ambito?: string): OrderHistoryEntry[] {
   try {
-    const raw = localStorage.getItem(ORDER_HISTORY_KEY);
+    const raw = localStorage.getItem(clave(ORDER_HISTORY_KEY, ambito));
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
@@ -154,18 +161,18 @@ function readOrderHistory(): OrderHistoryEntry[] {
   return [];
 }
 
-function saveOrderHistoryToStorage(history: OrderHistoryEntry[]) {
+function saveOrderHistoryToStorage(history: OrderHistoryEntry[], ambito?: string) {
   try {
-    localStorage.setItem(ORDER_HISTORY_KEY, JSON.stringify(history));
+    localStorage.setItem(clave(ORDER_HISTORY_KEY, ambito), JSON.stringify(history));
   } catch { /* noop */ }
 }
 
 // Migra el antiguo "último pedido" (una sola ranura) al nuevo historial
 // la primera vez que se carga, para no perder el pedido ya guardado.
-function loadInitialOrderHistory(): OrderHistoryEntry[] {
-  const history = readOrderHistory();
+function loadInitialOrderHistory(ambito?: string): OrderHistoryEntry[] {
+  const history = readOrderHistory(ambito);
   if (history.length > 0) return history;
-  const legacy = readLastOrder();
+  const legacy = readLastOrder(ambito);
   if (!legacy) return [];
   return [{ id: 'legacy', date: new Date().toISOString(), items: legacy.items, deliveryMethod: legacy.deliveryMethod }];
 }
@@ -204,14 +211,16 @@ export function enMinimo(item: CartItem, paso: number): boolean {
   return item.piezas ? item.piezas <= 1 : item.kg <= paso;
 }
 
-export function useCart() {
-  const [items, setItems] = useState<CartItem[]>(() => loadCart().items);
-  const [customer, setCustomer] = useState<CartCustomerInfo>(() => loadCart().customer);
+// ambito: sin él, la cesta de la tienda. Con él (p. ej. "hosteleria-orotela"),
+// una cesta aparte que además no mezcla el historial de pedidos de la tienda.
+export function useCart(ambito?: string) {
+  const [items, setItems] = useState<CartItem[]>(() => loadCart(ambito).items);
+  const [customer, setCustomer] = useState<CartCustomerInfo>(() => loadCart(ambito).customer);
   const [isLoaded, setIsLoaded] = useState(false);
   const [cartVersion, setCartVersion] = useState(0);
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
   const clearJustAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [orderHistory, setOrderHistory] = useState<OrderHistoryEntry[]>(loadInitialOrderHistory);
+  const [orderHistory, setOrderHistory] = useState<OrderHistoryEntry[]>(() => loadInitialOrderHistory(ambito));
 
   // Mark as loaded after first render to prevent hydration mismatches
   useEffect(() => {
@@ -222,6 +231,7 @@ export function useCart() {
   // que sobreviva más allá del array local de MAX_ORDER_HISTORY entradas. Si
   // falla (sin red, RPC aún no desplegada) se mantiene el historial local.
   const syncOrderHistoryFromServer = useCallback(async () => {
+    if (ambito) return;
     try {
       const { data, error } = await supabase.rpc('get_pedidos_by_device', {
         p_device_id: getDeviceId(),
@@ -233,12 +243,12 @@ export function useCart() {
         .slice(0, MAX_ORDER_HISTORY);
       if (fromServer.length > 0) {
         setOrderHistory(fromServer);
-        saveOrderHistoryToStorage(fromServer);
+        saveOrderHistoryToStorage(fromServer, ambito);
       }
     } catch {
       // sin red o RPC no disponible: nos quedamos con el historial local
     }
-  }, []);
+  }, [ambito]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -253,7 +263,7 @@ export function useCart() {
   // del mismo navegador abiertas a la vez.
   useEffect(() => {
     const resync = () => {
-      setOrderHistory(readOrderHistory());
+      setOrderHistory(readOrderHistory(ambito));
       void syncOrderHistoryFromServer();
     };
     const onVisibility = () => {
@@ -263,7 +273,7 @@ export function useCart() {
       if (e.persisted) resync();
     };
     const onStorage = (e: StorageEvent) => {
-      if (e.key === ORDER_HISTORY_KEY) setOrderHistory(readOrderHistory());
+      if (e.key === clave(ORDER_HISTORY_KEY, ambito)) setOrderHistory(readOrderHistory(ambito));
     };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pageshow', onPageShow);
@@ -273,14 +283,14 @@ export function useCart() {
       window.removeEventListener('pageshow', onPageShow);
       window.removeEventListener('storage', onStorage);
     };
-  }, [syncOrderHistoryFromServer]);
+  }, [syncOrderHistoryFromServer, ambito]);
 
   // Persist to localStorage whenever state changes
   useEffect(() => {
     if (isLoaded) {
-      saveCart({ items, customer });
+      saveCart({ items, customer }, ambito);
     }
-  }, [items, customer, isLoaded]);
+  }, [items, customer, isLoaded, ambito]);
 
   // paso: 0,5 kg para lo que se vende al peso, 1 para lo que va por unidad
   // (ver pasoCantidad en lib/unidadVenta).
@@ -383,10 +393,10 @@ export function useCart() {
     };
     setOrderHistory(prev => {
       const next = [entry, ...prev].slice(0, MAX_ORDER_HISTORY);
-      saveOrderHistoryToStorage(next);
+      saveOrderHistoryToStorage(next, ambito);
       return next;
     });
-  }, [items, customer.deliveryMethod]);
+  }, [items, customer.deliveryMethod, ambito]);
 
   const loadOrder = useCallback((orderId: string) => {
     const order = orderHistory.find(o => o.id === orderId);

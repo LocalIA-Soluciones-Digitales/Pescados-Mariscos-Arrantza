@@ -294,6 +294,56 @@ function AddToCartToast({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Cabecera del catálogo privado de hostelería                         */
+/* ------------------------------------------------------------------ */
+export interface CuentaHosteleria {
+  nombreNegocio: string;
+  // Ámbito de la cesta: cada cliente de hostelería tiene la suya, separada
+  // de la de la tienda (ver useCart).
+  ambitoCesta: string;
+  onLogout: () => void;
+}
+
+function HosteleriaHero({ cuenta, total }: { cuenta: CuentaHosteleria; total: number }) {
+  const { t } = useTranslation();
+  const iniciales = cuenta.nombreNegocio
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('');
+
+  return (
+    <section className="relative pt-20 md:pt-24 pb-4 md:pb-5 bg-background-50 overflow-hidden">
+      <div className="absolute top-0 left-0 right-0 h-48 bg-gradient-to-b from-background-100/40 to-transparent pointer-events-none" />
+      <div className="relative container-wide px-4 md:px-6 lg:px-12">
+        <div className="max-w-2xl mx-auto flex items-center gap-3 md:gap-4">
+          <span className="w-11 h-11 md:w-12 md:h-12 flex-shrink-0 flex items-center justify-center rounded-full bg-primary-100 text-primary-700 font-heading text-base md:text-lg font-semibold">
+            {iniciales}
+          </span>
+          <div className="flex-1 min-w-0">
+            <span className="section-label !mb-0.5">{t('host.catalog.private_label')}</span>
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-heading font-semibold text-foreground-950 leading-[1.15] truncate">
+              {cuenta.nombreNegocio}
+            </h1>
+            <p className="text-xs text-foreground-400 mt-0.5">{t('host.catalog.count', { count: total })}</p>
+          </div>
+          <button
+            type="button"
+            onClick={cuenta.onLogout}
+            className="inline-flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-full text-xs font-medium bg-background-100 text-foreground-600 hover:bg-background-200/70 flex-shrink-0"
+            aria-label={t('host.catalog.logout')}
+          >
+            <i className="ri-logout-box-r-line"></i>
+            <span className="hidden sm:inline">{t('host.catalog.logout')}</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Compact Hero — just label, title, subtitle                        */
 /* ------------------------------------------------------------------ */
 function CompactHero() {
@@ -1335,8 +1385,23 @@ function RestaurantSupplySection() {
 /*  Main page                                                         */
 /* ------------------------------------------------------------------ */
 export default function Productos() {
+  const { productos, loading } = useProductosPublicos();
+  return <CatalogoTienda productos={productos} productosLoading={loading} />;
+}
+
+// El mismo catálogo (fichas, filtros, buscador, aviso de añadido y cesta)
+// sirve para la tienda y para cada cliente de hostelería, que ve solo los
+// artículos y precios de su tarifa, con su propia cesta y pago a cuenta.
+export function CatalogoTienda({
+  productos,
+  productosLoading,
+  hosteleria,
+}: {
+  productos: Producto[];
+  productosLoading: boolean;
+  hosteleria?: CuentaHosteleria;
+}) {
   const { t, i18n } = useTranslation();
-  const { productos, loading: productosLoading } = useProductosPublicos();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('todos');
@@ -1447,7 +1512,13 @@ export default function Productos() {
     saveLastOrder,
     loadOrder,
     getItem,
-  } = useCart();
+  } = useCart(hosteleria?.ambitoCesta);
+
+  // En hostelería ya sabemos quién pide: se rellena el negocio en la cesta.
+  useEffect(() => {
+    if (hosteleria && !customer.business.trim()) updateCustomer('business', hosteleria.nombreNegocio);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hosteleria?.nombreNegocio]);
 
   // Cart icon animation — trigger on every cart mutation (add, remove, quantity change)
   const [cartBounceKey, setCartBounceKey] = useState(0);
@@ -1545,7 +1616,7 @@ export default function Productos() {
       const nuevo = !isInCart(product.id);
       setCantidad(product.id, kg, piezas);
       if (!nuevo) return;
-      logAddToCart(product.id);
+      if (!hosteleria) logAddToCart(product.id);
       playAddToCartSound();
       if (toastTimerRef.current) {
         clearTimeout(toastTimerRef.current);
@@ -1557,7 +1628,7 @@ export default function Productos() {
         toastTimerRef.current = null;
       }, 3000);
     },
-    [isInCart, setCantidad, playAddToCartSound],
+    [isInCart, setCantidad, playAddToCartSound, hosteleria],
   );
 
   const handleAddToCart = useCallback(
@@ -1567,7 +1638,7 @@ export default function Productos() {
         return;
       }
       addItem(product.id, pasoCantidad(product.precio));
-      logAddToCart(product.id);
+      if (!hosteleria) logAddToCart(product.id);
       playAddToCartSound();
 
       // Show or update toast — never stack multiple notifications
@@ -1581,7 +1652,7 @@ export default function Productos() {
         toastTimerRef.current = null;
       }, 3000);
     },
-    [addItem, playAddToCartSound],
+    [addItem, playAddToCartSound, hosteleria],
   );
 
   const handleRemoveFromCart = useCallback(
@@ -1700,14 +1771,14 @@ export default function Productos() {
         </div>
       )}
       <main id="main-content">
-        <CompactHero />
+        {hosteleria ? <HosteleriaHero cuenta={hosteleria} total={productos.length} /> : <CompactHero />}
         <StickyToolbar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           activeCategory={activeCategory}
           onCategoryChange={(cat) => {
             setActiveCategory(cat);
-            if (cat !== 'todos') logCategoryView(cat);
+            if (cat !== 'todos' && !hosteleria) logCategoryView(cat);
           }}
           cartCount={totalProducts}
           cartBounceKey={cartBounceKey}
@@ -1763,9 +1834,13 @@ export default function Productos() {
           </div>
         </section>
 
-        <SeasonalSection />
-        <SpecialOrdersSection />
-        <RestaurantSupplySection />
+        {!hosteleria && (
+          <>
+            <SeasonalSection />
+            <SpecialOrdersSection />
+            <RestaurantSupplySection />
+          </>
+        )}
       </main>
       <Footer />
 
@@ -1790,6 +1865,7 @@ export default function Productos() {
         orderHistory={orderHistory}
         onSaveLastOrder={saveLastOrder}
         onLoadOrder={loadOrder}
+        allowAccountPayment={Boolean(hosteleria)}
       />
 
       {/* Elegir por piezas o por peso */}

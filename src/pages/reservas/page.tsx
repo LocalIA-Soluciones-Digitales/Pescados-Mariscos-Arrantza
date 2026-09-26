@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import Navbar from '@/components/feature/Navbar';
@@ -10,6 +10,7 @@ import { admitePiezas, esPorUnidad, formatCantidad, formatLineaCantidad, formatN
 import SelectorPiezasModal from '@/components/feature/SelectorPiezasModal';
 import { logReserva } from '@/lib/reservasLog';
 import { getDeviceId } from '@/lib/deviceId';
+import { supabase, SITE_KEY } from '@/lib/supabaseClient';
 import { pickLang } from '@/types/producto';
 import type { ProductoCategoria } from '@/types/producto';
 import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
@@ -211,6 +212,83 @@ function ReservaProductCard({
 /* ------------------------------------------------------------------ */
 /*  Página principal                                                   */
 /* ------------------------------------------------------------------ */
+const WHATSAPP_TIENDA = '34619609888';
+
+// Sin campaña abierta: el cliente deja nombre y teléfono y David le avisa
+// por WhatsApp desde el panel al abrir la siguiente. Si no se puede guardar,
+// se lo pide por WhatsApp directamente para no perder al cliente.
+function AvisoReservasForm() {
+  const { t, i18n } = useTranslation();
+  const [nombre, setNombre] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const digitos = telefono.replace(/\D/g, '');
+    if (!nombre.trim()) return setError(t('reservas.notify_error_name'));
+    if (digitos.length < 9 || digitos.length > 15) return setError(t('reservas.notify_error_phone'));
+    setError(null);
+    setSending(true);
+    const { error: rpcError } = await supabase.rpc('pedir_aviso_reservas', {
+      p_site_key: SITE_KEY,
+      p_nombre: nombre.trim(),
+      p_telefono: digitos,
+      p_idioma: i18n.language.startsWith('eu') ? 'eu' : 'es',
+      p_device_id: getDeviceId(),
+    });
+    setSending(false);
+    if (rpcError) {
+      const msg = t('reservas.notify_whatsapp_fallback', { nombre: nombre.trim() });
+      window.open(`https://api.whatsapp.com/send?phone=${WHATSAPP_TIENDA}&text=${encodeURIComponent(msg)}`, '_blank');
+    }
+    setDone(true);
+  };
+
+  if (done) {
+    return (
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5 text-left flex gap-3" role="status">
+        <span className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-lg">
+          <i className="ri-check-line"></i>
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-foreground-900">{t('reservas.notify_done_title')}</p>
+          <p className="text-sm text-foreground-500 leading-relaxed">{t('reservas.notify_done_body')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const inputClass =
+    'w-full px-3.5 py-2.5 bg-background-50 border border-background-200 rounded-xl text-base sm:text-sm focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100';
+
+  return (
+    <form onSubmit={handleSubmit} noValidate className="rounded-2xl border border-background-200 bg-white p-5 text-left shadow-sm">
+      <p className="text-sm font-semibold text-foreground-900 flex items-center gap-2 mb-1">
+        <i className="ri-notification-3-line text-primary-500"></i>
+        {t('reservas.notify_title')}
+      </p>
+      <p className="text-sm text-foreground-500 leading-relaxed mb-4">{t('reservas.notify_body')}</p>
+      <div className="grid gap-2.5 sm:grid-cols-[1fr_1fr_auto]">
+        <label className="sr-only" htmlFor="aviso-nombre">{t('reservas.form_name')}</label>
+        <input id="aviso-nombre" type="text" autoComplete="given-name" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={t('reservas.notify_name')} maxLength={150} className={inputClass} />
+        <label className="sr-only" htmlFor="aviso-telefono">{t('reservas.form_phone')}</label>
+        <input id="aviso-telefono" type="tel" inputMode="tel" autoComplete="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder={t('reservas.notify_phone')} className={inputClass} />
+        <button type="submit" disabled={sending} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary-500 text-background-50 text-sm font-medium hover:bg-primary-600 disabled:opacity-60 transition-colors">
+          {sending ? t('reservas.submit_sending') : t('reservas.notify_submit')}
+        </button>
+      </div>
+      {error && <p className="mt-2 text-xs text-red-600" role="alert">{error}</p>}
+      <p className="mt-3 text-[11px] text-foreground-400 leading-relaxed">
+        {t('reservas.notify_privacy')}{' '}
+        <Link to="/privacidad" className="underline hover:text-foreground-600">{t('reservas.form_privacy_link')}</Link>
+      </p>
+    </form>
+  );
+}
+
 export default function Reservas() {
   const { t, i18n } = useTranslation();
   const { eventos, loading: loadingEventos } = useReservasEventosPublico();
@@ -420,16 +498,20 @@ export default function Reservas() {
               </span>
               <h1 className="text-2xl md:text-4xl font-heading font-semibold text-foreground-950 leading-tight text-balance mb-3">{t('reservas.no_active_title')}</h1>
               <p className="text-sm md:text-base text-foreground-500 leading-relaxed text-pretty mb-8">{t('reservas.no_active_subtitle')}</p>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
-                <Link to="/productos" className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-primary-500 text-background-50 text-sm font-medium hover:bg-primary-600 transition-colors">
+            </div>
+
+            <div className="max-w-2xl mx-auto">
+              <AvisoReservasForm />
+              <div className="mt-5 flex flex-col sm:flex-row items-center justify-center gap-x-6 gap-y-3 text-sm">
+                <Link to="/productos" className="inline-flex items-center gap-1.5 font-medium text-primary-600 hover:text-primary-700">
                   {t('reservas.no_active_cta')}
                   <i className="ri-arrow-right-line"></i>
                 </Link>
                 <a
-                  href={`https://api.whatsapp.com/send?phone=34619609888&text=${encodeURIComponent(t('reservas.no_active_whatsapp_msg'))}`}
+                  href={`https://api.whatsapp.com/send?phone=${WHATSAPP_TIENDA}&text=${encodeURIComponent(t('reservas.no_active_whatsapp_msg'))}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-background-200 bg-white text-foreground-700 text-sm font-medium hover:border-background-300 hover:bg-background-100/60 transition-colors"
+                  className="inline-flex items-center gap-1.5 font-medium text-foreground-600 hover:text-foreground-900"
                 >
                   <i className="ri-whatsapp-line text-base text-emerald-600"></i>
                   {t('reservas.no_active_whatsapp')}

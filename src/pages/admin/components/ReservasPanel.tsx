@@ -3,6 +3,7 @@ import { useReservasEventos } from '@/hooks/useReservasEventos';
 import { useReservas } from '@/hooks/useReservas';
 import { useReservasAjustes } from '@/hooks/useReservasAjustes';
 import ReservaEventoModal from './ReservaEventoModal';
+import ReservasAvisosCard from './ReservasAvisosCard';
 import type { Reserva, ReservaAjuste, ReservaEstado, ReservaEvento } from '@/types/reserva';
 import { formatLineaCantidad } from '@/lib/unidadVenta';
 import SearchInput from '@/components/base/SearchInput';
@@ -693,6 +694,9 @@ export default function ReservasPanel() {
 
   return (
     <div className="px-4 md:px-8 py-6 pb-28">
+      <ReservasAvisosCard
+        eventoAbierto={eventos.find((e) => e.activo && (!e.fecha_limite || e.fecha_limite >= new Date().toISOString().slice(0, 10))) ?? null}
+      />
       {eventos.length === 0 ? (
         <div className="text-center py-16">
           <span className="w-14 h-14 flex items-center justify-center mx-auto mb-4 rounded-full bg-background-100 text-foreground-400 text-2xl">
