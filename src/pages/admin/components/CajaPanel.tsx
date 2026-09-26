@@ -9,7 +9,7 @@ import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, 
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import OrigenBadge from '@/components/base/OrigenBadge';
 import CajaResumenPeriodo from './CajaResumenPeriodo';
-import { acumularTotales, agregar, totalesVacios, type FilaPeriodo, type Totales } from './cajaTotales';
+import { acumularTotales, agregar, totalesVacios, type FilaPeriodo, type PatronDia, type Totales } from './cajaTotales';
 import CajaBuscador, { type ResaltarObjetivo } from './CajaBuscador';
 
 const ICONO_POR_TIPO: Record<CajaMovimientoTipo, string> = {
@@ -865,6 +865,46 @@ function numeroSemana(fecha: string): number {
   return Math.ceil(((dt.getTime() - inicio.getTime()) / 86400000 + 1) / 7);
 }
 
+// Fila de un día con su comparación "mismo día de la semana anterior" —
+// para el pescadero es la referencia natural (un sábado se compara con el
+// sábado pasado, no con el día 26 del mes anterior, que puede ser lunes).
+function filaDia(fecha: string, labelCorto: string, hoy: string, resumenDia: ResumenDia): FilaPeriodo {
+  const ant = sumarDias(fecha, -7);
+  return {
+    key: fecha,
+    label: formatFechaSemana(fecha),
+    labelCorto,
+    ...resumenDia(fecha),
+    esActual: fecha === hoy,
+    futuro: fecha > hoy,
+    anterior: { label: formatFechaSemana(ant), totales: resumenDia(ant).totales },
+  };
+}
+
+// Ventas medias por día de la semana en las últimas 12 semanas cerradas
+// hasta `hasta` (sin contar hoy, que va a medias). Sirve para prever qué
+// días hace falta más género.
+function calcularPatronSemanal(hasta: string, resumenDia: ResumenDia): PatronDia[] {
+  const hoy = hoyISO();
+  const fin = hasta >= hoy ? sumarDias(hoy, -1) : hasta;
+  const acc = Array.from({ length: 7 }, () => ({ total: 0, dias: 0, tickets: 0 }));
+  fechasEntre(sumarDias(fin, -83), fin).forEach((f) => {
+    const r = resumenDia(f);
+    if (r.totales.ingresos <= 0) return;
+    const [y, m, d] = f.split('-').map(Number);
+    const i = (new Date(y, m - 1, d).getDay() + 6) % 7;
+    acc[i].total += r.totales.ingresos;
+    acc[i].dias += 1;
+    acc[i].tickets += r.tickets;
+  });
+  return ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((label, i) => ({
+    label,
+    media: acc[i].dias ? acc[i].total / acc[i].dias : 0,
+    tickets: acc[i].dias ? acc[i].tickets / acc[i].dias : 0,
+    dias: acc[i].dias,
+  }));
+}
+
 // Para comparar un periodo en curso con el anterior de forma justa, del
 // anterior solo se cuenta el mismo tramo transcurrido (p.ej. a jueves, la
 // semana pasada de lunes a jueves) — si no, el periodo actual siempre
@@ -874,25 +914,21 @@ function VistaSemana({ lunes, onLunesChange, resumenDia, onIrADia }: { lunes: st
   const domingo = sumarDias(lunes, 6);
   const lunesActual = lunesDe(hoy);
   const enCurso = lunes === lunesActual;
+  const lunesAnt = sumarDias(lunes, -7);
 
   const filas = useMemo<FilaPeriodo[]>(
-    () =>
-      fechasEntre(lunes, domingo).map((fecha) => ({
-        key: fecha,
-        label: formatFechaSemana(fecha),
-        labelCorto: formatFechaSemana(fecha).split(',')[0],
-        ...resumenDia(fecha),
-        esActual: fecha === hoy,
-        futuro: fecha > hoy,
-      })),
+    () => fechasEntre(lunes, domingo).map((f) => filaDia(f, formatFechaSemana(f).split(',')[0], hoy, resumenDia)),
     [lunes, domingo, hoy, resumenDia],
   );
-
+  const filasAnteriores = useMemo<FilaPeriodo[]>(
+    () => fechasEntre(lunesAnt, sumarDias(lunesAnt, 6)).map((f) => filaDia(f, formatFechaSemana(f).split(',')[0], hoy, resumenDia)),
+    [lunesAnt, hoy, resumenDia],
+  );
   const anterior = useMemo(() => {
-    const lunesAnt = sumarDias(lunes, -7);
     const hasta = sumarDias(lunesAnt, enCurso ? (new Date().getDay() + 6) % 7 : 6);
     return agregar(fechasEntre(lunesAnt, hasta).map(resumenDia));
-  }, [lunes, enCurso, resumenDia]);
+  }, [lunesAnt, enCurso, resumenDia]);
+  const patron = useMemo(() => calcularPatronSemanal(domingo, resumenDia), [domingo, resumenDia]);
 
   return (
     <CajaResumenPeriodo
@@ -903,8 +939,12 @@ function VistaSemana({ lunes, onLunesChange, resumenDia, onIrADia }: { lunes: st
       onIrAActual={enCurso ? undefined : () => onLunesChange(lunesActual)}
       actualLabel="Esta semana"
       filas={filas}
+      filasAnteriores={filasAnteriores}
       anterior={anterior}
+      anteriorLabel="semana anterior"
       comparadoCon={enCurso ? 'vs. mismo tramo sem. anterior' : 'vs. semana anterior'}
+      comparaFilaLabel="vs sem. ant."
+      patronSemanal={patron}
       unidad="día"
       totalLabel="Total de la semana"
       nombreArchivo={`contabilidad-semana-${lunes}`}
@@ -929,31 +969,30 @@ function VistaMes({
   const hoy = hoyISO();
   const [anioHoy, mesHoy, diaHoy] = hoy.split('-').map(Number);
   const enCurso = anio === anioHoy && mes === mesHoy - 1;
+  const ant = new Date(anio, mes - 1, 1);
+  const anioAnt = ant.getFullYear();
+  const mesAnt = ant.getMonth();
 
   const filas = useMemo<FilaPeriodo[]>(
-    () =>
-      diasDelMes(anio, mes).map((fecha) => ({
-        key: fecha,
-        label: formatFechaSemana(fecha),
-        labelCorto: String(Number(fecha.slice(8))),
-        ...resumenDia(fecha),
-        esActual: fecha === hoy,
-        futuro: fecha > hoy,
-      })),
+    () => diasDelMes(anio, mes).map((f) => filaDia(f, String(Number(f.slice(8))), hoy, resumenDia)),
     [anio, mes, hoy, resumenDia],
   );
-
-  const anterior = useMemo(() => {
-    const ant = new Date(anio, mes - 1, 1);
-    const dias = diasDelMes(ant.getFullYear(), ant.getMonth());
-    return agregar((enCurso ? dias.slice(0, diaHoy) : dias).map(resumenDia));
-  }, [anio, mes, enCurso, diaHoy, resumenDia]);
+  const filasAnteriores = useMemo<FilaPeriodo[]>(
+    () => diasDelMes(anioAnt, mesAnt).map((f) => filaDia(f, String(Number(f.slice(8))), hoy, resumenDia)),
+    [anioAnt, mesAnt, hoy, resumenDia],
+  );
+  const anterior = useMemo(
+    () => agregar(enCurso ? filasAnteriores.slice(0, diaHoy) : filasAnteriores),
+    [filasAnteriores, enCurso, diaHoy],
+  );
+  const ultimoDia = fechaISO(anio, mes, filas.length);
+  const patron = useMemo(() => calcularPatronSemanal(ultimoDia, resumenDia), [ultimoDia, resumenDia]);
 
   const mover = (delta: number) => {
     const d = new Date(anio, mes + delta, 1);
     onMesChange(d.getFullYear(), d.getMonth());
   };
-  const mesAnterior = MESES[(mes + 11) % 12].toLowerCase();
+  const mesAnterior = MESES[mesAnt].toLowerCase();
 
   return (
     <CajaResumenPeriodo
@@ -964,8 +1003,12 @@ function VistaMes({
       onIrAActual={enCurso ? undefined : () => onMesChange(anioHoy, mesHoy - 1)}
       actualLabel="Este mes"
       filas={filas}
+      filasAnteriores={filasAnteriores}
       anterior={anterior}
+      anteriorLabel={mesAnterior}
       comparadoCon={enCurso ? `vs. mismo tramo de ${mesAnterior}` : `vs. ${mesAnterior}`}
+      comparaFilaLabel="vs sem. ant."
+      patronSemanal={patron}
       unidad="día"
       totalLabel="Total del mes"
       nombreArchivo={`contabilidad-${anio}-${String(mes + 1).padStart(2, '0')}`}
@@ -975,28 +1018,34 @@ function VistaMes({
   );
 }
 
+function filasDeAnio(anio: number, hoy: string, resumenDia: ResumenDia): FilaPeriodo[] {
+  const [anioHoy, mesHoy] = hoy.split('-').map(Number);
+  return MESES.map((nombre, mes) => ({
+    key: String(mes),
+    label: `${nombre} ${anio}`,
+    labelCorto: nombre.slice(0, 3),
+    ...agregar(diasDelMes(anio, mes).map(resumenDia)),
+    esActual: anio === anioHoy && mes === mesHoy - 1,
+    futuro: fechaISO(anio, mes, 1) > hoy,
+  }));
+}
+
 function VistaAnio({ anio, onAnioChange, resumenDia, onIrAMes }: { anio: number; onAnioChange: (a: number) => void; resumenDia: ResumenDia; onIrAMes: (mes: number) => void }) {
   const hoy = hoyISO();
-  const [anioHoy, mesHoy] = hoy.split('-').map(Number);
+  const [anioHoy] = hoy.split('-').map(Number);
   const enCurso = anio === anioHoy;
 
+  const filasAnteriores = useMemo(() => filasDeAnio(anio - 1, hoy, resumenDia), [anio, hoy, resumenDia]);
+  // Cada mes se compara con el mismo mes del año anterior.
   const filas = useMemo<FilaPeriodo[]>(
-    () =>
-      MESES.map((nombre, mes) => ({
-        key: String(mes),
-        label: nombre,
-        labelCorto: nombre.slice(0, 3),
-        ...agregar(diasDelMes(anio, mes).map(resumenDia)),
-        esActual: enCurso && mes === mesHoy - 1,
-        futuro: fechaISO(anio, mes, 1) > hoy,
-      })),
-    [anio, hoy, enCurso, mesHoy, resumenDia],
+    () => filasDeAnio(anio, hoy, resumenDia).map((f, i) => ({ ...f, anterior: { label: filasAnteriores[i].label, totales: filasAnteriores[i].totales } })),
+    [anio, hoy, resumenDia, filasAnteriores],
   );
-
   const anterior = useMemo(() => {
     const hasta = enCurso ? `${anio - 1}${hoy.slice(4)}` : `${anio - 1}-12-31`;
     return agregar(fechasEntre(`${anio - 1}-01-01`, hasta).map(resumenDia));
   }, [anio, enCurso, hoy, resumenDia]);
+  const patron = useMemo(() => calcularPatronSemanal(`${anio}-12-31`, resumenDia), [anio, resumenDia]);
 
   return (
     <CajaResumenPeriodo
@@ -1007,8 +1056,12 @@ function VistaAnio({ anio, onAnioChange, resumenDia, onIrAMes }: { anio: number;
       onIrAActual={enCurso ? undefined : () => onAnioChange(anioHoy)}
       actualLabel="Este año"
       filas={filas}
+      filasAnteriores={filasAnteriores}
       anterior={anterior}
+      anteriorLabel={String(anio - 1)}
       comparadoCon={enCurso ? `vs. ${anio - 1} a misma fecha` : `vs. ${anio - 1}`}
+      comparaFilaLabel={`vs ${anio - 1}`}
+      patronSemanal={patron}
       unidad="mes"
       totalLabel="Total del año"
       nombreArchivo={`contabilidad-${anio}`}

@@ -5,9 +5,12 @@ import { totalGastos, totalNeto, type FilaPeriodo } from './cajaTotales';
 // Gráfico del resumen de Contabilidad, dibujado en SVG a tamaño real (se
 // mide el ancho con ResizeObserver en vez de escalar un viewBox, para que
 // el texto no se deforme). Tres lecturas del mismo periodo:
-//  - Ingresos y gastos: ingresos apilados por tienda + marca de gastos.
+//  - Ingresos y gastos: ingresos apilados por tienda con la barra de gastos
+//    al lado, y opcionalmente la línea del mismo día de la semana anterior
+//    (o mismo mes del año anterior) como referencia.
 //  - Neto diario: barras divergentes desde cero (verde gana / rojo pierde).
-//  - Neto acumulado: cómo va la caja del periodo día a día.
+//  - Neto acumulado: cómo va la caja del periodo día a día, frente a cómo
+//    iba el periodo anterior a la misma altura.
 // Una sola escala en euros en cada modo. Al pasar por encima se resalta la
 // columna y se ve el desglose; al pulsar se entra en ese día/mes.
 
@@ -17,6 +20,27 @@ const FILL_TIENDA: Record<Origen, string> = { pescaderia_1: 'fill-sky-500', pesc
 
 function formatEUR(n: number): string {
   return n.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' });
+}
+
+function formatPctDelta(actual: number, anterior: number): string | null {
+  if (anterior <= 0) return null;
+  const v = ((actual - anterior) / anterior) * 100;
+  return `${v >= 0 ? '+' : ''}${v.toLocaleString('es-ES', { maximumFractionDigits: 0 })} %`;
+}
+
+// Trazo de una serie con huecos: se corta donde el valor es null.
+function trazoConHuecos(puntos: ([number, number] | null)[]): string {
+  let d = '';
+  let dentro = false;
+  puntos.forEach((p) => {
+    if (!p) {
+      dentro = false;
+      return;
+    }
+    d += `${dentro ? 'L' : 'M'}${p[0]},${p[1]} `;
+    dentro = true;
+  });
+  return d.trim();
 }
 
 function formatEje(n: number): string {
@@ -74,14 +98,20 @@ const MODOS: { value: Modo; label: string }[] = [
 
 export default function CajaGraficoPeriodo({
   filas,
+  filasAnteriores,
+  anteriorLabel,
   unidad,
   onFilaClick,
 }: {
   filas: FilaPeriodo[];
+  filasAnteriores: FilaPeriodo[];
+  anteriorLabel: string;
   unidad: 'día' | 'mes';
   onFilaClick: (key: string) => void;
 }) {
   const [modo, setModo] = useState<Modo>('ingresos');
+  const [comparar, setComparar] = useState(true);
+  const refLabel = unidad === 'día' ? 'Mismo día sem. anterior' : `Mismo mes de ${anteriorLabel}`;
   const [hover, setHover] = useState<number | null>(null);
   const { ref, ancho } = useAncho<HTMLDivElement>();
 
@@ -89,6 +119,16 @@ export default function CajaGraficoPeriodo({
     let n = 0;
     return filas.map((f) => (f.futuro ? null : (n += totalNeto(f.totales))));
   }, [filas]);
+
+  // Acumulado del periodo anterior alineado por posición (día 1 con día 1…).
+  const acumuladoAnt = useMemo(() => {
+    let n = 0;
+    return filas.map((_, i) => {
+      const fa = filasAnteriores[i];
+      if (!fa || fa.futuro) return null;
+      return (n += totalNeto(fa.totales));
+    });
+  }, [filas, filasAnteriores]);
 
   const pasadas = filas.filter((f) => !f.futuro);
   const conVenta = pasadas.filter((f) => f.totales.ingresos > 0);
@@ -100,19 +140,27 @@ export default function CajaGraficoPeriodo({
   const plotH = alto - m.top - m.bottom;
   const banda = filas.length ? plotW / filas.length : 0;
   const anchoBarra = Math.max(3, Math.min(28, banda * (filas.length > 12 ? 0.62 : 0.5)));
+  // Modo ingresos: grupo de dos barras (ingresos apilados + gastos).
+  const anchoGrupo = Math.max(6, Math.min(filas.length > 12 ? 30 : 56, banda * (filas.length > 12 ? 0.8 : 0.56)));
+  const hueco = anchoGrupo > 14 ? 2 : 1;
+  const wIng = (anchoGrupo - hueco) * 0.55;
+  const wGas = anchoGrupo - hueco - wIng;
   const cx = (i: number) => m.left + banda * i + banda / 2;
 
   const esc = useMemo(() => {
     if (modo === 'ingresos') {
-      return escalaBonita(0, Math.max(...filas.map((f) => Math.max(f.totales.ingresos, totalGastos(f.totales)))));
+      return escalaBonita(
+        0,
+        Math.max(...filas.map((f) => Math.max(f.totales.ingresos, totalGastos(f.totales), comparar ? (f.anterior?.totales.ingresos ?? 0) : 0))),
+      );
     }
     if (modo === 'neto') {
       const netos = pasadas.map((f) => totalNeto(f.totales));
       return escalaBonita(Math.min(0, ...netos), Math.max(0, ...netos));
     }
-    const vals = acumulado.filter((v): v is number => v !== null);
+    const vals = [...acumulado, ...(comparar ? acumuladoAnt : [])].filter((v): v is number => v !== null);
     return escalaBonita(Math.min(0, ...vals), Math.max(0, ...vals));
-  }, [modo, filas, pasadas, acumulado]);
+  }, [modo, filas, pasadas, acumulado, acumuladoAnt, comparar]);
 
   const y = (v: number) => m.top + plotH - ((v - esc.lo) / (esc.hi - esc.lo || 1)) * plotH;
   const y0 = y(0);
@@ -129,7 +177,14 @@ export default function CajaGraficoPeriodo({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acumulado, ancho, esc]);
 
+  const lineaReferencia = trazoConHuecos(filas.map((fila, i) => (fila.anterior && fila.anterior.totales.ingresos > 0 ? [cx(i), y(fila.anterior.totales.ingresos)] : null)));
+  const lineaAcumAnt = trazoConHuecos(acumuladoAnt.map((v, i) => (v === null ? null : [cx(i), y(v)])));
+  const hayReferencia = filas.some((fila) => (fila.anterior?.totales.ingresos ?? 0) > 0);
+  const hayAcumAnt = acumuladoAnt.some((v) => v !== null && v !== 0);
+
   const netoFinal = [...acumulado].reverse().find((v) => v !== null) ?? 0;
+  const idxUltimo = acumulado.reduce<number>((u, v, i) => (v !== null ? i : u), -1);
+  const antMismaAltura = idxUltimo >= 0 ? acumuladoAnt[idxUltimo] : null;
   const f = hover !== null ? filas[hover] : null;
   const idClip = useMemo(() => `clip-${Math.random().toString(36).slice(2, 8)}`, []);
 
@@ -137,6 +192,18 @@ export default function CajaGraficoPeriodo({
     <div className="bg-background-50 border border-background-200/70 rounded-2xl p-4 shadow-card">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
         <p className="text-sm font-medium text-foreground-950 mr-auto">Evolución por {unidad}</p>
+        {modo !== 'neto' && (modo === 'ingresos' ? hayReferencia : hayAcumAnt) && (
+          <button
+            type="button"
+            onClick={() => setComparar((c) => !c)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+              comparar ? 'bg-foreground-950 text-background-50 border-foreground-950' : 'bg-background-50 text-foreground-500 border-background-200/70 hover:text-foreground-950'
+            }`}
+          >
+            <i className="ri-git-compare-line"></i>
+            Comparar
+          </button>
+        )}
         <div className="inline-flex p-0.5 rounded-full bg-background-100 border border-background-200/70">
           {MODOS.map((mo) => (
             <button
@@ -163,9 +230,18 @@ export default function CajaGraficoPeriodo({
               </span>
             ))}
             <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500">
-              <span className="w-3.5 h-[3px] bg-red-500 rounded-full"></span>
+              <span className="w-2.5 h-2.5 rounded-sm bg-red-400"></span>
               Gastos
             </span>
+            {comparar && hayReferencia && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500">
+                <svg width="18" height="8" aria-hidden="true">
+                  <line x1="1" x2="17" y1="4" y2="4" className="stroke-foreground-500" strokeWidth="1.5" />
+                  <circle cx="9" cy="4" r="2.5" className="fill-background-50 stroke-foreground-500" strokeWidth="1.5" />
+                </svg>
+                {refLabel}
+              </span>
+            )}
             {media > 0 && (
               <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500">
                 <span className="w-4 border-t border-dashed border-foreground-400"></span>
@@ -188,10 +264,23 @@ export default function CajaGraficoPeriodo({
           </>
         )}
         {modo === 'acumulado' && (
-          <span className="text-[11px] text-foreground-500">
-            Neto acumulado del periodo:{' '}
-            <span className={`font-semibold tabular-nums ${netoFinal >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatEUR(netoFinal)}</span>
-          </span>
+          <>
+            <span className="text-[11px] text-foreground-500">
+              Neto acumulado:{' '}
+              <span className={`font-semibold tabular-nums ${netoFinal >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatEUR(netoFinal)}</span>
+            </span>
+            {comparar && hayAcumAnt && antMismaAltura !== null && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500">
+                <span className="w-4 border-t-2 border-dashed border-foreground-400"></span>
+                {anteriorLabel.charAt(0).toUpperCase() + anteriorLabel.slice(1)} a la misma altura:{' '}
+                <span className="font-medium tabular-nums text-foreground-800">{formatEUR(antMismaAltura)}</span>
+                <span className={`font-medium tabular-nums ${netoFinal - antMismaAltura >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                  ({netoFinal - antMismaAltura >= 0 ? '+' : ''}
+                  {formatEUR(netoFinal - antMismaAltura)})
+                </span>
+              </span>
+            )}
+          </>
         )}
       </div>
 
@@ -232,8 +321,9 @@ export default function CajaGraficoPeriodo({
 
             {modo === 'ingresos' &&
               filas.map((fila, i) => {
-                if (fila.futuro || fila.totales.ingresos <= 0) return null;
-                const x = cx(i) - anchoBarra / 2;
+                if (fila.futuro) return null;
+                const x = cx(i) - anchoGrupo / 2;
+                const g = totalGastos(fila.totales);
                 const tiendas = ORIGENES.map((o) => [o, fila.totales.ingresos_por_tienda[o] ?? 0] as const).filter(([, v]) => v > 0);
                 let base = 0;
                 return (
@@ -245,11 +335,12 @@ export default function CajaGraficoPeriodo({
                       base += v;
                       if (yb - yt <= 0) return null;
                       return ultimo ? (
-                        <path key={o} d={barra(x, yb, yt, anchoBarra, 4)} className={FILL_TIENDA[o]} />
+                        <path key={o} d={barra(x, yb, yt, wIng, 4)} className={FILL_TIENDA[o]} />
                       ) : (
-                        <rect key={o} x={x} y={yt} width={anchoBarra} height={yb - yt} className={FILL_TIENDA[o]} />
+                        <rect key={o} x={x} y={yt} width={wIng} height={yb - yt} className={FILL_TIENDA[o]} />
                       );
                     })}
+                    {g > 0 && <path d={barra(x + wIng + hueco, y0, y(g), wGas, 3)} className="fill-red-400" />}
                   </g>
                 );
               })}
@@ -258,22 +349,24 @@ export default function CajaGraficoPeriodo({
               <line x1={m.left} x2={ancho - m.right} y1={y(media)} y2={y(media)} className="stroke-foreground-400" strokeDasharray="4 4" strokeWidth={1} />
             )}
 
-            {/* Gastos: una marca horizontal por día al nivel del gasto. Las
-                facturas llegan a golpes, así que una línea continua haría
-                picos que no significan tendencia. */}
-            {modo === 'ingresos' && (
+            {/* Referencia: mismo día de la semana anterior / mismo mes del
+                año anterior. Se dibuja también sobre los días que faltan,
+                para ver de antemano lo que se vendió "un día como ese". */}
+            {modo === 'ingresos' && comparar && lineaReferencia && (
               <g className="pointer-events-none">
-                {filas.map((fila, i) => {
-                  const g = totalGastos(fila.totales);
-                  if (fila.futuro || g <= 0) return null;
-                  const w = anchoBarra + Math.min(10, banda * 0.25);
-                  return (
-                    <g key={fila.key} opacity={hover !== null && hover !== i ? 0.55 : 1}>
-                      <line x1={cx(i) - w / 2} x2={cx(i) + w / 2} y1={y(g)} y2={y(g)} className="stroke-background-50" strokeWidth={6} strokeLinecap="round" />
-                      <line x1={cx(i) - w / 2} x2={cx(i) + w / 2} y1={y(g)} y2={y(g)} className="stroke-red-500" strokeWidth={3} strokeLinecap="round" />
-                    </g>
-                  );
-                })}
+                <path d={lineaReferencia} fill="none" className="stroke-foreground-500" strokeWidth={1.5} strokeLinejoin="round" />
+                {filas.map((fila, i) =>
+                  fila.anterior && fila.anterior.totales.ingresos > 0 ? (
+                    <circle
+                      key={fila.key}
+                      cx={cx(i)}
+                      cy={y(fila.anterior.totales.ingresos)}
+                      r={hover === i ? 4 : filas.length > 12 ? 2 : 3}
+                      className="fill-background-50 stroke-foreground-500"
+                      strokeWidth={1.5}
+                    />
+                  ) : null,
+                )}
               </g>
             )}
 
@@ -291,6 +384,10 @@ export default function CajaGraficoPeriodo({
                   />
                 );
               })}
+
+            {modo === 'acumulado' && comparar && lineaAcumAnt && (
+              <path d={lineaAcumAnt} fill="none" className="stroke-foreground-400 pointer-events-none" strokeWidth={2} strokeDasharray="5 4" strokeLinejoin="round" />
+            )}
 
             {modo === 'acumulado' && lineaAcumulado.linea && (
               <g className="pointer-events-none">
@@ -340,7 +437,7 @@ export default function CajaGraficoPeriodo({
                 height={plotH + m.bottom}
                 fill="transparent"
                 className={fila.futuro ? '' : 'cursor-pointer'}
-                onPointerEnter={() => setHover(fila.futuro ? null : i)}
+                onPointerEnter={() => setHover(fila.futuro && !(modo === 'ingresos' && fila.anterior) ? null : i)}
                 onClick={() => !fila.futuro && onFilaClick(fila.key)}
               />
             ))}
@@ -349,9 +446,9 @@ export default function CajaGraficoPeriodo({
 
         {f && hover !== null && (
           <div
-            className="absolute z-10 top-0 pointer-events-none w-56"
+            className="absolute z-10 top-0 pointer-events-none w-64"
             style={{
-              left: Math.min(Math.max(cx(hover) + (cx(hover) > ancho / 2 ? -240 : 16), 0), Math.max(0, ancho - 224)),
+              left: Math.min(Math.max(cx(hover) + (cx(hover) > ancho / 2 ? -272 : 16), 0), Math.max(0, ancho - 256)),
             }}
           >
             <div className="bg-foreground-950/95 backdrop-blur text-background-50 rounded-xl px-3 py-2.5 shadow-xl text-[11px] space-y-0.5">
@@ -371,6 +468,17 @@ export default function CajaGraficoPeriodo({
                 <span className="opacity-75">Ingresos</span>
                 <span className="ml-auto tabular-nums">{formatEUR(f.totales.ingresos)}</span>
               </p>
+              {f.anterior && f.anterior.totales.ingresos > 0 && (
+                <p className="flex items-center gap-1.5 pl-3">
+                  <span className="opacity-50 truncate">vs {f.anterior.label}</span>
+                  <span className="ml-auto tabular-nums opacity-75">{formatEUR(f.anterior.totales.ingresos)}</span>
+                  {formatPctDelta(f.totales.ingresos, f.anterior.totales.ingresos) && (
+                    <span className={`tabular-nums font-medium ${f.totales.ingresos >= f.anterior.totales.ingresos ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {formatPctDelta(f.totales.ingresos, f.anterior.totales.ingresos)}
+                    </span>
+                  )}
+                </p>
+              )}
               <p className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
                 <span className="opacity-75">Gastos</span>
@@ -384,6 +492,12 @@ export default function CajaGraficoPeriodo({
                 <p className="flex items-center gap-1.5 opacity-75">
                   Acumulado
                   <span className="ml-auto tabular-nums">{formatEUR(acumulado[hover]!)}</span>
+                </p>
+              )}
+              {modo === 'acumulado' && acumuladoAnt[hover] !== null && (
+                <p className="flex items-center gap-1.5 opacity-50">
+                  {anteriorLabel.charAt(0).toUpperCase() + anteriorLabel.slice(1)} a esta altura
+                  <span className="ml-auto tabular-nums">{formatEUR(acumuladoAnt[hover]!)}</span>
                 </p>
               )}
               {f.tickets > 0 && <p className="opacity-50 pt-0.5">{f.tickets} tickets · pulsa para ver el detalle</p>}

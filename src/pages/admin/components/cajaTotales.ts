@@ -62,6 +62,16 @@ export interface FilaPeriodo {
   bascula: number;
   esActual: boolean;
   futuro: boolean;
+  // Referencia con la que se compara esta fila: el mismo día de la semana
+  // anterior (vistas por día) o el mismo mes del año anterior (vista Año).
+  anterior?: { label: string; totales: Totales };
+}
+
+export interface PatronDia {
+  label: string;
+  media: number;
+  tickets: number;
+  dias: number;
 }
 
 export interface Agregado {

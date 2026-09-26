@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import CajaGraficoPeriodo from './CajaGraficoPeriodo';
-import { agregar, totalGastos, totalNeto, type Agregado, type FilaPeriodo, type Totales } from './cajaTotales';
+import { agregar, totalGastos, totalNeto, type Agregado, type FilaPeriodo, type PatronDia, type Totales } from './cajaTotales';
 
 // Resumen compartido por las vistas Semana, Mes y Año de Contabilidad:
 // cabecera con navegación entre periodos, indicadores con comparativa
@@ -24,20 +24,57 @@ function variacion(actual: number, anterior: number): number | null {
   return ((actual - anterior) / Math.abs(anterior)) * 100;
 }
 
-function DeltaChip({ valor, subirEsBueno, comparadoCon }: { valor: number | null; subirEsBueno: boolean; comparadoCon: string }) {
+function formatEURRedondo(n: number): string {
+  return n.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+}
+
+function colorDelta(valor: number, subirEsBueno: boolean): string {
+  if (Math.abs(valor) < 0.5) return 'bg-background-100 text-foreground-500';
+  return valor >= 0 === subirEsBueno ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600';
+}
+
+// Variación frente al periodo anterior, en % y en euros: "+9 % · +156 €".
+function DeltaChip({
+  actual,
+  anterior,
+  subirEsBueno = true,
+  comparadoCon,
+  decimales = false,
+}: {
+  actual: number;
+  anterior: number;
+  subirEsBueno?: boolean;
+  comparadoCon: string;
+  decimales?: boolean;
+}) {
+  const valor = variacion(actual, anterior);
   if (valor === null) return null;
-  const sube = valor >= 0;
-  const bueno = Math.abs(valor) < 0.5 ? null : sube === subirEsBueno;
-  const color = bueno === null ? 'bg-background-100 text-foreground-500' : bueno ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600';
+  const diff = actual - anterior;
   return (
     <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1 text-[11px] text-foreground-400 min-w-0">
-      <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full font-medium tabular-nums flex-shrink-0 ${color}`}>
-        <i className={sube ? 'ri-arrow-right-up-line' : 'ri-arrow-right-down-line'}></i>
-        {sube ? '+' : ''}
+      <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full font-medium tabular-nums flex-shrink-0 ${colorDelta(valor, subirEsBueno)}`}>
+        <i className={valor >= 0 ? 'ri-arrow-right-up-line' : 'ri-arrow-right-down-line'}></i>
+        {valor >= 0 ? '+' : ''}
         {formatPct(valor)}
+      </span>
+      <span className="tabular-nums text-foreground-600">
+        {diff >= 0 ? '+' : '−'}
+        {decimales ? formatEUR(Math.abs(diff)) : formatEURRedondo(Math.abs(diff))}
       </span>
       <span>{comparadoCon}</span>
     </p>
+  );
+}
+
+// Pastilla pequeña de variación para tablas y listas.
+function DeltaMini({ actual, anterior }: { actual: number; anterior: number }) {
+  const v = variacion(actual, anterior);
+  if (v === null || actual === 0) return <span className="text-foreground-300">—</span>;
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium tabular-nums ${colorDelta(v, true)}`}>
+      {v >= 0 ? '+' : ''}
+      {formatPct(v)}
+    </span>
   );
 }
 
@@ -73,7 +110,7 @@ function Kpi({
 }
 
 // Barra de reparto de ingresos entre tiendas, con leyenda debajo.
-function RepartoTiendas({ totales }: { totales: Totales }) {
+function RepartoTiendas({ totales, anterior }: { totales: Totales; anterior: Totales }) {
   const total = ORIGENES.reduce((n, o) => n + (totales.ingresos_por_tienda[o] ?? 0), 0);
   if (total <= 0) return null;
   return (
@@ -94,6 +131,9 @@ function RepartoTiendas({ totales }: { totales: Totales }) {
               <span className="truncate">{ORIGEN_LABELS[o]}</span>
               <span className="ml-auto tabular-nums text-foreground-800">{formatEUR(v)}</span>
               <span className="tabular-nums w-9 text-right">{formatPct((v / total) * 100)}</span>
+              <span className="w-12 text-right">
+                <DeltaMini actual={v} anterior={anterior.ingresos_por_tienda[o] ?? 0} />
+              </span>
             </p>
           );
         })}
@@ -119,6 +159,139 @@ function Destacado({ icon, iconClass, titulo, valor, detalle, onClick }: { icon:
         <span className="block text-[11px] text-foreground-500 truncate">{detalle}</span>
       </span>
     </button>
+  );
+}
+
+// Tabla "actual vs anterior" con diferencia en euros y en %, para leer de un
+// vistazo en qué se gana o se pierde respecto al periodo con el que se compara.
+function ComparativaCard({ actual, anterior, anteriorLabel, comparadoCon }: { actual: Agregado; anterior: Agregado; anteriorLabel: string; comparadoCon: string }) {
+  const tm = (a: Agregado) => (a.tickets > 0 ? a.bascula / a.tickets : 0);
+  const filas: { label: string; a: number; b: number; subirEsBueno?: boolean; dot?: string; entero?: boolean; decimales?: boolean; fuerte?: boolean }[] = [
+    { label: 'Ingresos', a: actual.totales.ingresos, b: anterior.totales.ingresos, fuerte: true },
+    ...ORIGENES.map((o) => ({
+      label: ORIGEN_LABELS[o],
+      a: actual.totales.ingresos_por_tienda[o] ?? 0,
+      b: anterior.totales.ingresos_por_tienda[o] ?? 0,
+      dot: ORIGEN_COLORS[o].dot,
+    })),
+    { label: 'Gastos', a: totalGastos(actual.totales), b: totalGastos(anterior.totales), subirEsBueno: false, fuerte: true },
+    { label: 'Neto', a: totalNeto(actual.totales), b: totalNeto(anterior.totales), fuerte: true },
+    { label: 'Tickets', a: actual.tickets, b: anterior.tickets, entero: true },
+    { label: 'Ticket medio', a: tm(actual), b: tm(anterior), decimales: true },
+  ];
+  const fmt = (n: number, entero?: boolean) => (entero ? Math.round(n).toLocaleString('es-ES') : formatEUR(n));
+  return (
+    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card overflow-hidden">
+      <div className="px-4 pt-3 pb-2">
+        <p className="text-sm font-medium text-foreground-950">Comparativa</p>
+        <p className="text-[11px] text-foreground-400">{comparadoCon.replace(/^vs\. /, 'Frente a ')}</p>
+      </div>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-wide text-foreground-400 bg-background-100/50">
+            <th className="pl-4 pr-2 py-1.5 text-left font-medium"></th>
+            <th className="px-2 py-1.5 text-right font-medium">Ahora</th>
+            <th className="px-2 py-1.5 text-right font-medium capitalize">{anteriorLabel}</th>
+            <th className="pl-2 pr-4 py-1.5 text-right font-medium">Diferencia</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => {
+            const diff = f.a - f.b;
+            const v = variacion(f.a, f.b);
+            return (
+              <tr key={f.label} className="border-t border-background-200/50">
+                <td className={`pl-4 pr-2 py-2 whitespace-nowrap ${f.fuerte ? 'font-medium text-foreground-950' : 'text-foreground-500'}`}>
+                  <span className="inline-flex items-center gap-1.5">
+                    {f.dot && <span className={`w-1.5 h-1.5 rounded-full ${f.dot}`}></span>}
+                    {f.label}
+                  </span>
+                </td>
+                <td className="px-2 py-2 text-right tabular-nums text-foreground-950 whitespace-nowrap">{fmt(f.a, f.entero)}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-foreground-400 whitespace-nowrap">{fmt(f.b, f.entero)}</td>
+                <td className="pl-2 pr-4 py-2 text-right whitespace-nowrap">
+                  <span className="inline-flex items-center justify-end gap-1.5">
+                    <span className="tabular-nums text-foreground-600">
+                      {diff >= 0 ? '+' : '−'}
+                      {f.entero ? Math.abs(Math.round(diff)).toLocaleString('es-ES') : f.decimales ? formatEUR(Math.abs(diff)) : formatEURRedondo(Math.abs(diff))}
+                    </span>
+                    {v !== null && (
+                      <span className={`w-14 inline-flex justify-center px-1.5 py-0.5 rounded-full text-[10px] font-medium tabular-nums ${colorDelta(v, f.subirEsBueno ?? true)}`}>
+                        {v >= 0 ? '+' : ''}
+                        {formatPct(v)}
+                      </span>
+                    )}
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Ventas medias por día de la semana: ayuda a decidir cuánto género pedir
+// cada día. Se basa en las últimas 12 semanas, no solo en el periodo visto.
+function plural(dia: string): string {
+  const d = dia.toLowerCase();
+  return d.endsWith('s') ? d : `${d}s`;
+}
+
+function PatronSemanalCard({ patron }: { patron: PatronDia[] }) {
+  const abiertos = patron.filter((d) => d.dias > 0);
+  if (abiertos.length === 0) return null;
+  const max = Math.max(...abiertos.map((d) => d.media));
+  const mediaGeneral = abiertos.reduce((n, d) => n + d.media, 0) / abiertos.length;
+  const mejor = abiertos.reduce((m, d) => (d.media > m.media ? d : m));
+  const peor = abiertos.reduce((m, d) => (d.media < m.media ? d : m));
+  const hoyIdx = (new Date().getDay() + 6) % 7;
+  return (
+    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-4">
+      <p className="text-sm font-medium text-foreground-950">Ventas por día de la semana</p>
+      <p className="text-[11px] text-foreground-400 mb-3">Media de ingresos de las últimas 12 semanas · para planificar el género</p>
+      <div className="space-y-1.5">
+        {patron.map((d, i) => {
+          const pct = mediaGeneral > 0 ? ((d.media - mediaGeneral) / mediaGeneral) * 100 : 0;
+          return (
+            <div key={d.label} className="flex items-center gap-3 text-xs">
+              <span className={`w-20 flex-shrink-0 ${i === hoyIdx ? 'font-semibold text-primary-500' : 'text-foreground-600'}`}>
+                {d.label}
+                {i === hoyIdx && <span className="ml-1 text-[10px] font-normal">(hoy)</span>}
+              </span>
+              <div className="flex-1 h-5 rounded-md bg-background-100 overflow-hidden">
+                {d.dias > 0 && (
+                  <div
+                    className={`h-full rounded-md ${d === mejor ? 'bg-emerald-500' : 'bg-sky-500/60'}`}
+                    style={{ width: `${(d.media / max) * 100}%` }}
+                  ></div>
+                )}
+              </div>
+              {d.dias > 0 ? (
+                <>
+                  <span className="w-20 text-right tabular-nums text-foreground-950 font-medium">{formatEURRedondo(d.media)}</span>
+                  <span className={`w-12 text-right tabular-nums text-[11px] ${pct >= 0 ? 'text-emerald-700' : 'text-foreground-400'}`}>
+                    {pct >= 0 ? '+' : ''}
+                    {formatPct(pct)}
+                  </span>
+                </>
+              ) : (
+                <span className="w-32 text-right text-[11px] text-foreground-300">Cerrado</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {mejor !== peor && (
+        <p className="mt-3 pt-3 border-t border-background-200/70 text-[11px] text-foreground-500 leading-relaxed">
+          <i className="ri-lightbulb-flash-line text-amber-500 mr-1"></i>
+          Los <span className="font-medium text-foreground-950">{plural(mejor.label)}</span> se vende un{' '}
+          <span className="font-medium text-emerald-700">{formatPct(((mejor.media - peor.media) / peor.media) * 100)} más</span> que los{' '}
+          {plural(peor.label)} (unos {Math.round(mejor.tickets)} tickets frente a {Math.round(peor.tickets)}).
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -239,6 +412,10 @@ export default function CajaResumenPeriodo({
   totalLabel,
   nombreArchivo,
   ocultarVaciosInicial = false,
+  filasAnteriores,
+  anteriorLabel,
+  comparaFilaLabel,
+  patronSemanal,
   onFilaClick,
 }: {
   titulo: string;
@@ -255,6 +432,12 @@ export default function CajaResumenPeriodo({
   totalLabel: string;
   nombreArchivo: string;
   ocultarVaciosInicial?: boolean;
+  // Periodo anterior completo (para el acumulado y el objetivo de cierre).
+  filasAnteriores: FilaPeriodo[];
+  anteriorLabel: string;
+  // Cabecera de la columna que compara cada fila con su referencia.
+  comparaFilaLabel: string;
+  patronSemanal: PatronDia[];
   onFilaClick: (key: string) => void;
 }) {
   const [ocultarVacios, setOcultarVacios] = useState(ocultarVaciosInicial);
@@ -279,16 +462,24 @@ export default function CajaResumenPeriodo({
   // media de los días ya cerrados con venta × proporción de días que se
   // abre × días que faltan. Hoy cuenta como pendiente mientras vaya por
   // debajo de lo esperado para un día normal.
+  const anteriorCompleto = useMemo(() => agregar(filasAnteriores.filter((f) => !f.futuro)), [filasAnteriores]);
+
+  // También calcula cuánto habría que vender de media en cada día de
+  // apertura que queda para igualar el periodo anterior completo.
   const prevision = useMemo(() => {
     if (unidad !== 'día') return null;
     const futuras = filas.filter((f) => f.futuro).length;
     const cerradas = filas.filter((f) => !f.futuro && !f.esActual);
     const cerradasConVenta = cerradas.filter((f) => f.totales.ingresos > 0);
     if (futuras === 0 || cerradasConVenta.length < 2) return null;
-    const esperadoDia = (cerradasConVenta.reduce((n, f) => n + f.totales.ingresos, 0) / cerradasConVenta.length) * (cerradasConVenta.length / cerradas.length);
+    const ratioApertura = cerradasConVenta.length / cerradas.length;
+    const esperadoDia = (cerradasConVenta.reduce((n, f) => n + f.totales.ingresos, 0) / cerradasConVenta.length) * ratioApertura;
     const hoy = filas.find((f) => f.esActual)?.totales.ingresos ?? 0;
-    return total.totales.ingresos + esperadoDia * futuras + Math.max(0, esperadoDia - hoy);
-  }, [filas, unidad, total]);
+    const valor = total.totales.ingresos + esperadoDia * futuras + Math.max(0, esperadoDia - hoy);
+    const diasApertura = Math.max(1, Math.round((futuras + (filas.some((f) => f.esActual) ? 1 : 0)) * ratioApertura));
+    const falta = anteriorCompleto.totales.ingresos - total.totales.ingresos;
+    return { valor, diasApertura, porDiaParaIgualar: falta > 0 ? falta / diasApertura : null };
+  }, [filas, unidad, total, anteriorCompleto]);
 
   const maxIngresos = Math.max(1, ...filas.map((f) => f.totales.ingresos));
 
@@ -356,18 +547,36 @@ export default function CajaResumenPeriodo({
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi className="col-span-2 lg:col-span-1" icon="ri-arrow-up-line" iconClass="bg-emerald-50 text-emerald-600" titulo="Ingresos" valor={formatEUR(total.totales.ingresos)}>
-          <DeltaChip valor={variacion(total.totales.ingresos, anterior.totales.ingresos)} subirEsBueno comparadoCon={comparadoCon} />
+          <DeltaChip actual={total.totales.ingresos} anterior={anterior.totales.ingresos} comparadoCon={comparadoCon} />
           {prevision !== null && (
-            <p className="flex items-center gap-1.5 mt-1.5 text-[11px] text-foreground-500" title="Estimación con la media de los días ya cerrados">
-              <i className="ri-sparkling-line text-primary-500"></i>
-              Previsión al cierre
-              <span className="font-medium tabular-nums text-foreground-950">≈ {formatEUR(Math.round(prevision))}</span>
-            </p>
+            <div className="mt-2 px-2.5 py-2 rounded-xl bg-primary-500/[0.05] border border-primary-500/10 text-[11px] text-foreground-500 space-y-0.5">
+              <p className="flex items-center gap-1.5" title="Estimación con la media de los días ya cerrados">
+                <i className="ri-sparkling-line text-primary-500"></i>
+                Previsión al cierre
+                <span className="ml-auto font-semibold tabular-nums text-foreground-950">≈ {formatEURRedondo(prevision.valor)}</span>
+              </p>
+              {anteriorCompleto.totales.ingresos > 0 && (
+                <p className="flex items-center gap-1.5 pl-[18px]">
+                  vs {anteriorLabel} completo ({formatEURRedondo(anteriorCompleto.totales.ingresos)})
+                  <span className="ml-auto">
+                    <DeltaMini actual={prevision.valor} anterior={anteriorCompleto.totales.ingresos} />
+                  </span>
+                </p>
+              )}
+              {prevision.porDiaParaIgualar !== null && (
+                <p className="flex items-center gap-1.5 pl-[18px]">
+                  Para igualarlo: {formatEURRedondo(prevision.porDiaParaIgualar)}/día
+                  <span className="ml-auto text-foreground-400">
+                    {prevision.diasApertura} {prevision.diasApertura === 1 ? 'día' : 'días'} de apertura
+                  </span>
+                </p>
+              )}
+            </div>
           )}
-          <RepartoTiendas totales={total.totales} />
+          <RepartoTiendas totales={total.totales} anterior={anterior.totales} />
         </Kpi>
         <Kpi icon="ri-arrow-down-line" iconClass="bg-red-50 text-red-500" titulo="Gastos" valor={formatEUR(gastos)}>
-          <DeltaChip valor={variacion(gastos, totalGastos(anterior.totales))} subirEsBueno={false} comparadoCon={comparadoCon} />
+          <DeltaChip actual={gastos} anterior={totalGastos(anterior.totales)} subirEsBueno={false} comparadoCon={comparadoCon} />
           <div className="mt-3 space-y-0.5">
             <p className="flex items-center gap-1.5 text-[11px] text-foreground-500">
               <i className="ri-file-list-3-line"></i>Facturas
@@ -386,7 +595,7 @@ export default function CajaResumenPeriodo({
           valor={formatEUR(neto)}
           valorClass={neto >= 0 ? 'text-emerald-700' : 'text-red-600'}
         >
-          <DeltaChip valor={variacion(neto, totalNeto(anterior.totales))} subirEsBueno comparadoCon={comparadoCon} />
+          <DeltaChip actual={neto} anterior={totalNeto(anterior.totales)} comparadoCon={comparadoCon} />
           {margen !== null && (
             <div className="mt-3">
               <p className="flex items-center gap-2 text-[11px] text-foreground-500 mb-1 whitespace-nowrap">
@@ -403,7 +612,7 @@ export default function CajaResumenPeriodo({
           )}
         </Kpi>
         <Kpi className="col-span-2 lg:col-span-1" icon="ri-coupon-3-line" iconClass="bg-background-100 text-foreground-500" titulo="Ticket medio" valor={formatEUR(ticketMedio)}>
-          <DeltaChip valor={variacion(ticketMedio, ticketMedioAnterior)} subirEsBueno comparadoCon={comparadoCon} />
+          <DeltaChip actual={ticketMedio} anterior={ticketMedioAnterior} comparadoCon={comparadoCon} decimales />
           <p className="mt-3 text-[11px] text-foreground-500">
             <span className="tabular-nums text-foreground-800">{total.tickets.toLocaleString('es-ES')}</span> tickets de báscula
             {conVenta.length > 0 && (
@@ -426,7 +635,7 @@ export default function CajaResumenPeriodo({
         </div>
       ) : (
         <>
-          <CajaGraficoPeriodo filas={filas} unidad={unidad} onFilaClick={onFilaClick} />
+          <CajaGraficoPeriodo filas={filas} filasAnteriores={filasAnteriores} anteriorLabel={anteriorLabel} unidad={unidad} onFilaClick={onFilaClick} />
 
           {mejor && (
             <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -455,6 +664,13 @@ export default function CajaResumenPeriodo({
               />
             </div>
           )}
+
+          <div className="grid lg:grid-cols-2 gap-3 items-start">
+            {(anterior.totales.ingresos > 0 || totalGastos(anterior.totales) > 0) && (
+              <ComparativaCard actual={total} anterior={anterior} anteriorLabel={anteriorLabel} comparadoCon={comparadoCon} />
+            )}
+            <PatronSemanalCard patron={patronSemanal} />
+          </div>
 
           <div className="bg-background-50 border border-background-200/70 rounded-2xl overflow-hidden shadow-card">
             <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-background-200/70">
@@ -499,6 +715,7 @@ export default function CajaResumenPeriodo({
                     <Th col="gasto_factura" orden={orden} onOrdenar={ordenar}>Facturas</Th>
                     <Th col="gasto_extra" orden={orden} onOrdenar={ordenar}>Gastos extra</Th>
                     <Th col="neto" orden={orden} onOrdenar={ordenar}>Neto</Th>
+                    <th className="px-3 py-2 text-right font-medium normal-case whitespace-nowrap">{comparaFilaLabel}</th>
                     <th className="w-8"></th>
                   </tr>
                 </thead>
@@ -546,6 +763,9 @@ export default function CajaResumenPeriodo({
                         <td className="px-3 py-2.5 text-right whitespace-nowrap tabular-nums font-semibold">
                           <Importe valor={n} clase={n >= 0 ? 'text-emerald-700' : 'text-red-600'} />
                         </td>
+                        <td className="px-3 py-2.5 text-right whitespace-nowrap" title={f.anterior ? `${f.anterior.label}: ${formatEUR(f.anterior.totales.ingresos)}` : undefined}>
+                          {f.anterior && !f.futuro ? <DeltaMini actual={f.totales.ingresos} anterior={f.anterior.totales.ingresos} /> : null}
+                        </td>
                         <td className="pr-3 text-foreground-300 group-hover:text-foreground-500">
                           {!f.futuro && <i className="ri-arrow-right-s-line"></i>}
                         </td>
@@ -561,6 +781,9 @@ export default function CajaResumenPeriodo({
                     <td className="px-3 py-3 text-right tabular-nums text-red-600">{formatEUR(total.totales.gasto_factura)}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-red-600">{formatEUR(total.totales.gasto_extra)}</td>
                     <td className={`px-3 py-3 text-right tabular-nums ${neto >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{formatEUR(neto)}</td>
+                    <td className="px-3 py-3 text-right" title={`${comparadoCon}`}>
+                      <DeltaMini actual={total.totales.ingresos} anterior={anterior.totales.ingresos} />
+                    </td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -585,6 +808,7 @@ export default function CajaResumenPeriodo({
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-2 text-sm text-foreground-950">
                         {f.label}
+                        {f.anterior && !f.futuro && f.totales.ingresos > 0 && <DeltaMini actual={f.totales.ingresos} anterior={f.anterior.totales.ingresos} />}
                         {f.esActual && (
                           <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-primary-500 text-background-50">
                             {unidad === 'día' ? 'Hoy' : 'Actual'}
