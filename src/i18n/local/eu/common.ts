@@ -1055,7 +1055,7 @@ const common = {
   "reservas.no_active_cta": "Ikusi katalogoa",
   "reservas.no_active_eyebrow": "Denboraldiko erreserbak",
   "reservas.no_active_whatsapp": "Galdetu WhatsApp bidez",
-  "reservas.no_active_whatsapp_msg": "Kaixo, hurrengo erreserbei buruz galdetu nahi nuke.",
+  "reservas.no_active_whatsapp_msg": "Kaixo. Hurrengo erreserba kanpainari buruzko informazioa jaso nahiko nuke: noiz irekiko duzuen eta zein produktu izango dituzuen. Eskerrik asko.",
   "reservas.no_active_how_title": "Honela egiten dira erreserbak",
   "reservas.no_active_step1_title": "Kanpaina irekitzen dugu",
   "reservas.no_active_step1_body": "Egun seinalatuak baino aste batzuk lehenago, generoa eta prezioak hemen argitaratzen ditugu.",

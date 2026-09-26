@@ -1054,7 +1054,7 @@ const common = {
   "reservas.no_active_cta": "Ver catálogo",
   "reservas.no_active_eyebrow": "Reservas de temporada",
   "reservas.no_active_whatsapp": "Pregúntanos por WhatsApp",
-  "reservas.no_active_whatsapp_msg": "Hola, quería preguntar por las próximas reservas.",
+  "reservas.no_active_whatsapp_msg": "Hola, buenas. Me gustaría recibir información sobre la próxima campaña de reservas: cuándo se abre y qué productos tendréis disponibles. Muchas gracias.",
   "reservas.no_active_how_title": "Así funcionan las reservas",
   "reservas.no_active_step1_title": "Abrimos la campaña",
   "reservas.no_active_step1_body": "Unas semanas antes de las fechas señaladas publicamos aquí el género y los precios.",
