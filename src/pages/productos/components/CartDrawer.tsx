@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { CartItem, CartCustomerInfo, OrderHistoryEntry } from '@/hooks/useCart';
+import { enMinimo } from '@/hooks/useCart';
 import type { Producto } from '@/types/producto';
 import { pickLang } from '@/types/producto';
 import RollingNumber from '@/components/base/RollingNumber';
@@ -13,7 +14,7 @@ import { logConversion } from '@/lib/visitLog';
 import { logPedido } from '@/lib/pedidosLog';
 import { getDeviceId } from '@/lib/deviceId';
 import { crearSesionPagoStripe } from '@/lib/pagoStripe';
-import { esPorUnidad, formatCantidad, pasoCantidad } from '@/lib/unidadVenta';
+import { admitePiezas, esPorUnidad, formatCantidad, formatNumKg, formatPiezas, kgPorPieza, pasoCantidad } from '@/lib/unidadVenta';
 
 /* ------------------------------------------------------------------ */
 /*  Badge style — same muted palette as catalogue                     */
@@ -161,7 +162,11 @@ function generateWhatsAppMessage(params: {
     lines.push(`🐟 ${name}`);
     lines.push('');
     const porUnidad = esPorUnidad(product?.precio ?? '');
-    lines.push(porUnidad ? `📦 Cantidad: ${item.kg} ud` : `⚖ Peso: ${formatKg(item.kg)}`);
+    if (item.piezas) {
+      lines.push(`🐟 Piezas: ${formatPiezas(item.piezas, item.kg)}`);
+    } else {
+      lines.push(porUnidad ? `📦 Cantidad: ${item.kg} ud` : `⚖ Peso: ${formatKg(item.kg)}`);
+    }
     lines.push(`🔪 Preparación: ${prepLabel}`);
     lines.push(`💶 Precio: ${pricePerKg} €/${porUnidad ? 'ud' : 'Kg'}`);
     lines.push('');
@@ -271,6 +276,7 @@ function CartLineItem({
   onPreparationChange,
   onNoteChange,
   onSetKg,
+  onEditPiezas,
   justAddedId,
 }: {
   cartItem: CartItem;
@@ -281,6 +287,7 @@ function CartLineItem({
   onPreparationChange: (preparation: string) => void;
   onNoteChange: (note: string) => void;
   onSetKg: (kg: number) => void;
+  onEditPiezas?: () => void;
   justAddedId: string | null;
 }) {
   const { t, i18n } = useTranslation();
@@ -289,6 +296,9 @@ function CartLineItem({
   const subtotal = pricePerKg * cartItem.kg;
   const porUnidad = esPorUnidad(product.precio);
   const paso = pasoCantidad(product.precio);
+  const minimo = enMinimo(cartItem, paso);
+  // Lo que se puede pedir por piezas se edita en el selector, no a mano.
+  const conPiezas = Boolean(onEditPiezas) && admitePiezas(product);
 
   // ── Green flash when this item is newly added ──
   useEffect(() => {
@@ -323,6 +333,10 @@ function CartLineItem({
   }, [cartItem.kg, weightPopping]);
 
   const handleStartEditWeight = () => {
+    if (conPiezas && onEditPiezas) {
+      onEditPiezas();
+      return;
+    }
     setIsEditingWeight(true);
     setEditWeightValue(String(cartItem.kg));
   };
@@ -406,16 +420,16 @@ function CartLineItem({
               <button
                 type="button"
                 onClick={() => {
-                  if (cartItem.kg <= paso) {
+                  if (minimo) {
                     setMinShaking(true);
                     setTimeout(() => setMinShaking(false), 500);
                     return;
                   }
                   onDecrease();
                 }}
-                disabled={cartItem.kg <= paso}
+                disabled={minimo}
                 className={`w-6 h-6 flex items-center justify-center rounded-full text-sm font-medium whitespace-nowrap transition-all duration-200 ${
-                  cartItem.kg <= paso
+                  minimo
                     ? `text-foreground-300 cursor-not-allowed ${minShaking ? 'animate-min-shake' : ''}`
                     : 'text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer'
                 }`}
@@ -423,9 +437,9 @@ function CartLineItem({
               >
                 −
               </button>
-              {cartItem.kg <= paso && (
+              {minimo && (
                 <span className="absolute -top-[26px] left-1/2 -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-medium text-background-50 bg-foreground-800 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                  {porUnidad ? '1 ud mín' : '0.5 kg mín'}
+                  {cartItem.piezas ? '1 pieza mín' : porUnidad ? '1 ud mín' : '0.5 kg mín'}
                   <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-foreground-800"></span>
                 </span>
               )}
@@ -448,13 +462,15 @@ function CartLineItem({
               <span
                 onClick={handleStartEditWeight}
                 className={`min-w-[40px] text-center text-xs font-semibold text-foreground-950 tabular-nums cursor-pointer hover:text-primary-600 transition-colors duration-200 select-none inline-block ${weightPopping ? 'animate-weight-pop' : ''}`}
-                title={t('cart.weight_hint_short')}
+                title={conPiezas ? t('pieces.edit_hint') : t('cart.weight_hint_short')}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStartEditWeight(); } }}
-                aria-label={porUnidad ? 'Haz clic para editar las unidades' : 'Haz clic para editar el peso'}
+                aria-label={conPiezas ? t('pieces.edit_hint') : porUnidad ? 'Haz clic para editar las unidades' : 'Haz clic para editar el peso'}
               >
-                {formatCantidad(cartItem.kg, product.precio)}
+                {cartItem.piezas
+                  ? `${cartItem.piezas} × ${formatNumKg(kgPorPieza(cartItem.kg, cartItem.piezas))} kg`
+                  : formatCantidad(cartItem.kg, product.precio)}
               </span>
             )}
             <button
@@ -523,6 +539,7 @@ function CartLineItem({
         {/* Price per kg + subtotal, one compact line */}
         <div className="flex items-center justify-between mt-1.5">
           <span className="text-[10px] text-foreground-400 tabular-nums">
+            {cartItem.piezas && `${t('pieces.summary_total', { kg: formatNumKg(cartItem.kg) })} · `}
             {pricePerKg} {porUnidad ? '€/ud' : t('cart.price_label')}
           </span>
           <span className="text-sm font-semibold text-foreground-950 whitespace-nowrap overflow-hidden">
@@ -551,6 +568,8 @@ interface CartDrawerProps {
   onPreparationChange: (productId: string, preparation: string) => void;
   onNoteChange: (productId: string, note: string) => void;
   onSetKg: (productId: string, kg: number) => void;
+  // Abre el selector de piezas/peso (solo la tienda; hostelería no lo usa).
+  onEditPiezas?: (productId: string) => void;
   totalProducts: number;
   justAddedId: string | null;
   orderHistory: OrderHistoryEntry[];
@@ -577,6 +596,7 @@ export default function CartDrawer({
   onPreparationChange,
   onNoteChange,
   onSetKg,
+  onEditPiezas,
   totalProducts,
   justAddedId,
   orderHistory,
@@ -798,6 +818,7 @@ export default function CartDrawer({
           nota: item.note,
           precioKg: product ? extractPricePerKg(product.precio) : 0,
           unidad: product && esPorUnidad(product.precio) ? ('ud' as const) : ('kg' as const),
+          ...(item.piezas ? { piezas: item.piezas } : {}),
         };
       }),
       totalProductos: totalProducts,
@@ -854,6 +875,7 @@ export default function CartDrawer({
           nota: item.note,
           precioKg: product ? extractPricePerKg(product.precio) : 0,
           unidad: product && esPorUnidad(product.precio) ? ('ud' as const) : ('kg' as const),
+          ...(item.piezas ? { piezas: item.piezas } : {}),
         };
       }),
       totalProductos: totalProducts,
@@ -1162,6 +1184,7 @@ export default function CartDrawer({
                           onPreparationChange={(prep) => onPreparationChange(item.productId, prep)}
                           onNoteChange={(note) => onNoteChange(item.productId, note)}
                           onSetKg={(kg) => onSetKg(item.productId, kg)}
+                          onEditPiezas={onEditPiezas ? () => onEditPiezas(item.productId) : undefined}
                           justAddedId={justAddedId}
                         />
                       );
@@ -1199,7 +1222,7 @@ export default function CartDrawer({
                                 {pickLang(product, 'nombre', i18n.language)}
                               </p>
                               <p className="text-[10px] text-foreground-400 tabular-nums">
-                                {formatCantidad(item.kg, product.precio)} × {pricePerKg} {esPorUnidad(product.precio) ? '€/ud' : t('cart.price_label')}
+                                {item.piezas ? formatPiezas(item.piezas, item.kg) : formatCantidad(item.kg, product.precio)} × {pricePerKg} {esPorUnidad(product.precio) ? '€/ud' : t('cart.price_label')}
                               </p>
                             </div>
                             <span className="text-xs font-semibold text-foreground-950 tabular-nums whitespace-nowrap flex-shrink-0">
@@ -2024,7 +2047,7 @@ export default function CartDrawer({
                             {product ? pickLang(product, 'nombre', i18n.language) : item.productId}
                           </p>
                           <p className="text-[10px] text-foreground-400 tabular-nums">
-                            {product ? formatCantidad(item.kg, product.precio) : formatKg(item.kg)}
+                            {item.piezas ? formatPiezas(item.piezas, item.kg) : product ? formatCantidad(item.kg, product.precio) : formatKg(item.kg)}
                             {pricePerKg !== null && ` × ${pricePerKg} ${esPorUnidad(product?.precio ?? '') ? '€/ud' : t('cart.price_label')}`}
                             {prepLabel && ` · ${t(prepLabel as any)}`}
                           </p>

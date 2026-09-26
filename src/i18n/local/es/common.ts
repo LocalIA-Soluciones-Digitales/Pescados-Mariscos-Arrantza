@@ -1086,6 +1086,28 @@ const common = {
   "common.rating": "Valoración Google",
   "common.based_on": "Basado en",
   "common.reviews": "reseñas",
+  // Pedir por piezas (pescado entero)
+  "pieces.how_title": "¿Cómo lo quieres?",
+  "pieces.mode_pieces": "Por piezas",
+  "pieces.mode_weight": "Por peso total",
+  "pieces.how_many": "¿Cuántas piezas?",
+  "pieces.each_weight": "¿Cuánto debe pesar CADA pieza?",
+  "pieces.each_weight_hint": "El peso de una sola pieza, no el total.",
+  "pieces.total_weight": "¿Cuántos kilos en total?",
+  "pieces.pick_weight": "Elige cuánto debe pesar cada pieza.",
+  "pieces.summary_one": "1 pieza de unos {{kg}} kg",
+  "pieces.summary_many": "{{count}} piezas de unos {{kg}} kg cada una",
+  "pieces.summary_total": "unos {{kg}} kg en total",
+  "pieces.summary_weight": "{{kg}} kg en total, en las piezas que tengamos",
+  "pieces.approx_price": "aprox. {{price}} €",
+  "pieces.disclaimer": "Cada pieza es distinta: te preparamos la más parecida al peso que eliges y se cobra lo que marque la báscula.",
+  "pieces.add": "Añadir al pedido",
+  "pieces.save": "Guardar cambios",
+  "pieces.add_reserva": "Añadir a la reserva",
+  "pieces.less": "Menos",
+  "pieces.more": "Más",
+  "pieces.choose": "Elegir",
+  "pieces.edit_hint": "Cambiar piezas o peso",
 };
 
 export default common;

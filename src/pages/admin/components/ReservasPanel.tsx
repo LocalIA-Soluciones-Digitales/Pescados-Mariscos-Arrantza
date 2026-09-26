@@ -4,6 +4,7 @@ import { useReservas } from '@/hooks/useReservas';
 import { useReservasAjustes } from '@/hooks/useReservasAjustes';
 import ReservaEventoModal from './ReservaEventoModal';
 import type { Reserva, ReservaAjuste, ReservaEstado, ReservaEvento } from '@/types/reserva';
+import { formatLineaCantidad } from '@/lib/unidadVenta';
 import SearchInput from '@/components/base/SearchInput';
 
 const ESTADO_LABELS: Record<ReservaEstado, string> = {
@@ -404,7 +405,7 @@ function ReservaCard({
         <div className="bg-background-100 rounded-lg p-2.5 mb-2 space-y-1">
           {reserva.items.map((item, idx) => (
             <p key={idx} className="text-xs text-foreground-600">
-              {item.kg} {item.unidad === 'ud' ? 'ud' : 'kg'} — {item.nombre}
+              {formatLineaCantidad(item)} — {item.nombre}
               {item.nota ? ` — "${item.nota}"` : ''}
             </p>
           ))}

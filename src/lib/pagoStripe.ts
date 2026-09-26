@@ -21,6 +21,7 @@ export async function crearSesionPagoStripe(
       items: items.map((i) => ({
         productId: i.productId,
         kg: i.kg,
+        ...(i.piezas ? { piezas: i.piezas } : {}),
         preparation: i.preparation,
         note: i.note,
       })),

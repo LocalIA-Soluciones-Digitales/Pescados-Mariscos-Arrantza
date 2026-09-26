@@ -20,7 +20,7 @@ export function useReservasArticulosPublico(eventoId: string | null) {
       .rpc('get_reservas_articulos_publico', { p_site_key: SITE_KEY, p_evento_id: eventoId })
       .then(({ data }) => {
         if (cancelado) return;
-        setArticulos(((data ?? []) as ReservaArticulo[]).map((a) => ({ ...a, precio: Number(a.precio) })));
+        setArticulos(((data ?? []) as ReservaArticulo[]).map((a) => ({ ...a, precio: Number(a.precio), pesos_pieza: a.pesos_pieza?.map(Number) ?? null })));
         setLoading(false);
       });
     return () => {

@@ -4,16 +4,17 @@ import { useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/feature/Navbar';
 import Footer from '@/pages/home/components/Footer';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
-import { useCart } from '@/hooks/useCart';
+import { useCart, enMinimo } from '@/hooks/useCart';
 import type { CartItem } from '@/hooks/useCart';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
 import SolicitudStockModal from '@/pages/productos/components/SolicitudStockModal';
+import SelectorPiezasModal from '@/components/feature/SelectorPiezasModal';
 import { temporada } from '@/mocks/productos';
 import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { useCartSound } from '@/hooks/useCartSound';
 import { logAddToCart, logCategoryView, logConversion, logProductView } from '@/lib/visitLog';
 import { pickLang, normalizeSearch } from '@/types/producto';
-import { esPorUnidad, formatCantidad, pasoCantidad } from '@/lib/unidadVenta';
+import { admitePiezas, esPorUnidad, formatCantidad, formatNumKg, kgPorPieza, pasoCantidad, pesosPieza } from '@/lib/unidadVenta';
 import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
 import InfoHint from '@/components/base/InfoHint';
 import type { Producto } from '@/types/producto';
@@ -770,6 +771,7 @@ function ProductCard({
   onIncrease,
   onDecrease,
   onSetKg,
+  onEditPiezas,
   onRequestStock,
 }: {
   product: Producto;
@@ -783,6 +785,7 @@ function ProductCard({
   onIncrease: (productId: string) => void;
   onDecrease: (productId: string) => void;
   onSetKg: (productId: string, kg: number) => void;
+  onEditPiezas: (p: Producto) => void;
   onRequestStock: (p: Producto) => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -791,12 +794,19 @@ function ProductCard({
   const agotado = !product.disponible;
   const porUnidad = esPorUnidad(product.precio);
   const paso = pasoCantidad(product.precio);
+  const conPiezas = admitePiezas(product);
+  const minimo = cartItem ? enMinimo(cartItem, paso) : true;
 
   const [isEditingWeight, setIsEditingWeight] = useState(false);
   const [editWeightValue, setEditWeightValue] = useState('');
 
   const handleStartEditWeight = () => {
     if (!cartItem) return;
+    // Lo que se puede pedir por piezas se edita siempre en el selector.
+    if (conPiezas) {
+      onEditPiezas(product);
+      return;
+    }
     setEditWeightValue(String(cartItem.kg));
     setIsEditingWeight(true);
   };
@@ -909,12 +919,12 @@ function ProductCard({
               <button
                 type="button"
                 onClick={() => {
-                  if (cartItem.kg <= paso) return;
+                  if (minimo) return;
                   onDecrease(product.id);
                 }}
-                disabled={cartItem.kg <= paso}
+                disabled={minimo}
                 className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                  cartItem.kg <= paso
+                  minimo
                     ? 'text-foreground-300 cursor-not-allowed'
                     : 'text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950 cursor-pointer'
                 }`}
@@ -943,10 +953,12 @@ function ProductCard({
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleStartEditWeight(); } }}
                   className="min-w-[38px] text-center text-[11px] md:text-xs font-semibold text-foreground-950 tabular-nums cursor-pointer hover:text-primary-600 transition-colors duration-200 select-none inline-block"
-                  title={porUnidad ? 'Haz clic para editar las unidades' : 'Haz clic para editar el peso'}
-                  aria-label={porUnidad ? 'Haz clic para editar las unidades' : 'Haz clic para editar el peso'}
+                  title={conPiezas ? t('pieces.edit_hint') : porUnidad ? 'Haz clic para editar las unidades' : 'Haz clic para editar el peso'}
+                  aria-label={conPiezas ? t('pieces.edit_hint') : porUnidad ? 'Haz clic para editar las unidades' : 'Haz clic para editar el peso'}
                 >
-                  {formatCantidad(cartItem.kg, product.precio)}
+                  {cartItem.piezas
+                    ? `${cartItem.piezas} × ${formatNumKg(kgPorPieza(cartItem.kg, cartItem.piezas))} kg`
+                    : formatCantidad(cartItem.kg, product.precio)}
                 </span>
               )}
               <button
@@ -967,6 +979,11 @@ function ProductCard({
               <i className="ri-close-line text-xs"></i>
             </button>
           </div>
+        )}
+        {!agotado && isInCart && cartItem?.piezas && (
+          <p className="mt-1 text-[10px] md:text-[11px] text-foreground-500 tabular-nums">
+            {t('pieces.summary_total', { kg: formatNumKg(cartItem.kg) })}
+          </p>
         )}
       </div>
     </div>
@@ -1015,6 +1032,7 @@ function CatalogGrid({
   onIncrease,
   onDecrease,
   onSetKg,
+  onEditPiezas,
   onRequestStock,
   removingProductId,
   highlightedProductId,
@@ -1028,6 +1046,7 @@ function CatalogGrid({
   onIncrease: (productId: string) => void;
   onDecrease: (productId: string) => void;
   onSetKg: (productId: string, kg: number) => void;
+  onEditPiezas: (p: Producto) => void;
   onRequestStock: (p: Producto) => void;
   removingProductId: string | null;
   highlightedProductId?: string | null;
@@ -1056,7 +1075,7 @@ function CatalogGrid({
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-4 md:gap-6 lg:gap-8">
         {products.map((product, idx) => (
-          <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onRequestStock={onRequestStock} />
+          <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onEditPiezas={onEditPiezas} onRequestStock={onRequestStock} />
         ))}
       </div>
     );
@@ -1121,7 +1140,7 @@ function CatalogGrid({
               {items.map((product) => {
                 const idx = globalIdx++;
                 return (
-                  <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onRequestStock={onRequestStock} />
+                  <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onEditPiezas={onEditPiezas} onRequestStock={onRequestStock} />
                 );
               })}
             </div>
@@ -1138,7 +1157,7 @@ function CatalogGrid({
             {ungrouped.map((product) => {
               const idx = globalIdx++;
               return (
-                <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onRequestStock={onRequestStock} />
+                <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onEditPiezas={onEditPiezas} onRequestStock={onRequestStock} />
               );
             })}
           </div>
@@ -1415,6 +1434,7 @@ export default function Productos() {
     increaseKg,
     decreaseKg,
     setKg,
+    setCantidad,
     clearCart,
     updateCustomer,
     isInCart,
@@ -1516,8 +1536,36 @@ export default function Productos() {
     [setKg, pasoDe],
   );
 
+  // Pescado entero que se puede pedir por piezas: "Añadir" y el número del
+  // stepper abren el selector de piezas/peso en vez de sumar 0,5 kg.
+  const [piezasProducto, setPiezasProducto] = useState<Producto | null>(null);
+
+  const handleConfirmPiezas = useCallback(
+    (product: Producto, kg: number, piezas?: number) => {
+      const nuevo = !isInCart(product.id);
+      setCantidad(product.id, kg, piezas);
+      if (!nuevo) return;
+      logAddToCart(product.id);
+      playAddToCartSound();
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+      setToastProduct(product);
+      setToastVisible(true);
+      toastTimerRef.current = setTimeout(() => {
+        setToastVisible(false);
+        toastTimerRef.current = null;
+      }, 3000);
+    },
+    [isInCart, setCantidad, playAddToCartSound],
+  );
+
   const handleAddToCart = useCallback(
     (product: Producto) => {
+      if (admitePiezas(product)) {
+        setPiezasProducto(product);
+        return;
+      }
       addItem(product.id, pasoCantidad(product.precio));
       logAddToCart(product.id);
       playAddToCartSound();
@@ -1705,6 +1753,7 @@ export default function Productos() {
                 onIncrease={handleIncreaseKg}
                 onDecrease={handleDecreaseKg}
                 onSetKg={handleSetKg}
+                onEditPiezas={setPiezasProducto}
                 onRequestStock={setSolicitudProducto}
                 removingProductId={removingProductId}
                 highlightedProductId={highlightedCardId}
@@ -1730,6 +1779,7 @@ export default function Productos() {
         onIncrease={handleIncreaseKg}
         onDecrease={handleDecreaseKg}
         onSetKg={handleSetKg}
+        onEditPiezas={(productId) => setPiezasProducto(productos.find((p) => p.id === productId) ?? null)}
         onRemove={handleRemoveItem}
         onClearCart={clearCart}
         onCustomerChange={updateCustomer}
@@ -1741,6 +1791,21 @@ export default function Productos() {
         onSaveLastOrder={saveLastOrder}
         onLoadOrder={loadOrder}
       />
+
+      {/* Elegir por piezas o por peso */}
+      {piezasProducto && (
+        <SelectorPiezasModal
+          key={piezasProducto.id}
+          producto={{
+            nombre: pickLang(piezasProducto, 'nombre', i18n.language),
+            precio: piezasProducto.precio,
+            pesos: pesosPieza(piezasProducto),
+          }}
+          inicial={getItem(piezasProducto.id)}
+          onConfirm={(kg, piezas) => handleConfirmPiezas(piezasProducto, kg, piezas)}
+          onClose={() => setPiezasProducto(null)}
+        />
+      )}
 
       {/* Solicitud de aviso de stock */}
       {solicitudProducto && (

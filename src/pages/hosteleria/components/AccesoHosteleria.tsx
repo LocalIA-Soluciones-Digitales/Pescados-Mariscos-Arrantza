@@ -20,6 +20,8 @@ function toProducto(p: ProductoHosteleria): Producto {
     stock_alerta_enviada: false,
     gestion_stock: false,
     visible_web: true,
+    por_piezas: false,
+    pesos_pieza: null,
     created_at: '',
     updated_at: '',
   } as Producto;

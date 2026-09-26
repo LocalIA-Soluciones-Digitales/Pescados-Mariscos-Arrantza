@@ -33,6 +33,22 @@ const corsHeaders = {
 interface PedidoItem {
   nombre: string;
   kg: number;
+  unidad?: 'kg' | 'ud';
+  // Pedido por piezas: kg es el total y cada pieza pesa ~kg / piezas.
+  piezas?: number;
+}
+
+function numKg(n: number): string {
+  return String(Math.round(n * 100) / 100).replace('.', ',');
+}
+
+// Misma forma que formatLineaCantidad en src/lib/unidadVenta.ts.
+function cantidadItem(item: PedidoItem): string {
+  if (item.unidad === 'ud') return `${item.kg} ud`;
+  if (item.piezas && item.piezas > 0) {
+    return `${item.piezas} ${item.piezas === 1 ? 'pieza' : 'piezas'} de ~${numKg(item.kg / item.piezas)} kg (≈ ${numKg(item.kg)} kg)`;
+  }
+  return `${numKg(item.kg)} kg`;
 }
 
 interface PedidoPayload {
@@ -56,7 +72,7 @@ function buildEmail(pedido: PedidoPayload): { subject: string; html: string } {
   const saludo = pedido.cliente_nombre?.trim() ? `Hola ${escapeHtml(nombre)},` : 'Hola,';
   const entrega = pedido.metodo_entrega === 'home' ? 'a domicilio' : 'en tienda';
   const resumenItems = pedido.items
-    .map((item) => `<li style="margin-bottom:4px;">${item.kg} kg — ${escapeHtml(item.nombre)}</li>`)
+    .map((item) => `<li style="margin-bottom:4px;">${cantidadItem(item)} — ${escapeHtml(item.nombre)}</li>`)
     .join('');
   const importe = pedido.importe_estimado != null ? `${pedido.importe_estimado.toFixed(2)} €` : null;
 

@@ -2,12 +2,16 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { getDeviceId } from '@/lib/deviceId';
 import type { Pedido } from '@/types/pedido';
+import { piezasValidas, redondearKg } from '@/lib/unidadVenta';
 
 export interface CartItem {
   productId: string;
   kg: number;
   preparation: string;
   note: string;
+  // Pedido por piezas ("2 piezas de ~2 kg"): kg sigue siendo el total, que
+  // es lo que descuenta el stock; cada pieza pesa ~kg / piezas.
+  piezas?: number;
 }
 
 export interface CartCustomerInfo {
@@ -59,6 +63,7 @@ function loadCart(): CartState {
               ...i,
               preparation: typeof i.preparation === 'string' ? i.preparation : 'whole',
               note: typeof i.note === 'string' ? i.note : '',
+              piezas: piezasValidas(i.piezas),
             }))
           : [],
         customer: parsed.customer && typeof parsed.customer === 'object'
@@ -105,6 +110,7 @@ function readLastOrder(): LastOrderData | null {
             ...i,
             preparation: typeof i.preparation === 'string' ? i.preparation : 'whole',
             note: typeof i.note === 'string' ? i.note : '',
+            piezas: piezasValidas(i.piezas),
           })),
           deliveryMethod: parsed.deliveryMethod === 'home' ? 'home' : 'pickup',
         };
@@ -122,6 +128,7 @@ function sanitizeOrderItems(items: unknown): CartItem[] {
       ...i,
       preparation: typeof i.preparation === 'string' ? i.preparation : 'whole',
       note: typeof i.note === 'string' ? i.note : '',
+      piezas: piezasValidas(i.piezas),
     }));
 }
 
@@ -174,9 +181,27 @@ function mapPedidoToHistoryEntry(pedido: Pedido): OrderHistoryEntry {
         kg: i.kg,
         preparation: i.preparacion,
         note: i.nota,
+        piezas: i.piezas,
       })),
     ),
   };
+}
+
+// +/− de una línea: por piezas suma o quita una pieza del mismo peso; si
+// no, un paso (0,5 kg o 1 ud).
+function masUno(item: CartItem, paso: number): CartItem {
+  if (!item.piezas) return { ...item, kg: item.kg + paso };
+  return { ...item, piezas: item.piezas + 1, kg: redondearKg((item.kg / item.piezas) * (item.piezas + 1)) };
+}
+
+function menosUno(item: CartItem, paso: number): CartItem {
+  if (!item.piezas) return { ...item, kg: item.kg - paso };
+  return { ...item, piezas: item.piezas - 1, kg: redondearKg((item.kg / item.piezas) * (item.piezas - 1)) };
+}
+
+/** Si ya no se puede bajar más (1 pieza, o el paso mínimo). */
+export function enMinimo(item: CartItem, paso: number): boolean {
+  return item.piezas ? item.piezas <= 1 : item.kg <= paso;
 }
 
 export function useCart() {
@@ -264,7 +289,7 @@ export function useCart() {
       const existing = prev.find(item => item.productId === productId);
       if (existing) {
         return prev.map(item =>
-          item.productId === productId ? { ...item, kg: item.kg + paso } : item,
+          item.productId === productId ? masUno(item, paso) : item,
         );
       }
       // New item added — flash it
@@ -281,19 +306,36 @@ export function useCart() {
     setCartVersion(v => v + 1);
   }, []);
 
+  // Fijar el peso a mano deja la línea por peso (sin piezas).
   const setKg = useCallback((productId: string, kg: number, paso = 0.5) => {
     const cantidad = paso >= 1 ? Math.round(kg) : Math.round(kg * 100) / 100;
     setItems(prev =>
       prev.map(item =>
-        item.productId === productId ? { ...item, kg: Math.max(paso, cantidad) } : item,
+        item.productId === productId ? { ...item, kg: Math.max(paso, cantidad), piezas: undefined } : item,
       ),
     );
+  }, []);
+
+  // Desde el selector de piezas/peso: crea la línea o la reemplaza. Con
+  // piezas, kg = piezas × kg por pieza; sin piezas, kg es el peso total.
+  const setCantidad = useCallback((productId: string, kg: number, piezas?: number) => {
+    const linea = { kg: redondearKg(kg), piezas: piezasValidas(piezas) };
+    setItems(prev => {
+      if (prev.some(item => item.productId === productId)) {
+        return prev.map(item => (item.productId === productId ? { ...item, ...linea } : item));
+      }
+      setJustAddedId(productId);
+      if (clearJustAddedTimeoutRef.current) clearTimeout(clearJustAddedTimeoutRef.current);
+      clearJustAddedTimeoutRef.current = setTimeout(() => setJustAddedId(null), 750);
+      return [...prev, { productId, ...linea, preparation: 'whole', note: '' }];
+    });
+    setCartVersion(v => v + 1);
   }, []);
 
   const increaseKg = useCallback((productId: string, paso = 0.5) => {
     setItems(prev =>
       prev.map(item =>
-        item.productId === productId ? { ...item, kg: item.kg + paso } : item,
+        item.productId === productId ? masUno(item, paso) : item,
       ),
     );
     setCartVersion(v => v + 1);
@@ -302,9 +344,9 @@ export function useCart() {
   const decreaseKg = useCallback((productId: string, paso = 0.5) => {
     setItems(prev => {
       const item = prev.find(i => i.productId === productId);
-      if (!item || item.kg <= paso) return prev;
+      if (!item || enMinimo(item, paso)) return prev;
       return prev.map(i =>
-        i.productId === productId ? { ...i, kg: i.kg - paso } : i,
+        i.productId === productId ? menosUno(i, paso) : i,
       );
     });
     setCartVersion(v => v + 1);
@@ -381,6 +423,7 @@ export function useCart() {
     addItem,
     removeItem,
     setKg,
+    setCantidad,
     clearCart,
     updateCustomer,
     isInCart,

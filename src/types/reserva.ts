@@ -28,6 +28,9 @@ export interface ReservaArticulo {
   unidad: 'kg' | 'un';
   imagen_url: string | null;
   orden: number;
+  // Se puede reservar por piezas (ver Producto.por_piezas).
+  por_piezas?: boolean;
+  pesos_pieza?: number[] | null;
 }
 
 export interface ReservaItem {
@@ -40,6 +43,8 @@ export interface ReservaItem {
   // producto de la tienda) y la cantidad puede ir en unidades.
   articuloId?: string;
   unidad?: 'kg' | 'ud';
+  // Reservado por piezas: kg sigue siendo el total y cada pieza pesa ~kg/piezas.
+  piezas?: number;
 }
 
 export interface Reserva {

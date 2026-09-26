@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { getMiClienteId } from '@/lib/clienteContext';
 import { optimizeImageFile } from '@/lib/imageOptimize';
 import type { Producto, ProductoCategoria, ProductoEstado } from '@/types/producto';
+import { PESOS_PIEZA_POR_DEFECTO, esPorUnidad, formatNumKg } from '@/lib/unidadVenta';
 
 const FAMILIAS_ELIMINADAS_KEY = 'pm_familias_eliminadas';
 
@@ -53,15 +54,29 @@ type FormState = {
   disponible: boolean;
   destacado: boolean;
   visible_web: boolean;
+  por_piezas: boolean;
+  // Texto libre: "1 1,5 2 2,5 3" (vacío = lista por defecto).
+  pesos_pieza: string;
   imagen_url: string;
 };
+
+// "1 1,5 2" → [1, 1.5, 2]. Separados por espacios, ";" o "/" (la coma es
+// el decimal). Vacío o sin números válidos → null (lista por defecto).
+function parsePesosPieza(texto: string): number[] | null {
+  const pesos = texto
+    .split(/[\s;/]+/)
+    .map((t) => Number(t.replace(',', '.')))
+    .filter((n) => Number.isFinite(n) && n > 0 && n <= 50);
+  return pesos.length > 0 ? [...new Set(pesos)].sort((a, b) => a - b) : null;
+}
 
 function toFormState(p: Producto | null): FormState {
   if (!p) {
     return {
       nombre_es: '', nombre_eu: '', descripcion_es: '', descripcion_eu: '',
       origen_es: '', origen_eu: '', precio: '', categoria: 'pescado', subcategoria: '',
-      estado: 'available', disponible: true, destacado: false, visible_web: true, imagen_url: '',
+      estado: 'available', disponible: true, destacado: false, visible_web: true,
+      por_piezas: false, pesos_pieza: '', imagen_url: '',
     };
   }
   return {
@@ -69,7 +84,9 @@ function toFormState(p: Producto | null): FormState {
     descripcion_es: p.descripcion_es ?? '', descripcion_eu: p.descripcion_eu ?? '',
     origen_es: p.origen_es ?? '', origen_eu: p.origen_eu ?? '',
     precio: p.precio, categoria: p.categoria, subcategoria: p.subcategoria ?? '',
-    estado: p.estado, disponible: p.disponible, destacado: p.destacado, visible_web: p.visible_web, imagen_url: p.imagen_url ?? '',
+    estado: p.estado, disponible: p.disponible, destacado: p.destacado, visible_web: p.visible_web,
+    por_piezas: Boolean(p.por_piezas), pesos_pieza: (p.pesos_pieza ?? []).map(formatNumKg).join(' '),
+    imagen_url: p.imagen_url ?? '',
   };
 }
 
@@ -225,6 +242,8 @@ export default function ProductoFormModal({
       disponible: form.disponible,
       destacado: form.destacado,
       visible_web: form.visible_web,
+      por_piezas: form.por_piezas,
+      pesos_pieza: parsePesosPieza(form.pesos_pieza),
       imagen_url: form.imagen_url || null,
     };
 
@@ -500,6 +519,33 @@ export default function ProductoFormModal({
             <input type="checkbox" checked={form.visible_web} onChange={(e) => update('visible_web', e.target.checked)} className="w-4 h-4" />
             <span className="text-sm text-foreground-700">Visible en la tienda online</span>
           </label>
+
+          {/* Venta por piezas: solo tiene sentido en pescado entero a €/kg */}
+          <div className="rounded-lg border border-background-200/70 p-3 space-y-2">
+            <label className="flex items-start gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={form.por_piezas} onChange={(e) => update('por_piezas', e.target.checked)} className="w-4 h-4 mt-0.5" />
+              <span className="text-sm text-foreground-700">
+                Se puede pedir por piezas
+                <span className="block text-xs text-foreground-400">El cliente elige "2 piezas de ~2 kg" o el peso total. Para pescado entero (merluza, lubina…).</span>
+              </span>
+            </label>
+            {form.por_piezas && esPorUnidad(form.precio) && (
+              <p className="text-xs text-amber-700">El precio va por unidad (€/ud): por piezas solo se ofrece en productos a €/kg.</p>
+            )}
+            {form.por_piezas && (
+              <div>
+                <label className="block text-xs font-medium text-foreground-500 mb-1">Pesos por pieza que se ofrecen (kg, separados por espacios)</label>
+                <input
+                  type="text"
+                  value={form.pesos_pieza}
+                  onChange={(e) => update('pesos_pieza', e.target.value)}
+                  placeholder={PESOS_PIEZA_POR_DEFECTO.map(formatNumKg).join(' ')}
+                  className="w-full px-3 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-base sm:text-sm"
+                />
+                <p className="text-[11px] text-foreground-400 mt-1">Vacío = {PESOS_PIEZA_POR_DEFECTO.map(formatNumKg).join(' · ')} kg</p>
+              </div>
+            )}
+          </div>
 
           {error && <p className="text-xs text-red-600 mt-3">{error}</p>}
         </div>

@@ -1087,6 +1087,28 @@ const common = {
   "common.rating": "Google balorazioa",
   "common.based_on": "Oinarrituta",
   "common.reviews": "iritzi",
+  // Piezaka eskatu (arrain osoa)
+  "pieces.how_title": "Nola nahi duzu?",
+  "pieces.mode_pieces": "Piezaka",
+  "pieces.mode_weight": "Pisu osoa",
+  "pieces.how_many": "Zenbat pieza?",
+  "pieces.each_weight": "Zenbat pisatu behar du pieza BAKOITZAK?",
+  "pieces.each_weight_hint": "Pieza bakar baten pisua, ez guztira.",
+  "pieces.total_weight": "Zenbat kilo guztira?",
+  "pieces.pick_weight": "Aukeratu pieza bakoitzak zenbat pisatu behar duen.",
+  "pieces.summary_one": "{{kg}} kg inguruko pieza 1",
+  "pieces.summary_many": "{{count}} pieza, bakoitza {{kg}} kg ingurukoa",
+  "pieces.summary_total": "{{kg}} kg inguru guztira",
+  "pieces.summary_weight": "{{kg}} kg guztira, ditugun piezetan",
+  "pieces.approx_price": "{{price}} € gutxi gorabehera",
+  "pieces.disclaimer": "Pieza bakoitza desberdina da: aukeratutako pisutik hurbilen dagoena prestatuko dizugu, eta balantzak markatzen duena kobratuko da.",
+  "pieces.add": "Eskaerara gehitu",
+  "pieces.save": "Aldaketak gorde",
+  "pieces.add_reserva": "Erreserbara gehitu",
+  "pieces.less": "Gutxiago",
+  "pieces.more": "Gehiago",
+  "pieces.choose": "Aukeratu",
+  "pieces.edit_hint": "Aldatu piezak edo pisua",
 };
 
 export default common;

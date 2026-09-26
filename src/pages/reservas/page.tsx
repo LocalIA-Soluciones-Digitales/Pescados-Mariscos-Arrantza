@@ -6,7 +6,8 @@ import Footer from '@/pages/home/components/Footer';
 import { useReservasEventosPublico } from '@/hooks/useReservasEventosPublico';
 import { useProductosPublicos } from '@/hooks/useProductosPublicos';
 import { useReservasArticulosPublico } from '@/hooks/useReservasArticulosPublico';
-import { esPorUnidad, formatCantidad, pasoCantidad } from '@/lib/unidadVenta';
+import { admitePiezas, esPorUnidad, formatCantidad, formatLineaCantidad, formatNumKg, kgPorPieza, pasoCantidad, pesosPieza, redondearKg } from '@/lib/unidadVenta';
+import SelectorPiezasModal from '@/components/feature/SelectorPiezasModal';
 import { logReserva } from '@/lib/reservasLog';
 import { getDeviceId } from '@/lib/deviceId';
 import { pickLang } from '@/types/producto';
@@ -22,6 +23,8 @@ interface Reservable {
   imagen_url: string | null;
   precio: string;
   precioNum: number;
+  por_piezas?: boolean;
+  pesos_pieza?: number[] | null;
 }
 
 function precioArticulo(a: ReservaArticulo): string {
@@ -95,7 +98,7 @@ function buildWhatsAppMessage(params: {
   for (const item of items) {
     lines.push('');
     lines.push(`🐟 ${item.nombre}`);
-    lines.push(item.unidad === 'ud' ? `📦 ${item.kg} ud` : `⚖ ${formatKg(item.kg)}`);
+    lines.push(item.unidad === 'ud' ? `📦 ${item.kg} ud` : item.piezas ? `🐟 ${formatLineaCantidad(item)}` : `⚖ ${formatKg(item.kg)}`);
     if (item.precioKg > 0) lines.push(`💶 ${formatEuros(item.precioKg)}/${item.unidad === 'ud' ? 'ud' : 'kg'}`);
   }
 
@@ -122,6 +125,8 @@ function buildWhatsAppMessage(params: {
 function ReservaProductCard({
   product,
   kg,
+  piezas,
+  onEditPiezas,
   onAdd,
   onIncrease,
   onDecrease,
@@ -129,6 +134,8 @@ function ReservaProductCard({
 }: {
   product: Reservable;
   kg: number;
+  piezas?: number;
+  onEditPiezas: () => void;
   onAdd: () => void;
   onIncrease: () => void;
   onDecrease: () => void;
@@ -136,6 +143,7 @@ function ReservaProductCard({
 }) {
   const { t } = useTranslation();
   const inCart = kg > 0;
+  const conPiezas = admitePiezas(product);
 
   return (
     <div
@@ -159,7 +167,7 @@ function ReservaProductCard({
         {!inCart ? (
           <button
             type="button"
-            onClick={onAdd}
+            onClick={conPiezas ? onEditPiezas : onAdd}
             className="w-full inline-flex items-center justify-center gap-1.5 rounded-full font-medium cursor-pointer whitespace-nowrap transition-all duration-300 active:scale-95 bg-primary-500 text-background-50 hover:bg-primary-600 px-3 py-2 text-xs"
           >
             <i className="ri-add-line"></i>
@@ -171,7 +179,18 @@ function ReservaProductCard({
               <button type="button" onClick={onDecrease} className="w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950">
                 −
               </button>
-              <span className="min-w-[46px] text-center text-xs font-semibold text-foreground-950 tabular-nums">{formatCantidad(kg, product.precio)}</span>
+              {conPiezas ? (
+                <button
+                  type="button"
+                  onClick={onEditPiezas}
+                  title={t('pieces.edit_hint')}
+                  className="min-w-[46px] text-center text-xs font-semibold text-foreground-950 tabular-nums hover:text-primary-600"
+                >
+                  {piezas ? `${piezas} × ${formatNumKg(kgPorPieza(kg, piezas))} kg` : formatCantidad(kg, product.precio)}
+                </button>
+              ) : (
+                <span className="min-w-[46px] text-center text-xs font-semibold text-foreground-950 tabular-nums">{formatCantidad(kg, product.precio)}</span>
+              )}
               <button type="button" onClick={onIncrease} className="w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium text-foreground-600 hover:bg-background-200/70 hover:text-foreground-950">
                 +
               </button>
@@ -180,6 +199,9 @@ function ReservaProductCard({
               <i className="ri-close-line text-sm"></i>
             </button>
           </div>
+        )}
+        {inCart && piezas && (
+          <p className="mt-1 text-[10px] text-foreground-500 tabular-nums">{t('pieces.summary_total', { kg: formatNumKg(kg) })}</p>
         )}
       </div>
     </div>
@@ -196,6 +218,9 @@ export default function Reservas() {
 
   const [selectedEventoId, setSelectedEventoId] = useState<string | null>(null);
   const [cantidades, setCantidades] = useState<Record<string, number>>({});
+  // Nº de piezas de lo reservado por piezas; cantidades guarda el total en kg.
+  const [piezasPorId, setPiezasPorId] = useState<Record<string, number>>({});
+  const [piezasProducto, setPiezasProducto] = useState<Reservable | null>(null);
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
   const [email, setEmail] = useState('');
@@ -226,13 +251,23 @@ export default function Reservas() {
           imagen_url: a.imagen_url,
           precio: precioArticulo(a),
           precioNum: a.precio,
+          por_piezas: a.por_piezas,
+          pesos_pieza: a.pesos_pieza,
         })),
       }];
     }
     const map = new Map<ProductoCategoria, Reservable[]>();
     productos.forEach((p) => {
       const grupo = map.get(p.categoria) ?? [];
-      grupo.push({ id: p.id, nombre: pickLang(p, 'nombre', i18n.language), imagen_url: p.imagen_url, precio: p.precio, precioNum: 0 });
+      grupo.push({
+        id: p.id,
+        nombre: pickLang(p, 'nombre', i18n.language),
+        imagen_url: p.imagen_url,
+        precio: p.precio,
+        precioNum: 0,
+        por_piezas: p.por_piezas,
+        pesos_pieza: p.pesos_pieza,
+      });
       map.set(p.categoria, grupo);
     });
     return CATEGORIA_ORDEN.map((c) => ({
@@ -255,11 +290,13 @@ export default function Reservas() {
         .map(([productoId, kg]) => {
           const p = productMap.get(productoId);
           const unidad = p && esPorUnidad(p.precio) ? ('ud' as const) : ('kg' as const);
+          const piezas = piezasPorId[productoId];
+          const extra = piezas ? { piezas } : {};
           return conArticulos
-            ? { productoId: '', articuloId: productoId, nombre: p?.nombre ?? '', kg, nota: '', precioKg: p?.precioNum ?? 0, unidad }
-            : { productoId, nombre: p?.nombre ?? '', kg, nota: '', precioKg: 0, unidad };
+            ? { productoId: '', articuloId: productoId, nombre: p?.nombre ?? '', kg, nota: '', precioKg: p?.precioNum ?? 0, unidad, ...extra }
+            : { productoId, nombre: p?.nombre ?? '', kg, nota: '', precioKg: 0, unidad, ...extra };
         }),
-    [cantidades, productMap, conArticulos],
+    [cantidades, piezasPorId, productMap, conArticulos],
   );
 
   // Las unidades no suman kilos; el importe solo se puede estimar cuando la
@@ -273,10 +310,32 @@ export default function Reservas() {
   // Al cambiar de campaña, lo elegido en la otra deja de tener sentido.
   useEffect(() => {
     setCantidades({});
+    setPiezasPorId({});
   }, [evento?.id]);
 
-  const setKg = (productId: string, kg: number) => {
-    setCantidades((prev) => ({ ...prev, [productId]: Math.max(0, Math.round(kg * 100) / 100) }));
+  // piezas = undefined deja la línea por peso.
+  const setKg = (productId: string, kg: number, piezas?: number) => {
+    setCantidades((prev) => ({ ...prev, [productId]: Math.max(0, redondearKg(kg)) }));
+    setPiezasPorId((prev) => {
+      const next = { ...prev };
+      if (piezas && kg > 0) next[productId] = piezas;
+      else delete next[productId];
+      return next;
+    });
+  };
+
+  // +/−: por piezas suma o quita una pieza del mismo peso; si no, un paso.
+  const cambiarCantidad = (productId: string, delta: 1 | -1) => {
+    const actual = cantidades[productId] ?? 0;
+    const piezas = piezasPorId[productId];
+    if (piezas) {
+      const nuevas = piezas + delta;
+      setKg(productId, nuevas > 0 ? (actual / piezas) * nuevas : 0, nuevas > 0 ? nuevas : undefined);
+      return;
+    }
+    const paso = pasoDe(productId);
+    if (delta > 0) setKg(productId, actual + paso);
+    else setKg(productId, actual <= paso ? 0 : actual - paso);
   };
 
   const handleSubmit = async () => {
@@ -334,6 +393,7 @@ export default function Reservas() {
 
   const resetForm = () => {
     setCantidades({});
+    setPiezasPorId({});
     setNombre('');
     setTelefono('');
     setEmail('');
@@ -459,12 +519,11 @@ export default function Reservas() {
                               key={product.id}
                               product={product}
                               kg={cantidades[product.id] ?? 0}
+                              piezas={piezasPorId[product.id]}
+                              onEditPiezas={() => setPiezasProducto(product)}
                               onAdd={() => setKg(product.id, pasoDe(product.id))}
-                              onIncrease={() => setKg(product.id, (cantidades[product.id] ?? 0) + pasoDe(product.id))}
-                              onDecrease={() => {
-                                const actual = cantidades[product.id] ?? 0;
-                                setKg(product.id, actual <= pasoDe(product.id) ? 0 : actual - pasoDe(product.id));
-                              }}
+                              onIncrease={() => cambiarCantidad(product.id, 1)}
+                              onDecrease={() => cambiarCantidad(product.id, -1)}
                               onRemove={() => setKg(product.id, 0)}
                             />
                           ))}
@@ -489,7 +548,7 @@ export default function Reservas() {
                         <div key={item.articuloId ?? item.productoId} className="flex items-center justify-between text-xs">
                           <span className="text-foreground-700 truncate">{item.nombre}</span>
                           <span className="text-foreground-950 font-medium flex-shrink-0 ml-2 tabular-nums">
-                            {item.unidad === 'ud' ? `${item.kg} ud` : formatKg(item.kg)}
+                            {item.unidad === 'ud' || item.piezas ? formatLineaCantidad(item) : formatKg(item.kg)}
                           </span>
                         </div>
                       ))}
@@ -577,6 +636,22 @@ export default function Reservas() {
         )}
       </main>
       <Footer />
+
+      {/* Elegir por piezas o por peso */}
+      {piezasProducto && (
+        <SelectorPiezasModal
+          key={piezasProducto.id}
+          producto={{ nombre: piezasProducto.nombre, precio: piezasProducto.precio, pesos: pesosPieza(piezasProducto) }}
+          inicial={
+            cantidades[piezasProducto.id]
+              ? { kg: cantidades[piezasProducto.id], piezas: piezasPorId[piezasProducto.id] }
+              : undefined
+          }
+          textoConfirmar={cantidades[piezasProducto.id] ? t('pieces.save') : t('pieces.add_reserva')}
+          onConfirm={(kg, piezas) => setKg(piezasProducto.id, kg, piezas)}
+          onClose={() => setPiezasProducto(null)}
+        />
+      )}
     </>
   );
 }

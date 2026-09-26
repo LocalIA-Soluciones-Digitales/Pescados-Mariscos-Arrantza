@@ -13,6 +13,8 @@ export interface PedidoItem {
   // 'ud' = kg lleva unidades y precioKg es el precio por unidad. Los
   // pedidos anteriores no traen el campo y son siempre por peso.
   unidad?: 'kg' | 'ud';
+  // Pedido por piezas: kg sigue siendo el total y cada pieza pesa ~kg/piezas.
+  piezas?: number;
 }
 
 export interface Pedido {

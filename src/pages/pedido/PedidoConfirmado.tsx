@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { supabase } from '@/lib/supabaseClient';
 import type { Pedido } from '@/types/pedido';
+import { formatPiezas } from '@/lib/unidadVenta';
 
 type Status = 'checking' | 'pagado' | 'pendiente' | 'invalid';
 
@@ -100,7 +101,11 @@ function buildWhatsAppMessage(pedido: Pedido, t: TFunction): string {
     lines.push(`🐟 ${item.nombre}`);
     lines.push('');
     const porUnidad = item.unidad === 'ud';
-    lines.push(porUnidad ? `📦 Cantidad: ${item.kg} ud` : `⚖ Peso: ${formatKg(item.kg)}`);
+    if (item.piezas) {
+      lines.push(`🐟 Piezas: ${formatPiezas(item.piezas, item.kg)}`);
+    } else {
+      lines.push(porUnidad ? `📦 Cantidad: ${item.kg} ud` : `⚖ Peso: ${formatKg(item.kg)}`);
+    }
     lines.push(`🔪 Preparación: ${prepLabel}`);
     lines.push(`💶 Precio: ${item.precioKg} €/${porUnidad ? 'ud' : 'Kg'}`);
     lines.push('');

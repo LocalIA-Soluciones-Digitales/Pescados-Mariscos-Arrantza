@@ -97,12 +97,20 @@ create table if not exists public.productos (
   -- false = no sale en la tienda online (ya no está en la báscula), pero se
   -- conserva con su foto e historial de pedidos.
   visible_web boolean not null default true,
+  -- Pescado entero a €/kg que el cliente puede pedir por piezas ("2 piezas
+  -- de ~2 kg"). pesos_pieza = kg por pieza que se ofrecen; null = la lista
+  -- por defecto de src/lib/unidadVenta.ts. El pedido guarda igualmente el
+  -- total en kg (items[].kg, que es lo que descuenta el stock) + items[].piezas.
+  por_piezas boolean not null default false,
+  pesos_pieza numeric[],
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 -- Para bases ya creadas:
 alter table public.productos add column if not exists visible_web boolean not null default true;
+alter table public.productos add column if not exists por_piezas boolean not null default false;
+alter table public.productos add column if not exists pesos_pieza numeric[];
 alter table public.productos drop constraint if exists productos_categoria_check;
 alter table public.productos add constraint productos_categoria_check
   check (categoria in ('pescado', 'especial', 'raciones', 'marisco', 'congelados', 'preparados'));
@@ -2995,13 +3003,21 @@ create policy "reservas_articulos_admin"
 
 create index if not exists idx_reservas_articulos_evento on public.reservas_articulos (evento_id, orden);
 
+-- Igual que productos.por_piezas / pesos_pieza (aún sin pantalla de gestión:
+-- se marca por SQL).
+alter table public.reservas_articulos
+  add column if not exists por_piezas boolean not null default false,
+  add column if not exists pesos_pieza numeric[];
+
 -- Uso público: solo artículos activos de una campaña activa del negocio de
 -- la web que pregunta (site_key), igual que get_reservas_eventos_publico.
+-- drop: cambiar las columnas que devuelve exige recrearla.
+drop function if exists public.get_reservas_articulos_publico(uuid, uuid);
 create or replace function public.get_reservas_articulos_publico(p_site_key uuid, p_evento_id uuid)
-returns table (id uuid, codigo_bascula text, nombre_es text, nombre_eu text, precio numeric, unidad text, imagen_url text, orden integer)
+returns table (id uuid, codigo_bascula text, nombre_es text, nombre_eu text, precio numeric, unidad text, imagen_url text, orden integer, por_piezas boolean, pesos_pieza numeric[])
 language sql stable security definer set search_path = public
 as $$
-  select a.id, a.codigo_bascula, a.nombre_es, a.nombre_eu, a.precio, a.unidad, a.imagen_url, a.orden
+  select a.id, a.codigo_bascula, a.nombre_es, a.nombre_eu, a.precio, a.unidad, a.imagen_url, a.orden, a.por_piezas, a.pesos_pieza
   from public.reservas_articulos a
   join public.reservas_eventos e on e.id = a.evento_id
   where e.id = p_evento_id

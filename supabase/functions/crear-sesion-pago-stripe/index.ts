@@ -52,6 +52,8 @@ const STRIPE_SECRET_KEY = Deno.env.get('STRIPE_SECRET_KEY') ?? '';
 interface CartItemInput {
   productId: string;
   kg: number;
+  // Por piezas: kg sigue siendo el total (es lo que se cobra y descuenta).
+  piezas?: number;
   preparation?: string;
   note?: string;
 }
@@ -153,7 +155,9 @@ Deno.serve(async (req: Request) => {
     const pricePerKg = extractPricePerKg(producto.precio);
     const amountCents = Math.round(pricePerKg * item.kg * 100);
     if (amountCents <= 0) continue;
-    lineItems.push({ nombre: producto.nombre_es, kg: item.kg, amountCents });
+    const piezas = typeof item.piezas === 'number' && Number.isInteger(item.piezas) && item.piezas > 0 ? item.piezas : 0;
+    const nombre = piezas > 0 ? `${producto.nombre_es} · ${piezas} ${piezas === 1 ? 'pieza' : 'piezas'}` : producto.nombre_es;
+    lineItems.push({ nombre, kg: item.kg, amountCents });
   }
   if (lineItems.length === 0) {
     return jsonResponse({ error: 'El carrito no tiene productos válidos' }, corsHeaders, 400);
@@ -178,6 +182,7 @@ Deno.serve(async (req: Request) => {
         productoId: i.productId,
         nombre: productMap.get(i.productId)?.nombre_es ?? i.productId,
         kg: i.kg,
+        ...(typeof i.piezas === 'number' && Number.isInteger(i.piezas) && i.piezas > 0 ? { piezas: i.piezas } : {}),
         preparacion: i.preparation ?? 'whole',
         nota: i.note ?? '',
         precioKg: extractPricePerKg(productMap.get(i.productId)?.precio ?? '0'),

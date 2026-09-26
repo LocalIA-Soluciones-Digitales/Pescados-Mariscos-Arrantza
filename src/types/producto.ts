@@ -44,6 +44,11 @@ export interface Producto {
   // false = no sale en la tienda online (p. ej. ya no está en la báscula),
   // pero se conserva con su foto e historial.
   visible_web: boolean;
+  // Pescado entero a €/kg que el cliente puede pedir por piezas ("2 piezas
+  // de ~2 kg"). pesos_pieza = kg por pieza que se ofrecen; null = la lista
+  // por defecto de lib/unidadVenta.
+  por_piezas: boolean;
+  pesos_pieza: number[] | null;
   orden: number;
   created_at: string;
   updated_at: string;
