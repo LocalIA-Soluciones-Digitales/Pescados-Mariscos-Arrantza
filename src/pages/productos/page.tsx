@@ -317,7 +317,10 @@ function HosteleriaHero({ cuenta, total }: { cuenta: CuentaHosteleria; total: nu
     <section className="relative pt-20 md:pt-24 pb-4 md:pb-5 bg-background-50 overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-48 bg-gradient-to-b from-background-100/40 to-transparent pointer-events-none" />
       <div className="relative container-wide px-4 md:px-6 lg:px-12">
-        <div className="max-w-2xl mx-auto flex items-center gap-3 md:gap-4">
+        {/* Mismo ancho y márgenes que la barra de navegación y el buscador:
+            la cuenta arranca bajo el logo y "Cerrar sesión" queda alineado
+            con la cesta. */}
+        <div className="flex items-center gap-3 md:gap-4">
           <span className="w-11 h-11 md:w-12 md:h-12 flex-shrink-0 flex items-center justify-center rounded-full bg-primary-100 text-primary-700 font-heading text-base md:text-lg font-semibold">
             {iniciales}
           </span>
