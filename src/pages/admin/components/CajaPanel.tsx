@@ -8,6 +8,7 @@ import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import OrigenBadge from '@/components/base/OrigenBadge';
+import DiaNavigator from '@/components/base/DiaNavigator';
 import CajaResumenPeriodo from './CajaResumenPeriodo';
 import { acumularTotales, agregar, totalesVacios, type FilaPeriodo, type PatronDia, type Totales } from './cajaTotales';
 import CajaBuscador, { type ResaltarObjetivo } from './CajaBuscador';
@@ -655,8 +656,27 @@ function VistaDia({
 
   const sinIngresos = !cargandoBascula && ticketsBasculaFiltrados.length === 0 && ingresosManualesFiltrados.length === 0;
 
+  const [y, m, d] = fecha.split('-').map(Number);
+  const fechaDate = new Date(y, m - 1, d);
+  const cambiarDia = (nueva: Date) => onFechaChange(nueva.toLocaleDateString('sv-SE'));
+
+  // Flechas ← → del teclado para pasar de día, salvo escribiendo en un campo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const t = e.target as HTMLElement;
+      if (t.closest('input, textarea, select, [contenteditable="true"]')) return;
+      onFechaChange(sumarDias(fecha, e.key === 'ArrowLeft' ? -1 : 1));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fecha, onFechaChange]);
+
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <DiaNavigator value={fechaDate} onChange={cambiarDia} label={formatFechaLarga(fecha)} />
+      </div>
       {onAbrirBuscador && (
         <button
           type="button"
