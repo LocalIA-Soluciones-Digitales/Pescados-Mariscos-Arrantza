@@ -3101,3 +3101,22 @@ $$;
 
 revoke all on function public.pedir_aviso_reservas(uuid, text, text, text, uuid) from public;
 grant execute on function public.pedir_aviso_reservas(uuid, text, text, text, uuid) to anon, authenticated;
+
+-- ============================================================
+-- Copias de seguridad de tablas de una báscula (bascula-copiar)
+-- Antes de sobrescribir el catálogo de una báscula con el de otra,
+-- bascula-copiar guarda aquí las filas crudas de ETWS (artículos y
+-- familias, con sus imágenes) tal como estaban, para poder restaurarlas.
+-- ============================================================
+
+create table if not exists public.bascula_copias_seguridad (
+  id uuid primary key default gen_random_uuid(),
+  lote text not null,
+  origen text not null,
+  tabla text not null,
+  filas jsonb not null,
+  created_at timestamptz not null default now(),
+  unique (lote, origen, tabla)
+);
+
+alter table public.bascula_copias_seguridad enable row level security;
