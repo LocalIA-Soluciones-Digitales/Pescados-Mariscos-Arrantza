@@ -89,13 +89,15 @@ interface Producto {
 
 const DELIVERY_COST_EUR = 3.5;
 
-// Misma extracción "primer entero de la cadena de precio" que usa el
-// frontend (CartDrawer.extractPricePerKg) sobre textos tipo "Desde 15€/kg".
+// Misma extracción "primer número de la cadena de precio" que usa el
+// frontend (CartDrawer.extractPricePerKg) sobre textos tipo "19,90€/kg".
 // Debe coincidir exactamente para que el total cobrado en Stripe sea el
 // mismo que el que el cliente vio en el carrito.
 function extractPricePerKg(priceStr: string): number {
-  const match = priceStr.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : 0;
+  // Admite decimales con coma o punto: "19,90€/kg" y "7.90€/kg". Antes solo
+  // leía la parte entera y cobraba 19 € en vez de 19,90 €.
+  const match = priceStr.match(/(\d+(?:[.,]\d+)?)/);
+  return match ? parseFloat(match[1].replace(',', '.')) : 0;
 }
 
 function jsonResponse(body: unknown, corsHeaders: Record<string, string>, status = 200) {
