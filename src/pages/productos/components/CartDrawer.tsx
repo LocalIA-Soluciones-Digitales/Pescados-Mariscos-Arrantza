@@ -212,8 +212,7 @@ function generateWhatsAppMessage(params: {
   lines.push('');
   lines.push('¡Gracias por tu pedido!');
   lines.push('');
-  lines.push('Pescados y Mariscos Arrantza');
-$L
+  lines.push('Pescados y Mariscos Arrantza, del mar a su plantza.');
   lines.push('');
   lines.push('Designed & Developed by LocalIA');
 
