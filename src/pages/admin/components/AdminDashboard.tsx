@@ -216,6 +216,21 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   const [categoria, setCategoria] = useState<CategoriaFiltro>('todos');
   const [soloAgotados, setSoloAgotados] = useState(false);
   const [soloDestacados, setSoloDestacados] = useState(false);
+  // Familias plegadas en Productos; se recuerdan en este dispositivo.
+  const [plegadas, setPlegadas] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem('admin_productos_plegadas') ?? '[]') as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('admin_productos_plegadas', JSON.stringify([...plegadas]));
+    } catch {
+      // sin almacenamiento: se pliegan solo durante la sesión
+    }
+  }, [plegadas]);
   // ?tab=... lo usan los avisos push para abrir directamente la pestaña
   // del pedido/reserva/solicitud que acaba de entrar.
   const [tab, setTab] = useState<Tab>(() => {
@@ -560,10 +575,29 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
           <div className="space-y-8">
             {grupos.map((grupo) => (
               <section key={grupo.key} className="space-y-3">
-                <div className="flex items-baseline gap-2 pb-2 border-b border-background-200/60">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPlegadas((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(grupo.key)) next.delete(grupo.key);
+                      else next.add(grupo.key);
+                      return next;
+                    })
+                  }
+                  aria-expanded={!plegadas.has(grupo.key) || !!search.trim()}
+                  className="w-full flex items-center gap-2 pb-2 border-b border-background-200/60 text-left"
+                >
+                  <i
+                    className={`ri-arrow-down-s-line text-base text-foreground-400 transition-transform duration-200 ${
+                      plegadas.has(grupo.key) && !search.trim() ? '-rotate-90' : ''
+                    }`}
+                  ></i>
                   <h2 className="text-sm font-heading font-semibold text-foreground-950">{grupo.label}</h2>
                   <span className="text-[11px] text-foreground-400">{grupo.items.length}</span>
-                </div>
+                </button>
+                {/* Al buscar se abren todas, para no esconder resultados */}
+                {(!plegadas.has(grupo.key) || !!search.trim()) && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                   {grupo.items.map((producto) => (
                     <ProductoCard
@@ -575,6 +609,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
                     />
                   ))}
                 </div>
+                )}
               </section>
             ))}
           </div>
