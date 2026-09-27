@@ -69,7 +69,7 @@ export function useBasculasCambios() {
         .from('bascula_catalogo_cambios')
         .select('id, origen, codigo, tipo, antes, despues, created_at')
         .order('created_at', { ascending: false })
-        .limit(300),
+        .limit(1000),
       supabase.from('settings').select('key, value').in('key', ORIGENES.map((o) => `bascula_vigilancia_${o}`)),
       supabase.from('bascula_catalogo').select('origen, codigo, nombre, familia, precio, unidades').in('origen', ORIGENES),
     ]);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import ErrorLogsPanel from './ErrorLogsPanel';
 import ReportsPanel from './ReportsPanel';
 import SummaryPanel from './SummaryPanel';
@@ -31,6 +31,17 @@ export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOu
   const [tab, setTab] = useState<Tab>('informes');
   // Se carga aunque la pestaña esté cerrada para avisar en ella de los cambios sin ver.
   const basculas = useBasculasCambios();
+  // Altura de la cabecera para que las barras de filtros fijas queden justo debajo.
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => setHeaderHeight(el.getBoundingClientRect().height));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const tabsNav = (
     <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
@@ -55,8 +66,8 @@ export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOu
   );
 
   return (
-    <div className="min-h-screen bg-background-100">
-      <header className="sticky top-0 z-10 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-3 md:py-4 print:hidden">
+    <div className="min-h-screen bg-background-100" style={{ '--admin-header-height': `${headerHeight}px` } as CSSProperties}>
+      <header ref={headerRef} className="sticky top-0 z-20 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-3 md:py-4 print:hidden">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <div className="min-w-0">
