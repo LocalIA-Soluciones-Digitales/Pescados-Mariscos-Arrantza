@@ -136,7 +136,11 @@ function ProductoCard({
         </button>
       </div>
       <div className="p-3">
-        <p className="text-sm font-semibold text-foreground-950 truncate mb-0.5">{producto.nombre_es}</p>
+        <p className="text-sm font-semibold text-foreground-950 truncate mb-0.5">
+          {/* En los visibles, `orden` es el código de la báscula */}
+          {producto.visible_web && <span className="text-foreground-400 font-medium mr-1">{producto.orden}</span>}
+          {producto.nombre_es}
+        </p>
         <p className="text-xs text-foreground-400 mb-0.5">{producto.precio}</p>
         <p className={`text-xs mb-2 flex items-center gap-1 ${stockBajo ? 'text-red-600 font-medium' : 'text-foreground-400'}`}>
           {stockBajo && <i className="ri-alert-line"></i>}
@@ -310,10 +314,25 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
       result = result.filter((p) => p.nombre_es.toLowerCase().includes(q) || p.nombre_eu?.toLowerCase().includes(q));
     }
 
-    // Alfabético — no depende de disponible/estado/stock, así que el
-    // producto nunca "salta" de sitio al marcarlo agotado.
-    return [...result].sort((a, b) => a.nombre_es.localeCompare(b.nombre_es, 'es'));
+    // Mismo orden que la báscula: `orden` es el código de báscula. No depende
+    // de disponible/estado/stock, así que el producto nunca "salta" de sitio
+    // al marcarlo agotado.
+    return [...result].sort((a, b) => a.orden - b.orden || a.nombre_es.localeCompare(b.nombre_es, 'es'));
   }, [productos, categoria, soloAgotados, soloDestacados, search]);
+
+  // Agrupados por familia de la báscula (Pescado, Pescado de carta, Marisco,
+  // Congelado, Varios). Los ocultos en la web van aparte al final: la mayoría
+  // ya no están en la báscula y su `orden` es antiguo.
+  const grupos = useMemo(() => {
+    const familias = CATEGORIA_FILTROS.filter((c) => c.tipo === 'categoria' && c.value !== 'todos');
+    const lista = familias.map((f) => ({
+      key: f.value,
+      label: f.label,
+      items: visibles.filter((p) => p.visible_web && p.categoria === f.value),
+    }));
+    lista.push({ key: 'ocultos', label: 'Ocultos en la web', items: visibles.filter((p) => !p.visible_web) });
+    return lista.filter((g) => g.items.length > 0);
+  }, [visibles]);
 
   const nombresSugeridos = useMemo(
     () => Array.from(new Set(productos.flatMap((p) => [p.nombre_es, p.nombre_eu].filter((n): n is string => !!n)))),
@@ -538,15 +557,25 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         ) : visibles.length === 0 ? (
           <p className="text-sm text-foreground-400">No hay productos que coincidan con el filtro.</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-            {visibles.map((producto) => (
-              <ProductoCard
-                key={producto.id}
-                producto={producto}
-                onPatch={(patch) => patchLocal(producto.id, patch)}
-                onDelete={() => removeLocal(producto.id)}
-                onEdit={() => setEditing(producto)}
-              />
+          <div className="space-y-8">
+            {grupos.map((grupo) => (
+              <section key={grupo.key} className="space-y-3">
+                <div className="flex items-baseline gap-2 pb-2 border-b border-background-200/60">
+                  <h2 className="text-sm font-heading font-semibold text-foreground-950">{grupo.label}</h2>
+                  <span className="text-[11px] text-foreground-400">{grupo.items.length}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                  {grupo.items.map((producto) => (
+                    <ProductoCard
+                      key={producto.id}
+                      producto={producto}
+                      onPatch={(patch) => patchLocal(producto.id, patch)}
+                      onDelete={() => removeLocal(producto.id)}
+                      onEdit={() => setEditing(producto)}
+                    />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         )}
