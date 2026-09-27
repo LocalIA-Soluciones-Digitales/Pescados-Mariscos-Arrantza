@@ -2676,6 +2676,52 @@ $$;
 
 revoke all on function public.enviar_push(uuid, text, text, text, text) from public, anon, authenticated;
 
+-- Avisos solo para los desarrolladores (mismos correos que is_developer):
+-- p. ej. los cambios de la báscula 2, que no le interesan al pescadero.
+-- push-notify filtra las suscripciones por estos usuarios.
+create or replace function public.ids_desarrolladores()
+returns table (id uuid)
+language sql stable security definer set search_path = public
+as $$
+  select u.id from auth.users u where u.email = any (array['edortadossantos@gmail.com', 'admin@developers.local']);
+$$;
+
+revoke all on function public.ids_desarrolladores() from public, anon, authenticated;
+
+create or replace function public.enviar_push_desarrollador(p_cliente_id uuid, p_titulo text, p_cuerpo text, p_tag text)
+returns void
+language plpgsql security definer set search_path = public, extensions
+as $$
+declare
+  v_url text;
+  v_secret text;
+begin
+  select value #>> '{}' into v_url from public.settings
+    where key = 'push_notify_url' and cliente_id = p_cliente_id;
+  select value #>> '{}' into v_secret from public.settings
+    where key = 'push_notify_secret' and cliente_id = p_cliente_id;
+
+  if v_url is not null then
+    perform net.http_post(
+      url := v_url,
+      headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', coalesce(v_secret, '')),
+      body := jsonb_build_object(
+        'cliente_id', p_cliente_id,
+        'titulo', p_titulo,
+        'cuerpo', p_cuerpo,
+        'url', '/admin',
+        'tag', p_tag,
+        'solo_desarrolladores', true
+      )
+    );
+  end if;
+exception when others then
+  raise warning 'enviar_push_desarrollador: %', sqlerrm;
+end;
+$$;
+
+revoke all on function public.enviar_push_desarrollador(uuid, text, text, text) from public, anon, authenticated;
+
 -- Texto del aviso: "Nombre · 32.50 € · Recogida 26/09 11:00".
 create or replace function public.resumen_push_pedido(p public.pedidos)
 returns text
@@ -2787,8 +2833,8 @@ create trigger trg_hosteleria_solicitudes_push
 
 -- ============================================================
 -- Catálogo de la báscula: foto diaria y cambios detectados.
--- La Edge Function bascula-precios-diario lee cada día a las 11:00
--- (hora de Madrid) todos los artículos programados en la báscula
+-- La Edge Function bascula-precios-diario lee cada hora todos los
+-- artículos programados en la báscula
 -- (/year/artigos), los compara con la foto del día anterior guardada
 -- aquí, apunta cada diferencia en bascula_catalogo_cambios, copia los
 -- precios nuevos a la web (productos con código mapeado en
@@ -2848,17 +2894,34 @@ create policy "bascula_catalogo_cambios_select_admin"
 create index if not exists idx_bascula_catalogo_cambios_fecha
   on public.bascula_catalogo_cambios (cliente_id, origen, created_at desc);
 
--- El cron corre en UTC: se dispara cada media hora de 09:00 a 12:30 UTC y
--- la función solo trabaja a partir de las 11:00 de Madrid y una vez al
--- día (así cubre el cambio de hora y reintenta si la báscula da 502).
+-- Cada hora: la báscula 1 alimenta los precios de la web. Si está apagada
+-- no pasa nada y se reintenta a la hora siguiente.
 -- select cron.schedule(
 --   'bascula-precios-diario-pescaderia-1',
---   '0,30 9-12 * * *',
+--   '0 * * * *',
 --   $$
 --   select net.http_post(
 --     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/bascula-precios-diario',
 --     headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', '<BASCULA_SYNC_SECRET>'),
 --     body := jsonb_build_object('origen', 'pescaderia_1')
+--   );
+--   $$
+-- );
+
+-- Vigilancia de la báscula 2: la web solo sigue la báscula 1, pero cada
+-- hora se lee la 2 (modo "vigilar": registra cambios en
+-- bascula_catalogo_cambios y guarda la foto sin tocar la web; si hay
+-- cambios avisa solo a los desarrolladores). Si está apagada no hace nada.
+-- Los cambios de las dos se ven en el panel de desarrollo (Básculas).
+-- select cron.schedule(
+--   'bascula-vigilancia-pescaderia-2',
+--   '5 * * * *',
+--   $$
+--   select net.http_post(
+--     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/bascula-precios-diario',
+--     headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', '<BASCULA_SYNC_SECRET>'),
+--     body := jsonb_build_object('origen', 'pescaderia_2', 'vigilar', true),
+--     timeout_milliseconds := 60000
 --   );
 --   $$
 -- );

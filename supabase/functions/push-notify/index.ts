@@ -3,6 +3,8 @@
 // una notificación Web Push a todos los dispositivos del pescadero que
 // activaron los avisos desde el panel (tabla push_suscripciones), y borra
 // las suscripciones que el navegador ya ha dado de baja.
+// Con "solo_desarrolladores" (public.enviar_push_desarrollador) solo va a
+// los dispositivos de los desarrolladores.
 //
 // Secretos requeridos (supabase secrets set ...):
 //   VAPID_PUBLIC_KEY       — clave pública VAPID (la misma que VAPID_PUBLIC_KEY del frontend)
@@ -32,6 +34,7 @@ interface PushPayload {
   cuerpo: string;
   url: string;
   tag: string;
+  solo_desarrolladores?: boolean;
 }
 
 interface Suscripcion {
@@ -69,10 +72,16 @@ Deno.serve(async (req: Request) => {
   }
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  const { data, error } = await supabase
+  let consulta = supabase
     .from('push_suscripciones')
     .select('id, endpoint, p256dh, auth')
     .eq('cliente_id', payload.cliente_id);
+  if (payload.solo_desarrolladores) {
+    const { data: ids, error: errIds } = await supabase.rpc('ids_desarrolladores');
+    if (errIds) return new Response(errIds.message, { status: 500 });
+    consulta = consulta.in('user_id', ((ids ?? []) as { id: string }[]).map((r) => r.id));
+  }
+  const { data, error } = await consulta;
   if (error) {
     return new Response(error.message, { status: 500 });
   }

@@ -1,17 +1,17 @@
-// Escaneo diario del catálogo de una báscula BM5 (tabla ETWS /year/artigos)
-// para mantener los precios de la web al día y avisar de cambios.
+// Escaneo del catálogo de una báscula BM5 (tabla ETWS /year/artigos) para
+// mantener los precios de la web al día y avisar de cambios. (El nombre
+// "diario" es histórico: ahora corre cada hora.)
 //
 //   POST /bascula-precios-diario   { "origen": "pescaderia_1" }
-//   Opcional: "forzar": true   — ejecuta ya, sin mirar la hora ni si hoy ya se hizo
-//             "simular": true  — calcula y devuelve los cambios sin escribir nada
+//   Opcional: "simular": true  — calcula y devuelve los cambios sin escribir nada
+//             "vigilar": true  — solo registra: ver más abajo
 //   Header: x-webhook-secret: <BASCULA_SYNC_SECRET>
 //
-// Lo dispara un cron cada media hora de 09:00 a 12:30 UTC (ver
-// supabase/schema.sql). La función solo trabaja a partir de las 11:00 de
-// Madrid y una vez al día: así el mismo cron vale en horario de verano e
-// invierno, y si la báscula da 502 (pasa a menudo, ver bascula-sync) se
-// reintenta en la siguiente media hora. Si a las 13:30 sigue sin poder
-// leerla, avisa por push una sola vez ese día.
+// Lo dispara un cron cada hora por báscula (ver supabase/schema.sql). Si la
+// báscula está apagada o da 502 (pasa a menudo, ver bascula-sync), no pasa
+// nada: se apunta el intento para el panel de desarrollo y se sale con 200.
+// Si a las 13:30 aún no se ha podido leer ese día, avisa por push una sola
+// vez (solo la báscula que alimenta la web, no la vigilada).
 //
 // Cada ejecución:
 //   1. Lee todos los artículos de la báscula.
@@ -36,6 +36,12 @@
 // La primera ejecución solo guarda la foto de partida (no hay con qué
 // comparar) y actualiza precios, sin avisar de "nuevos".
 //
+// Modo "vigilar" (báscula 2): la web solo sigue los precios de la báscula 1,
+// pero se vigila la 2 para saber si alguien la cambia. Hace los pasos 1, 2 y
+// la foto del 4 sin tocar la web; si hay cambios, el push va solo a los
+// desarrolladores (public.enviar_push_desarrollador). Los cambios de las dos
+// básculas se ven en el panel de desarrollo.
+//
 // Reutiliza los secretos de bascula-sync (credenciales ETWS por origen,
 // BASCULA_CLIENTE_ID y BASCULA_SYNC_SECRET). El push sale por
 // public.enviar_push, igual que los avisos de pedidos y reservas.
@@ -47,7 +53,6 @@ const LOTE_MAX = 100;
 const MAX_PAGINAS = 50;
 const ORIGENES_VALIDOS = ['pescaderia_1', 'pescaderia_2'];
 const NOMBRE_ORIGEN: Record<string, string> = { pescaderia_1: 'báscula 1', pescaderia_2: 'báscula 2' };
-const HORA_INICIO_MIN = 11 * 60; // 11:00 Madrid
 const HORA_AVISO_FALLO_MIN = 13 * 60 + 30; // 13:30 Madrid
 // Si la báscula devuelve menos de la mitad de artículos que la foto
 // anterior, se da la lectura por incompleta en vez de marcar la otra mitad
@@ -316,8 +321,8 @@ Deno.serve(async (req: Request) => {
   if (!ORIGENES_VALIDOS.includes(origen)) {
     return new Response(`"origen" inválido o ausente. Valores válidos: ${ORIGENES_VALIDOS.join(', ')}`, { status: 400 });
   }
-  const forzar = body.forzar === true;
   const simular = body.simular === true;
+  const vigilar = body.vigilar === true;
 
   const cfg = leerCfgOrigen(origen);
   const clienteId = Deno.env.get('BASCULA_CLIENTE_ID') ?? '';
@@ -328,6 +333,7 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const claveOk = `bascula_catalogo_ok_${origen}`;
   const claveFallo = `bascula_catalogo_fallo_avisado_${origen}`;
+  const claveVigilancia = `bascula_vigilancia_${origen}`;
   const { fecha, minutos } = horaMadrid();
 
   const leerSetting = async (key: string) => {
@@ -343,10 +349,20 @@ Deno.serve(async (req: Request) => {
     if (error) console.error('bascula-precios-diario: fallo al avisar', error.message);
   };
 
-  if (!forzar && !simular) {
-    if (minutos < HORA_INICIO_MIN) return json({ omitido: 'antes de las 11:00' });
-    if ((await leerSetting(claveOk)) === fecha) return json({ omitido: 'ya se hizo hoy' });
-  }
+  // Estado de la vigilancia para el panel de desarrollo. Una báscula
+  // apagada no es un error: se apunta el intento y se sale con 200.
+  const sinConexion = async (mensaje: string) => {
+    const prev = ((await leerSetting(claveVigilancia)) ?? {}) as Record<string, unknown>;
+    if (!simular) {
+      await guardarSetting(claveVigilancia, { ...prev, ultimo_intento: new Date().toISOString(), conectada: false, mensaje });
+    }
+    return json({ omitido: 'báscula sin conexión', mensaje });
+  };
+  const guardarLecturaOk = async () => {
+    const ahora = new Date().toISOString();
+    await guardarSetting(claveVigilancia, { ultimo_intento: ahora, ultima_lectura: ahora, conectada: true, articulos: articulos.length });
+    await guardarSetting(claveOk, fecha);
+  };
 
   let articulos: Articulo[];
   try {
@@ -354,15 +370,15 @@ Deno.serve(async (req: Request) => {
     if (articulos.length === 0) throw new Error('La báscula no devolvió ningún artículo');
   } catch (err) {
     const mensaje = (err as Error).message;
-    if (!forzar && !simular && minutos >= HORA_AVISO_FALLO_MIN && (await leerSetting(claveFallo)) !== fecha) {
+    if (!vigilar && !simular && minutos >= HORA_AVISO_FALLO_MIN && (await leerSetting(claveOk)) !== fecha && (await leerSetting(claveFallo)) !== fecha) {
       await avisar(
         `⚠️ No se pudo leer la ${NOMBRE_ORIGEN[origen]}`,
-        `Hoy no se han podido revisar los precios de la web (${mensaje}). Mañana se vuelve a intentar.`,
+        `Hoy no se han podido revisar los precios de la web (${mensaje}). Se sigue intentando cada hora.`,
         `bascula-catalogo-fallo-${origen}-${fecha}`,
       );
       await guardarSetting(claveFallo, fecha);
     }
-    return json({ error: mensaje }, 502);
+    return sinConexion(mensaje);
   }
 
   const { data: filasAnteriores, error: errAnterior } = await supabase
@@ -379,13 +395,49 @@ Deno.serve(async (req: Request) => {
   const primeraVez = anterior.size === 0;
 
   if (!primeraVez && actual.size < anterior.size * MIN_PROPORCION_LECTURA) {
-    return json({ error: `Lectura incompleta: ${actual.size} artículos frente a ${anterior.size} de la foto anterior` }, 502);
+    return sinConexion(`Lectura incompleta: ${actual.size} artículos frente a ${anterior.size} de la foto anterior`);
   }
 
   const cambios = primeraVez ? [] : compararCatalogos(anterior, actual);
   const codigosRenombrados = new Set(cambios.filter((c) => c.tipo === 'renombrado').map((c) => c.codigo));
   const codigosEliminados = new Set(cambios.filter((c) => c.tipo === 'eliminado').map((c) => c.codigo));
   const codigosCambioFamilia = new Set(cambios.filter((c) => c.tipo === 'familia').map((c) => c.codigo));
+
+  // Registra los cambios y sustituye la foto por la lectura de ahora.
+  const guardarFoto = async (): Promise<string | null> => {
+    if (cambios.length > 0) {
+      const { error } = await supabase.from('bascula_catalogo_cambios').insert(
+        cambios.map((c) => ({ cliente_id: clienteId, origen, codigo: c.codigo, tipo: c.tipo, antes: c.antes, despues: c.despues })),
+      );
+      if (error) return error.message;
+    }
+    const { error: errFoto } = await supabase
+      .from('bascula_catalogo')
+      .upsert(articulos.map((a) => ({ cliente_id: clienteId, origen, ...a })), { onConflict: 'cliente_id,origen,codigo' });
+    if (errFoto) return errFoto.message;
+    if (codigosEliminados.size > 0) {
+      await supabase.from('bascula_catalogo').delete().eq('cliente_id', clienteId).eq('origen', origen).in('codigo', [...codigosEliminados]);
+    }
+    return null;
+  };
+
+  if (vigilar) {
+    const resultado = { origen, primeraVez, simulado: simular, articulos: actual.size, cambios };
+    if (simular) return json(resultado);
+    const error = await guardarFoto();
+    if (error) return json({ error }, 500);
+    await guardarLecturaOk();
+    if (cambios.length > 0) {
+      const { error: errPush } = await supabase.rpc('enviar_push_desarrollador', {
+        p_cliente_id: clienteId,
+        p_titulo: `⚖️ Cambios en la ${NOMBRE_ORIGEN[origen]}`,
+        p_cuerpo: resumenAviso(cambios, 0, []),
+        p_tag: `bascula-vigilancia-${origen}-${Date.now()}`,
+      });
+      if (errPush) console.error('bascula-precios-diario: fallo al avisar', errPush.message);
+    }
+    return json(resultado);
+  }
 
   // Precios de la tienda online: productos con código de esta báscula.
   const { data: mapeos, error: errMapeos } = await supabase
@@ -538,20 +590,8 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  if (cambios.length > 0) {
-    const { error } = await supabase.from('bascula_catalogo_cambios').insert(
-      cambios.map((c) => ({ cliente_id: clienteId, origen, codigo: c.codigo, tipo: c.tipo, antes: c.antes, despues: c.despues })),
-    );
-    if (error) return json({ error: error.message }, 500);
-  }
-
-  const { error: errFoto } = await supabase
-    .from('bascula_catalogo')
-    .upsert(articulos.map((a) => ({ cliente_id: clienteId, origen, ...a })), { onConflict: 'cliente_id,origen,codigo' });
-  if (errFoto) return json({ error: errFoto.message }, 500);
-  if (codigosEliminados.size > 0) {
-    await supabase.from('bascula_catalogo').delete().eq('cliente_id', clienteId).eq('origen', origen).in('codigo', [...codigosEliminados]);
-  }
+  const errorFoto = await guardarFoto();
+  if (errorFoto) return json({ error: errorFoto }, 500);
 
   const preciosWeb = preciosProductos.length + preciosHosteleria.length + preciosReservas.length;
   if (cambios.length > 0 || preciosWeb > 0 || sinActualizar.length > 0) {
@@ -559,10 +599,12 @@ Deno.serve(async (req: Request) => {
     await avisar(
       estructurales ? `⚖️ Cambios en la ${NOMBRE_ORIGEN[origen]}` : `⚖️ Precios nuevos (${NOMBRE_ORIGEN[origen]})`,
       resumenAviso(cambios, preciosWeb, sinActualizar),
-      `bascula-catalogo-${origen}-${fecha}`,
+      // Cada escaneo con cambios es un aviso aparte: con la misma etiqueta
+      // el móvil sustituiría el de la hora anterior.
+      `bascula-catalogo-${origen}-${Date.now()}`,
     );
   }
 
-  await guardarSetting(claveOk, fecha);
+  await guardarLecturaOk();
   return json(resultado);
 });
