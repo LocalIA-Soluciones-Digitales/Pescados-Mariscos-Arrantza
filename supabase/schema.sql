@@ -2839,7 +2839,7 @@ create trigger trg_hosteleria_solicitudes_push
 -- aquí, apunta cada diferencia en bascula_catalogo_cambios, copia los
 -- precios nuevos a la web (productos con código mapeado en
 -- productos_codigos_bascula y artículos de hostelería importados de esa
--- báscula) y avisa por push al pescadero si algo ha cambiado.
+-- báscula) y avisa por push solo a los desarrolladores si algo ha cambiado.
 -- ============================================================
 
 create table if not exists public.bascula_catalogo (

@@ -31,20 +31,20 @@
 //      Las tarifas de hostelería y las campañas de reserva enlazadas a una
 //      familia se mantienen como lista cerrada: el artículo que entra en la
 //      familia se da de alta (sin foto) y el que sale o se borra se oculta.
-//   4. Guarda la foto nueva y manda un push al pescadero con el resumen.
+//   4. Guarda la foto nueva y manda un push a los desarrolladores con el resumen.
 //
 // La primera ejecución solo guarda la foto de partida (no hay con qué
 // comparar) y actualiza precios, sin avisar de "nuevos".
 //
 // Modo "vigilar" (báscula 2): la web solo sigue los precios de la báscula 1,
 // pero se vigila la 2 para saber si alguien la cambia. Hace los pasos 1, 2 y
-// la foto del 4 sin tocar la web; si hay cambios, el push va solo a los
-// desarrolladores (public.enviar_push_desarrollador). Los cambios de las dos
-// básculas se ven en el panel de desarrollo.
+// la foto del 4 sin tocar la web. En las dos básculas los avisos push van
+// solo a los desarrolladores (public.enviar_push_desarrollador), y los
+// cambios se ven en el panel de desarrollo.
 //
 // Reutiliza los secretos de bascula-sync (credenciales ETWS por origen,
 // BASCULA_CLIENTE_ID y BASCULA_SYNC_SECRET). El push sale por
-// public.enviar_push, igual que los avisos de pedidos y reservas.
+// public.enviar_push_desarrollador (solo dispositivos de desarrolladores).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -342,9 +342,11 @@ Deno.serve(async (req: Request) => {
   };
   const guardarSetting = (key: string, value: unknown) =>
     supabase.from('settings').upsert({ cliente_id: clienteId, key, value }, { onConflict: 'key,cliente_id' });
+  // Los avisos de las básculas van solo a los desarrolladores, no al
+  // pescadero; también se ven en el panel de desarrollo (Básculas).
   const avisar = async (titulo: string, cuerpo: string, tag: string) => {
-    const { error } = await supabase.rpc('enviar_push', {
-      p_cliente_id: clienteId, p_titulo: titulo, p_cuerpo: cuerpo, p_tab: 'productos', p_tag: tag,
+    const { error } = await supabase.rpc('enviar_push_desarrollador', {
+      p_cliente_id: clienteId, p_titulo: titulo, p_cuerpo: cuerpo, p_tag: tag,
     });
     if (error) console.error('bascula-precios-diario: fallo al avisar', error.message);
   };
@@ -428,13 +430,7 @@ Deno.serve(async (req: Request) => {
     if (error) return json({ error }, 500);
     await guardarLecturaOk();
     if (cambios.length > 0) {
-      const { error: errPush } = await supabase.rpc('enviar_push_desarrollador', {
-        p_cliente_id: clienteId,
-        p_titulo: `⚖️ Cambios en la ${NOMBRE_ORIGEN[origen]}`,
-        p_cuerpo: resumenAviso(cambios, 0, []),
-        p_tag: `bascula-vigilancia-${origen}-${Date.now()}`,
-      });
-      if (errPush) console.error('bascula-precios-diario: fallo al avisar', errPush.message);
+      await avisar(`⚖️ Cambios en la ${NOMBRE_ORIGEN[origen]}`, resumenAviso(cambios, 0, []), `bascula-vigilancia-${origen}-${Date.now()}`);
     }
     return json(resultado);
   }
