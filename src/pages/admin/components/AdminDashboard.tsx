@@ -196,8 +196,8 @@ function ProductoCard({
 const TABS: { value: Tab; label: string; info: { icon: string; text: string }[] }[] = [
   { value: 'hoy', label: 'Hoy', info: HOY_INFO_ITEMS },
   { value: 'ventas', label: 'Ventas', info: VENTAS_INFO_ITEMS },
-  { value: 'hosteleria', label: 'Hostelería', info: HOSTELERIA_INFO_ITEMS },
   { value: 'caja', label: 'Contabilidad', info: CAJA_INFO_ITEMS },
+  { value: 'hosteleria', label: 'Hostelería', info: HOSTELERIA_INFO_ITEMS },
   { value: 'reservas', label: 'Reservas', info: RESERVAS_INFO_ITEMS },
   { value: 'solicitudes', label: 'Solicitudes', info: SOLICITUDES_INFO_ITEMS },
   { value: 'productos', label: 'Productos', info: PRODUCTOS_INFO_ITEMS },
