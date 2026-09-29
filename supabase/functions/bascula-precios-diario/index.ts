@@ -31,6 +31,12 @@
 //      La categoría web sigue a la familia (1 Pescado, 2 Pescado de carta,
 //      3 Marisco, 4 Congelado, 5 Varios); si un artículo pasa a otra familia
 //      (Navidad, hostelería) o desaparece de la báscula, se oculta de la tienda.
+//      Y al revés: un artículo que entra en una familia de la tienda (alta
+//      nueva o cambio de familia) sin producto web enlazado aparece en la
+//      tienda. Si hay un producto con el mismo nombre sin código vivo (el del
+//      código que se acaba de borrar, o uno antiguo oculto) se reutiliza con
+//      su foto; si no, se crea sin foto. En los dos casos se enlaza el código
+//      en las dos básculas (la 2 es copia de la 1).
 //      Las tarifas de hostelería y las campañas de reserva enlazadas a una
 //      familia se mantienen como lista cerrada: el artículo que entra en la
 //      familia se da de alta (sin foto) y el que sale o se borra se oculta.
@@ -266,7 +272,7 @@ const euros = (n: number) => `${n.toFixed(2).replace('.', ',')}€`;
 // (movidos, renombrados, eliminados, nuevos) y al final el recuento de
 // precios. Un producto que desaparece de un código y aparece con el mismo
 // nombre en otro se cuenta como "movido", no como baja + alta.
-function resumenAviso(cambios: Cambio[], preciosWeb: number, sinActualizar: string[]): string {
+function resumenAviso(cambios: Cambio[], preciosWeb: number, sinActualizar: string[], altasWeb: string[] = []): string {
   const eliminados = cambios.filter((c) => c.tipo === 'eliminado');
   const nuevos = cambios.filter((c) => c.tipo === 'nuevo');
   const movidos: string[] = [];
@@ -301,6 +307,7 @@ function resumenAviso(cambios: Cambio[], preciosWeb: number, sinActualizar: stri
   } else if (precios.length > 1) {
     partes.push(`${precios.length} precios cambiados`);
   }
+  lista('En la tienda', altasWeb);
   if (preciosWeb > 0) partes.push(`${preciosWeb} actualizados en la web`);
   if (sinActualizar.length > 0) partes.push(`Revisar en la web (borrado u otro producto en su código): ${sinActualizar.slice(0, 3).join(', ')}${sinActualizar.length > 3 ? ` y ${sinActualizar.length - 3} más` : ''}`);
 
@@ -472,13 +479,42 @@ async function atender(req: Request): Promise<Response> {
     .eq('origen', origen);
   if (errMapeos) return json({ error: errMapeos.message }, 500);
 
+  // Altas en la tienda: artículos que hoy entran en una familia de la tienda
+  // (nuevos o con cambio de familia) y cuyo código no tiene producto web.
+  const codigoPorProducto = new Map<string, string>();
+  for (const m of mapeos ?? []) {
+    const p = m.productos as unknown as { id: string } | null;
+    if (p) codigoPorProducto.set(p.id, m.codigo_bascula as string);
+  }
+  const codigosConProducto = new Set(codigoPorProducto.values());
+  const candidatosAlta = [...new Set(cambios.filter((c) => c.tipo === 'nuevo' || c.tipo === 'familia').map((c) => c.codigo))]
+    .map((codigo) => actual.get(codigo))
+    .filter((a): a is Articulo => !!a && !!CATEGORIA_POR_FAMILIA[a.familia] && !codigosConProducto.has(a.codigo));
+
+  const altasProductos: { articulo: Articulo; reutilizar: { id: string; nombre: string } | null }[] = [];
+  const reutilizados = new Set<string>();
+  if (candidatosAlta.length > 0) {
+    const { data: todos, error: errTodos } = await supabase.from('productos').select('id, nombre_es').eq('cliente_id', clienteId);
+    if (errTodos) return json({ error: errTodos.message }, 500);
+    for (const a of candidatosAlta) {
+      // Mismo nombre y sin código vivo en esta báscula: es el mismo producto
+      // que se ha movido de código o que vuelve a venderse.
+      const libre = (todos ?? []).find((p) => {
+        const codigo = codigoPorProducto.get(p.id as string);
+        return !reutilizados.has(p.id as string) && claveNombre(p.nombre_es as string) === claveNombre(a.nombre) && (!codigo || !actual.has(codigo));
+      });
+      if (libre) reutilizados.add(libre.id as string);
+      altasProductos.push({ articulo: a, reutilizar: libre ? { id: libre.id as string, nombre: libre.nombre_es as string } : null });
+    }
+  }
+
   const preciosProductos: { id: string; nombre: string; antes: string; despues: string }[] = [];
   const sinActualizar: string[] = [];
   const categoriasProductos: { id: string; nombre: string; categoria: string | null; visible_web: boolean }[] = [];
   for (const m of mapeos ?? []) {
     const p = m.productos as unknown as { id: string; nombre_es: string; precio: string; categoria: string; visible_web: boolean } | null;
     const a = actual.get(m.codigo_bascula as string);
-    if (!p) continue;
+    if (!p || reutilizados.has(p.id)) continue; // el reutilizado se trata en las altas
     // Solo se avisa el día en que el código desaparece o cambia de
     // producto; los días siguientes el producto web se queda como está.
     if (!a || codigosRenombrados.has(a.codigo)) {
@@ -563,6 +599,7 @@ async function atender(req: Request): Promise<Response> {
     articulos: actual.size,
     cambios: cambios.map((c) => ({ codigo: c.codigo, tipo: c.tipo, antes: c.antes, despues: c.despues })),
     preciosProductos, categoriasProductos, preciosHosteleria, preciosReservas, sinActualizar,
+    altasProductos: altasProductos.map((x) => ({ codigo: x.articulo.codigo, nombre: x.articulo.nombre, reutiliza: x.reutilizar?.nombre ?? null })),
     listasHosteleria: listasHosteleria.map((l) => ({ id: l.id, altas: l.altas.map((a) => a.codigo), reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length })),
     listasReservas: listasReservas.map((l) => ({ id: l.id, altas: l.altas.map((a) => a.codigo), reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length })),
   };
@@ -576,6 +613,35 @@ async function atender(req: Request): Promise<Response> {
     const datos = c.categoria ? { categoria: c.categoria, subcategoria: null, visible_web: c.visible_web } : { visible_web: c.visible_web };
     const { error } = await supabase.from('productos').update(datos).eq('id', c.id);
     if (error) return json({ error: `Actualizando la categoría de ${c.nombre}: ${error.message}` }, 500);
+  }
+  const altasWeb: string[] = [];
+  for (const x of altasProductos) {
+    const a = x.articulo;
+    const datos = {
+      precio: formatoPrecioWeb(a), categoria: CATEGORIA_POR_FAMILIA[a.familia], orden: Number(a.codigo) || 0, visible_web: true, disponible: true,
+    };
+    let id = x.reutilizar?.id;
+    if (id) {
+      const { error } = await supabase.from('productos').update(datos).eq('id', id);
+      if (error) return json({ error: `Alta en la tienda de ${x.reutilizar!.nombre}: ${error.message}` }, 500);
+      altasWeb.push(`${a.codigo} ${x.reutilizar!.nombre}`);
+    } else {
+      const { data, error } = await supabase.from('productos')
+        .insert({ cliente_id: clienteId, nombre_es: nombreArticulo(a.nombre), ...datos }).select('id').single();
+      if (error) return json({ error: `Alta en la tienda de ${a.nombre}: ${error.message}` }, 500);
+      id = data.id as string;
+      altasWeb.push(`${a.codigo} ${nombreArticulo(a.nombre)} (sin foto)`);
+    }
+    // Enlace del código en las dos básculas, salvo que en alguna ese código
+    // ya sea de otro producto (no se pisa).
+    for (const o of ORIGENES_VALIDOS) {
+      const { data: ocupado } = await supabase.from('productos_codigos_bascula').select('producto_id')
+        .eq('cliente_id', clienteId).eq('origen', o).eq('codigo_bascula', a.codigo).maybeSingle();
+      if (ocupado && ocupado.producto_id !== id) continue;
+      const { error } = await supabase.from('productos_codigos_bascula')
+        .upsert({ cliente_id: clienteId, producto_id: id, origen: o, codigo_bascula: a.codigo }, { onConflict: 'producto_id,origen' });
+      if (error) return json({ error: `Enlazando ${a.codigo} en ${NOMBRE_ORIGEN[o]}: ${error.message}` }, 500);
+    }
   }
   for (const h of preciosHosteleria) {
     const { error } = await supabase.from('hosteleria_articulos').update({ precio: h.despues, unidad: h.unidad }).eq('id', h.id);
@@ -623,7 +689,7 @@ async function atender(req: Request): Promise<Response> {
     const estructurales = cambios.some((c) => c.tipo !== 'precio');
     await avisar(
       estructurales ? `⚖️ Cambios en la ${NOMBRE_ORIGEN[origen]}` : `⚖️ Precios nuevos (${NOMBRE_ORIGEN[origen]})`,
-      resumenAviso(cambios, preciosWeb, sinActualizar),
+      resumenAviso(cambios, preciosWeb, sinActualizar, altasWeb),
       // Cada escaneo con cambios es un aviso aparte: con la misma etiqueta
       // el móvil sustituiría el de la hora anterior.
       `bascula-catalogo-${origen}-${Date.now()}`,
