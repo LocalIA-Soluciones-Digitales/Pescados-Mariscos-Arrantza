@@ -72,6 +72,9 @@ const MIN_PROPORCION_LECTURA = 0.5;
 const CATEGORIA_POR_FAMILIA: Record<string, string> = {
   '1': 'pescado', '2': 'especial', '3': 'marisco', '4': 'congelados', '5': 'preparados',
 };
+// Artículos de caja que no son producto (BOLSA 501, VARIOS UD 10% 505): no se
+// dan de alta solos en la tienda aunque estén en una familia de la tienda.
+const NO_ES_PRODUCTO = /^(BOLSA|VARIOS)\b/i;
 
 function safeEqual(a: string, b: string): boolean {
   const bufA = new TextEncoder().encode(a);
@@ -489,7 +492,8 @@ async function atender(req: Request): Promise<Response> {
   const codigosConProducto = new Set(codigoPorProducto.values());
   const candidatosAlta = [...new Set(cambios.filter((c) => c.tipo === 'nuevo' || c.tipo === 'familia').map((c) => c.codigo))]
     .map((codigo) => actual.get(codigo))
-    .filter((a): a is Articulo => !!a && !!CATEGORIA_POR_FAMILIA[a.familia] && !codigosConProducto.has(a.codigo));
+    .filter((a): a is Articulo => !!a && !!CATEGORIA_POR_FAMILIA[a.familia] && !codigosConProducto.has(a.codigo)
+      && a.precio > 0 && !NO_ES_PRODUCTO.test(a.nombre));
 
   const altasProductos: { articulo: Articulo; reutilizar: { id: string; nombre: string } | null }[] = [];
   const reutilizados = new Set<string>();
