@@ -172,7 +172,7 @@ const chipFiltro = (activo: boolean) =>
   }`;
 
 export default function BasculasCambiosPanel({ datos }: { datos: Datos }) {
-  const { cambios, estados, diferencias, loading, nuevos, visto, marcarVisto, refetch } = datos;
+  const { cambios, estados, diferencias, loading, nuevos, visto, marcarVisto, leyendo, lectura, actualizar } = datos;
 
   const [busqueda, setBusqueda] = useState('');
   const [bascula, setBascula] = useState<Origen | 'todas'>('todas');
@@ -370,8 +370,28 @@ export default function BasculasCambiosPanel({ datos }: { datos: Datos }) {
             </div>
           </div>
           <div className="flex items-center gap-2 lg:ml-auto">
-            <button type="button" onClick={refetch} title="Actualizar" aria-label="Actualizar" className="w-8 h-8 rounded-full flex items-center justify-center bg-background-50 border border-background-200/70 text-foreground-500 hover:text-foreground-950">
-              <i className={`ri-refresh-line ${loading ? 'animate-spin' : ''}`}></i>
+            {leyendo ? (
+              <span className="text-xs text-foreground-400 whitespace-nowrap">Leyendo las básculas…</span>
+            ) : (
+              lectura && (
+                <span className="text-xs text-foreground-500 whitespace-nowrap">
+                  {lectura.map((l) => (
+                    <span key={l.origen} title={l.mensaje} className={`ml-2 first:ml-0 ${l.ok ? '' : 'text-red-600'}`}>
+                      {CORTO_BASCULA[l.origen]}: {l.ok ? (l.cambios === 0 ? 'sin cambios' : `${l.cambios} cambio${l.cambios === 1 ? '' : 's'}`) : 'sin conexión'}
+                    </span>
+                  ))}
+                </span>
+              )
+            )}
+            <button
+              type="button"
+              onClick={actualizar}
+              disabled={leyendo}
+              title="Leer ahora las dos básculas"
+              aria-label="Leer ahora las dos básculas"
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-background-50 border border-background-200/70 text-foreground-500 hover:text-foreground-950 disabled:cursor-wait"
+            >
+              <i className={`ri-refresh-line ${leyendo || loading ? 'animate-spin' : ''}`}></i>
             </button>
             <button
               type="button"

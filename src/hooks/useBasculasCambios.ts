@@ -8,6 +8,12 @@ import { ORIGENES, type Origen } from '@/types/origen';
 // anterior queda en bascula_catalogo_cambios. Aquí se junta con el estado de
 // la última lectura de cada una y con lo que difiere entre ambas (deberían
 // coincidir).
+//
+// «Actualizar» no se queda en releer la base de datos: pide a
+// bascula-precios-diario una lectura de las dos básculas en ese momento
+// (la misma que hace el cron, con registro de cambios y aviso push). Y al
+// volver a la pestaña se recargan los datos, para no ver una lista vieja
+// cuando ya ha llegado el aviso de un cambio.
 
 const CLAVE_VISTO = 'arrantza_basculas_cambios_visto';
 
@@ -37,6 +43,13 @@ export interface EstadoLectura {
   articulos?: number;
 }
 
+export interface LecturaManual {
+  origen: Origen;
+  ok: boolean;
+  cambios: number;
+  mensaje?: string;
+}
+
 export interface DiferenciaBasculas {
   codigo: string;
   bascula1: ArticuloBascula | null;
@@ -61,9 +74,11 @@ export function useBasculasCambios() {
   const [diferencias, setDiferencias] = useState<DiferenciaBasculas[]>([]);
   const [loading, setLoading] = useState(true);
   const [visto, setVisto] = useState(leerVisto);
+  const [leyendo, setLeyendo] = useState(false);
+  const [lectura, setLectura] = useState<LecturaManual[] | null>(null);
 
-  const fetchDatos = useCallback(async () => {
-    setLoading(true);
+  const fetchDatos = useCallback(async (silencioso = false) => {
+    if (!silencioso) setLoading(true);
     const [resCambios, resEstados, resFotos] = await Promise.all([
       supabase
         .from('bascula_catalogo_cambios')
@@ -99,6 +114,38 @@ export function useBasculasCambios() {
     fetchDatos();
   }, [fetchDatos]);
 
+  useEffect(() => {
+    const alVolver = () => {
+      if (document.visibilityState === 'visible') fetchDatos(true);
+    };
+    document.addEventListener('visibilitychange', alVolver);
+    window.addEventListener('focus', alVolver);
+    return () => {
+      document.removeEventListener('visibilitychange', alVolver);
+      window.removeEventListener('focus', alVolver);
+    };
+  }, [fetchDatos]);
+
+  // La báscula 1 en modo normal (precios de la web) y la 2 solo vigilada,
+  // igual que los dos crons.
+  const actualizar = useCallback(async () => {
+    setLeyendo(true);
+    setLectura(null);
+    const resultados = await Promise.all(
+      ORIGENES.map(async (origen): Promise<LecturaManual> => {
+        const { data, error } = await supabase.functions.invoke('bascula-precios-diario', {
+          body: { origen, vigilar: origen !== 'pescaderia_1' },
+        });
+        if (error) return { origen, ok: false, cambios: 0, mensaje: error.message };
+        if (data?.omitido) return { origen, ok: false, cambios: 0, mensaje: data.mensaje ?? data.omitido };
+        return { origen, ok: true, cambios: Array.isArray(data?.cambios) ? data.cambios.length : 0 };
+      }),
+    );
+    setLectura(resultados);
+    await fetchDatos(true);
+    setLeyendo(false);
+  }, [fetchDatos]);
+
   const nuevos = useMemo(() => cambios.filter((c) => c.created_at > visto).length, [cambios, visto]);
 
   const marcarVisto = useCallback(() => {
@@ -111,5 +158,5 @@ export function useBasculasCambios() {
     setVisto(ahora);
   }, [cambios]);
 
-  return { cambios, estados, diferencias, loading, nuevos, visto, marcarVisto, refetch: fetchDatos };
+  return { cambios, estados, diferencias, loading, nuevos, visto, marcarVisto, leyendo, lectura, actualizar };
 }

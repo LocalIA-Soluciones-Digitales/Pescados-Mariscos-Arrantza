@@ -6,6 +6,9 @@
 //   Opcional: "simular": true  — calcula y devuelve los cambios sin escribir nada
 //             "vigilar": true  — solo registra: ver más abajo
 //   Header: x-webhook-secret: <BASCULA_SYNC_SECRET>
+//     o bien la sesión de un desarrollador (Authorization: Bearer <jwt>):
+//     es el botón de actualizar del panel de desarrollo (Básculas), que
+//     lanza al momento la misma lectura que el cron.
 //
 // Lo dispara un cron cada hora por báscula (ver supabase/schema.sql). Si la
 // báscula está apagada o da 502 (pasa a menudo, ver bascula-sync), no pasa
@@ -309,10 +312,36 @@ function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+// Llamada desde el panel: vale la sesión de un desarrollador, con el mismo
+// criterio que las políticas RLS (public.is_developer()).
+async function esDesarrollador(req: Request): Promise<boolean> {
+  const auth = req.headers.get('Authorization') ?? '';
+  if (!auth.startsWith('Bearer ')) return false;
+  const cliente = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    global: { headers: { Authorization: auth } },
+  });
+  const { data, error } = await cliente.rpc('is_developer');
+  return !error && data === true;
+}
+
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  const res = await atender(req);
+  for (const [k, v] of Object.entries(CORS)) res.headers.set(k, v);
+  return res;
+});
+
+async function atender(req: Request): Promise<Response> {
   const secret = req.headers.get('x-webhook-secret') ?? '';
   const expected = Deno.env.get('BASCULA_SYNC_SECRET') ?? '';
-  if (!secret || !expected || !safeEqual(secret, expected)) {
+  const porSecreto = !!secret && !!expected && safeEqual(secret, expected);
+  if (!porSecreto && !(await esDesarrollador(req))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -603,4 +632,4 @@ Deno.serve(async (req: Request) => {
 
   await guardarLecturaOk();
   return json(resultado);
-});
+}
