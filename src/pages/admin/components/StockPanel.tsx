@@ -303,11 +303,21 @@ export default function StockPanel({
       porCategoria.set(p.categoria, grupo);
     });
 
+    // Mismo orden que la báscula: por código de Pescadería I (familias 1-5 =
+    // categorías de la web). Los que aún no tienen código van al final.
+    const codigoOrden = (p: Producto) => {
+      const codigos = codigosBascula.get(p.id);
+      const n = Number(codigos?.pescaderia_1 ?? codigos?.pescaderia_2);
+      return Number.isFinite(n) && n > 0 ? n : Infinity;
+    };
+
     return CATEGORIA_ORDEN.map((categoria) => ({
       categoria,
-      productos: (porCategoria.get(categoria) ?? []).sort((a, b) => a.nombre_es.localeCompare(b.nombre_es, 'es')),
+      productos: (porCategoria.get(categoria) ?? []).sort(
+        (a, b) => codigoOrden(a) - codigoOrden(b) || a.nombre_es.localeCompare(b.nombre_es, 'es'),
+      ),
     })).filter((g) => g.productos.length > 0);
-  }, [productos, categoria, soloBajo, search]);
+  }, [productos, categoria, soloBajo, search, codigosBascula]);
 
   const totalVisible = useMemo(() => grupos.reduce((n, g) => n + g.productos.length, 0), [grupos]);
 
