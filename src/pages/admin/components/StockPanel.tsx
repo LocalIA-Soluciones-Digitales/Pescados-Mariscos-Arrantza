@@ -102,7 +102,7 @@ function StockRow({
             : 'bg-background-50 border-background-200/70'
       } ${saving ? 'opacity-60' : ''}`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         <div className={`w-10 h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
           {producto.imagen_url ? (
             <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" />
@@ -111,28 +111,34 @@ function StockRow({
           )}
         </div>
 
-        <div className={`flex-1 min-w-0 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
-          <p className="text-sm font-medium text-foreground-950 truncate">{producto.nombre_es}</p>
-          <p className="text-xs text-foreground-400">{producto.precio}</p>
+        {/* Nombre completo (sin recortar) y, debajo, precio + estados: en el
+            móvil no caben en la misma línea que el interruptor. */}
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm font-medium leading-snug text-foreground-950 break-words ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
+            {producto.nombre_es}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
+            <span className={`text-xs text-foreground-400 whitespace-nowrap ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
+              {producto.precio}
+            </span>
+            {!producto.disponible && (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-medium bg-foreground-800 text-background-50 whitespace-nowrap"
+                title="Sin stock: se marcó agotado automáticamente. Registra una entrada para volver a ponerlo disponible."
+              >
+                <i className="ri-close-circle-line"></i> Agotado
+              </span>
+            )}
+            {stockBajo && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-medium bg-red-100 text-red-700 whitespace-nowrap">
+                <i className="ri-alert-line"></i> Bajo mínimo
+              </span>
+            )}
+          </div>
         </div>
 
-        {!producto.disponible && (
-          <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-foreground-800 text-background-50 flex-shrink-0"
-            title="Sin stock: se marcó agotado automáticamente. Registra una entrada para volver a ponerlo disponible."
-          >
-            <i className="ri-close-circle-line"></i> Agotado
-          </span>
-        )}
-
-        {stockBajo && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 text-red-700 flex-shrink-0">
-            <i className="ri-alert-line"></i> Bajo mínimo
-          </span>
-        )}
-
         <div
-          className="flex items-center gap-2 flex-shrink-0"
+          className="flex items-center gap-2 flex-shrink-0 pt-0.5"
           title={producto.gestion_stock ? 'Dejar de gestionar el stock de este producto (no avisará de mínimos)' : 'Volver a gestionar el stock de este producto'}
         >
           <span className="hidden sm:inline text-[11px] text-foreground-400">Gestionar stock</span>
@@ -157,7 +163,7 @@ function StockRow({
 
       <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 mt-2.5 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <label className="text-[11px] text-foreground-400">Stock actual</label>
+          <label className="w-[7.5rem] sm:w-auto flex-shrink-0 text-[11px] text-foreground-400">Stock actual</label>
           <span className={`w-16 text-right text-sm font-medium ${stockBajo ? 'text-red-700' : 'text-foreground-950'}`}>
             {producto.stock_kg} kg
           </span>
@@ -174,7 +180,7 @@ function StockRow({
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <label className="text-[11px] text-foreground-400">Entrada de hoy</label>
+          <label className="w-[7.5rem] sm:w-auto flex-shrink-0 text-[11px] text-foreground-400">Entrada de hoy</label>
           <div className="flex items-center rounded-md border border-background-200/70 overflow-hidden">
             <button
               type="button"
@@ -220,7 +226,7 @@ function StockRow({
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <label className="text-[11px] text-foreground-400">Aviso mínimo</label>
+          <label className="w-[7.5rem] sm:w-auto flex-shrink-0 text-[11px] text-foreground-400">Aviso mínimo</label>
           <input
             type="number"
             step="0.5"
@@ -240,7 +246,7 @@ function StockRow({
 
         {ORIGENES.map((origen) => (
           <div key={origen} className="flex items-center gap-1.5 flex-shrink-0">
-            <label className="text-[11px] text-foreground-400">Código {ORIGEN_LABELS[origen]}</label>
+            <label className="w-[7.5rem] sm:w-auto flex-shrink-0 text-[11px] text-foreground-400">Código {ORIGEN_LABELS[origen]}</label>
             <span
               className={`w-20 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right ${
                 codigosBascula[origen] ? 'text-foreground-950' : 'text-foreground-300'
@@ -256,7 +262,7 @@ function StockRow({
             className="flex items-center gap-1.5 flex-shrink-0"
             title="Ventas a hostelería (familias 7, 8 y 9) que también descuentan el stock de este producto"
           >
-            <label className="text-[11px] text-foreground-400">Hostelería</label>
+            <label className="w-[7.5rem] sm:w-auto flex-shrink-0 text-[11px] text-foreground-400">Hostelería</label>
             <span className="text-xs text-foreground-600 tabular-nums">{codigosHosteleria.join(' · ')}</span>
           </div>
         )}
