@@ -699,7 +699,7 @@ async function atender(req: Request): Promise<Response> {
     if (l.reactivar.length > 0) await supabase.from('hosteleria_articulos').update({ activo: true }).in('id', l.reactivar);
     if (l.ocultar.length > 0) await supabase.from('hosteleria_articulos').update({ activo: false }).in('id', l.ocultar);
     for (const x of l.renombrar) {
-      await supabase.from('hosteleria_articulos').update({ nombre: nombreArticulo(x.articulo.nombre), precio: x.articulo.precio, unidad: unidadDe(x.articulo), imagen_url: null }).eq('id', x.id);
+      await supabase.from('hosteleria_articulos').update({ nombre: nombreArticulo(x.articulo.nombre), precio: x.articulo.precio, unidad: unidadDe(x.articulo) }).eq('id', x.id);
     }
   }
   for (const l of listasReservas) {
@@ -712,7 +712,7 @@ async function atender(req: Request): Promise<Response> {
     if (l.reactivar.length > 0) await supabase.from('reservas_articulos').update({ activo: true }).in('id', l.reactivar);
     if (l.ocultar.length > 0) await supabase.from('reservas_articulos').update({ activo: false }).in('id', l.ocultar);
     for (const x of l.renombrar) {
-      await supabase.from('reservas_articulos').update({ nombre_es: nombreArticulo(x.articulo.nombre), nombre_eu: null, precio: x.articulo.precio, unidad: unidadDe(x.articulo), imagen_url: null }).eq('id', x.id);
+      await supabase.from('reservas_articulos').update({ nombre_es: nombreArticulo(x.articulo.nombre), nombre_eu: null, precio: x.articulo.precio, unidad: unidadDe(x.articulo) }).eq('id', x.id);
     }
   }
 
