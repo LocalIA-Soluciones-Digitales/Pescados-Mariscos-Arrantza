@@ -235,6 +235,8 @@ interface FilaLista {
   id: string;
   codigo_bascula: string | null;
   activo: boolean;
+  nombre?: string; // hostelería
+  nombre_es?: string; // reservas
 }
 
 // Qué dar de alta, reactivar, ocultar o renombrar en una lista cerrada
@@ -247,18 +249,26 @@ function cambiosLista(familia: string, filas: FilaLista[], actual: Map<string, A
   const reactivar: string[] = [];
   const ocultar: string[] = [];
   const renombrar: { id: string; articulo: Articulo }[] = [];
+  // Código de un artículo borrado que David reutiliza para otro distinto: la
+  // fila antigua pasa a ser el artículo nuevo (nombre, precio y foto nuevos).
+  const sustituir: { id: string; articulo: Articulo }[] = [];
   const tocados = new Set(cambios.filter((c) => c.tipo !== 'precio' && c.tipo !== 'unidades').map((c) => c.codigo));
   const renombrados = new Set(cambios.filter((c) => c.tipo === 'renombrado').map((c) => c.codigo));
+  const nuevos = new Set(cambios.filter((c) => c.tipo === 'nuevo').map((c) => c.codigo));
   for (const codigo of tocados) {
     const a = actual.get(codigo);
     const fila = porCodigo.get(codigo);
     const enFamilia = !!a && a.familia === familia;
+    if (enFamilia && fila && nuevos.has(codigo) && !mismoNombre(fila.nombre ?? fila.nombre_es ?? '', a!.nombre)) {
+      sustituir.push({ id: fila.id, articulo: a! });
+      continue;
+    }
     if (enFamilia && !fila) altas.push(a!);
     else if (enFamilia && fila && !fila.activo) reactivar.push(fila.id);
     else if (!enFamilia && fila && fila.activo) ocultar.push(fila.id);
     if (enFamilia && fila && renombrados.has(codigo)) renombrar.push({ id: fila.id, articulo: a! });
   }
-  return { altas, reactivar, ocultar, renombrar };
+  return { altas, reactivar, ocultar, renombrar, sustituir };
 }
 
 // La báscula escribe sin tildes: se las ponemos a las palabras habituales.
@@ -305,6 +315,16 @@ function palabrasClave(nombre: string): string[] {
     // singular y sin género: "sardinas" = "sardina", "congelada" = "congelado"
     .map((p) => p.replace(/s$/, '').replace(/^(.{3,}?)[ao]$/, '$1'));
 }
+// Mismo artículo aunque cambie el orden o el plural: "BONITO tarro" =
+// "Tarro de Bonito". Los números cuentan: "Langostino 30/40" ≠ "40/50".
+function mismoNombre(a: string, b: string): boolean {
+  const firma = (n: string) => claveNombre(nombreArticulo(n)).toLowerCase().split(/[^a-z0-9]+/)
+    .filter((p) => p && !PALABRAS_VACIAS.has(p))
+    .map((p) => (/\d/.test(p) ? p : p.replace(/s$/, '').replace(/^(.{3,}?)[ao]$/, '$1')))
+    .sort().join(' ');
+  return firma(a) === firma(b);
+}
+
 function buscarFoto(nombre: string, fuentes: FuenteFoto[]): FuenteFoto | null {
   const buscadas = palabrasClave(nombre);
   if (buscadas.length === 0) return null;
@@ -595,7 +615,16 @@ async function atender(req: Request): Promise<Response> {
     const p = m.productos as unknown as { id: string } | null;
     if (p) codigoPorProducto.set(p.id, m.codigo_bascula as string);
   }
-  const codigosConProducto = new Set(codigoPorProducto.values());
+  // Un código que reaparece hoy con otro artículo (David reutiliza el código
+  // de uno que borró) ya no es del producto antiguo: ese enlace ha caducado.
+  const codigosNuevos = new Set(cambios.filter((c) => c.tipo === 'nuevo').map((c) => c.codigo));
+  const enlacesCaducados = new Map<string, string>(); // código → producto antiguo
+  for (const m of mapeos ?? []) {
+    const p = m.productos as unknown as { id: string; nombre_es: string } | null;
+    const a = actual.get(m.codigo_bascula as string);
+    if (p && a && codigosNuevos.has(a.codigo) && !mismoNombre(p.nombre_es, a.nombre)) enlacesCaducados.set(a.codigo, p.id);
+  }
+  const codigosConProducto = new Set([...codigoPorProducto.values()].filter((c) => !enlacesCaducados.has(c)));
   const candidatosAlta = [...new Set(cambios.filter((c) => c.tipo === 'nuevo' || c.tipo === 'familia').map((c) => c.codigo))]
     .map((codigo) => actual.get(codigo))
     .filter((a): a is Articulo => !!a && !!CATEGORIA_POR_FAMILIA[a.familia] && !codigosConProducto.has(a.codigo)
@@ -611,7 +640,7 @@ async function atender(req: Request): Promise<Response> {
       // que se ha movido de código o que vuelve a venderse.
       const libre = (todos ?? []).find((p) => {
         const codigo = codigoPorProducto.get(p.id as string);
-        return !reutilizados.has(p.id as string) && claveNombre(p.nombre_es as string) === claveNombre(a.nombre) && (!codigo || !actual.has(codigo));
+        return !reutilizados.has(p.id as string) && mismoNombre(p.nombre_es as string, a.nombre) && (!codigo || !actual.has(codigo));
       });
       if (libre) reutilizados.add(libre.id as string);
       altasProductos.push({ articulo: a, reutilizar: libre ? { id: libre.id as string, nombre: libre.nombre_es as string } : null });
@@ -626,6 +655,7 @@ async function atender(req: Request): Promise<Response> {
     const p = m.productos as unknown as { id: string; nombre_es: string; precio: string; categoria: string; visible_web: boolean } | null;
     const a = actual.get(m.codigo_bascula as string);
     if (!p || reutilizados.has(p.id)) continue; // el reutilizado se trata en las altas
+    if (enlacesCaducados.get(m.codigo_bascula as string) === p.id) continue; // no hereda el precio del artículo nuevo
     // Solo se avisa el día en que el código desaparece; los días siguientes
     // el producto web se queda como está.
     if (!a) {
@@ -711,7 +741,7 @@ async function atender(req: Request): Promise<Response> {
   // Fotos para las altas: primero la tienda visible, luego hostelería y
   // reservas (ya revisadas a mano) y por último la tienda oculta.
   const hayAltas = altasProductos.some((x) => !x.reutilizar)
-    || [...listasHosteleria, ...listasReservas].some((l) => l.altas.length > 0);
+    || [...listasHosteleria, ...listasReservas].some((l) => l.altas.length > 0 || l.sustituir.length > 0);
   const fuentesFoto: FuenteFoto[] = [];
   if (hayAltas) {
     const [tienda, host, res] = await Promise.all([
@@ -742,12 +772,15 @@ async function atender(req: Request): Promise<Response> {
     altasProductos: altasProductos.map((x) => ({
       codigo: x.articulo.codigo, nombre: x.articulo.nombre, reutiliza: x.reutilizar?.nombre ?? null, foto: x.reutilizar ? null : fotoTexto(x.articulo),
     })),
+    enlacesCaducados: [...enlacesCaducados.keys()],
     listasHosteleria: listasHosteleria.map((l) => ({
       id: l.id, altas: l.altas.map((a) => ({ codigo: a.codigo, nombre: nombreArticulo(a.nombre), foto: fotoTexto(a), categoria: categoriaDe(a) })),
+      sustituir: l.sustituir.map((x) => ({ codigo: x.articulo.codigo, nombre: nombreArticulo(x.articulo.nombre), foto: fotoTexto(x.articulo) })),
       reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length,
     })),
     listasReservas: listasReservas.map((l) => ({
       id: l.id, altas: l.altas.map((a) => ({ codigo: a.codigo, nombre: nombreArticulo(a.nombre), foto: fotoTexto(a) })),
+      sustituir: l.sustituir.map((x) => ({ codigo: x.articulo.codigo, nombre: nombreArticulo(x.articulo.nombre), foto: fotoTexto(x.articulo) })),
       reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length,
     })),
   };
@@ -774,7 +807,9 @@ async function atender(req: Request): Promise<Response> {
     };
     let id = x.reutilizar?.id;
     if (id) {
-      const { error } = await supabase.from('productos').update(datos).eq('id', id);
+      // El nombre sigue al de la báscula ("Tarro de Bonito" → "Bonito Tarro").
+      const nombre = claveNombre(x.reutilizar!.nombre) === claveNombre(nombreTienda(a.nombre)) ? {} : { nombre_es: nombreTienda(a.nombre), nombre_eu: null };
+      const { error } = await supabase.from('productos').update({ ...datos, ...nombre }).eq('id', id);
       if (error) return json({ error: `Alta en la tienda de ${x.reutilizar!.nombre}: ${error.message}` }, 500);
       altasWeb.push({ codigo: a.codigo, texto: `como ${x.reutilizar!.nombre}` });
     } else {
@@ -786,7 +821,13 @@ async function atender(req: Request): Promise<Response> {
       altasWeb.push({ codigo: a.codigo, texto: foto ? `con la foto de ${foto.nombre}` : 'sin foto' });
     }
     // Enlace del código en las dos básculas, salvo que en alguna ese código
-    // ya sea de otro producto (no se pisa).
+    // ya sea de otro producto (no se pisa). El enlace caducado del producto
+    // borrado sí se quita: ese producto se queda oculto y sin código.
+    const caducado = enlacesCaducados.get(a.codigo);
+    if (caducado) {
+      await supabase.from('productos_codigos_bascula').delete()
+        .eq('cliente_id', clienteId).eq('codigo_bascula', a.codigo).eq('producto_id', caducado);
+    }
     for (const o of ORIGENES_VALIDOS) {
       const { data: ocupado } = await supabase.from('productos_codigos_bascula').select('producto_id')
         .eq('cliente_id', clienteId).eq('origen', o).eq('codigo_bascula', a.codigo).maybeSingle();
@@ -820,6 +861,13 @@ async function atender(req: Request): Promise<Response> {
     for (const x of l.renombrar) {
       await supabase.from('hosteleria_articulos').update({ nombre: nombreArticulo(x.articulo.nombre), precio: x.articulo.precio, unidad: unidadDe(x.articulo) }).eq('id', x.id);
     }
+    for (const x of l.sustituir) {
+      const a = x.articulo;
+      await supabase.from('hosteleria_articulos').update({
+        nombre: nombreArticulo(a.nombre), precio: a.precio, unidad: unidadDe(a), orden: Number(a.codigo) || 0, activo: true,
+        imagen_url: fotoDe(a)?.imagen_url ?? null, categoria: categoriaDe(a),
+      }).eq('id', x.id);
+    }
   }
   for (const l of listasReservas) {
     if (l.altas.length > 0) {
@@ -833,6 +881,13 @@ async function atender(req: Request): Promise<Response> {
     if (l.ocultar.length > 0) await supabase.from('reservas_articulos').update({ activo: false }).in('id', l.ocultar);
     for (const x of l.renombrar) {
       await supabase.from('reservas_articulos').update({ nombre_es: nombreArticulo(x.articulo.nombre), nombre_eu: null, precio: x.articulo.precio, unidad: unidadDe(x.articulo) }).eq('id', x.id);
+    }
+    for (const x of l.sustituir) {
+      const a = x.articulo;
+      await supabase.from('reservas_articulos').update({
+        nombre_es: nombreArticulo(a.nombre), nombre_eu: null, precio: a.precio, unidad: unidadDe(a), orden: Number(a.codigo) || 0, activo: true,
+        imagen_url: fotoDe(a)?.imagen_url ?? null,
+      }).eq('id', x.id);
     }
   }
 
