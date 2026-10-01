@@ -109,19 +109,46 @@ function StockRow({
 
   const apagado = !producto.gestion_stock ? 'opacity-50' : '';
 
+  const interruptor = (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={producto.gestion_stock}
+      aria-label="Controlar stock"
+      onClick={toggleGestionStock}
+      disabled={saving}
+      className={`relative inline-flex flex-shrink-0 items-center w-10 h-6 rounded-full border transition-colors duration-200 ${
+        producto.gestion_stock ? 'bg-primary-500 border-primary-500' : 'bg-background-200 border-background-300'
+      }`}
+    >
+      <span
+        className={`inline-block w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
+          producto.gestion_stock ? 'translate-x-[19px]' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  );
+  const tituloInterruptor = producto.gestion_stock
+    ? 'Dejar de gestionar el stock de este producto (no avisará de mínimos)'
+    : 'Volver a gestionar el stock de este producto';
+
+  // Móvil: tarjeta apilada (cabecera, stock + movimiento, pie con códigos).
+  // Ordenador (lg): todo en una fila compacta; los bloques intermedios usan
+  // lg:contents para que sus hijos pasen a ser columnas de esa fila.
   return (
     <article
-      className={`relative overflow-hidden rounded-2xl border bg-background-50 shadow-card transition-shadow duration-200 hover:shadow-card-hover ${
+      className={`relative overflow-hidden rounded-2xl lg:rounded-xl border bg-background-50 shadow-card transition-shadow duration-200 hover:shadow-card-hover ${
         stockBajo ? 'border-red-200' : 'border-background-200/70'
       } ${saving ? 'opacity-70' : ''}`}
     >
       {stockBajo && <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-red-400" />}
 
-      <div className="p-3.5 sm:p-4">
+      <div className="lg:flex lg:items-center lg:gap-4 lg:px-4 lg:py-2">
+      <div className="p-3.5 sm:p-4 lg:contents">
         {/* Cabecera: foto, nombre completo (sin recortar) y, debajo, precio +
             estados — en el móvil no caben en la misma línea que el interruptor. */}
-        <div className="flex items-start gap-3">
-          <div className={`w-12 h-12 rounded-xl overflow-hidden bg-background-100 flex-shrink-0 ${apagado}`}>
+        <div className="flex items-start gap-3 lg:w-56 lg:flex-shrink-0 lg:items-center">
+          <div className={`w-12 h-12 lg:w-10 lg:h-10 rounded-xl lg:rounded-lg overflow-hidden bg-background-100 flex-shrink-0 ${apagado}`}>
             {producto.imagen_url ? (
               <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" />
             ) : (
@@ -130,7 +157,7 @@ function StockRow({
           </div>
 
           <div className="flex-1 min-w-0">
-            <p className={`text-[15px] font-semibold leading-snug text-foreground-950 break-words ${apagado}`}>{producto.nombre_es}</p>
+            <p className={`text-[15px] lg:text-sm font-semibold leading-snug text-foreground-950 break-words ${apagado}`}>{producto.nombre_es}</p>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
               <span className={`text-xs text-foreground-400 whitespace-nowrap ${apagado}`}>{producto.precio}</span>
               {!producto.disponible && (
@@ -154,43 +181,26 @@ function StockRow({
             </div>
           </div>
 
-          <div
-            className="flex flex-col items-center gap-1 flex-shrink-0 pt-0.5"
-            title={producto.gestion_stock ? 'Dejar de gestionar el stock de este producto (no avisará de mínimos)' : 'Volver a gestionar el stock de este producto'}
-          >
-            <button
-              type="button"
-              role="switch"
-              aria-checked={producto.gestion_stock}
-              aria-label="Controlar stock"
-              onClick={toggleGestionStock}
-              disabled={saving}
-              className={`relative inline-flex flex-shrink-0 items-center w-10 h-6 rounded-full border transition-colors duration-200 ${
-                producto.gestion_stock ? 'bg-primary-500 border-primary-500' : 'bg-background-200 border-background-300'
-              }`}
-            >
-              <span
-                className={`inline-block w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
-                  producto.gestion_stock ? 'translate-x-[19px]' : 'translate-x-0.5'
-                }`}
-              />
-            </button>
+          <div className="flex flex-col items-center gap-1 flex-shrink-0 pt-0.5 lg:hidden" title={tituloInterruptor}>
+            {interruptor}
             <span className="text-[10px] text-foreground-400">Control</span>
           </div>
         </div>
 
         {/* Stock + movimiento: apilados en el móvil, en fila desde sm. */}
-        <div className={`mt-3.5 flex flex-col gap-3 sm:flex-row sm:items-stretch ${apagado}`}>
+        <div className={`mt-3.5 flex flex-col gap-3 sm:flex-row sm:items-stretch lg:mt-0 lg:items-center lg:flex-shrink-0 ${apagado}`}>
           <div
-            className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 sm:w-56 sm:flex-col sm:items-start sm:justify-center ${
+            className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 sm:w-56 sm:flex-col sm:items-start sm:justify-center lg:w-auto lg:flex-row lg:items-center lg:gap-4 lg:rounded-lg lg:px-3 lg:py-1.5 ${
               stockBajo ? 'bg-red-50' : 'bg-background-100/80'
             }`}
           >
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground-400">Stock</p>
-              <p className={`text-2xl font-semibold tabular-nums leading-tight ${stockBajo ? 'text-red-700' : 'text-foreground-950'}`}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground-400 lg:hidden">Stock</p>
+              <p
+                className={`w-auto lg:w-24 text-2xl lg:text-base font-semibold tabular-nums leading-tight ${stockBajo ? 'text-red-700' : 'text-foreground-950'}`}
+              >
                 {formatoKg(producto.stock_kg)}
-                <span className="ml-1 text-sm font-medium text-foreground-400">kg</span>
+                <span className="ml-1 text-sm lg:text-xs font-medium text-foreground-400">kg</span>
               </p>
             </div>
             <label className="flex items-center gap-1.5 text-[11px] text-foreground-400 whitespace-nowrap">
@@ -214,8 +224,8 @@ function StockRow({
             </label>
           </div>
 
-          <div className="flex-1 rounded-xl border border-background-200/70 p-2.5">
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-background-100 p-1">
+          <div className="flex-1 rounded-xl border border-background-200/70 p-2.5 lg:flex lg:flex-none lg:items-center lg:gap-2 lg:border-0 lg:p-0">
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-background-100 p-1 lg:flex-shrink-0 lg:p-0.5">
               {(['entrada', 'baja'] as const).map((tipo) => (
                 <button
                   key={tipo}
@@ -223,7 +233,7 @@ function StockRow({
                   onClick={() => setMovimiento(tipo)}
                   disabled={saving}
                   aria-pressed={movimiento === tipo}
-                  className={`flex items-center justify-center gap-1 rounded-md py-1.5 text-xs font-semibold transition-colors ${
+                  className={`flex items-center justify-center gap-1 rounded-md py-1.5 lg:py-1 lg:px-2.5 text-xs font-semibold whitespace-nowrap transition-colors ${
                     movimiento === tipo
                       ? tipo === 'entrada'
                         ? 'bg-emerald-500 text-white shadow-sm'
@@ -236,9 +246,9 @@ function StockRow({
                 </button>
               ))}
             </div>
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex items-center gap-2 lg:mt-0">
               <div
-                className={`flex flex-1 items-center rounded-lg border px-3 ${
+                className={`flex flex-1 items-center rounded-lg border px-3 lg:w-24 lg:flex-none lg:px-2 ${
                   esEntrada ? 'border-background-200/80 bg-background-50' : 'border-red-200 bg-red-50'
                 }`}
               >
@@ -253,17 +263,17 @@ function StockRow({
                   }}
                   disabled={saving}
                   aria-label={esEntrada ? 'Kilos que entran' : 'Kilos que se dan de baja'}
-                  className={`w-full min-w-0 bg-transparent py-2 text-base text-right tabular-nums focus:outline-none ${
+                  className={`w-full min-w-0 bg-transparent py-2 lg:py-1 text-base lg:text-sm text-right tabular-nums focus:outline-none ${
                     esEntrada ? 'text-foreground-950' : 'text-red-700'
                   }`}
                 />
-                <span className="pl-1.5 text-sm text-foreground-400">kg</span>
+                <span className="pl-1.5 text-sm lg:text-xs text-foreground-400">kg</span>
               </div>
               <button
                 type="button"
                 onClick={guardarMovimiento}
                 disabled={!cantidadValida || saving}
-                className={`h-10 flex-shrink-0 rounded-lg px-4 text-sm font-semibold text-white transition-colors disabled:bg-background-200 disabled:text-foreground-400 ${
+                className={`h-10 lg:h-8 flex-shrink-0 rounded-lg px-4 lg:px-3 text-sm lg:text-xs font-semibold text-white transition-colors disabled:bg-background-200 disabled:text-foreground-400 ${
                   esEntrada ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
                 }`}
               >
@@ -275,8 +285,8 @@ function StockRow({
       </div>
 
       {/* Pie: códigos de báscula (solo lectura) + historial. */}
-      <div className="flex flex-col gap-2 border-t border-background-200/70 bg-background-100/50 px-3.5 py-2.5 sm:flex-row sm:items-center sm:px-4">
-        <div className="flex flex-1 flex-wrap items-center gap-1.5">
+      <div className="flex flex-col gap-2 border-t border-background-200/70 bg-background-100/50 px-3.5 py-2.5 sm:flex-row sm:items-center sm:px-4 lg:contents">
+        <div className="flex flex-1 flex-wrap items-center gap-1.5 lg:min-w-0 lg:justify-end">
           {ORIGENES.map((origen) => (
             <CodigoChip key={origen} etiqueta={ORIGEN_LABELS[origen].replace('Pescadería', 'Báscula')} valor={codigosBascula[origen]} />
           ))}
@@ -292,16 +302,22 @@ function StockRow({
           type="button"
           onClick={() => setVerHistorial((v) => !v)}
           aria-expanded={verHistorial}
-          className={`flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors sm:w-auto ${
+          className={`flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 lg:py-1.5 text-xs font-semibold whitespace-nowrap transition-colors sm:w-auto lg:flex-shrink-0 ${
             verHistorial
               ? 'bg-foreground-900 text-background-50'
               : 'border border-background-200/80 bg-background-50 text-foreground-700 hover:bg-background-100'
           }`}
         >
           <i className="ri-history-line text-sm"></i>
-          {verHistorial ? 'Ocultar historial' : 'Ver historial'}
+          <span className="lg:hidden">{verHistorial ? 'Ocultar historial' : 'Ver historial'}</span>
+          <span className="hidden lg:inline">Historial</span>
           <i className={`ri-arrow-down-s-line transition-transform ${verHistorial ? 'rotate-180' : ''}`}></i>
         </button>
+      </div>
+
+      <div className="hidden lg:flex flex-shrink-0" title={tituloInterruptor}>
+        {interruptor}
+      </div>
       </div>
 
       {verHistorial && <StockHistorial key={versionHistorial} productoId={producto.id} />}
