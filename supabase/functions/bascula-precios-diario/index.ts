@@ -263,9 +263,26 @@ function cambiosLista(familia: string, filas: FilaLista[], actual: Map<string, A
   return { altas, reactivar, ocultar, renombrar };
 }
 
-// "LUBINA menu" → "Lubina (menú)"; el pescadero puede afinarlo luego en el panel.
+// La báscula escribe sin tildes: se las ponemos a las palabras habituales.
+const TILDES: Record<string, string> = {
+  salmon: 'salmón', mejillon: 'mejillón', camaron: 'camarón', txipiron: 'txipirón', atun: 'atún', gambon: 'gambón',
+  patagonico: 'patagónico', rio: 'río', martin: 'martín', salazon: 'salazón', canada: 'canadá', pais: 'país',
+  piscifactoria: 'piscifactoría', kiskillon: 'kiskillón',
+};
+
+// El nombre web es el de la báscula, solo más legible:
+// "F. KABRATXO" → "Filete de kabratxo", "RABAS (1/2kgr)" → "Rabas (1/2 kg)",
+// "LUBINA menu" → "Lubina (menú)". Sin añadir ni quitar palabras.
 function nombreArticulo(nombre: string): string {
-  const t = nombre.toLowerCase().replace(/\bmenu\b/, '(menú)').replace(/\s+/g, ' ').trim();
+  const t = nombre.toLowerCase()
+    .replace(/\bmenu\b/, '(menú)')
+    .replace(/^f[.,]\s*/, 'filete de ')
+    .replace(/(\d)\s*(?:grs?|gr\.)(?![a-z])/g, '$1 g')
+    .replace(/(\d)\s*kgrs?(?![a-z])|(\d)\s*kg(?![a-z])/g, (_, a, b) => `${a ?? b} kg`)
+    .replace(/(\d)\s*und?(?![a-z])/g, '$1 ud')
+    .replace(/[a-zñ]+/g, (p) => TILDES[p] ?? p)
+    .replace(/\s*\/\s*/g, (s) => (/\s/.test(s) ? ' / ' : '/'))
+    .replace(/\s+/g, ' ').trim();
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
