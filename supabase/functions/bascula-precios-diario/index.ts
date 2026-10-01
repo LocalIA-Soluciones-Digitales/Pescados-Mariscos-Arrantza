@@ -20,14 +20,12 @@
 //   1. Lee todos los artículos de la báscula.
 //   2. Los compara con la foto anterior (public.bascula_catalogo) y apunta
 //      cada diferencia en public.bascula_catalogo_cambios: artículo nuevo,
-//      eliminado, renombrado (mismo código con otro producto), o cambio de
-//      precio, familia o unidades.
-//   3. Copia el precio a la web: productos con código mapeado en
+//      eliminado, renombrado, o cambio de precio, familia o unidades.
+//   3. Copia el precio y el nombre a la web: productos con código mapeado en
 //      productos_codigos_bascula para ese origen, y artículos de hostelería
 //      importados de esa báscula y familia, y artículos de campañas de
-//      reserva (Navidad…) enlazadas a esa báscula y familia. Si un código ha cambiado de
-//      producto, NO se toca el precio del producto web enlazado (sería el
-//      precio de otro artículo) — solo se avisa.
+//      reserva (Navidad…) enlazadas a esa báscula y familia. El nombre web
+//      es el de la báscula, solo más legible (nombreArticulo/nombreTienda).
 //      La categoría web sigue a la familia (1 Pescado, 2 Pescado de carta,
 //      3 Marisco, 4 Congelado, 5 Varios); si un artículo pasa a otra familia
 //      (Navidad, hostelería) o desaparece de la báscula, se oculta de la tienda.
@@ -267,7 +265,7 @@ function cambiosLista(familia: string, filas: FilaLista[], actual: Map<string, A
 const TILDES: Record<string, string> = {
   salmon: 'salmón', mejillon: 'mejillón', camaron: 'camarón', txipiron: 'txipirón', atun: 'atún', gambon: 'gambón',
   patagonico: 'patagónico', rio: 'río', martin: 'martín', salazon: 'salazón', canada: 'canadá', pais: 'país',
-  piscifactoria: 'piscifactoría', kiskillon: 'kiskillón',
+  piscifactoria: 'piscifactoría', kiskillon: 'kiskillón', cantabrico: 'cantábrico',
 };
 
 // El nombre web es el de la báscula, solo más legible:
@@ -284,6 +282,14 @@ function nombreArticulo(nombre: string): string {
     .replace(/\s*\/\s*/g, (s) => (/\s/.test(s) ? ' / ' : '/'))
     .replace(/\s+/g, ' ').trim();
   return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+// La tienda usa mayúscula en cada palabra: "Lomo de Bakalao Desalado".
+const MINUSCULAS = new Set(['de', 'del', 'la', 'el', 'a', 'al', 'en', 'y', 'con', 'sin', 'para', 'g', 'kg', 'ud']);
+function nombreTienda(nombre: string): string {
+  return nombreArticulo(nombre).split(' ')
+    .map((p, i) => (i > 0 && MINUSCULAS.has(p.replace(/[()]/g, '')) ? p : p.replace(/^(\(?)(\p{L})/u, (_, a, b) => a + b.toUpperCase())))
+    .join(' ');
 }
 
 const euros = (n: number) => `${n.toFixed(2).replace('.', ',')}€`;
@@ -329,7 +335,7 @@ function resumenAviso(cambios: Cambio[], preciosWeb: number, sinActualizar: stri
   }
   lista('En la tienda', altasWeb);
   if (preciosWeb > 0) partes.push(`${preciosWeb} actualizados en la web`);
-  if (sinActualizar.length > 0) partes.push(`Revisar en la web (borrado u otro producto en su código): ${sinActualizar.slice(0, 3).join(', ')}${sinActualizar.length > 3 ? ` y ${sinActualizar.length - 3} más` : ''}`);
+  if (sinActualizar.length > 0) partes.push(`Revisar en la web (ya no está en la báscula): ${sinActualizar.slice(0, 3).join(', ')}${sinActualizar.length > 3 ? ` y ${sinActualizar.length - 3} más` : ''}`);
 
   const texto = partes.join(' · ');
   return texto.length > 300 ? `${texto.slice(0, 297)}…` : texto;
@@ -531,17 +537,16 @@ async function atender(req: Request): Promise<Response> {
 
   const preciosProductos: { id: string; nombre: string; antes: string; despues: string }[] = [];
   const sinActualizar: string[] = [];
+  const nombresProductos: { id: string; antes: string; despues: string }[] = [];
   const categoriasProductos: { id: string; nombre: string; categoria: string | null; visible_web: boolean }[] = [];
   for (const m of mapeos ?? []) {
     const p = m.productos as unknown as { id: string; nombre_es: string; precio: string; categoria: string; visible_web: boolean } | null;
     const a = actual.get(m.codigo_bascula as string);
     if (!p || reutilizados.has(p.id)) continue; // el reutilizado se trata en las altas
-    // Solo se avisa el día en que el código desaparece o cambia de
-    // producto; los días siguientes el producto web se queda como está.
-    if (!a || codigosRenombrados.has(a.codigo)) {
-      if (codigosEliminados.has(m.codigo_bascula as string) || codigosRenombrados.has(m.codigo_bascula as string)) {
-        sinActualizar.push(p.nombre_es);
-      }
+    // Solo se avisa el día en que el código desaparece; los días siguientes
+    // el producto web se queda como está.
+    if (!a) {
+      if (codigosEliminados.has(m.codigo_bascula as string)) sinActualizar.push(p.nombre_es);
       // Si el artículo ya no está en la báscula, deja de venderse en la
       // tienda (se oculta, no se borra: conserva foto e historial por si
       // vuelve a darse de alta).
@@ -549,6 +554,11 @@ async function atender(req: Request): Promise<Response> {
         categoriasProductos.push({ id: p.id, nombre: p.nombre_es, categoria: null, visible_web: false });
       }
       continue;
+    }
+    // El nombre de la web sigue al de la báscula, igual que el precio.
+    if (codigosRenombrados.has(a.codigo)) {
+      const despues = nombreTienda(a.nombre);
+      if (despues !== p.nombre_es) nombresProductos.push({ id: p.id, antes: p.nombre_es, despues });
     }
     const nuevo = formatoPrecioWeb(a);
     if (p.precio !== nuevo) preciosProductos.push({ id: p.id, nombre: p.nombre_es, antes: p.precio, despues: nuevo });
@@ -619,13 +629,17 @@ async function atender(req: Request): Promise<Response> {
     origen, fecha, primeraVez, simulado: simular,
     articulos: actual.size,
     cambios: cambios.map((c) => ({ codigo: c.codigo, tipo: c.tipo, antes: c.antes, despues: c.despues })),
-    preciosProductos, categoriasProductos, preciosHosteleria, preciosReservas, sinActualizar,
+    preciosProductos, nombresProductos, categoriasProductos, preciosHosteleria, preciosReservas, sinActualizar,
     altasProductos: altasProductos.map((x) => ({ codigo: x.articulo.codigo, nombre: x.articulo.nombre, reutiliza: x.reutilizar?.nombre ?? null })),
     listasHosteleria: listasHosteleria.map((l) => ({ id: l.id, altas: l.altas.map((a) => a.codigo), reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length })),
     listasReservas: listasReservas.map((l) => ({ id: l.id, altas: l.altas.map((a) => a.codigo), reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length })),
   };
   if (simular) return json(resultado);
 
+  for (const n of nombresProductos) {
+    const { error } = await supabase.from('productos').update({ nombre_es: n.despues, nombre_eu: null }).eq('id', n.id);
+    if (error) return json({ error: `Renombrando ${n.antes}: ${error.message}` }, 500);
+  }
   for (const p of preciosProductos) {
     const { error } = await supabase.from('productos').update({ precio: p.despues }).eq('id', p.id);
     if (error) return json({ error: `Actualizando ${p.nombre}: ${error.message}` }, 500);
@@ -648,10 +662,10 @@ async function atender(req: Request): Promise<Response> {
       altasWeb.push(`${a.codigo} ${x.reutilizar!.nombre}`);
     } else {
       const { data, error } = await supabase.from('productos')
-        .insert({ cliente_id: clienteId, nombre_es: nombreArticulo(a.nombre), ...datos }).select('id').single();
+        .insert({ cliente_id: clienteId, nombre_es: nombreTienda(a.nombre), ...datos }).select('id').single();
       if (error) return json({ error: `Alta en la tienda de ${a.nombre}: ${error.message}` }, 500);
       id = data.id as string;
-      altasWeb.push(`${a.codigo} ${nombreArticulo(a.nombre)} (sin foto)`);
+      altasWeb.push(`${a.codigo} ${nombreTienda(a.nombre)} (sin foto)`);
     }
     // Enlace del código en las dos básculas, salvo que en alguna ese código
     // ya sea de otro producto (no se pisa).
