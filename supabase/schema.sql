@@ -3036,11 +3036,12 @@ create policy "bascula_catalogo_cambios_select_admin"
 create index if not exists idx_bascula_catalogo_cambios_fecha
   on public.bascula_catalogo_cambios (cliente_id, origen, created_at desc);
 
--- Cada hora: la báscula 1 alimenta los precios de la web. Si está apagada
--- no pasa nada y se reintenta a la hora siguiente.
+-- Cada 5 minutos (en :02, :07…, desfasado de bascula-sync): la báscula 1
+-- alimenta los precios de la web. Si está apagada no pasa nada y se
+-- reintenta en la siguiente vuelta.
 -- select cron.schedule(
 --   'bascula-precios-diario-pescaderia-1',
---   '0 * * * *',
+--   '2-59/5 * * * *',
 --   $$
 --   select net.http_post(
 --     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/bascula-precios-diario',

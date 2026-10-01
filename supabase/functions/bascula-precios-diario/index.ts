@@ -1,6 +1,6 @@
 // Escaneo del catálogo de una báscula BM5 (tabla ETWS /year/artigos) para
 // mantener los precios de la web al día y avisar de cambios. (El nombre
-// "diario" es histórico: ahora corre cada hora.)
+// "diario" es histórico: la báscula 1 se lee cada 5 minutos.)
 //
 //   POST /bascula-precios-diario   { "origen": "pescaderia_1" }
 //   Opcional: "simular": true  — calcula y devuelve los cambios sin escribir nada
@@ -10,9 +10,9 @@
 //     es el botón de actualizar del panel de desarrollo (Básculas), que
 //     lanza al momento la misma lectura que el cron.
 //
-// Lo dispara un cron cada hora por báscula (ver supabase/schema.sql). Si la
-// báscula está apagada o da 502 (pasa a menudo, ver bascula-sync), no pasa
-// nada: se apunta el intento para el panel de desarrollo y se sale con 200.
+// Lo dispara un cron: la báscula 1 cada 5 minutos y la 2 cada hora (ver
+// supabase/schema.sql). Si la báscula está apagada o da 502 (pasa a menudo,
+// ver bascula-sync), no pasa nada: se apunta el intento para el panel de desarrollo y se sale con 200.
 // Si a las 13:30 aún no se ha podido leer ese día, avisa por push una sola
 // vez (solo la báscula que alimenta la web, no la vigilada).
 //
@@ -467,7 +467,7 @@ async function atender(req: Request): Promise<Response> {
     if (!vigilar && !simular && minutos >= HORA_AVISO_FALLO_MIN && (await leerSetting(claveOk)) !== fecha && (await leerSetting(claveFallo)) !== fecha) {
       await avisar(
         `⚠️ No se pudo leer la ${NOMBRE_ORIGEN[origen]}`,
-        `Hoy no se han podido revisar los precios de la web (${mensaje}). Se sigue intentando cada hora.`,
+        `Hoy no se han podido revisar los precios de la web (${mensaje}). Se sigue intentando cada 5 minutos.`,
         `bascula-catalogo-fallo-${origen}-${fecha}`,
       );
       await guardarSetting(claveFallo, fecha);
@@ -505,10 +505,19 @@ async function atender(req: Request): Promise<Response> {
       );
       if (error) return error.message;
     }
-    const { error: errFoto } = await supabase
-      .from('bascula_catalogo')
-      .upsert(articulos.map((a) => ({ cliente_id: clienteId, origen, ...a })), { onConflict: 'cliente_id,origen,codigo' });
-    if (errFoto) return errFoto.message;
+    // Solo se reescriben los artículos que han cambiado: la báscula se lee
+    // cada 5 minutos y casi siempre está igual.
+    const distintos = articulos.filter((a) => {
+      const prev = anterior.get(a.codigo);
+      return !prev || prev.nombre !== a.nombre || prev.familia !== a.familia || prev.unidades !== a.unidades
+        || Math.abs(prev.precio - a.precio) > 0.001 || prev.iva !== a.iva;
+    });
+    if (distintos.length > 0) {
+      const { error: errFoto } = await supabase
+        .from('bascula_catalogo')
+        .upsert(distintos.map((a) => ({ cliente_id: clienteId, origen, ...a })), { onConflict: 'cliente_id,origen,codigo' });
+      if (errFoto) return errFoto.message;
+    }
     if (codigosEliminados.size > 0) {
       await supabase.from('bascula_catalogo').delete().eq('cliente_id', clienteId).eq('origen', origen).in('codigo', [...codigosEliminados]);
     }
