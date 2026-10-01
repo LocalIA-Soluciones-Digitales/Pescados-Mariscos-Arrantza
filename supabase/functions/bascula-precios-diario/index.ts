@@ -292,7 +292,37 @@ function nombreTienda(nombre: string): string {
     .join(' ');
 }
 
-const euros = (n: number) => `${n.toFixed(2).replace('.', ',')}€`;
+// Foto para un artículo nuevo: la de un producto que ya la tenga (tienda,
+// hostelería o reservas) con el mismo nombre o, si no hay, el más parecido de
+// la misma especie: "TXIPIRON congelado" → "Txipirón (congelado)",
+// "LUBINA 400/600" → "Lubina", "RAPE / sapo" → "Sapito / Rape". La primera
+// palabra (la especie) tiene que estar en el nombre del producto.
+interface FuenteFoto { nombre: string; imagen_url: string; categoria: string | null }
+const PALABRAS_VACIAS = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'y', 'con', 'sin', 'a', 'al', 'en', 'para', 'menu', 'unidad', 'ud', 'un', 'g', 'gr', 'kg']);
+function palabrasClave(nombre: string): string[] {
+  return claveNombre(nombre).toLowerCase().split(/[^a-zñ0-9]+/)
+    .filter((p) => p && !/\d/.test(p) && !PALABRAS_VACIAS.has(p))
+    // singular y sin género: "sardinas" = "sardina", "congelada" = "congelado"
+    .map((p) => p.replace(/s$/, '').replace(/^(.{3,}?)[ao]$/, '$1'));
+}
+function buscarFoto(nombre: string, fuentes: FuenteFoto[]): FuenteFoto | null {
+  const buscadas = palabrasClave(nombre);
+  if (buscadas.length === 0) return null;
+  let mejor: FuenteFoto | null = null;
+  let mejorPuntos = -Infinity;
+  for (const f of fuentes) {
+    const suyas = palabrasClave(f.nombre);
+    if (!suyas.includes(buscadas[0])) continue;
+    const comunes = buscadas.filter((p) => suyas.includes(p)).length;
+    const exacto = comunes === buscadas.length && suyas.length === buscadas.length;
+    const puntos = (exacto ? 1000 : 0) + (suyas[0] === buscadas[0] ? 5 : 0) + comunes * 10
+      - (suyas.length - comunes) - (buscadas.length - comunes);
+    if (puntos > mejorPuntos) { mejor = f; mejorPuntos = puntos; }
+  }
+  return mejor;
+}
+
+const euros = (n: number) =>`${n.toFixed(2).replace('.', ',')}€`;
 
 // Texto corto para la notificación: primero lo que cambia de producto
 // (movidos, renombrados, eliminados, nuevos) y al final el recuento de
@@ -625,14 +655,48 @@ async function atender(req: Request): Promise<Response> {
     ...cambiosLista(e.bascula_familia as string, (e.reservas_articulos ?? []) as FilaLista[], actual, cambios),
   }));
 
+  // Fotos para las altas: primero la tienda visible, luego hostelería y
+  // reservas (ya revisadas a mano) y por último la tienda oculta.
+  const hayAltas = altasProductos.some((x) => !x.reutilizar)
+    || [...listasHosteleria, ...listasReservas].some((l) => l.altas.length > 0);
+  const fuentesFoto: FuenteFoto[] = [];
+  if (hayAltas) {
+    const [tienda, host, res] = await Promise.all([
+      supabase.from('productos').select('nombre_es, imagen_url, categoria, visible_web').eq('cliente_id', clienteId).not('imagen_url', 'is', null),
+      supabase.from('hosteleria_articulos').select('nombre, imagen_url, categoria').not('imagen_url', 'is', null),
+      supabase.from('reservas_articulos').select('nombre_es, imagen_url').eq('cliente_id', clienteId).not('imagen_url', 'is', null),
+    ]);
+    const tiendaFotos = (tienda.data ?? []).filter((p) => p.imagen_url);
+    const aFuente = (p: { nombre_es: string; imagen_url: string; categoria: string | null }) => ({ nombre: p.nombre_es, imagen_url: p.imagen_url, categoria: p.categoria });
+    fuentesFoto.push(
+      ...tiendaFotos.filter((p) => p.visible_web).map(aFuente),
+      ...(host.data ?? []).filter((h) => h.imagen_url).map((h) => ({ nombre: h.nombre as string, imagen_url: h.imagen_url as string, categoria: h.categoria as string | null })),
+      ...(res.data ?? []).filter((r) => r.imagen_url).map((r) => ({ nombre: r.nombre_es as string, imagen_url: r.imagen_url as string, categoria: null })),
+      ...tiendaFotos.filter((p) => !p.visible_web).map(aFuente),
+    );
+  }
+  const fotoDe = (a: Articulo) => buscarFoto(nombreArticulo(a.nombre), fuentesFoto);
+  // Categoría de hostelería: la del producto de la foto; si no hay, por el nombre.
+  const categoriaDe = (a: Articulo) =>
+    fotoDe(a)?.categoria ?? (/congelad/i.test(a.nombre) ? 'congelados' : 'pescado');
+  const fotoTexto = (a: Articulo) => fotoDe(a)?.nombre ?? null;
+
   const resultado = {
     origen, fecha, primeraVez, simulado: simular,
     articulos: actual.size,
     cambios: cambios.map((c) => ({ codigo: c.codigo, tipo: c.tipo, antes: c.antes, despues: c.despues })),
     preciosProductos, nombresProductos, categoriasProductos, preciosHosteleria, preciosReservas, sinActualizar,
-    altasProductos: altasProductos.map((x) => ({ codigo: x.articulo.codigo, nombre: x.articulo.nombre, reutiliza: x.reutilizar?.nombre ?? null })),
-    listasHosteleria: listasHosteleria.map((l) => ({ id: l.id, altas: l.altas.map((a) => a.codigo), reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length })),
-    listasReservas: listasReservas.map((l) => ({ id: l.id, altas: l.altas.map((a) => a.codigo), reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length })),
+    altasProductos: altasProductos.map((x) => ({
+      codigo: x.articulo.codigo, nombre: x.articulo.nombre, reutiliza: x.reutilizar?.nombre ?? null, foto: x.reutilizar ? null : fotoTexto(x.articulo),
+    })),
+    listasHosteleria: listasHosteleria.map((l) => ({
+      id: l.id, altas: l.altas.map((a) => ({ codigo: a.codigo, nombre: nombreArticulo(a.nombre), foto: fotoTexto(a), categoria: categoriaDe(a) })),
+      reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length,
+    })),
+    listasReservas: listasReservas.map((l) => ({
+      id: l.id, altas: l.altas.map((a) => ({ codigo: a.codigo, nombre: nombreArticulo(a.nombre), foto: fotoTexto(a) })),
+      reactivar: l.reactivar.length, ocultar: l.ocultar.length, renombrar: l.renombrar.length,
+    })),
   };
   if (simular) return json(resultado);
 
@@ -661,11 +725,12 @@ async function atender(req: Request): Promise<Response> {
       if (error) return json({ error: `Alta en la tienda de ${x.reutilizar!.nombre}: ${error.message}` }, 500);
       altasWeb.push(`${a.codigo} ${x.reutilizar!.nombre}`);
     } else {
+      const foto = fotoDe(a);
       const { data, error } = await supabase.from('productos')
-        .insert({ cliente_id: clienteId, nombre_es: nombreTienda(a.nombre), ...datos }).select('id').single();
+        .insert({ cliente_id: clienteId, nombre_es: nombreTienda(a.nombre), imagen_url: foto?.imagen_url ?? null, ...datos }).select('id').single();
       if (error) return json({ error: `Alta en la tienda de ${a.nombre}: ${error.message}` }, 500);
       id = data.id as string;
-      altasWeb.push(`${a.codigo} ${nombreTienda(a.nombre)} (sin foto)`);
+      altasWeb.push(`${a.codigo} ${nombreTienda(a.nombre)} ${foto ? `(foto de ${foto.nombre})` : '(sin foto)'}`);
     }
     // Enlace del código en las dos básculas, salvo que en alguna ese código
     // ya sea de otro producto (no se pisa).
@@ -693,6 +758,7 @@ async function atender(req: Request): Promise<Response> {
     if (l.altas.length > 0) {
       const { error } = await supabase.from('hosteleria_articulos').insert(l.altas.map((a) => ({
         lista_id: l.id, codigo_bascula: a.codigo, nombre: nombreArticulo(a.nombre), precio: a.precio, unidad: unidadDe(a), orden: Number(a.codigo) || 0,
+        imagen_url: fotoDe(a)?.imagen_url ?? null, categoria: categoriaDe(a),
       })));
       if (error) return json({ error: `Alta en hostelería: ${error.message}` }, 500);
     }
@@ -706,6 +772,7 @@ async function atender(req: Request): Promise<Response> {
     if (l.altas.length > 0) {
       const { error } = await supabase.from('reservas_articulos').insert(l.altas.map((a) => ({
         evento_id: l.id, cliente_id: l.cliente_id, codigo_bascula: a.codigo, nombre_es: nombreArticulo(a.nombre), precio: a.precio, unidad: unidadDe(a), orden: Number(a.codigo) || 0,
+        imagen_url: fotoDe(a)?.imagen_url ?? null,
       })));
       if (error) return json({ error: `Alta en reservas: ${error.message}` }, 500);
     }
