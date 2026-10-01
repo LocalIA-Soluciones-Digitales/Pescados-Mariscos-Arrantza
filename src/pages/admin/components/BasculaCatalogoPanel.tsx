@@ -46,6 +46,17 @@ interface Lectura {
   conectada?: boolean;
 }
 
+// Dónde sale cada artículo en la web: tienda online (familias 1-5), página de
+// reservas (campaña enlazada, p. ej. Navidad) o portal de hostelería (tarifa
+// enlazada, tras iniciar sesión).
+type Destino = 'tienda' | 'reservas' | 'hosteleria';
+const DESTINOS: Record<Destino, { label: string; corto: string; icono: string; clase: string }> = {
+  tienda: { label: 'Tienda online', corto: 'Tienda', icono: 'ri-store-2-line', clase: 'bg-emerald-50 text-emerald-700' },
+  reservas: { label: 'Reservas', corto: 'Reservas', icono: 'ri-calendar-event-line', clase: 'bg-red-50 text-red-700' },
+  hosteleria: { label: 'Portal de hostelería', corto: 'Hostelería', icono: 'ri-restaurant-line', clase: 'bg-violet-50 text-violet-700' },
+};
+const ORDEN_DESTINOS: Destino[] = ['tienda', 'reservas', 'hosteleria'];
+
 // Precio que ha cambiado mientras la pestaña estaba abierta.
 interface CambioVisto {
   antes: number;
@@ -82,7 +93,7 @@ function Stat({ valor, label, icono }: { valor: number; label: string; icono: st
 export default function BasculaCatalogoPanel() {
   const [articulos, setArticulos] = useState<Articulo[]>([]);
   const [nombresFamilia, setNombresFamilia] = useState<Record<string, string>>({});
-  const [enTienda, setEnTienda] = useState<Set<string>>(new Set());
+  const [destinos, setDestinos] = useState<Map<string, Set<Destino>>>(new Map());
   const [fotos, setFotos] = useState<Map<string, string>>(new Map());
   // Dados de alta en la báscula en los últimos 7 días.
   const [recientes, setRecientes] = useState<Set<string>>(new Set());
@@ -131,35 +142,51 @@ export default function BasculaCatalogoPanel() {
     setLoading(false);
   }, []);
 
-  // Nombres de familia, fotos y qué está en la web: cambia poco, se lee al entrar.
+  // Nombres de familia, fotos y dónde sale cada código en la web: cambia
+  // poco, se lee al entrar.
   useEffect(() => {
     let vivo = true;
     (async () => {
-      const [host, res, cod, fotosHost, fotosRes] = await Promise.all([
-        supabase.from('hosteleria_listas_precio').select('nombre, bascula_familia').eq('bascula_origen', ORIGEN),
-        supabase.from('reservas_eventos').select('nombre_es, bascula_familia').eq('bascula_origen', ORIGEN),
+      const [host, res, cod] = await Promise.all([
+        supabase.from('hosteleria_listas_precio')
+          .select('nombre, bascula_familia, hosteleria_articulos (codigo_bascula, activo, imagen_url)').eq('bascula_origen', ORIGEN),
+        supabase.from('reservas_eventos')
+          .select('nombre_es, activo, bascula_familia, reservas_articulos (codigo_bascula, activo, imagen_url)').eq('bascula_origen', ORIGEN),
         supabase.from('productos_codigos_bascula').select('codigo_bascula, productos (visible_web, imagen_url)').eq('origen', ORIGEN),
-        supabase.from('hosteleria_articulos').select('codigo_bascula, imagen_url').not('codigo_bascula', 'is', null).not('imagen_url', 'is', null),
-        supabase.from('reservas_articulos').select('codigo_bascula, imagen_url').not('codigo_bascula', 'is', null).not('imagen_url', 'is', null),
       ]);
       if (!vivo) return;
+      type Fila = { codigo_bascula: string | null; activo: boolean; imagen_url: string | null };
       const nombres: Record<string, string> = { ...FAMILIAS_TIENDA };
-      for (const r of res.data ?? []) if (r.bascula_familia) nombres[r.bascula_familia] = r.nombre_es;
-      for (const h of host.data ?? []) if (h.bascula_familia) nombres[h.bascula_familia] = h.nombre;
-      setNombresFamilia(nombres);
-
-      const tienda = new Set<string>();
+      const donde = new Map<string, Set<Destino>>();
+      const apuntar = (codigo: string, d: Destino) => donde.set(codigo, new Set([...(donde.get(codigo) ?? []), d]));
       const mapaFotos = new Map<string, string>();
+      const foto = (codigo: string, url: string | null) => {
+        if (url && !mapaFotos.has(codigo)) mapaFotos.set(codigo, url);
+      };
       // Prioridad de la foto: tienda, hostelería, reservas.
       for (const c of cod.data ?? []) {
         const p = c.productos as unknown as { visible_web: boolean; imagen_url: string | null } | null;
-        if (p?.visible_web) tienda.add(c.codigo_bascula as string);
-        if (p?.imagen_url) mapaFotos.set(c.codigo_bascula as string, p.imagen_url);
+        if (p?.visible_web) apuntar(c.codigo_bascula as string, 'tienda');
+        foto(c.codigo_bascula as string, p?.imagen_url ?? null);
       }
-      for (const f of [...(fotosHost.data ?? []), ...(fotosRes.data ?? [])]) {
-        if (!mapaFotos.has(f.codigo_bascula as string)) mapaFotos.set(f.codigo_bascula as string, f.imagen_url as string);
+      for (const h of host.data ?? []) {
+        if (h.bascula_familia) nombres[h.bascula_familia] = h.nombre;
+        for (const a of (h.hosteleria_articulos ?? []) as Fila[]) {
+          if (!a.codigo_bascula) continue;
+          if (a.activo) apuntar(a.codigo_bascula, 'hosteleria');
+          foto(a.codigo_bascula, a.imagen_url);
+        }
       }
-      setEnTienda(tienda);
+      for (const r of res.data ?? []) {
+        if (r.bascula_familia) nombres[r.bascula_familia] = r.nombre_es;
+        for (const a of (r.reservas_articulos ?? []) as Fila[]) {
+          if (!a.codigo_bascula) continue;
+          if (a.activo && r.activo) apuntar(a.codigo_bascula, 'reservas');
+          foto(a.codigo_bascula, a.imagen_url);
+        }
+      }
+      setNombresFamilia(nombres);
+      setDestinos(donde);
       setFotos(mapaFotos);
     })();
     return () => {
@@ -192,7 +219,8 @@ export default function BasculaCatalogoPanel() {
 
   const total = grupos.reduce((s, g) => s + g.items.length, 0);
   const sugerencias = useMemo(() => articulos.map((a) => a.nombre), [articulos]);
-  const enWebTotal = useMemo(() => articulos.filter((a) => enTienda.has(a.codigo)).length, [articulos, enTienda]);
+  const cuenta = (items: Articulo[], d: Destino) => items.filter((a) => destinos.get(a.codigo)?.has(d)).length;
+  const sinWeb = useMemo(() => articulos.filter((a) => !destinos.get(a.codigo)?.size).length, [articulos, destinos]);
   // Buscando, se ven todos los resultados aunque su familia esté plegada.
   const plegada = (f: string) => !q && plegadas.has(f);
   const todasPlegadas = grupos.length > 0 && grupos.every((g) => plegadas.has(g.familia));
@@ -268,10 +296,12 @@ export default function BasculaCatalogoPanel() {
 
       <div className="px-4 md:px-8 pt-4">
         {!loading && articulos.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5 max-w-2xl">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-5">
             <Stat valor={articulos.length} label="En la báscula" icono="ri-scales-3-line" />
-            <Stat valor={enWebTotal} label="En la web" icono="ri-global-line" />
-            <Stat valor={recientes.size} label="Nuevos (7 días)" icono="ri-sparkling-line" />
+            {ORDEN_DESTINOS.map((d) => (
+              <Stat key={d} valor={cuenta(articulos, d)} label={`En ${DESTINOS[d].label.toLowerCase()}`} icono={DESTINOS[d].icono} />
+            ))}
+            <Stat valor={sinWeb} label="Solo en la báscula" icono="ri-eye-off-line" />
           </div>
         )}
 
@@ -299,14 +329,14 @@ export default function BasculaCatalogoPanel() {
             {grupos.map((g) => {
               const color = COLOR_FAMILIA[g.familia] ?? COLOR_OTRA;
               const cerrada = plegada(g.familia);
-              const enWeb = g.items.filter((a) => enTienda.has(a.codigo)).length;
+              const resumen = ORDEN_DESTINOS.map((d) => [d, cuenta(g.items, d)] as const).filter(([, n]) => n > 0);
               return (
                 <section key={g.familia} className="bg-background-50 border border-background-200/70 rounded-2xl overflow-hidden">
                   <button
                     type="button"
                     onClick={() => alternar(g.familia)}
                     aria-expanded={!cerrada}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-background-100/60 transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-background-100/60 transition-colors focus:outline-none focus-visible:bg-background-100"
                   >
                     <span className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-semibold flex-shrink-0 ${color.suave} ${color.texto}`}>
                       {g.familia || '–'}
@@ -315,7 +345,8 @@ export default function BasculaCatalogoPanel() {
                       <span className="block text-sm font-semibold text-foreground-950 truncate">{nombreFamilia(g.familia)}</span>
                       <span className="block text-[11px] text-foreground-400">
                         {g.items.length} artículo{g.items.length === 1 ? '' : 's'}
-                        {enWeb > 0 && ` · ${enWeb} en la web`}
+                        {resumen.map(([d, n]) => ` · ${n === g.items.length ? 'todos' : n} en ${DESTINOS[d].label.toLowerCase()}`).join('')}
+                        {resumen.length === 0 && ' · no salen en la web'}
                       </span>
                     </span>
                     <i className={`ri-arrow-down-s-line text-lg text-foreground-400 transition-transform duration-200 ${cerrada ? '-rotate-90' : ''}`}></i>
@@ -346,8 +377,14 @@ export default function BasculaCatalogoPanel() {
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-mono text-[11px] font-semibold text-foreground-500 bg-background-100 rounded px-1.5 py-0.5 tabular-nums">{a.codigo}</span>
-                                {enTienda.has(a.codigo) && (
-                                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700">En la web</span>
+                                {ORDEN_DESTINOS.filter((d) => destinos.get(a.codigo)?.has(d)).map((d) => (
+                                  <span key={d} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${DESTINOS[d].clase}`}>
+                                    <i className={DESTINOS[d].icono}></i>
+                                    {DESTINOS[d].corto}
+                                  </span>
+                                ))}
+                                {!destinos.get(a.codigo)?.size && (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-background-100 text-foreground-400">Solo báscula</span>
                                 )}
                                 {recientes.has(a.codigo) && (
                                   <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">Nuevo</span>
