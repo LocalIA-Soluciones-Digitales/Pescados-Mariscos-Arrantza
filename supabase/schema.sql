@@ -2691,7 +2691,7 @@ begin
   foreach t in array array[
     'pedidos', 'reservas', 'reservas_eventos', 'reservas_ajustes',
     'resenas', 'newsletter_subscribers', 'productos', 'solicitudes_stock',
-    'bascula_ventas',
+    'bascula_ventas', 'bascula_catalogo',
     'caja_movimientos',
     'promo_reglas', 'promo_otorgadas',
     'hosteleria_solicitudes', 'hosteleria_clientes'
