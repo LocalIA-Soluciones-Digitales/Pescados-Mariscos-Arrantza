@@ -69,6 +69,13 @@ export const STOCK_INFO_ITEMS = [
   { icon: 'ri-barcode-line', text: 'Cada báscula tiene su propio catálogo de códigos: indica el código de cada terminal donde se venda este producto.' },
 ];
 
+export const BASCULA_INFO_ITEMS = [
+  { icon: 'ri-scales-3-line', text: 'Todos los artículos de la báscula 1, por código y familia, tal como están en la báscula.' },
+  { icon: 'ri-refresh-line', text: 'Se lee sola cada 5 minutos: si cambias algo en la báscula, aparece aquí al rato.' },
+  { icon: 'ri-global-line', text: '"En la web" marca los que se venden en la tienda online.' },
+  { icon: 'ri-edit-line', text: 'Es solo para consultar: los nombres, precios y familias se cambian en la báscula.' },
+];
+
 export const CLIENTES_INFO_ITEMS = [
   { icon: 'ri-database-2-line', text: 'Se construye solo a partir del histórico de pedidos y reservas.' },
   { icon: 'ri-phone-line', text: 'Se agrupa por teléfono, para juntar todo bajo el mismo cliente.' },

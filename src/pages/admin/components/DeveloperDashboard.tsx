@@ -7,9 +7,9 @@ import ViewSwitcher from './ViewSwitcher';
 import BasculasCambiosPanel from './BasculasCambiosPanel';
 import { useBasculasCambios } from '@/hooks/useBasculasCambios';
 
-type Tab = 'informes' | 'resumen' | 'errores' | 'newsletter' | 'basculas';
+export type Tab = 'informes' | 'resumen' | 'errores' | 'newsletter' | 'basculas';
 
-const TABS: { value: Tab; label: string }[] = [
+export const TABS: { value: Tab; label: string }[] = [
   { value: 'informes', label: 'Informes' },
   { value: 'resumen', label: 'Resumen' },
   { value: 'newsletter', label: 'Newsletter' },
@@ -28,7 +28,12 @@ const TITLES: Record<Tab, string> = {
 type ViewSwitch = { label: string; onClick: () => void };
 
 export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOut: () => void; viewSwitch?: ViewSwitch }) {
-  const [tab, setTab] = useState<Tab>('informes');
+  // ?tab=basculas&buscar=714 lo usan los avisos push de la báscula para abrir
+  // directamente los cambios de ese artículo.
+  const [tab, setTab] = useState<Tab>(() => {
+    const inicial = new URLSearchParams(window.location.search).get('tab');
+    return TABS.some((t) => t.value === inicial) ? (inicial as Tab) : 'informes';
+  });
   // Se carga aunque la pestaña esté cerrada para avisar en ella de los cambios sin ver.
   const basculas = useBasculasCambios();
   // Altura de la cabecera para que las barras de filtros fijas queden justo debajo.

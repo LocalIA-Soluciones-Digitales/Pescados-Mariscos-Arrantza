@@ -3,12 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
-import DeveloperDashboard from './components/DeveloperDashboard';
+import DeveloperDashboard, { TABS as TABS_DESARROLLO } from './components/DeveloperDashboard';
 
 export default function Admin() {
   const { session, loading, error, signIn, signOut, resetPassword, isDeveloper } = useAdminAuth();
   const navigate = useNavigate();
-  const [view, setView] = useState<'desarrollo' | 'gestion'>('desarrollo');
+  // Un aviso push abre /admin?tab=...: la pestaña dice en qué panel está
+  // (los de pedidos, reservas… son del de gestión).
+  const [view, setView] = useState<'desarrollo' | 'gestion'>(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return tab && !TABS_DESARROLLO.some((t) => t.value === tab) ? 'gestion' : 'desarrollo';
+  });
 
   const handleSignOut = async () => {
     await signOut();

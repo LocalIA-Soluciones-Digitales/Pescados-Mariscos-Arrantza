@@ -324,51 +324,76 @@ function buscarFoto(nombre: string, fuentes: FuenteFoto[]): FuenteFoto | null {
 
 const euros = (n: number) =>`${n.toFixed(2).replace('.', ',')}€`;
 
-// Texto corto para la notificación: primero lo que cambia de producto
-// (movidos, renombrados, eliminados, nuevos) y al final el recuento de
-// precios. Un producto que desaparece de un código y aparece con el mismo
-// nombre en otro se cuenta como "movido", no como baja + alta.
-function resumenAviso(cambios: Cambio[], preciosWeb: number, sinActualizar: string[], altasWeb: string[] = []): string {
-  const eliminados = cambios.filter((c) => c.tipo === 'eliminado');
+// Un aviso por artículo, para que cada uno se lea entero y lleve a lo suyo
+// al tocarlo (la pestaña Básculas del panel de desarrollo filtrada por su
+// código). Un producto que desaparece de un código y aparece con el mismo
+// nombre en otro es un solo aviso, "movido", no baja + alta. enWeb trae lo que
+// se ha hecho en la web con cada código (alta en la tienda, precio copiado…).
+interface Aviso { codigo: string; titulo: string; cuerpo: string }
+const MAX_AVISOS = 6;
+
+function avisosPorArticulo(cambios: Cambio[], enWeb: Map<string, string[]>, bascula: string): Aviso[] {
   const nuevos = cambios.filter((c) => c.tipo === 'nuevo');
-  const movidos: string[] = [];
-  const nuevosSinPareja = [...nuevos];
-  const eliminadosSinPareja: Cambio[] = [];
-  for (const e of eliminados) {
-    const i = nuevosSinPareja.findIndex((n) => claveNombre(n.despues!.nombre) === claveNombre(e.antes!.nombre));
-    if (i >= 0) {
-      movidos.push(`${e.antes!.nombre} ${e.codigo}→${nuevosSinPareja[i].codigo}`);
-      nuevosSinPareja.splice(i, 1);
+  const movidos: { de: Cambio; a: Cambio }[] = [];
+  for (const e of cambios.filter((c) => c.tipo === 'eliminado')) {
+    const n = nuevos.find((x) => !movidos.some((m) => m.a === x) && claveNombre(x.despues!.nombre) === claveNombre(e.antes!.nombre));
+    if (n) movidos.push({ de: e, a: n });
+  }
+  const emparejados = new Set(movidos.flatMap((m) => [m.de, m.a]));
+  const web = (...codigos: string[]) => codigos.flatMap((c) => enWeb.get(c) ?? []);
+  const unidad = (a: Articulo) => (a.unidades === 'un' ? 'ud' : 'kg');
+  const corto = (t: string) => (t.length > 300 ? `${t.slice(0, 297)}…` : t);
+
+  const avisos: Aviso[] = movidos.map(({ de, a }) => ({
+    codigo: a.codigo,
+    titulo: `⚖️ Movido de código (${bascula})`,
+    cuerpo: corto([`${a.despues!.nombre}: ${de.codigo} → ${a.codigo}`, ...web(de.codigo, a.codigo)].join(' · ')),
+  }));
+
+  const porCodigo = new Map<string, Cambio[]>();
+  for (const c of cambios) {
+    if (emparejados.has(c)) continue;
+    porCodigo.set(c.codigo, [...(porCodigo.get(c.codigo) ?? []), c]);
+  }
+  for (const [codigo, cs] of porCodigo) {
+    const tipos = new Set(cs.map((c) => c.tipo));
+    const art = (cs[0].despues ?? cs[0].antes)!;
+    const partes: string[] = [];
+    let titulo: string;
+    if (tipos.has('nuevo')) {
+      titulo = `⚖️ Nuevo en la ${bascula}`;
+      partes.push(`${codigo} ${art.nombre}`, `${euros(art.precio)}/${unidad(art)}`, `familia ${art.familia}`);
+    } else if (tipos.has('eliminado')) {
+      titulo = `⚖️ Eliminado de la ${bascula}`;
+      partes.push(`${codigo} ${art.nombre}`);
     } else {
-      eliminadosSinPareja.push(e);
+      const c = (t: TipoCambio) => cs.find((x) => x.tipo === t);
+      titulo = tipos.has('renombrado')
+        ? `⚖️ Otro producto en el ${codigo} (${bascula})`
+        : tipos.size === 1 && tipos.has('precio') ? `⚖️ Precio nuevo (${bascula})` : `⚖️ Cambio en la ${bascula}`;
+      const r = c('renombrado');
+      partes.push(r ? `${codigo} ${r.antes!.nombre} → ${r.despues!.nombre}` : `${codigo} ${art.nombre}`);
+      const p = c('precio');
+      if (p) partes.push(`${euros(p.antes!.precio)} → ${euros(p.despues!.precio)}`);
+      const f = c('familia');
+      if (f) partes.push(`familia ${f.antes!.familia} → ${f.despues!.familia}`);
+      const u = c('unidades');
+      if (u) partes.push(`${unidad(u.antes!)} → ${unidad(u.despues!)}`);
     }
+    avisos.push({ codigo, titulo, cuerpo: corto([...partes, ...web(codigo)].join(' · ')) });
   }
 
-  const partes: string[] = [];
-  const lista = (titulo: string, items: string[]) => {
-    if (items.length === 0) return;
-    const visibles = items.slice(0, 3).join(', ');
-    partes.push(`${titulo}: ${visibles}${items.length > 3 ? ` y ${items.length - 3} más` : ''}`);
-  };
-  lista('Movido', movidos);
-  lista('Cambiado', cambios.filter((c) => c.tipo === 'renombrado').map((c) => `${c.codigo} ${c.antes!.nombre} → ${c.despues!.nombre}`));
-  lista('Eliminado', eliminadosSinPareja.map((c) => `${c.codigo} ${c.antes!.nombre}`));
-  lista('Nuevo', nuevosSinPareja.map((c) => `${c.codigo} ${c.despues!.nombre}`));
-  lista('Familia', cambios.filter((c) => c.tipo === 'familia').map((c) => `${c.codigo} ${c.despues!.nombre} f${c.antes!.familia}→f${c.despues!.familia}`));
-
-  const precios = cambios.filter((c) => c.tipo === 'precio');
-  if (precios.length === 1) {
-    const c = precios[0];
-    partes.push(`Precio: ${c.despues!.nombre} ${euros(c.antes!.precio)} → ${euros(c.despues!.precio)}`);
-  } else if (precios.length > 1) {
-    partes.push(`${precios.length} precios cambiados`);
+  // Códigos que se han tocado en la web sin cambiar en la báscula (p. ej. un
+  // código recién enlazado): un único aviso con el recuento.
+  const sueltos = [...enWeb.keys()].filter((c) => !cambios.some((x) => x.codigo === c));
+  if (sueltos.length > 0) {
+    avisos.push({
+      codigo: '',
+      titulo: `⚖️ Web al día (${bascula})`,
+      cuerpo: corto(sueltos.map((c) => `${c}: ${enWeb.get(c)!.join(', ')}`).join(' · ')),
+    });
   }
-  lista('En la tienda', altasWeb);
-  if (preciosWeb > 0) partes.push(`${preciosWeb} actualizados en la web`);
-  if (sinActualizar.length > 0) partes.push(`Revisar en la web (ya no está en la báscula): ${sinActualizar.slice(0, 3).join(', ')}${sinActualizar.length > 3 ? ` y ${sinActualizar.length - 3} más` : ''}`);
-
-  const texto = partes.join(' · ');
-  return texto.length > 300 ? `${texto.slice(0, 297)}…` : texto;
+  return avisos;
 }
 
 function json(data: unknown, status = 200): Response {
@@ -436,11 +461,32 @@ async function atender(req: Request): Promise<Response> {
     supabase.from('settings').upsert({ cliente_id: clienteId, key, value }, { onConflict: 'key,cliente_id' });
   // Los avisos de las básculas van solo a los desarrolladores, no al
   // pescadero; también se ven en el panel de desarrollo (Básculas).
-  const avisar = async (titulo: string, cuerpo: string, tag: string) => {
+  // url: adónde lleva el aviso al tocarlo (por defecto, la pestaña Básculas).
+  const avisar = async (titulo: string, cuerpo: string, tag: string, url = '/admin?tab=basculas') => {
     const { error } = await supabase.rpc('enviar_push_desarrollador', {
-      p_cliente_id: clienteId, p_titulo: titulo, p_cuerpo: cuerpo, p_tag: tag,
+      p_cliente_id: clienteId, p_titulo: titulo, p_cuerpo: cuerpo, p_tag: tag, p_url: url,
     });
     if (error) console.error('bascula-precios-diario: fallo al avisar', error.message);
+  };
+  // Cada aviso con su etiqueta (si no, el móvil sustituiría uno por otro). Si
+  // de golpe cambian muchos artículos (p. ej. al reprogramar la báscula), los
+  // primeros van uno a uno y el resto en un aviso que lleva a la lista.
+  const enviarAvisos = async (cambios: Cambio[], enWeb: Map<string, string[]>) => {
+    const avisos = avisosPorArticulo(cambios, enWeb, NOMBRE_ORIGEN[origen]);
+    const sello = Date.now();
+    const sueltos = avisos.length > MAX_AVISOS ? avisos.slice(0, MAX_AVISOS - 1) : avisos;
+    for (const a of sueltos) {
+      await avisar(a.titulo, a.cuerpo, `bascula-${origen}-${a.codigo || 'web'}-${sello}`,
+        a.codigo ? `/admin?tab=basculas&buscar=${encodeURIComponent(a.codigo)}` : undefined);
+    }
+    const resto = avisos.slice(sueltos.length);
+    if (resto.length > 0) {
+      await avisar(
+        `⚖️ ${resto.length} cambios más en la ${NOMBRE_ORIGEN[origen]}`,
+        resto.map((a) => a.cuerpo.split(' · ')[0]).join(', ').slice(0, 300),
+        `bascula-${origen}-resto-${sello}`,
+      );
+    }
   };
 
   // Estado de la vigilancia para el panel de desarrollo. Una báscula
@@ -530,9 +576,7 @@ async function atender(req: Request): Promise<Response> {
     const error = await guardarFoto();
     if (error) return json({ error }, 500);
     await guardarLecturaOk();
-    if (cambios.length > 0) {
-      await avisar(`⚖️ Cambios en la ${NOMBRE_ORIGEN[origen]}`, resumenAviso(cambios, 0, []), `bascula-vigilancia-${origen}-${Date.now()}`);
-    }
+    await enviarAvisos(cambios, new Map());
     return json(resultado);
   }
 
@@ -574,8 +618,8 @@ async function atender(req: Request): Promise<Response> {
     }
   }
 
-  const preciosProductos: { id: string; nombre: string; antes: string; despues: string }[] = [];
-  const sinActualizar: string[] = [];
+  const preciosProductos: { id: string; codigo: string; nombre: string; antes: string; despues: string }[] = [];
+  const sinActualizar: { codigo: string; nombre: string }[] = [];
   const nombresProductos: { id: string; antes: string; despues: string }[] = [];
   const categoriasProductos: { id: string; nombre: string; categoria: string | null; visible_web: boolean }[] = [];
   for (const m of mapeos ?? []) {
@@ -585,7 +629,7 @@ async function atender(req: Request): Promise<Response> {
     // Solo se avisa el día en que el código desaparece; los días siguientes
     // el producto web se queda como está.
     if (!a) {
-      if (codigosEliminados.has(m.codigo_bascula as string)) sinActualizar.push(p.nombre_es);
+      if (codigosEliminados.has(m.codigo_bascula as string)) sinActualizar.push({ codigo: m.codigo_bascula as string, nombre: p.nombre_es });
       // Si el artículo ya no está en la báscula, deja de venderse en la
       // tienda (se oculta, no se borra: conserva foto e historial por si
       // vuelve a darse de alta).
@@ -600,7 +644,7 @@ async function atender(req: Request): Promise<Response> {
       if (despues !== p.nombre_es) nombresProductos.push({ id: p.id, antes: p.nombre_es, despues });
     }
     const nuevo = formatoPrecioWeb(a);
-    if (p.precio !== nuevo) preciosProductos.push({ id: p.id, nombre: p.nombre_es, antes: p.precio, despues: nuevo });
+    if (p.precio !== nuevo) preciosProductos.push({ id: p.id, codigo: a.codigo, nombre: p.nombre_es, antes: p.precio, despues: nuevo });
 
     // La categoría sigue a la familia. Solo el día que el artículo cambia de
     // familia se toca la visibilidad, para no pisar un producto que el
@@ -622,14 +666,14 @@ async function atender(req: Request): Promise<Response> {
     .eq('bascula_origen', origen);
   if (errListas) return json({ error: errListas.message }, 500);
 
-  const preciosHosteleria: { id: string; nombre: string; antes: number; despues: number; unidad: 'kg' | 'un' }[] = [];
+  const preciosHosteleria: { id: string; codigo: string; nombre: string; antes: number; despues: number; unidad: 'kg' | 'un' }[] = [];
   for (const l of listas ?? []) {
     for (const h of (l.hosteleria_articulos ?? []) as { id: string; codigo_bascula: string | null; nombre: string; precio: number; unidad: string }[]) {
       const a = h.codigo_bascula ? actual.get(h.codigo_bascula) : undefined;
       if (!a || a.familia !== l.bascula_familia || codigosRenombrados.has(a.codigo)) continue;
       const unidad = a.unidades === 'un' ? 'un' : 'kg';
       if (Math.abs(Number(h.precio) - a.precio) > 0.001 || h.unidad !== unidad) {
-        preciosHosteleria.push({ id: h.id, nombre: h.nombre, antes: Number(h.precio), despues: a.precio, unidad });
+        preciosHosteleria.push({ id: h.id, codigo: a.codigo, nombre: h.nombre, antes: Number(h.precio), despues: a.precio, unidad });
       }
     }
   }
@@ -647,14 +691,14 @@ async function atender(req: Request): Promise<Response> {
     .eq('bascula_origen', origen);
   if (errCampanas) return json({ error: errCampanas.message }, 500);
 
-  const preciosReservas: { id: string; nombre: string; antes: number; despues: number; unidad: 'kg' | 'un' }[] = [];
+  const preciosReservas: { id: string; codigo: string; nombre: string; antes: number; despues: number; unidad: 'kg' | 'un' }[] = [];
   for (const e of campanas ?? []) {
     for (const r of (e.reservas_articulos ?? []) as { id: string; codigo_bascula: string | null; nombre_es: string; precio: number; unidad: string }[]) {
       const a = r.codigo_bascula ? actual.get(r.codigo_bascula) : undefined;
       if (!a || a.familia !== e.bascula_familia || codigosRenombrados.has(a.codigo)) continue;
       const unidad = a.unidades === 'un' ? 'un' : 'kg';
       if (Math.abs(Number(r.precio) - a.precio) > 0.001 || r.unidad !== unidad) {
-        preciosReservas.push({ id: r.id, nombre: r.nombre_es, antes: Number(r.precio), despues: a.precio, unidad });
+        preciosReservas.push({ id: r.id, codigo: a.codigo, nombre: r.nombre_es, antes: Number(r.precio), despues: a.precio, unidad });
       }
     }
   }
@@ -722,7 +766,7 @@ async function atender(req: Request): Promise<Response> {
     const { error } = await supabase.from('productos').update(datos).eq('id', c.id);
     if (error) return json({ error: `Actualizando la categoría de ${c.nombre}: ${error.message}` }, 500);
   }
-  const altasWeb: string[] = [];
+  const altasWeb: { codigo: string; texto: string }[] = [];
   for (const x of altasProductos) {
     const a = x.articulo;
     const datos = {
@@ -732,14 +776,14 @@ async function atender(req: Request): Promise<Response> {
     if (id) {
       const { error } = await supabase.from('productos').update(datos).eq('id', id);
       if (error) return json({ error: `Alta en la tienda de ${x.reutilizar!.nombre}: ${error.message}` }, 500);
-      altasWeb.push(`${a.codigo} ${x.reutilizar!.nombre}`);
+      altasWeb.push({ codigo: a.codigo, texto: `como ${x.reutilizar!.nombre}` });
     } else {
       const foto = fotoDe(a);
       const { data, error } = await supabase.from('productos')
         .insert({ cliente_id: clienteId, nombre_es: nombreTienda(a.nombre), imagen_url: foto?.imagen_url ?? null, ...datos }).select('id').single();
       if (error) return json({ error: `Alta en la tienda de ${a.nombre}: ${error.message}` }, 500);
       id = data.id as string;
-      altasWeb.push(`${a.codigo} ${nombreTienda(a.nombre)} ${foto ? `(foto de ${foto.nombre})` : '(sin foto)'}`);
+      altasWeb.push({ codigo: a.codigo, texto: foto ? `con la foto de ${foto.nombre}` : 'sin foto' });
     }
     // Enlace del código en las dos básculas, salvo que en alguna ese código
     // ya sea de otro producto (no se pisa).
@@ -795,17 +839,15 @@ async function atender(req: Request): Promise<Response> {
   const errorFoto = await guardarFoto();
   if (errorFoto) return json({ error: errorFoto }, 500);
 
-  const preciosWeb = preciosProductos.length + preciosHosteleria.length + preciosReservas.length;
-  if (cambios.length > 0 || preciosWeb > 0 || sinActualizar.length > 0) {
-    const estructurales = cambios.some((c) => c.tipo !== 'precio');
-    await avisar(
-      estructurales ? `⚖️ Cambios en la ${NOMBRE_ORIGEN[origen]}` : `⚖️ Precios nuevos (${NOMBRE_ORIGEN[origen]})`,
-      resumenAviso(cambios, preciosWeb, sinActualizar, altasWeb),
-      // Cada escaneo con cambios es un aviso aparte: con la misma etiqueta
-      // el móvil sustituiría el de la hora anterior.
-      `bascula-catalogo-${origen}-${Date.now()}`,
-    );
-  }
+  // Lo que se ha hecho en la web con cada código, para el aviso de su artículo.
+  const enWeb = new Map<string, string[]>();
+  const apuntar = (codigo: string, texto: string) => enWeb.set(codigo, [...(enWeb.get(codigo) ?? []), texto]);
+  for (const x of altasWeb) apuntar(x.codigo, `En la tienda ${x.texto}`);
+  for (const x of sinActualizar) apuntar(x.codigo, `Oculto en la web: ${x.nombre}`);
+  const actualizados = new Map<string, number>();
+  for (const x of [...preciosProductos, ...preciosHosteleria, ...preciosReservas]) actualizados.set(x.codigo, (actualizados.get(x.codigo) ?? 0) + 1);
+  for (const [codigo, n] of actualizados) apuntar(codigo, n === 1 ? 'Actualizado en la web' : `${n} actualizados en la web`);
+  await enviarAvisos(cambios, enWeb);
 
   await guardarLecturaOk();
   return json(resultado);

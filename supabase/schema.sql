@@ -2830,7 +2830,9 @@ $$;
 
 revoke all on function public.ids_desarrolladores() from public, anon, authenticated;
 
-create or replace function public.enviar_push_desarrollador(p_cliente_id uuid, p_titulo text, p_cuerpo text, p_tag text)
+-- p_url: adónde lleva el aviso al tocarlo (p. ej. /admin?tab=basculas&buscar=714).
+drop function if exists public.enviar_push_desarrollador(uuid, text, text, text);
+create or replace function public.enviar_push_desarrollador(p_cliente_id uuid, p_titulo text, p_cuerpo text, p_tag text, p_url text default '/admin')
 returns void
 language plpgsql security definer set search_path = public, extensions
 as $$
@@ -2851,7 +2853,7 @@ begin
         'cliente_id', p_cliente_id,
         'titulo', p_titulo,
         'cuerpo', p_cuerpo,
-        'url', '/admin',
+        'url', coalesce(p_url, '/admin'),
         'tag', p_tag,
         'solo_desarrolladores', true
       )
@@ -2862,7 +2864,7 @@ exception when others then
 end;
 $$;
 
-revoke all on function public.enviar_push_desarrollador(uuid, text, text, text) from public, anon, authenticated;
+revoke all on function public.enviar_push_desarrollador(uuid, text, text, text, text) from public, anon, authenticated;
 
 -- Texto del aviso: "Nombre · 32.50 € · Recogida 26/09 11:00".
 create or replace function public.resumen_push_pedido(p public.pedidos)

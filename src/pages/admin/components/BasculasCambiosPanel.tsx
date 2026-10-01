@@ -174,7 +174,8 @@ const chipFiltro = (activo: boolean) =>
 export default function BasculasCambiosPanel({ datos }: { datos: Datos }) {
   const { cambios, estados, diferencias, loading, nuevos, visto, marcarVisto, leyendo, lectura, actualizar } = datos;
 
-  const [busqueda, setBusqueda] = useState('');
+  // ?buscar=714 (aviso push de un artículo) abre la lista filtrada por ese código.
+  const [busqueda, setBusqueda] = useState(() => new URLSearchParams(window.location.search).get('buscar') ?? '');
   const [bascula, setBascula] = useState<Origen | 'todas'>('todas');
   const [periodo, setPeriodo] = useState<Periodo>('30d');
   const [tipos, setTipos] = useState<Set<Tipo>>(new Set());
