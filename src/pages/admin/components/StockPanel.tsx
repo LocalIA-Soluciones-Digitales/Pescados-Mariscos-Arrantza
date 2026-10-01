@@ -20,6 +20,20 @@ const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
 
 const CATEGORIA_ORDEN: ProductoCategoria[] = ['pescado', 'especial', 'marisco', 'congelados', 'preparados', 'raciones'];
 
+const formatoKg = (kg: number) => kg.toLocaleString('es-ES', { maximumFractionDigits: 3 });
+
+function CodigoChip({ etiqueta, valor, title }: { etiqueta: string; valor: string | undefined; title?: string }) {
+  return (
+    <span
+      title={title}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-background-200/80 bg-background-50 px-2 py-1 text-[11px] leading-none"
+    >
+      <span className="text-foreground-400">{etiqueta}</span>
+      <span className={`font-semibold tabular-nums ${valor ? 'text-foreground-800' : 'text-foreground-300'}`}>{valor || '—'}</span>
+    </span>
+  );
+}
+
 function StockRow({
   producto,
   onPatch,
@@ -36,25 +50,26 @@ function StockRow({
   const [stockMinimo, setStockMinimo] = useState(producto.stock_minimo);
   const [saving, setSaving] = useState(false);
   const [verHistorial, setVerHistorial] = useState(false);
+  // Cambia cada vez que se guarda un movimiento, para que el historial abierto se recargue.
+  const [versionHistorial, setVersionHistorial] = useState(0);
   const stockBajo = producto.gestion_stock && producto.stock_kg <= producto.stock_minimo;
+  const cantidad = Number(entrada.replace(',', '.'));
+  const cantidadValida = Number.isFinite(cantidad) && cantidad > 0;
+  const esEntrada = movimiento === 'entrada';
 
-  const sumarEntrada = async () => {
-    const cantidad = Number(entrada);
-    if (!Number.isFinite(cantidad) || cantidad === 0) {
-      setEntrada('');
-      return;
-    }
-    const esEntrada = movimiento === 'entrada';
-    const kg = esEntrada ? Math.abs(cantidad) : -Math.abs(cantidad);
+  const guardarMovimiento = async () => {
+    if (!cantidadValida || saving) return;
+    const kg = esEntrada ? cantidad : -cantidad;
     setSaving(true);
     const { data, error } = await supabase.rpc('sumar_stock', { p_producto_id: producto.id, p_kg: kg });
     setSaving(false);
     if (error) {
-      alert('No se pudo sumar el stock: ' + error.message);
+      alert('No se pudo guardar el movimiento: ' + error.message);
       return;
     }
     setEntrada('');
     setMovimiento('entrada');
+    setVersionHistorial((v) => v + 1);
     const nuevoStock = data as number;
     // Refleja aquí lo que hace el trigger marcar_agotado_por_stock en la base
     // de datos: solo una entrada real puede quitar el agotado; una bajada a 0
@@ -92,184 +107,205 @@ function StockRow({
     onPatch({ gestion_stock });
   };
 
+  const apagado = !producto.gestion_stock ? 'opacity-50' : '';
+
   return (
-    <div
-      className={`rounded-xl border px-3 py-2.5 shadow-card hover:shadow-card-hover transition-all duration-200 ${
-        stockBajo
-          ? 'bg-red-50/60 border-red-200 border-l-4 border-l-red-400'
-          : !producto.gestion_stock
-            ? 'bg-background-50/60 border-background-200/50'
-            : 'bg-background-50 border-background-200/70'
-      } ${saving ? 'opacity-60' : ''}`}
+    <article
+      className={`relative overflow-hidden rounded-2xl border bg-background-50 shadow-card transition-shadow duration-200 hover:shadow-card-hover ${
+        stockBajo ? 'border-red-200' : 'border-background-200/70'
+      } ${saving ? 'opacity-70' : ''}`}
     >
-      <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-md overflow-hidden bg-background-100 flex-shrink-0 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
-          {producto.imagen_url ? (
-            <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <ProductImagePlaceholder className="[&>i]:text-sm [&>span]:hidden" />
+      {stockBajo && <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-red-400" />}
+
+      <div className="p-3.5 sm:p-4">
+        {/* Cabecera: foto, nombre completo (sin recortar) y, debajo, precio +
+            estados — en el móvil no caben en la misma línea que el interruptor. */}
+        <div className="flex items-start gap-3">
+          <div className={`w-12 h-12 rounded-xl overflow-hidden bg-background-100 flex-shrink-0 ${apagado}`}>
+            {producto.imagen_url ? (
+              <img src={producto.imagen_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <ProductImagePlaceholder className="[&>i]:text-sm [&>span]:hidden" />
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <p className={`text-[15px] font-semibold leading-snug text-foreground-950 break-words ${apagado}`}>{producto.nombre_es}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
+              <span className={`text-xs text-foreground-400 whitespace-nowrap ${apagado}`}>{producto.precio}</span>
+              {!producto.disponible && (
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-medium bg-foreground-800 text-background-50 whitespace-nowrap"
+                  title="Sin stock: se marcó agotado automáticamente. Registra una entrada para volver a ponerlo disponible."
+                >
+                  <i className="ri-close-circle-line"></i> Agotado
+                </span>
+              )}
+              {stockBajo && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-medium bg-red-100 text-red-700 whitespace-nowrap">
+                  <i className="ri-alert-line"></i> Bajo mínimo
+                </span>
+              )}
+              {!producto.gestion_stock && (
+                <span className="inline-flex items-center px-1.5 py-px rounded-full text-[10px] font-medium bg-background-200 text-foreground-500 whitespace-nowrap">
+                  Sin control de stock
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div
+            className="flex flex-col items-center gap-1 flex-shrink-0 pt-0.5"
+            title={producto.gestion_stock ? 'Dejar de gestionar el stock de este producto (no avisará de mínimos)' : 'Volver a gestionar el stock de este producto'}
+          >
+            <button
+              type="button"
+              role="switch"
+              aria-checked={producto.gestion_stock}
+              aria-label="Controlar stock"
+              onClick={toggleGestionStock}
+              disabled={saving}
+              className={`relative inline-flex flex-shrink-0 items-center w-10 h-6 rounded-full border transition-colors duration-200 ${
+                producto.gestion_stock ? 'bg-primary-500 border-primary-500' : 'bg-background-200 border-background-300'
+              }`}
+            >
+              <span
+                className={`inline-block w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
+                  producto.gestion_stock ? 'translate-x-[19px]' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+            <span className="text-[10px] text-foreground-400">Control</span>
+          </div>
+        </div>
+
+        {/* Stock + movimiento: apilados en el móvil, en fila desde sm. */}
+        <div className={`mt-3.5 flex flex-col gap-3 sm:flex-row sm:items-stretch ${apagado}`}>
+          <div
+            className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 sm:w-56 sm:flex-col sm:items-start sm:justify-center ${
+              stockBajo ? 'bg-red-50' : 'bg-background-100/80'
+            }`}
+          >
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground-400">Stock</p>
+              <p className={`text-2xl font-semibold tabular-nums leading-tight ${stockBajo ? 'text-red-700' : 'text-foreground-950'}`}>
+                {formatoKg(producto.stock_kg)}
+                <span className="ml-1 text-sm font-medium text-foreground-400">kg</span>
+              </p>
+            </div>
+            <label className="flex items-center gap-1.5 text-[11px] text-foreground-400 whitespace-nowrap">
+              Aviso bajo
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.5"
+                min="0"
+                value={Number.isFinite(stockMinimo) ? stockMinimo : ''}
+                onChange={(e) => setStockMinimo(e.target.valueAsNumber)}
+                onBlur={() => {
+                  const v = Number.isFinite(stockMinimo) ? stockMinimo : 10;
+                  setStockMinimo(v);
+                  if (v !== producto.stock_minimo) guardarMinimo(v);
+                }}
+                disabled={saving}
+                className="w-14 px-1.5 py-1 bg-background-50 border border-background-200/80 rounded-md text-xs text-right text-foreground-800 tabular-nums"
+              />
+              kg
+            </label>
+          </div>
+
+          <div className="flex-1 rounded-xl border border-background-200/70 p-2.5">
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-background-100 p-1">
+              {(['entrada', 'baja'] as const).map((tipo) => (
+                <button
+                  key={tipo}
+                  type="button"
+                  onClick={() => setMovimiento(tipo)}
+                  disabled={saving}
+                  aria-pressed={movimiento === tipo}
+                  className={`flex items-center justify-center gap-1 rounded-md py-1.5 text-xs font-semibold transition-colors ${
+                    movimiento === tipo
+                      ? tipo === 'entrada'
+                        ? 'bg-emerald-500 text-white shadow-sm'
+                        : 'bg-red-500 text-white shadow-sm'
+                      : 'text-foreground-500 hover:text-foreground-800'
+                  }`}
+                >
+                  <i className={tipo === 'entrada' ? 'ri-add-line' : 'ri-subtract-line'}></i>
+                  {tipo === 'entrada' ? 'Entrada' : 'Baja / merma'}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <div
+                className={`flex flex-1 items-center rounded-lg border px-3 ${
+                  esEntrada ? 'border-background-200/80 bg-background-50' : 'border-red-200 bg-red-50'
+                }`}
+              >
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={entrada}
+                  onChange={(e) => setEntrada(e.target.value.replace(/[^0-9.,]/g, ''))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') guardarMovimiento();
+                  }}
+                  disabled={saving}
+                  aria-label={esEntrada ? 'Kilos que entran' : 'Kilos que se dan de baja'}
+                  className={`w-full min-w-0 bg-transparent py-2 text-base text-right tabular-nums focus:outline-none ${
+                    esEntrada ? 'text-foreground-950' : 'text-red-700'
+                  }`}
+                />
+                <span className="pl-1.5 text-sm text-foreground-400">kg</span>
+              </div>
+              <button
+                type="button"
+                onClick={guardarMovimiento}
+                disabled={!cantidadValida || saving}
+                className={`h-10 flex-shrink-0 rounded-lg px-4 text-sm font-semibold text-white transition-colors disabled:bg-background-200 disabled:text-foreground-400 ${
+                  esEntrada ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {saving ? 'Guardando…' : esEntrada ? 'Sumar' : 'Restar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pie: códigos de báscula (solo lectura) + historial. */}
+      <div className="flex flex-col gap-2 border-t border-background-200/70 bg-background-100/50 px-3.5 py-2.5 sm:flex-row sm:items-center sm:px-4">
+        <div className="flex flex-1 flex-wrap items-center gap-1.5">
+          {ORIGENES.map((origen) => (
+            <CodigoChip key={origen} etiqueta={ORIGEN_LABELS[origen].replace('Pescadería', 'Báscula')} valor={codigosBascula[origen]} />
+          ))}
+          {codigosHosteleria.length > 0 && (
+            <CodigoChip
+              etiqueta="Hostelería"
+              valor={codigosHosteleria.join(' · ')}
+              title="Ventas a hostelería (familias 7, 8 y 9) que también descuentan el stock de este producto"
+            />
           )}
         </div>
-
-        {/* Nombre completo (sin recortar) y, debajo, precio + estados: en el
-            móvil no caben en la misma línea que el interruptor. */}
-        <div className="flex-1 min-w-0">
-          <p className={`text-sm font-medium leading-snug text-foreground-950 break-words ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
-            {producto.nombre_es}
-          </p>
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
-            <span className={`text-xs text-foreground-400 whitespace-nowrap ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
-              {producto.precio}
-            </span>
-            {!producto.disponible && (
-              <span
-                className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-medium bg-foreground-800 text-background-50 whitespace-nowrap"
-                title="Sin stock: se marcó agotado automáticamente. Registra una entrada para volver a ponerlo disponible."
-              >
-                <i className="ri-close-circle-line"></i> Agotado
-              </span>
-            )}
-            {stockBajo && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-medium bg-red-100 text-red-700 whitespace-nowrap">
-                <i className="ri-alert-line"></i> Bajo mínimo
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div
-          className="flex items-center gap-2 flex-shrink-0 pt-0.5"
-          title={producto.gestion_stock ? 'Dejar de gestionar el stock de este producto (no avisará de mínimos)' : 'Volver a gestionar el stock de este producto'}
+        <button
+          type="button"
+          onClick={() => setVerHistorial((v) => !v)}
+          aria-expanded={verHistorial}
+          className={`flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors sm:w-auto ${
+            verHistorial
+              ? 'bg-foreground-900 text-background-50'
+              : 'border border-background-200/80 bg-background-50 text-foreground-700 hover:bg-background-100'
+          }`}
         >
-          <span className="hidden sm:inline text-[11px] text-foreground-400">Gestionar stock</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={producto.gestion_stock}
-            onClick={toggleGestionStock}
-            disabled={saving}
-            className={`relative inline-flex flex-shrink-0 items-center w-9 h-5 rounded-full border transition-colors duration-200 ${
-              producto.gestion_stock ? 'bg-primary-500 border-primary-500' : 'bg-background-200 border-background-300'
-            }`}
-          >
-            <span
-              className={`inline-block w-3.5 h-3.5 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
-                producto.gestion_stock ? 'translate-x-[18px]' : 'translate-x-0.5'
-              }`}
-            />
-          </button>
-        </div>
+          <i className="ri-history-line text-sm"></i>
+          {verHistorial ? 'Ocultar historial' : 'Ver historial'}
+          <i className={`ri-arrow-down-s-line transition-transform ${verHistorial ? 'rotate-180' : ''}`}></i>
+        </button>
       </div>
 
-      <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 mt-2.5 ${!producto.gestion_stock ? 'opacity-50' : ''}`}>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <label className="w-[7.5rem] sm:w-auto flex-shrink-0 text-[11px] text-foreground-400">Stock actual</label>
-          <span className={`w-16 text-right text-sm font-medium ${stockBajo ? 'text-red-700' : 'text-foreground-950'}`}>
-            {producto.stock_kg} kg
-          </span>
-          <button
-            type="button"
-            onClick={() => setVerHistorial((v) => !v)}
-            title="Ver entradas, ventas y bajas de los últimos días"
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
-              verHistorial ? 'bg-primary-500 text-white' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
-            }`}
-          >
-            <i className="ri-history-line"></i> Historial
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <label className="w-[7.5rem] sm:w-auto flex-shrink-0 text-[11px] text-foreground-400">Entrada de hoy</label>
-          <div className="flex items-center rounded-md border border-background-200/70 overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setMovimiento('entrada')}
-              disabled={saving}
-              title="Sumar stock (entrada, merma positiva)"
-              className={`w-7 h-[30px] flex items-center justify-center text-sm font-semibold transition-colors ${
-                movimiento === 'entrada' ? 'bg-emerald-500 text-white' : 'bg-background-100 text-foreground-400'
-              }`}
-            >
-              +
-            </button>
-            <button
-              type="button"
-              onClick={() => setMovimiento('baja')}
-              disabled={saving}
-              title="Descontar stock (se puso malo, hay que tirar, etc.)"
-              className={`w-7 h-[30px] flex items-center justify-center text-sm font-semibold transition-colors border-x border-background-200/70 ${
-                movimiento === 'baja' ? 'bg-red-500 text-white' : 'bg-background-100 text-foreground-400'
-              }`}
-            >
-              −
-            </button>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.5"
-              min="0"
-              placeholder="0"
-              value={entrada}
-              onChange={(e) => setEntrada(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') e.currentTarget.blur();
-              }}
-              onBlur={sumarEntrada}
-              disabled={saving}
-              className={`w-16 px-2 py-1.5 border-0 text-sm text-right focus:outline-none ${
-                movimiento === 'baja' ? 'bg-red-50 text-red-700' : 'bg-background-100'
-              }`}
-            />
-          </div>
-          <span className="text-xs text-foreground-400">kg</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <label className="w-[7.5rem] sm:w-auto flex-shrink-0 text-[11px] text-foreground-400">Aviso mínimo</label>
-          <input
-            type="number"
-            step="0.5"
-            min="0"
-            value={stockMinimo}
-            onChange={(e) => setStockMinimo(e.target.valueAsNumber)}
-            onBlur={() => {
-              const v = Number.isFinite(stockMinimo) ? stockMinimo : 10;
-              setStockMinimo(v);
-              if (v !== producto.stock_minimo) guardarMinimo(v);
-            }}
-            disabled={saving}
-            className="w-16 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right"
-          />
-          <span className="text-xs text-foreground-400">kg</span>
-        </div>
-
-        {ORIGENES.map((origen) => (
-          <div key={origen} className="flex items-center gap-1.5 flex-shrink-0">
-            <label className="w-[7.5rem] sm:w-auto flex-shrink-0 text-[11px] text-foreground-400">Código {ORIGEN_LABELS[origen]}</label>
-            <span
-              className={`w-20 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-md text-sm text-right ${
-                codigosBascula[origen] ? 'text-foreground-950' : 'text-foreground-300'
-              }`}
-            >
-              {codigosBascula[origen] || '—'}
-            </span>
-          </div>
-        ))}
-
-        {codigosHosteleria.length > 0 && (
-          <div
-            className="flex items-center gap-1.5 flex-shrink-0"
-            title="Ventas a hostelería (familias 7, 8 y 9) que también descuentan el stock de este producto"
-          >
-            <label className="w-[7.5rem] sm:w-auto flex-shrink-0 text-[11px] text-foreground-400">Hostelería</label>
-            <span className="text-xs text-foreground-600 tabular-nums">{codigosHosteleria.join(' · ')}</span>
-          </div>
-        )}
-      </div>
-
-      {verHistorial && <StockHistorial productoId={producto.id} />}
-    </div>
+      {verHistorial && <StockHistorial key={versionHistorial} productoId={producto.id} />}
+    </article>
   );
 }
 
@@ -419,7 +455,7 @@ export default function StockPanel({
                   <div className="flex-1 h-px bg-background-200/70" />
                 </button>
                 {!colapsado && (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {grupo.productos.map((producto) => (
                       <StockRow
                         key={producto.id}
