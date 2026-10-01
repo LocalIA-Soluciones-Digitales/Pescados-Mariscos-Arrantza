@@ -49,6 +49,8 @@ export interface Producto {
   // por defecto de lib/unidadVenta.
   por_piezas: boolean;
   pesos_pieza: number[] | null;
+  // true = la ficha enseña la foto entera (alejada) en vez de recortarla.
+  foto_completa: boolean;
   orden: number;
   created_at: string;
   updated_at: string;

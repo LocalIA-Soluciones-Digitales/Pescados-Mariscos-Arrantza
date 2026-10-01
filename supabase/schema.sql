@@ -103,6 +103,9 @@ create table if not exists public.productos (
   -- total en kg (items[].kg, que es lo que descuenta el stock) + items[].piezas.
   por_piezas boolean not null default false,
   pesos_pieza numeric[],
+  -- true = la ficha de la tienda enseña la foto entera (alejada) en vez de
+  -- recortarla para llenar el hueco.
+  foto_completa boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -111,6 +114,7 @@ create table if not exists public.productos (
 alter table public.productos add column if not exists visible_web boolean not null default true;
 alter table public.productos add column if not exists por_piezas boolean not null default false;
 alter table public.productos add column if not exists pesos_pieza numeric[];
+alter table public.productos add column if not exists foto_completa boolean not null default false;
 alter table public.productos drop constraint if exists productos_categoria_check;
 alter table public.productos add constraint productos_categoria_check
   check (categoria in ('pescado', 'especial', 'raciones', 'marisco', 'congelados', 'preparados'));
@@ -686,6 +690,10 @@ returns trigger as $$
 declare
   item jsonb;
 begin
+  -- Para stock_movimientos (ver registrar_movimiento_stock más abajo).
+  perform set_config('arrantza.stock_tipo', 'pedido_web', true);
+  perform set_config('arrantza.stock_origen', '', true);
+  perform set_config('arrantza.stock_ref', 'Pedido web ' || left(new.id::text, 8), true);
   for item in select * from jsonb_array_elements(new.items) loop
     begin
       update public.productos
@@ -712,6 +720,9 @@ create trigger trg_pedidos_descontar_stock
 -- que tirar) no reactiva el producto por sí sola.
 create or replace function public.sumar_stock(p_producto_id uuid, p_kg numeric)
 returns numeric as $$
+  select set_config('arrantza.stock_tipo', case when p_kg > 0 then 'entrada' else 'baja' end, true),
+         set_config('arrantza.stock_origen', '', true),
+         set_config('arrantza.stock_ref', '', true);
   update public.productos
   set stock_kg = stock_kg + p_kg,
       disponible = case when p_kg > 0 then true else disponible end
@@ -743,6 +754,72 @@ drop trigger if exists trg_productos_agotado_stock on public.productos;
 create trigger trg_productos_agotado_stock
   before update of stock_kg on public.productos
   for each row execute function public.marcar_agotado_por_stock();
+
+-- Historial de movimientos de stock: una fila por cada cambio de
+-- productos.stock_kg, sea cual sea su causa, para poder reconstruir con
+-- qué stock empezó y acabó cada día (antes solo existía el número actual).
+-- Lo rellena el trigger de abajo, no la aplicación: quien cambia el stock
+-- solo indica el motivo con set_config (local a la transacción) —
+-- arrantza.stock_tipo / stock_origen / stock_ref — y si nadie lo indica
+-- (p. ej. un UPDATE a mano por SQL) queda como 'ajuste'.
+create table if not exists public.stock_movimientos (
+  id bigint generated always as identity primary key,
+  cliente_id uuid not null references public.clientes (id),
+  producto_id uuid not null references public.productos (id) on delete cascade,
+  tipo text not null check (tipo in ('entrada', 'baja', 'venta_bascula', 'anulacion_bascula', 'pedido_web', 'ajuste')),
+  -- Cambio real del stock (+ entra, − sale). Puede ser menor que lo
+  -- vendido si el stock de la web ya estaba a 0 (nunca baja de 0).
+  kg numeric not null,
+  stock_antes numeric not null,
+  stock_despues numeric not null,
+  origen text,
+  referencia text,
+  usuario_id uuid,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_stock_movimientos_producto on public.stock_movimientos (producto_id, created_at desc);
+create index if not exists idx_stock_movimientos_fecha on public.stock_movimientos (cliente_id, created_at);
+
+alter table public.stock_movimientos enable row level security;
+
+drop policy if exists "stock_movimientos_select" on public.stock_movimientos;
+create policy "stock_movimientos_select"
+  on public.stock_movimientos for select
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id());
+
+create or replace function public.registrar_movimiento_stock()
+returns trigger as $$
+declare
+  v_tipo text := nullif(current_setting('arrantza.stock_tipo', true), '');
+begin
+  -- Una venta que no movió el stock (ya estaba a 0) se registra igual,
+  -- con 0 kg, para que se vea que hubo venta con la web sin stock.
+  if new.stock_kg is not distinct from old.stock_kg and v_tipo is distinct from 'venta_bascula' then
+    return null;
+  end if;
+  begin
+    insert into public.stock_movimientos (cliente_id, producto_id, tipo, kg, stock_antes, stock_despues, origen, referencia, usuario_id)
+    values (
+      new.cliente_id, new.id, coalesce(v_tipo, 'ajuste'),
+      new.stock_kg - old.stock_kg, old.stock_kg, new.stock_kg,
+      nullif(current_setting('arrantza.stock_origen', true), ''),
+      nullif(current_setting('arrantza.stock_ref', true), ''),
+      auth.uid()
+    );
+  exception when others then
+    -- El historial nunca debe impedir una venta, un pedido o una entrada.
+    raise warning 'stock_movimientos: no se pudo registrar (%): %', new.id, sqlerrm;
+  end;
+  return null;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+drop trigger if exists trg_productos_movimiento_stock on public.productos;
+create trigger trg_productos_movimiento_stock
+  after update of stock_kg on public.productos
+  for each row execute function public.registrar_movimiento_stock();
 
 -- Avisa por correo cuando el stock de un producto cae por debajo de su
 -- mínimo (una sola vez por caída). Mismo aviso sobre tenant-scoping
@@ -803,10 +880,15 @@ create trigger trg_productos_stock_bajo
 -- terminal concreto — cada báscula tiene su propio catálogo interno de
 -- códigos, así que el mismo producto puede tener un código distinto en
 -- cada una (ver productos_codigos_bascula, más abajo).
+-- p_referencia ("Ticket 7156 · 10:24") solo sirve para stock_movimientos.
+drop function if exists public.descontar_stock_bascula(uuid, text, text, numeric);
 create or replace function public.descontar_stock_bascula(
-  p_cliente_id uuid, p_origen text, p_codigo_bascula text, p_kg numeric
+  p_cliente_id uuid, p_origen text, p_codigo_bascula text, p_kg numeric, p_referencia text default null
 )
 returns numeric as $$
+  select set_config('arrantza.stock_tipo', 'venta_bascula', true),
+         set_config('arrantza.stock_origen', p_origen, true),
+         set_config('arrantza.stock_ref', coalesce(p_referencia, 'Código ' || p_codigo_bascula), true);
   update public.productos p
   set stock_kg = greatest(stock_kg - p_kg, 0)
   from public.productos_codigos_bascula m
@@ -817,8 +899,8 @@ returns numeric as $$
   returning p.stock_kg;
 $$ language sql set search_path = public;
 
-revoke all on function public.descontar_stock_bascula(uuid, text, text, numeric) from public;
-grant execute on function public.descontar_stock_bascula(uuid, text, text, numeric) to service_role;
+revoke all on function public.descontar_stock_bascula(uuid, text, text, numeric, text) from public;
+grant execute on function public.descontar_stock_bascula(uuid, text, text, numeric, text) to service_role;
 
 -- Registro de las líneas de un Albarán (tipo_doc 3) que ya descontaron
 -- stock, para poder detectar cuándo la Factura de cierre de mes que agrupa
@@ -918,18 +1000,28 @@ returns integer as $$
 declare
   v_filas integer;
 begin
+  perform set_config('arrantza.stock_tipo', 'anulacion_bascula', true);
+  perform set_config('arrantza.stock_origen', p_origen, true);
+  perform set_config('arrantza.stock_ref', 'Albarán ' || p_numero || ' anulado', true);
+
+  -- Sumado por producto: un UPDATE ... FROM con varias líneas del mismo
+  -- producto aplicaría solo una de ellas.
   update public.productos p
-  set stock_kg = p.stock_kg + a.cantidad
-  from public.bascula_albaran_lineas a
-  join public.productos_codigos_bascula m
-    on m.cliente_id = a.cliente_id and m.origen = a.origen and m.codigo_bascula = a.codigo_bascula
-  where a.cliente_id = p_cliente_id
-    and a.origen = p_origen
-    and a.ticket_posto = p_posto
-    and a.ticket_numero = p_numero
-    and not a.consumida
-    and not a.anulada
-    and m.producto_id = p.id;
+  set stock_kg = p.stock_kg + r.kg
+  from (
+    select m.producto_id, sum(a.cantidad) as kg
+    from public.bascula_albaran_lineas a
+    join public.productos_codigos_bascula m
+      on m.cliente_id = a.cliente_id and m.origen = a.origen and m.codigo_bascula = a.codigo_bascula
+    where a.cliente_id = p_cliente_id
+      and a.origen = p_origen
+      and a.ticket_posto = p_posto
+      and a.ticket_numero = p_numero
+      and not a.consumida
+      and not a.anulada
+    group by m.producto_id
+  ) r
+  where r.producto_id = p.id;
 
   update public.bascula_albaran_lineas
   set anulada = true
@@ -1068,17 +1160,28 @@ returns integer as $$
 declare
   v_filas integer;
 begin
+  perform set_config('arrantza.stock_tipo', 'anulacion_bascula', true);
+  perform set_config('arrantza.stock_origen', p_origen, true);
+  perform set_config('arrantza.stock_ref',
+    case p_tipo_doc when 2 then 'Factura ' else 'Ticket ' end || p_numero || ' anulado', true);
+
+  -- Sumado por producto: un UPDATE ... FROM con varias líneas del mismo
+  -- producto aplicaría solo una de ellas.
   update public.productos p
-  set stock_kg = p.stock_kg + v.cantidad
-  from public.bascula_ventas v
-  where v.cliente_id = p_cliente_id
-    and v.origen = p_origen
-    and v.ticket_tipo_doc = p_tipo_doc
-    and v.ticket_posto = p_posto
-    and v.ticket_numero = p_numero
-    and not v.anulado
-    and v.stock_descontado
-    and v.producto_id = p.id;
+  set stock_kg = p.stock_kg + r.kg
+  from (
+    select v.producto_id, sum(v.cantidad) as kg
+    from public.bascula_ventas v
+    where v.cliente_id = p_cliente_id
+      and v.origen = p_origen
+      and v.ticket_tipo_doc = p_tipo_doc
+      and v.ticket_posto = p_posto
+      and v.ticket_numero = p_numero
+      and not v.anulado
+      and v.stock_descontado
+    group by v.producto_id
+  ) r
+  where r.producto_id = p.id;
 
   update public.bascula_ventas
   set anulado = true

@@ -26,6 +26,7 @@ function toProducto(p: ProductoHosteleria): Producto {
     visible_web: true,
     por_piezas: false,
     pesos_pieza: null,
+    foto_completa: false,
     created_at: '',
     updated_at: '',
   } as Producto;

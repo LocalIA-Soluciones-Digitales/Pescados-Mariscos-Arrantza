@@ -7,6 +7,7 @@ import { ORIGENES, ORIGEN_LABELS, type Origen } from '@/types/origen';
 import SearchInput from '@/components/base/SearchInput';
 import CategoryFilterDropdown from '@/components/base/CategoryFilterDropdown';
 import ProductImagePlaceholder from '@/components/base/ProductImagePlaceholder';
+import StockHistorial from './StockHistorial';
 
 const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
   pescado: 'Pescado',
@@ -32,6 +33,7 @@ function StockRow({
   const [movimiento, setMovimiento] = useState<'entrada' | 'baja'>('entrada');
   const [stockMinimo, setStockMinimo] = useState(producto.stock_minimo);
   const [saving, setSaving] = useState(false);
+  const [verHistorial, setVerHistorial] = useState(false);
   const stockBajo = producto.gestion_stock && producto.stock_kg <= producto.stock_minimo;
 
   const sumarEntrada = async () => {
@@ -157,6 +159,16 @@ function StockRow({
           <span className={`w-16 text-right text-sm font-medium ${stockBajo ? 'text-red-700' : 'text-foreground-950'}`}>
             {producto.stock_kg} kg
           </span>
+          <button
+            type="button"
+            onClick={() => setVerHistorial((v) => !v)}
+            title="Ver entradas, ventas y bajas de los últimos días"
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors ${
+              verHistorial ? 'bg-primary-500 text-white' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+            }`}
+          >
+            <i className="ri-history-line"></i> Historial
+          </button>
         </div>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -237,6 +249,8 @@ function StockRow({
           </div>
         ))}
       </div>
+
+      {verHistorial && <StockHistorial productoId={producto.id} />}
     </div>
   );
 }

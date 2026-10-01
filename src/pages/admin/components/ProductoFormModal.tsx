@@ -58,6 +58,7 @@ type FormState = {
   // Texto libre: "1 1,5 2 2,5 3" (vacío = lista por defecto).
   pesos_pieza: string;
   imagen_url: string;
+  foto_completa: boolean;
 };
 
 // "1 1,5 2" → [1, 1.5, 2]. Separados por espacios, ";" o "/" (la coma es
@@ -76,7 +77,7 @@ function toFormState(p: Producto | null): FormState {
       nombre_es: '', nombre_eu: '', descripcion_es: '', descripcion_eu: '',
       origen_es: '', origen_eu: '', precio: '', categoria: 'pescado', subcategoria: '',
       estado: 'available', disponible: true, destacado: false, visible_web: true,
-      por_piezas: false, pesos_pieza: '', imagen_url: '',
+      por_piezas: false, pesos_pieza: '', imagen_url: '', foto_completa: false,
     };
   }
   return {
@@ -86,7 +87,7 @@ function toFormState(p: Producto | null): FormState {
     precio: p.precio, categoria: p.categoria, subcategoria: p.subcategoria ?? '',
     estado: p.estado, disponible: p.disponible, destacado: p.destacado, visible_web: p.visible_web,
     por_piezas: Boolean(p.por_piezas), pesos_pieza: (p.pesos_pieza ?? []).map(formatNumKg).join(' '),
-    imagen_url: p.imagen_url ?? '',
+    imagen_url: p.imagen_url ?? '', foto_completa: Boolean(p.foto_completa),
   };
 }
 
@@ -245,6 +246,7 @@ export default function ProductoFormModal({
       por_piezas: form.por_piezas,
       pesos_pieza: parsePesosPieza(form.pesos_pieza),
       imagen_url: form.imagen_url || null,
+      foto_completa: form.foto_completa,
     };
 
     let result;
@@ -366,6 +368,15 @@ export default function ProductoFormModal({
                 {uploading && <span className="text-xs text-foreground-400">Subiendo…</span>}
               </div>
             </div>
+            {form.imagen_url && (
+              <label className="flex items-start gap-2 mt-3 cursor-pointer select-none">
+                <input type="checkbox" checked={form.foto_completa} onChange={(e) => update('foto_completa', e.target.checked)} className="w-4 h-4 mt-0.5" />
+                <span className="text-sm text-foreground-700">
+                  Mostrar la foto entera
+                  <span className="block text-xs text-foreground-400">Se ve alejada y sin recortar. Para fotos con mucho producto que no caben en la ficha.</span>
+                </span>
+              </label>
+            )}
           </div>
 
           {/* Nombre ES/EU */}

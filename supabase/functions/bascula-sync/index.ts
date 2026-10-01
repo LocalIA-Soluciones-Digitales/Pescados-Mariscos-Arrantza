@@ -128,6 +128,7 @@ const ETPROXY_BASE = 'https://etproxy.etpos.pt';
 const LOTE_MAX = 100; // tope del propio API ETWS por consulta
 const TIPOS_DOC_A_PROCESAR = new Set([1, 2, 3]);
 const TIPOS_DOC_FACTURABLES = new Set([1, 2]); // Albarán (3) descuenta stock pero no se guarda para facturación — ver comentario arriba.
+const NOMBRE_TIPO_DOC: Record<number, string> = { 1: 'Ticket', 2: 'Factura', 3: 'Albarán' };
 const ORIGENES_VALIDOS = ['pescaderia_1', 'pescaderia_2'];
 
 // Comparación en tiempo constante: evita filtrar por temporización cuántos
@@ -460,6 +461,8 @@ Deno.serve(async (req: Request) => {
         p_origen: origen,
         p_codigo_bascula: linea.codigo,
         p_kg: linea.quantidade,
+        // Solo para el historial de stock_movimientos ("Ticket 7156 · 10:24").
+        p_referencia: `${NOMBRE_TIPO_DOC[linea.tipo_doc] ?? 'Documento'} ${linea.numero}${cabecera?.hora ? ` · ${cabecera.hora.slice(0, 5)}` : ''}`,
       });
       if (errorStock) {
         console.error(`[${origen}] Error descontando stock (ticket ${linea.numero}, código ${linea.codigo}):`, errorStock.message);

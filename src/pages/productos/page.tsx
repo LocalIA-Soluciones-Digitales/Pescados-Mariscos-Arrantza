@@ -897,17 +897,43 @@ function ProductCard({
       } ${
         isHighlighted ? 'ring-2 ring-primary-400 ring-offset-2 ring-offset-background-50' : ''
       }`}
-      style={{ transitionDelay: `${index * 60}ms` }}
+      // Escalonado solo dentro de la fila (máx. 4 columnas): con el índice
+      // global, la ficha nº 100 esperaba 6 s a aparecer al hacer scroll.
+      style={{ transitionDelay: `${(index % 4) * 60}ms` }}
     >
       {/* Image */}
       <div className="relative aspect-[5/4] overflow-hidden bg-background-100">
         {product.imagen_url ? (
-          <img
-            src={product.imagen_url}
-            alt={pickLang(product, 'nombre', i18n.language)}
-            className={`w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-[1.03] ${agotado ? 'opacity-40 grayscale' : ''}`}
-            loading="lazy"
-          />
+          product.foto_completa ? (
+            // Foto entera: se ve completa (contain) y el hueco sobrante se
+            // rellena con la misma foto ampliada y difuminada, para que no
+            // queden bandas vacías a los lados.
+            <div className={`absolute inset-0 ${agotado ? 'opacity-40 grayscale' : ''}`}>
+              <img
+                src={product.imagen_url}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover scale-125 blur-2xl opacity-70"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={product.imagen_url}
+                alt={pickLang(product, 'nombre', i18n.language)}
+                className="relative w-full h-full object-contain [mask-image:linear-gradient(to_right,transparent_8%,black_20%,black_80%,transparent_92%)] transition-transform duration-700 ease-out group-hover:scale-[1.03]"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+          ) : (
+            <img
+              src={product.imagen_url}
+              alt={pickLang(product, 'nombre', i18n.language)}
+              className={`w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.03] ${agotado ? 'opacity-40 grayscale' : ''}`}
+              loading="lazy"
+              decoding="async"
+            />
+          )
         ) : (
           <ProductImagePlaceholder label={t('products.image_coming_soon')} />
         )}
