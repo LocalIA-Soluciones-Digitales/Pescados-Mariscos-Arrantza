@@ -891,7 +891,7 @@ returns numeric as $$
          set_config('arrantza.stock_ref', coalesce(p_referencia, 'Código ' || p_codigo_bascula), true);
   update public.productos p
   set stock_kg = greatest(stock_kg - p_kg, 0)
-  from public.productos_codigos_bascula m
+  from public.codigos_bascula_stock m
   where m.producto_id = p.id
     and m.cliente_id = p_cliente_id
     and m.origen = p_origen
@@ -1011,7 +1011,7 @@ begin
   from (
     select m.producto_id, sum(a.cantidad) as kg
     from public.bascula_albaran_lineas a
-    join public.productos_codigos_bascula m
+    join public.codigos_bascula_stock m
       on m.cliente_id = a.cliente_id and m.origen = a.origen and m.codigo_bascula = a.codigo_bascula
     where a.cliente_id = p_cliente_id
       and a.origen = p_origen
@@ -1068,6 +1068,45 @@ create policy "productos_codigos_bascula_admin"
   to authenticated
   using (is_developer() or cliente_id = mi_cliente_id())
   with check (is_developer() or cliente_id = mi_cliente_id());
+
+-- Códigos de báscula que SOLO descuentan stock de un producto: las tarifas
+-- de hostelería (familias 7, 8 y 9) venden el mismo género que la tienda a
+-- otro precio (p. ej. 913 BONITO CORTE = Bonito del Norte). No pueden ir en
+-- productos_codigos_bascula, que admite un código por producto y báscula y
+-- del que bascula-precios-diario copia precio, nombre y categoría a la web.
+create table if not exists public.productos_codigos_stock (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  producto_id uuid not null references public.productos (id) on delete cascade,
+  origen text not null,
+  codigo_bascula text not null,
+  created_at timestamptz not null default now(),
+  unique (cliente_id, origen, codigo_bascula)
+);
+
+alter table public.productos_codigos_stock enable row level security;
+
+drop policy if exists "productos_codigos_stock_admin" on public.productos_codigos_stock;
+create policy "productos_codigos_stock_admin"
+  on public.productos_codigos_stock for all
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+-- Todos los códigos que descuentan stock: los de la tienda y los de solo
+-- stock. Si un código estuviera en las dos tablas manda el de la tienda,
+-- para no descontarlo dos veces.
+create or replace view public.codigos_bascula_stock
+with (security_invoker = true) as
+  select cliente_id, origen, codigo_bascula, producto_id
+  from public.productos_codigos_bascula
+  union all
+  select s.cliente_id, s.origen, s.codigo_bascula, s.producto_id
+  from public.productos_codigos_stock s
+  where not exists (
+    select 1 from public.productos_codigos_bascula m
+    where m.cliente_id = s.cliente_id and m.origen = s.origen and m.codigo_bascula = s.codigo_bascula
+  );
 
 -- Registro de cada línea de venta procesada desde cualquiera de las dos
 -- básculas (origen), para poder sacar la facturación diaria además de

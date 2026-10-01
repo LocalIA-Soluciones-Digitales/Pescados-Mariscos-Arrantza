@@ -24,10 +24,12 @@ function StockRow({
   producto,
   onPatch,
   codigosBascula,
+  codigosHosteleria,
 }: {
   producto: Producto;
   onPatch: (patch: Partial<Producto>) => void;
   codigosBascula: Partial<Record<Origen, string>>;
+  codigosHosteleria: string[];
 }) {
   const [entrada, setEntrada] = useState('');
   const [movimiento, setMovimiento] = useState<'entrada' | 'baja'>('entrada');
@@ -248,6 +250,16 @@ function StockRow({
             </span>
           </div>
         ))}
+
+        {codigosHosteleria.length > 0 && (
+          <div
+            className="flex items-center gap-1.5 flex-shrink-0"
+            title="Ventas a hostelería (familias 7, 8 y 9) que también descuentan el stock de este producto"
+          >
+            <label className="text-[11px] text-foreground-400">Hostelería</label>
+            <span className="text-xs text-foreground-600 tabular-nums">{codigosHosteleria.join(' · ')}</span>
+          </div>
+        )}
       </div>
 
       {verHistorial && <StockHistorial productoId={producto.id} />}
@@ -278,7 +290,7 @@ export default function StockPanel({
     });
   };
   const filtrosScroll = useHorizontalWheelScroll<HTMLDivElement>();
-  const { codigos: codigosBascula, loading: loadingCodigos } = useProductosCodigosBascula();
+  const { codigos: codigosBascula, codigosStock, loading: loadingCodigos } = useProductosCodigosBascula();
   const cargando = loading || loadingCodigos;
 
   const bajoCount = useMemo(() => productos.filter((p) => p.gestion_stock && p.stock_kg <= p.stock_minimo).length, [productos]);
@@ -408,6 +420,7 @@ export default function StockPanel({
                         producto={producto}
                         onPatch={(patch) => onPatch(producto.id, patch)}
                         codigosBascula={codigosBascula.get(producto.id) ?? {}}
+                        codigosHosteleria={codigosStock.get(producto.id) ?? []}
                       />
                     ))}
                   </div>
