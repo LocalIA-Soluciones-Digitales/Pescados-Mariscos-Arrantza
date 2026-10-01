@@ -140,7 +140,7 @@ export default function Gallery() {
           <button
             onClick={() => scroll('left')}
             className="w-9 h-9 lg:w-10 lg:h-10 flex items-center justify-center rounded-full bg-background-50/90 text-foreground-950 hover:bg-background-50 transition-colors duration-300 cursor-pointer"
-            aria-label="Previous"
+            aria-label={t('gallery.prev')}
           >
             <i className="ri-arrow-left-s-line text-lg lg:text-xl"></i>
           </button>
@@ -149,7 +149,7 @@ export default function Gallery() {
           <button
             onClick={() => scroll('right')}
             className="w-9 h-9 lg:w-10 lg:h-10 flex items-center justify-center rounded-full bg-background-50/90 text-foreground-950 hover:bg-background-50 transition-colors duration-300 cursor-pointer"
-            aria-label="Next"
+            aria-label={t('gallery.next')}
           >
             <i className="ri-arrow-right-s-line text-lg lg:text-xl"></i>
           </button>

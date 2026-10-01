@@ -742,6 +742,8 @@ const common = {
   // Gallery
   "gallery.label": "Galería",
   "gallery.title": "El día a día en Arrantza",
+  "gallery.prev": "Anterior",
+  "gallery.next": "Siguiente",
 
   // Testimonials
   "testimonials.label": "Lo que dicen",

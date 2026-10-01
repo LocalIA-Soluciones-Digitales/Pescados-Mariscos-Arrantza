@@ -4,6 +4,7 @@ import type { Reserva } from '@/types/reserva';
 import type { Resena } from '@/types/resena';
 import type { Producto } from '@/types/producto';
 import { formatLineaCantidad } from '@/lib/unidadVenta';
+import { sufijoPreparacion } from '@/lib/preparacion';
 import { normalizePhone, telHref, whatsappHref } from '@/lib/phone';
 import InfoHint from '@/components/base/InfoHint';
 import { PrevisionGenero, RitmoDelDia } from './HoyPrevisiones';
@@ -367,7 +368,7 @@ export default function HoyPanel({
                           <span key={itemIdx} className="inline-flex items-center gap-1 text-[11px] text-foreground-600 bg-background-100 rounded-md px-2 py-1">
                             <span className="font-semibold text-foreground-900 tabular-nums">{item.unidad === 'ud' || item.piezas ? formatLineaCantidad(item) : formatKg(item.kg)}</span>
                             {item.nombre}
-                            {item.preparacion && item.preparacion !== 'whole' ? ` (${item.preparacion})` : ''}
+                            {sufijoPreparacion(item.preparacion)}
                             {item.nota ? <span className="italic text-foreground-400"> — "{item.nota}"</span> : null}
                           </span>
                         ))}

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { usePedidos } from '@/hooks/usePedidos';
 import type { Pedido, PedidoEstado, PedidoEstadoPago } from '@/types/pedido';
 import { formatLineaCantidad } from '@/lib/unidadVenta';
+import { sufijoPreparacion } from '@/lib/preparacion';
 import DiaNavigator from '@/components/base/DiaNavigator';
 
 const ESTADO_PAGO_LABELS: Record<PedidoEstadoPago, string> = {
@@ -218,7 +219,7 @@ function PedidoCard({
           {pedido.items.map((item, idx) => (
             <p key={idx} className="text-xs text-foreground-600">
               {formatLineaCantidad(item)} — {item.nombre}
-              {item.preparacion && item.preparacion !== 'whole' ? ` (${item.preparacion})` : ''}
+              {sufijoPreparacion(item.preparacion)}
               {item.nota ? ` — "${item.nota}"` : ''}
             </p>
           ))}

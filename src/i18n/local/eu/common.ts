@@ -743,6 +743,8 @@ const common = {
   // Gallery
   "gallery.label": "Galeria",
   "gallery.title": "Egunerokoa Arrantzan",
+  "gallery.prev": "Aurrekoa",
+  "gallery.next": "Hurrengoa",
 
   // Testimonials
   "testimonials.label": "Esaten dutena",
