@@ -76,17 +76,31 @@ function leerPlegadas(): Set<string> {
   }
 }
 
-function Stat({ valor, label, icono }: { valor: number; label: string; icono: string }) {
+// Filtro de los recuadros de arriba: dónde sale el artículo, o solo los nuevos.
+type Vista = 'todas' | Destino | 'solo' | 'nuevos';
+
+function Stat({ valor, label, icono, activo, onClick }: { valor: number; label: string; icono: string; activo: boolean; onClick: () => void }) {
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-xl px-3 py-2.5 flex items-center gap-3 min-w-0">
-      <span className="w-8 h-8 rounded-full bg-background-100 text-foreground-500 flex items-center justify-center flex-shrink-0">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={activo}
+      className={`rounded-xl px-3 py-2.5 flex items-center gap-3 min-w-[148px] lg:min-w-0 flex-shrink-0 text-left border transition-colors ${
+        activo ? 'bg-foreground-950 border-foreground-950 text-background-50' : 'bg-background-50 border-background-200/70 hover:border-foreground-300/60'
+      }`}
+    >
+      <span
+        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+          activo ? 'bg-background-50/15 text-background-50' : 'bg-background-100 text-foreground-500'
+        }`}
+      >
         <i className={icono}></i>
       </span>
-      <div className="min-w-0">
-        <p className="text-lg font-semibold tabular-nums text-foreground-950 leading-tight">{valor}</p>
-        <p className="text-[11px] text-foreground-400 truncate">{label}</p>
-      </div>
-    </div>
+      <span className="min-w-0">
+        <span className={`block text-lg font-semibold tabular-nums leading-tight ${activo ? '' : 'text-foreground-950'}`}>{valor}</span>
+        <span className={`block text-[11px] truncate ${activo ? 'text-background-50/70' : 'text-foreground-400'}`}>{label}</span>
+      </span>
+    </button>
   );
 }
 
@@ -103,6 +117,7 @@ export default function BasculaCatalogoPanel() {
   // ?buscar=714 abre la lista ya filtrada por ese código.
   const [busqueda, setBusqueda] = useState(() => new URLSearchParams(window.location.search).get('buscar') ?? '');
   const [familia, setFamilia] = useState<string>('todas');
+  const [vista, setVista] = useState<Vista>('todas');
   const [plegadas, setPlegadas] = useState<Set<string>>(leerPlegadas);
   const busquedaDiferida = useDeferredValue(busqueda);
   const anteriorRef = useRef<Map<string, Articulo> | null>(null);
@@ -208,21 +223,41 @@ export default function BasculaCatalogoPanel() {
   const nombreFamilia = (f: string) => (f ? nombresFamilia[f] ?? 'Sin nombre' : 'Sin familia');
 
   const q = normalizar(busquedaDiferida.trim());
+  const enVista = useCallback(
+    (a: Articulo, v: Vista) => {
+      const d = destinos.get(a.codigo);
+      if (v === 'todas') return true;
+      if (v === 'solo') return !d?.size;
+      if (v === 'nuevos') return recientes.has(a.codigo);
+      return !!d?.has(v);
+    },
+    [destinos, recientes],
+  );
+
   const grupos = useMemo(() => {
     const filtrados = articulos.filter(
-      (a) => (familia === 'todas' || a.familia === familia) && (!q || a.codigo.startsWith(q) || normalizar(a.nombre).includes(q)),
+      (a) => (familia === 'todas' || a.familia === familia) && enVista(a, vista)
+        && (!q || a.codigo.startsWith(q) || normalizar(a.nombre).includes(q)),
     );
     return familias
       .map(([f]) => ({ familia: f, items: filtrados.filter((a) => a.familia === f) }))
       .filter((g) => g.items.length > 0);
-  }, [articulos, familias, familia, q]);
+  }, [articulos, familias, familia, vista, enVista, q]);
 
   const total = grupos.reduce((s, g) => s + g.items.length, 0);
   const sugerencias = useMemo(() => articulos.map((a) => a.nombre), [articulos]);
   const cuenta = (items: Articulo[], d: Destino) => items.filter((a) => destinos.get(a.codigo)?.has(d)).length;
-  const sinWeb = useMemo(() => articulos.filter((a) => !destinos.get(a.codigo)?.size).length, [articulos, destinos]);
-  // Buscando, se ven todos los resultados aunque su familia esté plegada.
-  const plegada = (f: string) => !q && plegadas.has(f);
+  const stats: { vista: Vista; label: string; icono: string }[] = [
+    { vista: 'todas', label: 'En la báscula', icono: 'ri-scales-3-line' },
+    ...ORDEN_DESTINOS.map((d) => ({ vista: d, label: `En ${DESTINOS[d].label.toLowerCase()}`, icono: DESTINOS[d].icono })),
+    { vista: 'solo', label: 'Solo en la báscula', icono: 'ri-eye-off-line' },
+    { vista: 'nuevos', label: 'Nuevos (7 días)', icono: 'ri-sparkling-line' },
+  ];
+  const filtrando = !!q || vista !== 'todas' || familia !== 'todas';
+  // Buscando o con un recuadro marcado, se ven todos los resultados aunque
+  // su familia esté plegada.
+  const sinPlegar = !!q || vista !== 'todas';
+  const plegada = (f: string) => !sinPlegar && plegadas.has(f);
   const todasPlegadas = grupos.length > 0 && grupos.every((g) => plegadas.has(g.familia));
 
   const alternar = (f: string) =>
@@ -268,7 +303,8 @@ export default function BasculaCatalogoPanel() {
             <button
               type="button"
               onClick={plegarTodas}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium bg-background-50 border border-background-200/70 text-foreground-500 hover:text-foreground-950 whitespace-nowrap"
+              disabled={sinPlegar}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium bg-background-50 border border-background-200/70 text-foreground-500 hover:text-foreground-950 whitespace-nowrap disabled:opacity-40 disabled:hover:text-foreground-500"
             >
               <i className={todasPlegadas ? 'ri-expand-up-down-line' : 'ri-contract-up-down-line'}></i>
               {todasPlegadas ? 'Desplegar todas' : 'Plegar todas'}
@@ -296,19 +332,38 @@ export default function BasculaCatalogoPanel() {
 
       <div className="px-4 md:px-8 pt-4">
         {!loading && articulos.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 mb-5">
-            <Stat valor={articulos.length} label="En la báscula" icono="ri-scales-3-line" />
-            {ORDEN_DESTINOS.map((d) => (
-              <Stat key={d} valor={cuenta(articulos, d)} label={`En ${DESTINOS[d].label.toLowerCase()}`} icono={DESTINOS[d].icono} />
+          // En el móvil, fila deslizable; en pantalla grande, rejilla.
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 md:-mx-8 md:px-8 lg:mx-0 lg:px-0 lg:grid lg:grid-cols-6 lg:gap-3 mb-4">
+            {stats.map((s) => (
+              <Stat
+                key={s.vista}
+                valor={articulos.filter((a) => enVista(a, s.vista)).length}
+                label={s.label}
+                icono={s.icono}
+                activo={vista === s.vista && s.vista !== 'todas'}
+                onClick={() => setVista(vista === s.vista ? 'todas' : s.vista)}
+              />
             ))}
-            <Stat valor={sinWeb} label="Solo en la báscula" icono="ri-eye-off-line" />
           </div>
         )}
 
-        {q && !loading && (
-          <p className="text-xs text-foreground-400 mb-3">
-            {total} de {articulos.length} artículos
-          </p>
+        {filtrando && !loading && (
+          <div className="flex items-center gap-2 mb-3 text-xs text-foreground-500">
+            <span>
+              {total} de {articulos.length} artículos
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setVista('todas');
+                setFamilia('todas');
+                setBusqueda('');
+              }}
+              className="font-medium text-primary-600 hover:text-primary-700"
+            >
+              Ver todos
+            </button>
+          </div>
         )}
 
         {loading ? (
@@ -321,7 +376,7 @@ export default function BasculaCatalogoPanel() {
           <div className="bg-background-50 border border-dashed border-background-200 rounded-xl py-12 text-center">
             <i className="ri-scales-3-line text-3xl text-foreground-300"></i>
             <p className="text-sm text-foreground-500 mt-2">
-              {articulos.length === 0 ? 'Todavía no se ha leído la báscula.' : 'Ningún artículo con esta búsqueda.'}
+              {articulos.length === 0 ? 'Todavía no se ha leído la báscula.' : 'Ningún artículo con estos filtros.'}
             </p>
           </div>
         ) : (
@@ -335,6 +390,7 @@ export default function BasculaCatalogoPanel() {
                   <button
                     type="button"
                     onClick={() => alternar(g.familia)}
+                    disabled={sinPlegar}
                     aria-expanded={!cerrada}
                     className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-background-100/60 transition-colors focus:outline-none focus-visible:bg-background-100"
                   >
@@ -349,7 +405,7 @@ export default function BasculaCatalogoPanel() {
                         {resumen.length === 0 && ' · no salen en la web'}
                       </span>
                     </span>
-                    <i className={`ri-arrow-down-s-line text-lg text-foreground-400 transition-transform duration-200 ${cerrada ? '-rotate-90' : ''}`}></i>
+                    {!sinPlegar && <i className={`ri-arrow-down-s-line text-lg text-foreground-400 transition-transform duration-200 ${cerrada ? '-rotate-90' : ''}`}></i>}
                   </button>
 
                   {!cerrada && (
