@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useReservasEventos } from '@/hooks/useReservasEventos';
 import { useReservas } from '@/hooks/useReservas';
+import { useCodigosPedido } from '@/hooks/useCodigosPedido';
 import { useReservasAjustes } from '@/hooks/useReservasAjustes';
 import ReservaEventoModal from './ReservaEventoModal';
 import ReservasAvisosCard from './ReservasAvisosCard';
@@ -360,10 +361,12 @@ function ReservaCard({
   reserva,
   onSetEstado,
   onDelete,
+  codigoDe,
 }: {
   reserva: Reserva;
   onSetEstado: (id: string, estado: ReservaEstado) => void;
   onDelete: (id: string) => void;
+  codigoDe: ReturnType<typeof useCodigosPedido>['codigoDe'];
 }) {
   const [expanded, setExpanded] = useState(false);
   const next = NEXT_ESTADO[reserva.estado];
@@ -406,6 +409,11 @@ function ReservaCard({
         <div className="bg-background-100 rounded-lg p-2.5 mb-2 space-y-1">
           {reserva.items.map((item, idx) => (
             <p key={idx} className="text-xs text-foreground-600">
+              {codigoDe(item) && (
+                <span className="inline-block mr-1.5 px-1.5 rounded bg-primary-100/70 text-primary-700 font-mono font-semibold" title="Código de báscula">
+                  {codigoDe(item)}
+                </span>
+              )}
               {formatLineaCantidad(item)} — {item.nombre}
               {item.nota ? ` — "${item.nota}"` : ''}
             </p>
@@ -518,6 +526,7 @@ function EventoTabs({
 export default function ReservasPanel() {
   const { eventos, loading: loadingEventos, crearEvento, patchEvento, eliminarEvento } = useReservasEventos();
   const { reservas, loading: loadingReservas, setEstado, deleteReserva } = useReservas();
+  const { codigoDe } = useCodigosPedido();
   const { ajustes, registrarAjuste, eliminarAjuste } = useReservasAjustes();
 
   const [selectedEventoId, setSelectedEventoId] = useState<string | null>(null);
@@ -885,7 +894,7 @@ export default function ReservasPanel() {
                           </div>
                           <div className="space-y-2">
                             {grupo.reservas.map((reserva) => (
-                              <ReservaCard key={reserva.id} reserva={reserva} onSetEstado={setEstado} onDelete={deleteReserva} />
+                              <ReservaCard key={reserva.id} reserva={reserva} onSetEstado={setEstado} onDelete={deleteReserva} codigoDe={codigoDe} />
                             ))}
                           </div>
                         </div>

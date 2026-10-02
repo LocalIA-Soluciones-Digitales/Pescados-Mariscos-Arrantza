@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { usePedidos } from '@/hooks/usePedidos';
+import { useCodigosPedido } from '@/hooks/useCodigosPedido';
 import type { Pedido, PedidoEstado, PedidoEstadoPago } from '@/types/pedido';
 import { formatLineaCantidad } from '@/lib/unidadVenta';
 import { sufijoPreparacion } from '@/lib/preparacion';
@@ -158,11 +159,13 @@ function PedidoCard({
   onSetEstado,
   onSetEstadoPago,
   onDelete,
+  codigoDe,
 }: {
   pedido: Pedido;
   onSetEstado: (id: string, estado: PedidoEstado) => void;
   onSetEstadoPago: (id: string, estadoPago: PedidoEstadoPago) => void;
   onDelete: (id: string) => void;
+  codigoDe: ReturnType<typeof useCodigosPedido>['codigoDe'];
 }) {
   const [expanded, setExpanded] = useState(false);
   const next = NEXT_ESTADO[pedido.estado];
@@ -218,6 +221,11 @@ function PedidoCard({
         <div className="bg-background-100 rounded-lg p-2.5 mb-2 space-y-1">
           {pedido.items.map((item, idx) => (
             <p key={idx} className="text-xs text-foreground-600">
+              {codigoDe(item) && (
+                <span className="inline-block mr-1.5 px-1.5 rounded bg-primary-100/70 text-primary-700 font-mono font-semibold" title="Código de báscula">
+                  {codigoDe(item)}
+                </span>
+              )}
               {formatLineaCantidad(item)} — {item.nombre}
               {sufijoPreparacion(item.preparacion)}
               {item.nota ? ` — "${item.nota}"` : ''}
@@ -292,6 +300,7 @@ function PedidoCard({
 
 export default function PedidosPanel() {
   const { pedidos, loading, setEstado, setEstadoPago, deletePedido } = usePedidos();
+  const { codigoDe } = useCodigosPedido();
   const [filtro, setFiltro] = useState<'todos' | PedidoEstado>('todos');
   const [colapsados, setColapsados] = useState<Set<string>>(new Set());
   const [cursor, setCursor] = useState<Date>(() => new Date());
@@ -418,7 +427,7 @@ export default function PedidosPanel() {
                 {!colapsado && (
                   <div className="space-y-2">
                     {grupo.pedidos.map((pedido) => (
-                      <PedidoCard key={pedido.id} pedido={pedido} onSetEstado={setEstado} onSetEstadoPago={setEstadoPago} onDelete={deletePedido} />
+                      <PedidoCard key={pedido.id} pedido={pedido} onSetEstado={setEstado} onSetEstadoPago={setEstadoPago} onDelete={deletePedido} codigoDe={codigoDe} />
                     ))}
                   </div>
                 )}
