@@ -126,6 +126,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const ETPROXY_BASE = 'https://etproxy.etpos.pt';
 const LOTE_MAX = 100; // tope del propio API ETWS por consulta
+const MAX_PAGINAS = 20; // por tipo_doc y tabla: hasta 2000 líneas pendientes tras una caída
 const TIPOS_DOC_A_PROCESAR = new Set([1, 2, 3]);
 const TIPOS_DOC_FACTURABLES = new Set([1, 2]); // Albarán (3) descuenta stock pero no se guarda para facturación — ver comentario arriba.
 const NOMBRE_TIPO_DOC: Record<number, string> = { 1: 'Ticket', 2: 'Factura', 3: 'Albarán' };
@@ -216,11 +217,59 @@ async function seekPorTipoDoc<T>(cfg: CfgETWS, puerto: number, path: string, cam
   return (await res.json()) as T[];
 }
 
+// Páginas siguientes (hacia atrás) de una consulta de seekPorTipoDoc,
+// mientras "seguir" diga que falta. Una página trae como mucho 100 filas,
+// así que tras una caída larga (02/10/2026: 97 líneas pendientes en la
+// báscula 1 después de un día sin conexión) la primera página no llega a
+// lo último ya sincronizado y lo que quedara por detrás se perdía al
+// avanzar bascula_last_oid. Según el manual, "pfilter" filtra por los
+// primeros N campos y usa el resto del seek como punto de partida, así que
+// cada página empieza en la clave de la fila más antigua de la anterior
+// (esa fila vuelve a venir y se descarta). Si algo falla, se queda con lo
+// que tenga: nunca peor que una sola página.
+async function paginasAnteriores<T extends { tipo_doc: number }>(
+  cfg: CfgETWS,
+  puerto: number,
+  path: string,
+  camposIndice: (keyof T & string)[],
+  tipoDoc: number,
+  primera: T[],
+  clave: (fila: T) => string,
+  seguir: (filas: T[]) => boolean,
+): Promise<{ filas: T[]; completo: boolean }> {
+  const filas = [...primera];
+  const vistas = new Set(filas.map(clave));
+  let ultima = primera[primera.length - 1];
+  let llena = primera.length >= LOTE_MAX;
+  for (let n = 2; n <= MAX_PAGINAS && llena && seguir(filas); n++) {
+    const seekObj: Record<string, unknown> = { tipo_doc: tipoDoc };
+    for (const campo of camposIndice) seekObj[campo] = ultima[campo];
+    const query = `?seek=${encodeURIComponent(JSON.stringify(seekObj))}&pfilter=1&reverse=1&limit=${LOTE_MAX}`;
+    const res = await llamarETWSConReintento(cfg, puerto, path, query);
+    if (!res.ok) {
+      console.error(`[${path}] Página ${n} de tipo_doc ${tipoDoc} falló (HTTP ${res.status})`);
+      return { filas, completo: false };
+    }
+    const crudas = (await res.json()) as T[];
+    const nuevas = crudas.filter((f) => f.tipo_doc === tipoDoc && !vistas.has(clave(f)));
+    if (nuevas.length === 0) {
+      console.error(`[${path}] Página ${n} de tipo_doc ${tipoDoc} no trajo nada nuevo`);
+      return { filas, completo: false };
+    }
+    for (const f of nuevas) vistas.add(clave(f));
+    filas.push(...nuevas);
+    ultima = crudas[crudas.length - 1];
+    llena = crudas.length >= LOTE_MAX;
+  }
+  return { filas, completo: !llena || !seguir(filas) };
+}
+
 interface LineaDocumento {
   _oid_: number;
   tipo_doc: number;
   posto: number;
   numero: number;
+  linha_f: number;
   codigo: string;
   designacao: string;
   unidade: string;
@@ -304,9 +353,42 @@ Deno.serve(async (req: Request) => {
   // al principio del fichero).
   const cabeceras: CabeceraDocumento[] = [];
   const lineas: LineaDocumento[] = [];
+  let backlogIncompleto = false;
   for (const tipoDoc of tiposDoc) {
-    cabeceras.push(...(await seekPorTipoDoc<CabeceraDocumento>(cfg, puertoActual, '/year/documentos', ['posto', 'numero'], tipoDoc)));
-    lineas.push(...(await seekPorTipoDoc<LineaDocumento>(cfg, puertoActual, '/year/documentos_lnh', ['posto', 'numero', 'linha_f'], tipoDoc)));
+    let lineasTipo = await seekPorTipoDoc<LineaDocumento>(cfg, puertoActual, '/year/documentos_lnh', ['posto', 'numero', 'linha_f'], tipoDoc);
+    let cabecerasTipo = await seekPorTipoDoc<CabeceraDocumento>(cfg, puertoActual, '/year/documentos', ['posto', 'numero'], tipoDoc);
+
+    // Tras una caída puede haber más de una página pendiente (ver
+    // paginasAnteriores). En la primera ejecución no hace falta: solo se
+    // fija el punto de partida.
+    if (!esPrimeraEjecucion) {
+      const pagLineas = await paginasAnteriores(
+        cfg, puertoActual, '/year/documentos_lnh', ['posto', 'numero', 'linha_f'], tipoDoc, lineasTipo,
+        (l) => String(l._oid_),
+        (filas) => filas.every((l) => l._oid_ > lastOid),
+      );
+      lineasTipo = pagLineas.filas;
+      // Cabeceras hasta cubrir el ticket más antiguo de las líneas nuevas,
+      // para que cada línea tenga su fecha, hora y estado de anulación.
+      const nuevasTipo = lineasTipo.filter((l) => l._oid_ > lastOid);
+      if (nuevasTipo.length > 0) {
+        const numeroMasAntiguo = Math.min(...nuevasTipo.map((l) => l.numero));
+        const pagCabeceras = await paginasAnteriores(
+          cfg, puertoActual, '/year/documentos', ['posto', 'numero'], tipoDoc, cabecerasTipo,
+          (c) => `${c.posto}|${c.numero}`,
+          (filas) => filas.every((c) => c.numero > numeroMasAntiguo),
+        );
+        cabecerasTipo = pagCabeceras.filas;
+        if (!pagCabeceras.completo) backlogIncompleto = true;
+      }
+      if (!pagLineas.completo) backlogIncompleto = true;
+    }
+
+    lineas.push(...lineasTipo);
+    cabeceras.push(...cabecerasTipo);
+  }
+  if (backlogIncompleto) {
+    console.error(`[${origen}] No se pudo recorrer todo lo pendiente desde el oid ${lastOid}: puede faltar alguna venta antigua`);
   }
 
   const cabeceraPorTicket = new Map(
@@ -330,6 +412,8 @@ Deno.serve(async (req: Request) => {
     editados_detectados: 0,
     sin_mapear: [] as string[],
     primera_ejecucion: esPrimeraEjecucion,
+    lineas_leidas: lineas.length,
+    backlog_incompleto: backlogIncompleto,
   };
 
   // En la primera ejecución no hay "último ticket procesado": solo se

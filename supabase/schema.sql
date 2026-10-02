@@ -394,6 +394,81 @@ revoke all on function public.bascula_sync_estado() from public;
 grant execute on function public.bascula_sync_estado() to authenticated;
 
 -- ============================================================
+-- Vigilante de bascula-sync (02/10/2026): avisa por push al desarrollador
+-- cuando una báscula lleva más de 30 min sin sincronizar ventas en horario
+-- de tienda (martes a sábado de 09:30 a 15:30 en Madrid, sacado de las
+-- ventas de las últimas semanas; antes de las 09:30 la báscula puede estar
+-- aún apagada), y otra vez cuando vuelve. Un solo aviso
+-- por caída: el estado va en settings.bascula_aviso_caida_<origen>.
+-- bascula_last_oid_<origen> se reescribe en cada sincronización correcta,
+-- aunque no haya ventas, así que su updated_at es la última conexión buena.
+-- ============================================================
+
+create or replace function public.vigilar_bascula_sync()
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  r record;
+  v_origen text;
+  v_nombre text;
+  v_aviso_key text;
+  v_avisado boolean;
+  v_local timestamp := now() at time zone 'Europe/Madrid';
+  v_en_horario boolean;
+  v_desde text;
+begin
+  v_en_horario := extract(isodow from v_local) between 2 and 6
+    and v_local::time between time '09:30' and time '15:30';
+
+  for r in
+    select cliente_id, key, updated_at from public.settings
+    where key in ('bascula_last_oid_pescaderia_1', 'bascula_last_oid_pescaderia_2')
+  loop
+    v_origen := regexp_replace(r.key, '^bascula_last_oid_', '');
+    v_nombre := case v_origen when 'pescaderia_1' then 'Báscula I' else 'Báscula II' end;
+    v_aviso_key := 'bascula_aviso_caida_' || v_origen;
+    v_avisado := exists (select 1 from public.settings where cliente_id = r.cliente_id and key = v_aviso_key);
+    v_desde := case
+      when (r.updated_at at time zone 'Europe/Madrid')::date = v_local::date
+        then 'las ' || to_char(r.updated_at at time zone 'Europe/Madrid', 'HH24:MI')
+      else 'el ' || to_char(r.updated_at at time zone 'Europe/Madrid', 'DD/MM "a las" HH24:MI')
+    end;
+
+    if now() - r.updated_at > interval '30 minutes' then
+      if v_en_horario and not v_avisado then
+        perform public.enviar_push_desarrollador(
+          r.cliente_id,
+          '⚠️ ' || v_nombre || ' sin conexión',
+          'No llegan ventas desde ' || v_desde || '. Si sigue así, apágala y vuelve a encenderla.',
+          'bascula-caida-' || v_origen,
+          '/admin?tab=basculas'
+        );
+        insert into public.settings (cliente_id, key, value)
+        values (r.cliente_id, v_aviso_key, to_jsonb(r.updated_at))
+        on conflict (cliente_id, key) do update set value = excluded.value;
+      end if;
+    elsif v_avisado then
+      perform public.enviar_push_desarrollador(
+        r.cliente_id,
+        '✅ ' || v_nombre || ' conectada otra vez',
+        'Las ventas que faltaban ya se están sincronizando.',
+        'bascula-caida-' || v_origen,
+        '/admin?tab=basculas'
+      );
+      delete from public.settings where cliente_id = r.cliente_id and key = v_aviso_key;
+    end if;
+  end loop;
+end;
+$$;
+
+revoke all on function public.vigilar_bascula_sync() from public, anon, authenticated;
+
+-- Cada 5 min, 4 min después de bascula-sync (*/5) para no avisar mientras
+-- esa vuelta aún está en marcha.
+-- select cron.schedule('bascula-vigilante-caidas', '4-59/5 * * * *', 'select public.vigilar_bascula_sync()');
+
+-- ============================================================
 -- Pedidos: persiste el contenido de cada pedido enviado por WhatsApp.
 -- ============================================================
 
