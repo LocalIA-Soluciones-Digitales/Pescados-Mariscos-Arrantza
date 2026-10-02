@@ -20,7 +20,15 @@ const CATEGORIA_LABELS: Record<ProductoCategoria, string> = {
 
 const CATEGORIA_ORDEN: ProductoCategoria[] = ['pescado', 'especial', 'marisco', 'congelados', 'preparados', 'raciones'];
 
-const formatoKg = (kg: number) => kg.toLocaleString('es-ES', { maximumFractionDigits: 3 });
+// Códigos de hostelería por cliente: en la báscula cada familia usa su
+// centena (7xx Orotela, 8xx Artebakarra, 9xx Bares/Restaurantes).
+const TARIFAS_HOSTELERIA = [
+  { familia: '7', etiqueta: 'Orotela' },
+  { familia: '8', etiqueta: 'Artebakarra' },
+  { familia: '9', etiqueta: 'Hostelería' },
+];
+
+const formatoKg =(kg: number) => kg.toLocaleString('es-ES', { maximumFractionDigits: 3 });
 
 function CodigoChip({ etiqueta, valor, title }: { etiqueta: string; valor: string | undefined; title?: string }) {
   return (
@@ -290,13 +298,17 @@ function StockRow({
           {ORIGENES.map((origen) => (
             <CodigoChip key={origen} etiqueta={ORIGEN_LABELS[origen].replace('Pescadería', 'Báscula')} valor={codigosBascula[origen]} />
           ))}
-          {codigosHosteleria.length > 0 && (
-            <CodigoChip
-              etiqueta="Hostelería"
-              valor={codigosHosteleria.join(' · ')}
-              title="Ventas a hostelería (familias 7, 8 y 9) que también descuentan el stock de este producto"
-            />
-          )}
+          {TARIFAS_HOSTELERIA.map(({ familia, etiqueta }) => {
+            const codigos = codigosHosteleria.filter((c) => c.startsWith(familia));
+            return codigos.length > 0 ? (
+              <CodigoChip
+                key={familia}
+                etiqueta={etiqueta}
+                valor={codigos.join(' · ')}
+                title={`Ventas de ${etiqueta} (familia ${familia}) que también descuentan el stock de este producto`}
+              />
+            ) : null;
+          })}
         </div>
         <button
           type="button"
