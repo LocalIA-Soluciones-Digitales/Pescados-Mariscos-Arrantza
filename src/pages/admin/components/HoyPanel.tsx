@@ -329,28 +329,26 @@ export default function HoyPanel({
             {prepararHoy.map((entry, idx) => {
               const horaLabel = entry.hora || (entry.tipo === 'reserva' ? 'Reserva' : 'Sin hora');
               return (
-              <div key={entry.id} className="flex gap-3">
+              <div key={entry.id} className="flex gap-2.5 sm:gap-3">
                 <div className="hidden sm:block w-16 flex-shrink-0 pt-4 text-right">
                   <span className={`text-xs font-semibold tabular-nums ${entry.hora ? 'text-foreground-700' : 'text-foreground-300'}`}>
                     {horaLabel}
                   </span>
                 </div>
 
-                <div className="hidden sm:flex relative flex-shrink-0 w-4 justify-center">
-                  {idx !== 0 && <span className="absolute top-0 h-4 w-px bg-background-200" aria-hidden="true"></span>}
-                  {idx !== prepararHoy.length - 1 && <span className="absolute top-4 bottom-0 w-px bg-background-200" aria-hidden="true"></span>}
-                  <span className="relative z-10 mt-[20px] w-2.5 h-2.5 rounded-full bg-primary-400 ring-4 ring-background-50 flex-shrink-0"></span>
+                {/* Línea de tiempo: en el móvil el punto va a la altura de la hora, que se pone encima de la tarjeta */}
+                <div className="relative flex-shrink-0 w-3 sm:w-4 flex justify-center">
+                  {idx !== 0 && <span className="absolute top-0 h-2 sm:h-4 w-px bg-background-200" aria-hidden="true"></span>}
+                  {idx !== prepararHoy.length - 1 && <span className="absolute top-2 sm:top-4 bottom-0 w-px bg-background-200" aria-hidden="true"></span>}
+                  <span className="relative z-10 mt-[5px] sm:mt-[20px] w-2.5 h-2.5 rounded-full bg-primary-400 ring-4 ring-background-50 flex-shrink-0"></span>
                 </div>
 
-                <article className="flex-1 min-w-0 bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 mb-3 overflow-hidden">
+                <div className="flex-1 min-w-0 pb-4 sm:pb-3">
+                <p className={`sm:hidden mb-1.5 text-sm font-semibold leading-5 tabular-nums ${entry.hora ? 'text-foreground-800' : 'text-foreground-400'}`}>
+                  {horaLabel}
+                </p>
+                <article className="bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 overflow-hidden">
                   <header className="flex items-center gap-3 px-3.5 py-3 border-b border-background-200/60">
-                    <div
-                      className={`sm:hidden flex-shrink-0 min-w-[3.25rem] px-2 py-1.5 rounded-lg text-center text-sm font-semibold tabular-nums ${
-                        entry.hora ? 'bg-primary-50 text-primary-700' : 'bg-background-100 text-foreground-400'
-                      }`}
-                    >
-                      {horaLabel}
-                    </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-[15px] font-semibold leading-snug text-foreground-950 line-clamp-2 break-words">{entry.cliente}</p>
                       <div className="mt-1 flex items-center gap-2">
@@ -393,6 +391,7 @@ export default function HoyPanel({
                     <span className="text-sm font-semibold text-foreground-950 tabular-nums">{formatKg(entry.kgTotal)}</span>
                   </footer>
                 </article>
+                </div>
               </div>
               );
             })}
