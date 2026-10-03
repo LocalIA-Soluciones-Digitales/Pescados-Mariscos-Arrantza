@@ -22,13 +22,6 @@ function formatKg(n: number): string {
   return `${Math.round(n * 100) / 100} kg`;
 }
 
-function getInitials(nombre: string): string {
-  const palabras = nombre.trim().split(/\s+/).filter(Boolean);
-  if (palabras.length === 0) return '?';
-  if (palabras.length === 1) return palabras[0].slice(0, 2).toUpperCase();
-  return `${palabras[0][0]}${palabras[1][0]}`.toUpperCase();
-}
-
 interface PrepararItem {
   nombre: string;
   kg: number;
@@ -333,51 +326,76 @@ export default function HoyPanel({
           <EmptyState icon="ri-cup-line" message="No hay pedidos ni reservas para hoy." />
         ) : (
           <div>
-            {prepararHoy.map((entry, idx) => (
+            {prepararHoy.map((entry, idx) => {
+              const horaLabel = entry.hora || (entry.tipo === 'reserva' ? 'Reserva' : 'Sin hora');
+              return (
               <div key={entry.id} className="flex gap-3">
-                <div className="w-14 sm:w-16 flex-shrink-0 pt-3.5 text-right">
+                <div className="hidden sm:block w-16 flex-shrink-0 pt-4 text-right">
                   <span className={`text-xs font-semibold tabular-nums ${entry.hora ? 'text-foreground-700' : 'text-foreground-300'}`}>
-                    {entry.hora || (entry.tipo === 'reserva' ? 'Reserva' : 'Sin hora')}
+                    {horaLabel}
                   </span>
                 </div>
 
-                <div className="relative flex-shrink-0 w-4 flex justify-center">
+                <div className="hidden sm:flex relative flex-shrink-0 w-4 justify-center">
                   {idx !== 0 && <span className="absolute top-0 h-4 w-px bg-background-200" aria-hidden="true"></span>}
                   {idx !== prepararHoy.length - 1 && <span className="absolute top-4 bottom-0 w-px bg-background-200" aria-hidden="true"></span>}
-                  <span className="relative z-10 mt-[18px] w-2.5 h-2.5 rounded-full bg-primary-400 ring-4 ring-background-50 flex-shrink-0"></span>
+                  <span className="relative z-10 mt-[20px] w-2.5 h-2.5 rounded-full bg-primary-400 ring-4 ring-background-50 flex-shrink-0"></span>
                 </div>
 
-                <div className="flex-1 min-w-0 bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 px-3.5 py-3 mb-2.5">
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-full bg-primary-50 text-primary-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                      {getInitials(entry.cliente)}
+                <article className="flex-1 min-w-0 bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow duration-200 mb-3 overflow-hidden">
+                  <header className="flex items-center gap-3 px-3.5 py-3 border-b border-background-200/60">
+                    <div
+                      className={`sm:hidden flex-shrink-0 min-w-[3.25rem] px-2 py-1.5 rounded-lg text-center text-sm font-semibold tabular-nums ${
+                        entry.hora ? 'bg-primary-50 text-primary-700' : 'bg-background-100 text-foreground-400'
+                      }`}
+                    >
+                      {horaLabel}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-semibold text-foreground-950 truncate">{entry.cliente}</p>
-                          <MethodBadge tipo={entry.tipo} metodoEntrega={entry.metodoEntrega} />
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-sm font-semibold text-foreground-950 tabular-nums">{formatKg(entry.kgTotal)}</span>
-                          <ContactoRapido telefono={entry.telefono} />
-                        </div>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {entry.items.map((item, itemIdx) => (
-                          <span key={itemIdx} className="inline-flex items-center gap-1 text-[11px] text-foreground-600 bg-background-100 rounded-md px-2 py-1">
-                            <span className="font-semibold text-foreground-900 tabular-nums">{item.unidad === 'ud' || item.piezas ? formatLineaCantidad(item) : formatKg(item.kg)}</span>
-                            {item.nombre}
-                            {sufijoPreparacion(item.preparacion)}
-                            {item.nota ? <span className="italic text-foreground-400"> — "{item.nota}"</span> : null}
-                          </span>
-                        ))}
+                      <p className="text-[15px] font-semibold leading-snug text-foreground-950 line-clamp-2 break-words">{entry.cliente}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <MethodBadge tipo={entry.tipo} metodoEntrega={entry.metodoEntrega} />
+                        <span className="text-[11px] text-foreground-400">
+                          {entry.items.length} producto{entry.items.length === 1 ? '' : 's'}
+                        </span>
                       </div>
                     </div>
-                  </div>
-                </div>
+                    <ContactoRapido telefono={entry.telefono} />
+                  </header>
+
+                  <ul className="divide-y divide-background-200/60 px-3.5">
+                    {entry.items.map((item, itemIdx) => {
+                      const prep = sufijoPreparacion(item.preparacion).trim().replace(/^\((.*)\)$/, '$1');
+                      return (
+                        <li key={itemIdx} className="flex items-baseline gap-3 py-2.5">
+                          <span className="w-14 flex-shrink-0 text-right text-sm font-semibold text-foreground-950 tabular-nums whitespace-nowrap">
+                            {item.unidad === 'ud' || item.piezas ? formatLineaCantidad(item) : formatKg(item.kg)}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-foreground-800 leading-snug break-words">
+                              {item.nombre}
+                              {prep && <span className="text-foreground-400"> · {prep}</span>}
+                            </p>
+                            {item.nota ? (
+                              <p className="mt-0.5 flex items-start gap-1 text-xs italic text-foreground-500 break-words">
+                                <i className="ri-chat-quote-line not-italic text-foreground-300 mt-px"></i>
+                                <span>{item.nota}</span>
+                              </p>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  <footer className="flex items-center justify-between px-3.5 py-2 bg-background-100/50 border-t border-background-200/60">
+                    <span className="text-[11px] uppercase tracking-wide text-foreground-400">Total</span>
+                    <span className="text-sm font-semibold text-foreground-950 tabular-nums">{formatKg(entry.kgTotal)}</span>
+                  </footer>
+                </article>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
         {(prepararOtrosDias.pedidos > 0 || prepararOtrosDias.reservas > 0) && (
