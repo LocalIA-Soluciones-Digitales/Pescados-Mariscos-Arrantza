@@ -76,6 +76,13 @@ export const BASCULA_INFO_ITEMS = [
   { icon: 'ri-edit-line', text: 'Es solo para consultar: los nombres, precios y familias se cambian en la báscula.' },
 ];
 
+export const BASCULAS_CAMBIOS_INFO_ITEMS = [
+  { icon: 'ri-history-line', text: 'Cada cambio que se hace en la báscula 1 o en la 2 (precio, alta, baja, familia, unidades), con la hora y cómo estaba antes.' },
+  { icon: 'ri-scales-3-line', text: 'La báscula 2 debería ser una copia de la 1: el recuadro de arriba avisa de los artículos que no coinciden y, al pulsarlo, enseña cuáles.' },
+  { icon: 'ri-refresh-line', text: 'La báscula 1 se lee cada 5 minutos y la 2 cada hora. El botón de actualizar las lee las dos al momento.' },
+  { icon: 'ri-notification-3-line', text: 'El número de la pestaña son los cambios que no has visto todavía en este dispositivo.' },
+];
+
 export const CLIENTES_INFO_ITEMS = [
   { icon: 'ri-database-2-line', text: 'Se construye solo a partir del histórico de pedidos y reservas.' },
   { icon: 'ri-phone-line', text: 'Se agrupa por teléfono, para juntar todo bajo el mismo cliente.' },

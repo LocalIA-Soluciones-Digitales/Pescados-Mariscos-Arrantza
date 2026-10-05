@@ -2,6 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { supabase } from '@/lib/supabaseClient';
 import SearchInput from '@/components/base/SearchInput';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
+import { leerEstados } from '@/hooks/useBasculasCambios';
 
 // Catálogo completo de la báscula 1 (la que manda los precios de la web), tal
 // cual está en la báscula: por código y agrupado por familia. Sale de la
@@ -134,7 +135,7 @@ export default function BasculaCatalogoPanel() {
   const cargarCatalogo = useCallback(async () => {
     const [cat, set, altas] = await Promise.all([
       supabase.from('bascula_catalogo').select('codigo, nombre, familia, precio, unidades').eq('origen', ORIGEN),
-      supabase.from('settings').select('value').eq('key', `bascula_vigilancia_${ORIGEN}`).maybeSingle(),
+      leerEstados(),
       supabase.from('bascula_catalogo_cambios').select('codigo').eq('origen', ORIGEN).eq('tipo', 'nuevo')
         .gte('created_at', new Date(Date.now() - 7 * 86_400_000).toISOString()),
     ]);
@@ -152,7 +153,7 @@ export default function BasculaCatalogoPanel() {
     }
     anteriorRef.current = new Map(lista.map((a) => [a.codigo, a]));
     setArticulos(lista);
-    setLectura((set.data?.value as Lectura) ?? null);
+    setLectura(set[ORIGEN] ?? null);
     setRecientes(new Set((altas.data ?? []).map((c) => c.codigo as string)));
     setLoading(false);
   }, []);

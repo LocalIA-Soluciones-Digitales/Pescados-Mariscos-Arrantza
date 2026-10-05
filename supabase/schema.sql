@@ -393,6 +393,22 @@ $$;
 revoke all on function public.bascula_sync_estado() from public;
 grant execute on function public.bascula_sync_estado() to authenticated;
 
+-- Igual para el estado de la última lectura del catálogo de cada báscula
+-- (bascula_vigilancia_pescaderia_1/2, lo escribe bascula-precios-diario):
+-- lo enseñan las pestañas Báscula y Cambios básculas del panel de gestión.
+create or replace function public.bascula_vigilancia_estado()
+returns table (origen text, estado jsonb)
+language sql stable security definer set search_path = public
+as $$
+  select regexp_replace(key, '^bascula_vigilancia_', '') as origen, value as estado
+  from public.settings
+  where key in ('bascula_vigilancia_pescaderia_1', 'bascula_vigilancia_pescaderia_2')
+    and (is_developer() or cliente_id = mi_cliente_id());
+$$;
+
+revoke all on function public.bascula_vigilancia_estado() from public;
+grant execute on function public.bascula_vigilancia_estado() to authenticated;
+
 -- ============================================================
 -- Vigilante de bascula-sync (02/10/2026): avisa por push al desarrollador
 -- cuando una báscula lleva más de 30 min sin sincronizar ventas en horario

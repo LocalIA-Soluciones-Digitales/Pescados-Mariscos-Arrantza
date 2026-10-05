@@ -15,6 +15,8 @@ import HoyPanel from './HoyPanel';
 import ClientesPanel from './ClientesPanel';
 import HosteleriaPanel from './HosteleriaPanel';
 import BasculaCatalogoPanel from './BasculaCatalogoPanel';
+import BasculasCambiosPanel from './BasculasCambiosPanel';
+import { useBasculasCambios } from '@/hooks/useBasculasCambios';
 import {
   HOY_INFO_ITEMS,
   VENTAS_INFO_ITEMS,
@@ -27,6 +29,7 @@ import {
   RESENAS_INFO_ITEMS,
   HOSTELERIA_INFO_ITEMS,
   BASCULA_INFO_ITEMS,
+  BASCULAS_CAMBIOS_INFO_ITEMS,
 } from './infoItems';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
@@ -42,7 +45,7 @@ import PushToggle from './PushToggle';
 import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
 
-type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes' | 'hosteleria' | 'bascula';
+type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes' | 'hosteleria' | 'bascula' | 'basculas';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -205,6 +208,7 @@ const TABS: { value: Tab; label: string; info: { icon: string; text: string }[] 
   { value: 'productos', label: 'Productos', info: PRODUCTOS_INFO_ITEMS },
   { value: 'stock', label: 'Stock', info: STOCK_INFO_ITEMS },
   { value: 'bascula', label: 'Báscula', info: BASCULA_INFO_ITEMS },
+  { value: 'basculas', label: 'Cambios básculas', info: BASCULAS_CAMBIOS_INFO_ITEMS },
   { value: 'clientes', label: 'Clientes', info: CLIENTES_INFO_ITEMS },
   { value: 'resenas', label: 'Reseñas', info: RESENAS_INFO_ITEMS },
 ];
@@ -258,6 +262,9 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   // tablas. Con Realtime activo (useRealtimeTable dentro de cada hook) se
   // mantienen al día solas, sin recargar la página.
   const { pedidos, loading: loadingPedidos } = usePedidos();
+  // ?tab=basculas&buscar=714 lo usan los avisos push de la báscula para abrir
+  // directamente los cambios de ese artículo.
+  const basculas = useBasculasCambios();
   const { resenas, loading: loadingResenas } = useResenas();
   const { reservas, loading: loadingReservas } = useReservas();
   const { solicitudes } = useSolicitudesStock();
@@ -375,7 +382,9 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
                       ? solicitudesPendientes
                       : t.value === 'hosteleria'
                         ? hosteleriaPendientes
-                        : 0;
+                        : t.value === 'basculas'
+                          ? basculas.nuevos
+                          : 0;
         const pulse =
           t.value === 'hoy'
             ? pedidosPulse || reservasPulse
@@ -503,6 +512,8 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
         <HosteleriaPanel />
       ) : tab === 'bascula' ? (
         <BasculaCatalogoPanel />
+      ) : tab === 'basculas' ? (
+        <BasculasCambiosPanel datos={basculas} />
       ) : (
         <>
       {/* Filtros */}

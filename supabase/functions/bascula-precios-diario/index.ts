@@ -6,13 +6,14 @@
 //   Opcional: "simular": true  — calcula y devuelve los cambios sin escribir nada
 //             "vigilar": true  — solo registra: ver más abajo
 //   Header: x-webhook-secret: <BASCULA_SYNC_SECRET>
-//     o bien la sesión de un desarrollador (Authorization: Bearer <jwt>):
-//     es el botón de actualizar del panel de desarrollo (Básculas), que
-//     lanza al momento la misma lectura que el cron.
+//     o bien la sesión de un desarrollador o de un usuario del negocio
+//     (Authorization: Bearer <jwt>): es el botón de actualizar de la pestaña
+//     Cambios básculas del panel de gestión, que lanza al momento la misma
+//     lectura que el cron.
 //
 // Lo dispara un cron: la báscula 1 cada 5 minutos y la 2 cada hora (ver
 // supabase/schema.sql). Si la báscula está apagada o da 502 (pasa a menudo,
-// ver bascula-sync), no pasa nada: se apunta el intento para el panel de desarrollo y se sale con 200.
+// ver bascula-sync), no pasa nada: se apunta el intento para el panel y se sale con 200.
 // Si a las 13:30 aún no se ha podido leer ese día, avisa por push una sola
 // vez (solo la báscula que alimenta la web, no la vigilada).
 //
@@ -47,7 +48,7 @@
 // pero se vigila la 2 para saber si alguien la cambia. Hace los pasos 1, 2 y
 // la foto del 4 sin tocar la web. En las dos básculas los avisos push van
 // solo a los desarrolladores (public.enviar_push_desarrollador), y los
-// cambios se ven en el panel de desarrollo.
+// cambios se ven en la pestaña Cambios básculas del panel de gestión.
 //
 // Reutiliza los secretos de bascula-sync (credenciales ETWS por origen,
 // BASCULA_CLIENTE_ID y BASCULA_SYNC_SECRET). El push sale por
@@ -345,7 +346,7 @@ function buscarFoto(nombre: string, fuentes: FuenteFoto[]): FuenteFoto | null {
 const euros = (n: number) =>`${n.toFixed(2).replace('.', ',')}€`;
 
 // Un aviso por artículo, para que cada uno se lea entero y lleve a lo suyo
-// al tocarlo (la pestaña Básculas del panel de desarrollo filtrada por su
+// al tocarlo (la pestaña Cambios básculas del panel de gestión filtrada por su
 // código). Un producto que desaparece de un código y aparece con el mismo
 // nombre en otro es un solo aviso, "movido", no baja + alta. enWeb trae lo que
 // se ha hecho en la web con cada código (alta en la tienda, precio copiado…).
@@ -426,16 +427,19 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Llamada desde el panel: vale la sesión de un desarrollador, con el mismo
-// criterio que las políticas RLS (public.is_developer()).
-async function esDesarrollador(req: Request): Promise<boolean> {
+// Llamada desde el panel: vale la sesión de un desarrollador o de un usuario
+// del negocio de la báscula, con el mismo criterio que las políticas RLS
+// (public.is_developer() / public.mi_cliente_id()).
+async function sesionDelPanel(req: Request): Promise<boolean> {
   const auth = req.headers.get('Authorization') ?? '';
   if (!auth.startsWith('Bearer ')) return false;
   const cliente = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
     global: { headers: { Authorization: auth } },
   });
-  const { data, error } = await cliente.rpc('is_developer');
-  return !error && data === true;
+  const [dev, mio] = await Promise.all([cliente.rpc('is_developer'), cliente.rpc('mi_cliente_id')]);
+  if (!dev.error && dev.data === true) return true;
+  const clienteId = Deno.env.get('BASCULA_CLIENTE_ID') ?? '';
+  return !mio.error && !!clienteId && mio.data === clienteId;
 }
 
 Deno.serve(async (req: Request) => {
@@ -449,7 +453,7 @@ async function atender(req: Request): Promise<Response> {
   const secret = req.headers.get('x-webhook-secret') ?? '';
   const expected = Deno.env.get('BASCULA_SYNC_SECRET') ?? '';
   const porSecreto = !!secret && !!expected && safeEqual(secret, expected);
-  if (!porSecreto && !(await esDesarrollador(req))) {
+  if (!porSecreto && !(await sesionDelPanel(req))) {
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -480,8 +484,8 @@ async function atender(req: Request): Promise<Response> {
   const guardarSetting = (key: string, value: unknown) =>
     supabase.from('settings').upsert({ cliente_id: clienteId, key, value }, { onConflict: 'key,cliente_id' });
   // Los avisos de las básculas van solo a los desarrolladores, no al
-  // pescadero; también se ven en el panel de desarrollo (Básculas).
-  // url: adónde lleva el aviso al tocarlo (por defecto, la pestaña Básculas).
+  // pescadero; también se ven en el panel de gestión (Cambios básculas).
+  // url: adónde lleva el aviso al tocarlo (por defecto, la pestaña Cambios básculas del panel de gestión).
   const avisar = async (titulo: string, cuerpo: string, tag: string, url = '/admin?tab=basculas') => {
     const { error } = await supabase.rpc('enviar_push_desarrollador', {
       p_cliente_id: clienteId, p_titulo: titulo, p_cuerpo: cuerpo, p_tag: tag, p_url: url,
@@ -509,7 +513,7 @@ async function atender(req: Request): Promise<Response> {
     }
   };
 
-  // Estado de la vigilancia para el panel de desarrollo. Una báscula
+  // Estado de la vigilancia para el panel de gestión. Una báscula
   // apagada no es un error: se apunta el intento y se sale con 200.
   const sinConexion = async (mensaje: string) => {
     const prev = ((await leerSetting(claveVigilancia)) ?? {}) as Record<string, unknown>;

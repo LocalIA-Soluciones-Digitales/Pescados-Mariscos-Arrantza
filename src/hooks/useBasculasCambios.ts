@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { ORIGENES, type Origen } from '@/types/origen';
 
-// Registro de cambios de las dos básculas para el panel de desarrollo.
+// Registro de cambios de las dos básculas para la pestaña Cambios básculas
+// del panel de gestión.
 // bascula-precios-diario lee la báscula 1 cada 5 minutos y la 2 cada hora: la 1 alimenta los
 // precios de la web y la 2 solo se vigila. Cada diferencia con la lectura
 // anterior queda en bascula_catalogo_cambios. Aquí se junta con el estado de
@@ -56,12 +57,30 @@ export interface DiferenciaBasculas {
   bascula2: ArticuloBascula | null;
 }
 
+// La primera vez en un dispositivo se parte de «ahora»: si no, todo el
+// historial saldría como «sin ver».
 function leerVisto(): string {
   try {
-    return localStorage.getItem(CLAVE_VISTO) ?? '';
+    const guardado = localStorage.getItem(CLAVE_VISTO);
+    if (guardado) return guardado;
+    const ahora = new Date().toISOString();
+    localStorage.setItem(CLAVE_VISTO, ahora);
+    return ahora;
   } catch {
     return '';
   }
+}
+
+// El estado de la última lectura vive en settings, que solo leen los
+// desarrolladores; bascula_vigilancia_estado() lo expone también al negocio.
+// Mientras esa función no exista en la base de datos se lee settings directo.
+export async function leerEstados(): Promise<Partial<Record<Origen, EstadoLectura>>> {
+  const rpc = await supabase.rpc('bascula_vigilancia_estado');
+  if (!rpc.error) {
+    return Object.fromEntries(((rpc.data ?? []) as { origen: string; estado: EstadoLectura }[]).map((r) => [r.origen, r.estado]));
+  }
+  const { data } = await supabase.from('settings').select('key, value').in('key', ORIGENES.map((o) => `bascula_vigilancia_${o}`));
+  return Object.fromEntries((data ?? []).map((r) => [String(r.key).replace('bascula_vigilancia_', ''), r.value as EstadoLectura]));
 }
 
 function mismoArticulo(a: ArticuloBascula, b: ArticuloBascula): boolean {
@@ -85,13 +104,11 @@ export function useBasculasCambios() {
         .select('id, origen, codigo, tipo, antes, despues, created_at')
         .order('created_at', { ascending: false })
         .limit(1000),
-      supabase.from('settings').select('key, value').in('key', ORIGENES.map((o) => `bascula_vigilancia_${o}`)),
+      leerEstados(),
       supabase.from('bascula_catalogo').select('origen, codigo, nombre, familia, precio, unidades').in('origen', ORIGENES),
     ]);
     setCambios((resCambios.data ?? []) as CambioBascula[]);
-    setEstados(
-      Object.fromEntries((resEstados.data ?? []).map((r) => [String(r.key).replace('bascula_vigilancia_', ''), r.value as EstadoLectura])),
-    );
+    setEstados(resEstados);
 
     const fotos: Record<Origen, Map<string, ArticuloBascula>> = { pescaderia_1: new Map(), pescaderia_2: new Map() };
     for (const f of resFotos.data ?? []) {

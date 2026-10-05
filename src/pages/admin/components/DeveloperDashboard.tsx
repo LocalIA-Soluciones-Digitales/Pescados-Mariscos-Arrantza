@@ -4,16 +4,13 @@ import ReportsPanel from './ReportsPanel';
 import SummaryPanel from './SummaryPanel';
 import NewsletterPanel from './NewsletterPanel';
 import ViewSwitcher from './ViewSwitcher';
-import BasculasCambiosPanel from './BasculasCambiosPanel';
-import { useBasculasCambios } from '@/hooks/useBasculasCambios';
 
-export type Tab = 'informes' | 'resumen' | 'errores' | 'newsletter' | 'basculas';
+export type Tab = 'informes' | 'resumen' | 'errores' | 'newsletter';
 
 export const TABS: { value: Tab; label: string }[] = [
   { value: 'informes', label: 'Informes' },
   { value: 'resumen', label: 'Resumen' },
   { value: 'newsletter', label: 'Newsletter' },
-  { value: 'basculas', label: 'Básculas' },
   { value: 'errores', label: 'Errores' },
 ];
 
@@ -22,20 +19,15 @@ const TITLES: Record<Tab, string> = {
   resumen: 'Resumen',
   newsletter: 'Suscriptores del newsletter',
   errores: 'Registro de errores',
-  basculas: 'Cambios en las básculas',
 };
 
 type ViewSwitch = { label: string; onClick: () => void };
 
 export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOut: () => void; viewSwitch?: ViewSwitch }) {
-  // ?tab=basculas&buscar=714 lo usan los avisos push de la báscula para abrir
-  // directamente los cambios de ese artículo.
   const [tab, setTab] = useState<Tab>(() => {
     const inicial = new URLSearchParams(window.location.search).get('tab');
     return TABS.some((t) => t.value === inicial) ? (inicial as Tab) : 'informes';
   });
-  // Se carga aunque la pestaña esté cerrada para avisar en ella de los cambios sin ver.
-  const basculas = useBasculasCambios();
   // Altura de la cabecera para que las barras de filtros fijas queden justo debajo.
   const headerRef = useRef<HTMLElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -60,11 +52,6 @@ export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOu
           }`}
         >
           {t.label}
-          {t.value === 'basculas' && basculas.nuevos > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold">
-              {basculas.nuevos}
-            </span>
-          )}
         </button>
       ))}
     </div>
@@ -109,8 +96,6 @@ export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOu
         <SummaryPanel />
       ) : tab === 'newsletter' ? (
         <NewsletterPanel />
-      ) : tab === 'basculas' ? (
-        <BasculasCambiosPanel datos={basculas} />
       ) : (
         <ReportsPanel />
       )}
