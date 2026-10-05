@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import SearchInput from '@/components/base/SearchInput';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { leerEstados } from '@/hooks/useBasculasCambios';
+import { tiendaCerradaHoy } from '@/lib/tiendaCerrada';
 
 // Catálogo completo de la báscula 1 (la que manda los precios de la web), tal
 // cual está en la báscula: por código y agrupado por familia. Sale de la
@@ -312,7 +313,13 @@ export default function BasculaCatalogoPanel() {
             </button>
           </div>
           <span className="sm:ml-auto inline-flex items-center gap-1.5 text-[11px] text-foreground-400 whitespace-nowrap">
-            {lectura?.conectada === false ? (
+            {lectura?.conectada === false && tiendaCerradaHoy() ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-foreground-300"></span>
+                Cerrado hoy
+                {lectura.ultima_lectura && ` · última lectura ${new Date(lectura.ultima_lectura).toLocaleString('es-ES', { weekday: 'long', hour: '2-digit', minute: '2-digit' })}`}
+              </>
+            ) : lectura?.conectada === false ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                 Báscula sin conexión

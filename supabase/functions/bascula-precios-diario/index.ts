@@ -15,7 +15,8 @@
 // supabase/schema.sql). Si la báscula está apagada o da 502 (pasa a menudo,
 // ver bascula-sync), no pasa nada: se apunta el intento para el panel y se sale con 200.
 // Si a las 13:30 aún no se ha podido leer ese día, avisa por push una sola
-// vez (solo la báscula que alimenta la web, no la vigilada).
+// vez (solo la báscula que alimenta la web, no la vigilada). Domingo y lunes
+// la tienda cierra y no se avisa.
 //
 // Cada ejecución:
 //   1. Lee todos los artículos de la báscula.
@@ -194,13 +195,18 @@ function formatoPrecioWeb(a: Articulo): string {
   return `${a.precio.toFixed(2).replace('.', ',')}€/${a.unidades === 'un' ? 'ud' : 'kg'}`;
 }
 
-function horaMadrid(): { fecha: string; minutos: number } {
+function horaMadrid(): { fecha: string; minutos: number; cerrada: boolean } {
   const partes = Object.fromEntries(
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Madrid', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).formatToParts(new Date()).map((p) => [p.type, p.value]),
   );
-  return { fecha: `${partes.year}-${partes.month}-${partes.day}`, minutos: Number(partes.hour) * 60 + Number(partes.minute) };
+  return {
+    fecha: `${partes.year}-${partes.month}-${partes.day}`,
+    minutos: Number(partes.hour) * 60 + Number(partes.minute),
+    // Domingo y lunes la tienda cierra.
+    cerrada: partes.weekday === 'Sun' || partes.weekday === 'Mon',
+  };
 }
 
 type TipoCambio = 'nuevo' | 'eliminado' | 'renombrado' | 'precio' | 'familia' | 'unidades';
@@ -475,7 +481,7 @@ async function atender(req: Request): Promise<Response> {
   const claveOk = `bascula_catalogo_ok_${origen}`;
   const claveFallo = `bascula_catalogo_fallo_avisado_${origen}`;
   const claveVigilancia = `bascula_vigilancia_${origen}`;
-  const { fecha, minutos } = horaMadrid();
+  const { fecha, minutos, cerrada } = horaMadrid();
 
   const leerSetting = async (key: string) => {
     const { data } = await supabase.from('settings').select('value').eq('cliente_id', clienteId).eq('key', key).maybeSingle();
@@ -534,7 +540,7 @@ async function atender(req: Request): Promise<Response> {
     if (articulos.length === 0) throw new Error('La báscula no devolvió ningún artículo');
   } catch (err) {
     const mensaje = (err as Error).message;
-    if (!vigilar && !simular && minutos >= HORA_AVISO_FALLO_MIN && (await leerSetting(claveOk)) !== fecha && (await leerSetting(claveFallo)) !== fecha) {
+    if (!vigilar && !simular && !cerrada && minutos >= HORA_AVISO_FALLO_MIN && (await leerSetting(claveOk)) !== fecha && (await leerSetting(claveFallo)) !== fecha) {
       await avisar(
         `⚠️ No se pudo leer la ${NOMBRE_ORIGEN[origen]}`,
         `Hoy no se han podido revisar los precios de la web (${mensaje}). Se sigue intentando cada 5 minutos.`,

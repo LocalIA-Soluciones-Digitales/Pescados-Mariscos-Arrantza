@@ -4,6 +4,7 @@ import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import { deleteBasculaVenta, fetchBasculaVentasDelDia, useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
 import { useBasculaSyncEstado, type BasculaSyncInfo } from '@/hooks/useBasculaSyncEstado';
+import { tiendaCerradaHoy } from '@/lib/tiendaCerrada';
 import type { BasculaVenta } from '@/types/basculaVenta';
 import { CAJA_TIPOS_GASTO, CAJA_TIPOS_INGRESO, CAJA_TIPO_LABELS, esCajaIngreso, type CajaMovimiento, type CajaMovimientoTipo } from '@/types/caja';
 import { ORIGENES, ORIGEN_COLORS, ORIGEN_LABELS, type Origen } from '@/types/origen';
@@ -90,10 +91,13 @@ const BASCULA_LABELS: Record<Origen, string> = { pescaderia_1: 'Báscula I', pes
 // (hora de la última ejecución correcta del cron, haya vendido algo o no —
 // ver useBasculaSyncEstado). Es normal que salga "sin conexión" mientras la
 // báscula física está apagada fuera de horario — el indicador no distingue
-// eso de una caída real, solo si está respondiendo ahora mismo.
+// eso de una caída real, solo si está respondiendo ahora mismo. Domingo y
+// lunes (tienda cerrada) no se marca como fallo.
 function WatchdogBascula({ origen, info }: { origen: Origen; info?: BasculaSyncInfo }) {
+  const cerrada = tiendaCerradaHoy();
   const estado = info?.estado ?? 'desconocido';
-  const color = estado === 'conectada' ? 'bg-emerald-500' : estado === 'sin_conexion' ? 'bg-red-500' : 'bg-foreground-300';
+  const fallo = estado === 'sin_conexion' && !cerrada;
+  const color = estado === 'conectada' ? 'bg-emerald-500' : fallo ? 'bg-red-500' : 'bg-foreground-300';
   const titulo = info?.ultimaSync
     ? `Última sincronización: ${info.ultimaSync.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} (${formatRelativo(info.ultimaSync)})`
     : 'Sin datos de sincronización todavía';
@@ -101,9 +105,10 @@ function WatchdogBascula({ origen, info }: { origen: Origen; info?: BasculaSyncI
     <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground-500 whitespace-nowrap" title={titulo}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${color}`}></span>
       {BASCULA_LABELS[origen]}
-      {estado === 'sin_conexion' && info?.ultimaSync && (
+      {fallo && info?.ultimaSync && (
         <span className="text-red-500">· {formatRelativo(info.ultimaSync)}</span>
       )}
+      {estado === 'sin_conexion' && cerrada && <span className="text-foreground-400">· cerrado hoy</span>}
     </span>
   );
 }

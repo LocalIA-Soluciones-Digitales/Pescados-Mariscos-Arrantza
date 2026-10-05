@@ -1,5 +1,6 @@
 import { useDeferredValue, useMemo, useState } from 'react';
 import SearchInput from '@/components/base/SearchInput';
+import { tiendaCerradaHoy } from '@/lib/tiendaCerrada';
 import { ORIGENES, ORIGEN_COLORS, type Origen } from '@/types/origen';
 import type { ArticuloBascula, CambioBascula, EstadoLectura, useBasculasCambios } from '@/hooks/useBasculasCambios';
 
@@ -129,14 +130,16 @@ function Variacion({ c }: { c: CambioBascula }) {
 
 function TarjetaEstado({ origen, estado }: { origen: Origen; estado?: EstadoLectura }) {
   const conectada = estado?.conectada !== false;
+  // Domingo y lunes la tienda cierra: una báscula apagada no es un fallo.
+  const cerrada = !conectada && tiendaCerradaHoy();
   return (
     <div className="bg-background-50 border border-background-200/70 rounded-xl px-4 py-3 flex items-center gap-3 min-w-0">
       <span
         className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-          !estado ? 'bg-background-100 text-foreground-400' : conectada ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+          !estado || cerrada ? 'bg-background-100 text-foreground-400' : conectada ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
         }`}
       >
-        <i className={!estado ? 'ri-time-line' : conectada ? 'ri-wifi-line' : 'ri-wifi-off-line'}></i>
+        <i className={!estado ? 'ri-time-line' : cerrada ? 'ri-moon-line' : conectada ? 'ri-wifi-line' : 'ri-wifi-off-line'}></i>
       </span>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
@@ -146,7 +149,9 @@ function TarjetaEstado({ origen, estado }: { origen: Origen; estado?: EstadoLect
         <p className="text-xs text-foreground-500 truncate">
           {!estado
             ? 'Sin leer todavía'
-            : conectada
+            : cerrada
+              ? `Cerrado hoy${estado.ultima_lectura ? ` · última lectura ${fechaHora(estado.ultima_lectura)}` : ''}`
+              : conectada
               ? `Leída ${estado.ultima_lectura ? fechaHora(estado.ultima_lectura) : '—'} · ${estado.articulos ?? 0} artículos`
               : `Sin conexión desde ${estado.ultimo_intento ? fechaHora(estado.ultimo_intento) : '—'}${estado.ultima_lectura ? ` · última buena ${fechaHora(estado.ultima_lectura)}` : ''}`}
         </p>
