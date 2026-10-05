@@ -286,7 +286,7 @@ export default function BasculaCatalogoPanel() {
             className="w-full sm:w-[280px] md:w-[360px] flex-shrink-0"
           />
           <div className="flex items-center gap-2">
-            <div className="relative flex-1 sm:flex-none">
+            <div className="relative flex-1 min-w-0 sm:flex-none">
               <select
                 value={familia}
                 onChange={(e) => setFamilia(e.target.value)}
@@ -306,10 +306,13 @@ export default function BasculaCatalogoPanel() {
               type="button"
               onClick={plegarTodas}
               disabled={sinPlegar}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium bg-background-50 border border-background-200/70 text-foreground-500 hover:text-foreground-950 whitespace-nowrap disabled:opacity-40 disabled:hover:text-foreground-500"
+              aria-label={todasPlegadas ? 'Desplegar todas' : 'Plegar todas'}
+              title={todasPlegadas ? 'Desplegar todas' : 'Plegar todas'}
+              className="flex-shrink-0 inline-flex items-center justify-center gap-1.5 w-10 h-10 sm:w-auto sm:h-auto px-0 sm:px-3 py-0 sm:py-2 rounded-full text-xs font-medium bg-background-50 border border-background-200/70 text-foreground-500 hover:text-foreground-950 whitespace-nowrap disabled:opacity-40 disabled:hover:text-foreground-500"
             >
               <i className={todasPlegadas ? 'ri-expand-up-down-line' : 'ri-contract-up-down-line'}></i>
-              {todasPlegadas ? 'Desplegar todas' : 'Plegar todas'}
+              {/* En el móvil solo el icono: el desplegable va a 16px (iOS) y necesita el ancho. */}
+              <span className="hidden sm:inline">{todasPlegadas ? 'Desplegar todas' : 'Plegar todas'}</span>
             </button>
           </div>
           <span className="sm:ml-auto inline-flex items-center gap-1.5 text-[11px] text-foreground-400 whitespace-nowrap">
