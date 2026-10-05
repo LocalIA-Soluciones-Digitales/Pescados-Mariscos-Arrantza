@@ -8,7 +8,7 @@
 //   Header: x-webhook-secret: <BASCULA_SYNC_SECRET>
 //     o bien la sesión de un desarrollador o de un usuario del negocio
 //     (Authorization: Bearer <jwt>): es el botón de actualizar de la pestaña
-//     Cambios básculas del panel de gestión, que lanza al momento la misma
+//     Básculas › Cambios y diferencias del panel de gestión, que lanza al momento la misma
 //     lectura que el cron.
 //
 // Lo dispara un cron: la báscula 1 cada 5 minutos y la 2 cada hora (ver
@@ -49,7 +49,7 @@
 // pero se vigila la 2 para saber si alguien la cambia. Hace los pasos 1, 2 y
 // la foto del 4 sin tocar la web. En las dos básculas los avisos push van
 // solo a los desarrolladores (public.enviar_push_desarrollador), y los
-// cambios se ven en la pestaña Cambios básculas del panel de gestión.
+// cambios se ven en la pestaña Básculas › Cambios y diferencias del panel de gestión.
 //
 // Reutiliza los secretos de bascula-sync (credenciales ETWS por origen,
 // BASCULA_CLIENTE_ID y BASCULA_SYNC_SECRET). El push sale por
@@ -352,7 +352,7 @@ function buscarFoto(nombre: string, fuentes: FuenteFoto[]): FuenteFoto | null {
 const euros = (n: number) =>`${n.toFixed(2).replace('.', ',')}€`;
 
 // Un aviso por artículo, para que cada uno se lea entero y lleve a lo suyo
-// al tocarlo (la pestaña Cambios básculas del panel de gestión filtrada por su
+// al tocarlo (la pestaña Básculas › Cambios y diferencias del panel de gestión filtrada por su
 // código). Un producto que desaparece de un código y aparece con el mismo
 // nombre en otro es un solo aviso, "movido", no baja + alta. enWeb trae lo que
 // se ha hecho en la web con cada código (alta en la tienda, precio copiado…).
@@ -490,8 +490,8 @@ async function atender(req: Request): Promise<Response> {
   const guardarSetting = (key: string, value: unknown) =>
     supabase.from('settings').upsert({ cliente_id: clienteId, key, value }, { onConflict: 'key,cliente_id' });
   // Los avisos de las básculas van solo a los desarrolladores, no al
-  // pescadero; también se ven en el panel de gestión (Cambios básculas).
-  // url: adónde lleva el aviso al tocarlo (por defecto, la pestaña Cambios básculas del panel de gestión).
+  // pescadero; también se ven en el panel de gestión (Básculas › Cambios y diferencias).
+  // url: adónde lleva el aviso al tocarlo (por defecto, la pestaña Básculas › Cambios y diferencias del panel de gestión).
   const avisar = async (titulo: string, cuerpo: string, tag: string, url = '/admin?tab=basculas') => {
     const { error } = await supabase.rpc('enviar_push_desarrollador', {
       p_cliente_id: clienteId, p_titulo: titulo, p_cuerpo: cuerpo, p_tag: tag, p_url: url,

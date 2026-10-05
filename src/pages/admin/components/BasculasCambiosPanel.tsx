@@ -262,7 +262,7 @@ export default function BasculasCambiosPanel({ datos }: { datos: Datos }) {
 
   return (
     <div className="pb-28">
-      <div className="px-4 md:px-8 pt-6 space-y-4">
+      <div className="px-4 md:px-8 pt-4 space-y-4">
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
           {ORIGENES.map((o) => (
             <TarjetaEstado key={o} origen={o} estado={estados[o]} />

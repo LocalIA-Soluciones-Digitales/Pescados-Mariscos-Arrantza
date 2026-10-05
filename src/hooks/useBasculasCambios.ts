@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { ORIGENES, type Origen } from '@/types/origen';
 
-// Registro de cambios de las dos básculas para la pestaña Cambios básculas
-// del panel de gestión.
+// Registro de cambios de las dos básculas para la pestaña Básculas
+// (Cambios y diferencias) del panel de gestión.
 // bascula-precios-diario lee la báscula 1 cada 5 minutos y la 2 cada hora: la 1 alimenta los
 // precios de la web y la 2 solo se vigila. Cada diferencia con la lectura
 // anterior queda en bascula_catalogo_cambios. Aquí se junta con el estado de

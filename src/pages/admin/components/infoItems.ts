@@ -70,17 +70,11 @@ export const STOCK_INFO_ITEMS = [
 ];
 
 export const BASCULA_INFO_ITEMS = [
-  { icon: 'ri-scales-3-line', text: 'Todos los artículos de la báscula 1, por código y familia, tal como están en la báscula.' },
-  { icon: 'ri-refresh-line', text: 'Se lee sola cada 5 minutos: si cambias algo en la báscula, aparece aquí al rato.' },
-  { icon: 'ri-global-line', text: 'Cada artículo dice dónde sale en la web: Tienda (tienda online, familias 1 a 5), Reservas (Navidad) u Hostelería (portal de hostelería, tras iniciar sesión). "Solo báscula": no sale en ningún sitio.' },
+  { icon: 'ri-global-line', text: '«Báscula 1 y web»: todos los artículos de la báscula 1 por código y familia, y dónde sale cada uno en la web: Tienda (familias 1 a 5), Reservas (Navidad) u Hostelería (portal, tras iniciar sesión). "Solo báscula": no sale en ningún sitio.' },
+  { icon: 'ri-git-compare-line', text: '«Cambios y diferencias»: cada cambio hecho en la báscula 1 o en la 2 (precio, alta, baja, familia, unidades) con cómo estaba antes, y los artículos en que la báscula 2 no coincide con la 1.' },
+  { icon: 'ri-refresh-line', text: 'La báscula 1 se lee sola cada 5 minutos y la 2 cada hora: si cambias algo en la báscula, aparece aquí al rato.' },
+  { icon: 'ri-moon-line', text: 'Domingo y lunes la tienda cierra: que las básculas no respondan esos días es normal.' },
   { icon: 'ri-edit-line', text: 'Es solo para consultar: los nombres, precios y familias se cambian en la báscula.' },
-];
-
-export const BASCULAS_CAMBIOS_INFO_ITEMS = [
-  { icon: 'ri-history-line', text: 'Cada cambio que se hace en la báscula 1 o en la 2 (precio, alta, baja, familia, unidades), con la hora y cómo estaba antes.' },
-  { icon: 'ri-scales-3-line', text: 'La báscula 2 debería ser una copia de la 1: el recuadro de arriba avisa de los artículos que no coinciden y, al pulsarlo, enseña cuáles.' },
-  { icon: 'ri-refresh-line', text: 'La báscula 1 se lee cada 5 minutos y la 2 cada hora. El botón de actualizar las lee las dos al momento.' },
-  { icon: 'ri-notification-3-line', text: 'El número de la pestaña son los cambios que no has visto todavía en este dispositivo.' },
 ];
 
 export const CLIENTES_INFO_ITEMS = [

@@ -395,7 +395,7 @@ grant execute on function public.bascula_sync_estado() to authenticated;
 
 -- Igual para el estado de la última lectura del catálogo de cada báscula
 -- (bascula_vigilancia_pescaderia_1/2, lo escribe bascula-precios-diario):
--- lo enseñan las pestañas Báscula y Cambios básculas del panel de gestión.
+-- lo enseñan la pestaña Básculas del panel de gestión.
 create or replace function public.bascula_vigilancia_estado()
 returns table (origen text, estado jsonb)
 language sql stable security definer set search_path = public
