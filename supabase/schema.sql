@@ -412,9 +412,10 @@ grant execute on function public.bascula_vigilancia_estado() to authenticated;
 -- ============================================================
 -- Vigilante de bascula-sync (02/10/2026): avisa por push al desarrollador
 -- cuando una báscula lleva más de 30 min sin sincronizar ventas en horario
--- de tienda (martes a sábado de 09:30 a 15:30 en Madrid, sacado de las
+-- de tienda (martes a sábado de 09:30 a 14:00 en Madrid, sacado de las
 -- ventas de las últimas semanas; antes de las 09:30 la báscula puede estar
--- aún apagada), y otra vez cuando vuelve. Un solo aviso
+-- aún apagada y desde las 14:00 muchas veces ya la apagan al cerrar), y
+-- otra vez cuando vuelve. Un solo aviso
 -- por caída: el estado va en settings.bascula_aviso_caida_<origen>.
 -- bascula_last_oid_<origen> se reescribe en cada sincronización correcta,
 -- aunque no haya ventas, así que su updated_at es la última conexión buena.
@@ -435,7 +436,7 @@ declare
   v_desde text;
 begin
   v_en_horario := extract(isodow from v_local) between 2 and 6
-    and v_local::time between time '09:30' and time '15:30';
+    and v_local::time between time '09:30' and time '14:00';
 
   for r in
     select cliente_id, key, updated_at from public.settings
