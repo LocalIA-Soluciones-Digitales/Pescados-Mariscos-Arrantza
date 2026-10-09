@@ -788,9 +788,13 @@ begin
   perform set_config('arrantza.stock_ref', 'Pedido web ' || left(new.id::text, 8), true);
   for item in select * from jsonb_array_elements(new.items) loop
     begin
-      update public.productos
-      set stock_kg = greatest(stock_kg - coalesce((item->>'kg')::numeric, 0), 0)
-      where id = (item->>'productoId')::uuid;
+      -- Si el producto saca su género de otro (stock_de, p. ej. Cola de
+      -- Merluza → Merluza), descuenta de ese.
+      update public.productos p
+      set stock_kg = greatest(p.stock_kg - coalesce((item->>'kg')::numeric, 0), 0)
+      from public.productos v
+      where v.id = (item->>'productoId')::uuid
+        and p.id = coalesce(v.stock_de, v.id);
     exception when others then
       null; -- nunca debe bloquear el insert del pedido
     end;
@@ -978,9 +982,17 @@ create or replace function public.descontar_stock_bascula(
   p_cliente_id uuid, p_origen text, p_codigo_bascula text, p_kg numeric, p_referencia text default null
 )
 returns numeric as $$
+  -- Si el código descuenta de otro producto (stock_de), el historial de
+  -- ese producto dice qué se vendió: "Ticket 7156 · 10:24 · Cola de Merluza".
   select set_config('arrantza.stock_tipo', 'venta_bascula', true),
          set_config('arrantza.stock_origen', p_origen, true),
-         set_config('arrantza.stock_ref', coalesce(p_referencia, 'Código ' || p_codigo_bascula), true);
+         set_config('arrantza.stock_ref', coalesce(p_referencia, 'Código ' || p_codigo_bascula) || coalesce((
+           select ' · ' || v.nombre_es
+           from public.codigos_bascula_stock m
+           join public.productos v on v.id = m.producto_venta_id
+           where m.cliente_id = p_cliente_id and m.origen = p_origen and m.codigo_bascula = p_codigo_bascula
+             and m.producto_venta_id <> m.producto_id
+         ), ''), true);
   update public.productos p
   set stock_kg = greatest(stock_kg - p_kg, 0)
   from public.codigos_bascula_stock m
@@ -1185,20 +1197,34 @@ create policy "productos_codigos_stock_admin"
   using (is_developer() or cliente_id = mi_cliente_id())
   with check (is_developer() or cliente_id = mi_cliente_id());
 
+-- Producto del que sale el género de este: se compra la merluza entera y
+-- de ella se saca la Cola de Merluza, así que vender cola descuenta stock
+-- de Merluza (báscula y pedidos web). Un solo nivel: el producto de
+-- stock_de no debe tener a su vez stock_de.
+alter table public.productos
+  add column if not exists stock_de uuid references public.productos (id) on delete set null;
+
 -- Todos los códigos que descuentan stock: los de la tienda y los de solo
 -- stock. Si un código estuviera en las dos tablas manda el de la tienda,
--- para no descontarlo dos veces.
+-- para no descontarlo dos veces. producto_id es el producto cuyo stock se
+-- descuenta (el de stock_de si lo tiene) y producto_venta_id el enlazado
+-- al código.
 create or replace view public.codigos_bascula_stock
 with (security_invoker = true) as
-  select cliente_id, origen, codigo_bascula, producto_id
-  from public.productos_codigos_bascula
-  union all
-  select s.cliente_id, s.origen, s.codigo_bascula, s.producto_id
-  from public.productos_codigos_stock s
-  where not exists (
-    select 1 from public.productos_codigos_bascula m
-    where m.cliente_id = s.cliente_id and m.origen = s.origen and m.codigo_bascula = s.codigo_bascula
-  );
+  select c.cliente_id, c.origen, c.codigo_bascula, coalesce(p.stock_de, c.producto_id) as producto_id,
+         c.producto_id as producto_venta_id
+  from (
+    select cliente_id, origen, codigo_bascula, producto_id
+    from public.productos_codigos_bascula
+    union all
+    select s.cliente_id, s.origen, s.codigo_bascula, s.producto_id
+    from public.productos_codigos_stock s
+    where not exists (
+      select 1 from public.productos_codigos_bascula m
+      where m.cliente_id = s.cliente_id and m.origen = s.origen and m.codigo_bascula = s.codigo_bascula
+    )
+  ) c
+  join public.productos p on p.id = c.producto_id;
 
 -- Registro de cada línea de venta procesada desde cualquiera de las dos
 -- básculas (origen), para poder sacar la facturación diaria además de

@@ -336,7 +336,9 @@ Deno.serve(async (req: Request) => {
   const esPrimeraEjecucion = lastOid === 0;
 
   // Códigos de la tienda + los de solo stock (tarifas de hostelería, que
-  // venden el mismo género a otro precio) — ver codigos_bascula_stock.
+  // venden el mismo género a otro precio) — ver codigos_bascula_stock. El
+  // producto_id ya es el que descuenta stock (Cola de Merluza → Merluza,
+  // ver productos.stock_de).
   const { data: codigosMapeados } = await supabase
     .from('codigos_bascula_stock')
     .select('producto_id, codigo_bascula')
