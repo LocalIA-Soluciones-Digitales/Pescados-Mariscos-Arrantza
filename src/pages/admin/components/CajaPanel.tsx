@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useCaja, type NewCajaMovimientoInput } from '@/hooks/useCaja';
+import { supabase } from '@/lib/supabaseClient';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { useHorizontalWheelScroll } from '@/hooks/useHorizontalWheelScroll';
 import { deleteBasculaVenta, fetchBasculaVentasDelDia, useBasculaVentasDiarias } from '@/hooks/useBasculaVentas';
@@ -238,6 +239,7 @@ function FilaCaja({
   ingreso,
   resaltado,
   onEliminar,
+  onFoto,
 }: {
   id?: string;
   icon: string;
@@ -248,6 +250,7 @@ function FilaCaja({
   ingreso: boolean;
   resaltado?: boolean;
   onEliminar: () => void;
+  onFoto?: () => void;
 }) {
   return (
     <div
@@ -273,6 +276,17 @@ function FilaCaja({
       <span className={`text-sm font-medium flex-shrink-0 tabular-nums ${ingreso ? 'text-emerald-700' : 'text-red-600'}`}>
         {ingreso ? '+' : '-'}{formatEUR(importe)}
       </span>
+      {onFoto && (
+        <button
+          type="button"
+          onClick={onFoto}
+          title="Ver la foto del albarán"
+          aria-label="Ver la foto del albarán"
+          className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-100 hover:text-foreground-950"
+        >
+          <i className="ri-image-line text-sm"></i>
+        </button>
+      )}
       <button
         type="button"
         onClick={onEliminar}
@@ -305,8 +319,27 @@ function FilaMovimiento({
       ingreso={esCajaIngreso(m.tipo)}
       resaltado={resaltado}
       onEliminar={() => onEliminar(m)}
+      onFoto={esGastoDeCompra(m) ? () => abrirFotoCompra(m.foto_url!) : undefined}
     />
   );
+}
+
+// Los gastos que crea «Confirmar» en Compras guardan la foto del albarán
+// como "compras/<ruta en el bucket privado>".
+function esGastoDeCompra(m: CajaMovimiento): boolean {
+  return !!m.foto_url?.startsWith('compras/');
+}
+
+async function abrirFotoCompra(fotoUrl: string) {
+  // La ventana se abre ya (si no, el móvil bloquea la emergente) y se le
+  // da la dirección firmada en cuanto llega.
+  const ventana = window.open('', '_blank');
+  const { data } = await supabase.storage.from('compras').createSignedUrl(fotoUrl.replace(/^compras\//, ''), 60 * 60);
+  if (data?.signedUrl && ventana) ventana.location.href = data.signedUrl;
+  else {
+    ventana?.close();
+    alert('No se pudo abrir la foto del albarán.');
+  }
 }
 
 interface TicketBascula {
@@ -645,7 +678,10 @@ function VistaDia({
   }, [fecha]);
 
   const eliminar = async (m: CajaMovimiento) => {
-    if (!confirm(`¿Eliminar este movimiento de ${formatEUR(m.importe)}?`)) return;
+    const mensaje = esGastoDeCompra(m)
+      ? `Este gasto de ${formatEUR(m.importe)} viene de un albarán de Compras: si lo borras aquí, los kg que sumó siguen en el stock. Para deshacer las dos cosas, anúlalo desde la pestaña Compras.\n\n¿Borrar solo el gasto?`
+      : `¿Eliminar este movimiento de ${formatEUR(m.importe)}?`;
+    if (!confirm(mensaje)) return;
     await onEliminar(m.id);
   };
 

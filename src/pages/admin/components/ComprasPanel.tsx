@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { useCompras } from '@/hooks/useCompras';
-import type { Compra, CompraAlias, CompraLinea } from '@/types/compra';
+import type { Compra, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
 import { leerAlbaran, normalizarCompra, sumaLineas, type OcrCaja } from '@/lib/comprasOcr';
+import { leerDictado, NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
 import { enderezar, leerTextoFoto, prepararFoto } from '@/lib/comprasFoto';
 import { esPdf, prepararPdf } from '@/lib/comprasPdf';
 
@@ -30,23 +31,37 @@ const aNum = (s: string): number | null => {
   return s.trim() === '' || !Number.isFinite(n) ? null : n;
 };
 
-// Producto para un nombre de albarán: primero lo que se eligió otras veces
-// para ese proveedor (o cualquier proveedor), si no el producto cuyo nombre
-// aparece entero dentro del texto ("MERLUZA PINCHO" → Merluza).
-function sugerirProducto(texto: string, proveedor: string | null, alias: CompraAlias[], productos: Producto[]) {
-  const t = normalizarCompra(texto);
-  const p = normalizarCompra(proveedor);
-  const recordado =
-    alias.find((a) => a.texto_norm === t && a.proveedor_norm === p) ?? alias.find((a) => a.texto_norm === t);
-  if (recordado && productos.some((x) => x.id === recordado.producto_id)) return { id: recordado.producto_id, recordado: true };
-  const palabras = new Set(t.split(/[^a-z0-9]+/).filter(Boolean));
-  let mejor: { id: string; puntos: number } | null = null;
-  for (const prod of productos) {
-    const nombre = normalizarCompra(prod.nombre_es).split(/[^a-z0-9]+/).filter((w) => w.length > 2);
-    if (nombre.length === 0 || !nombre.every((w) => palabras.has(w))) continue;
-    if (!mejor || nombre.length > mejor.puntos) mejor = { id: prod.id, puntos: nombre.length };
-  }
-  return mejor ? { id: mejor.id, recordado: false } : null;
+// Reconocimiento de voz del propio navegador (Chrome/Android, Safari/iOS):
+// gratis, sin instalar nada. El audio lo procesa Google o Apple, no se
+// guarda en ningún sitio nuestro.
+interface Reconocedor {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+}
+const ReconocedorVoz = (
+  window as unknown as { SpeechRecognition?: new () => Reconocedor; webkitSpeechRecognition?: new () => Reconocedor }
+).SpeechRecognition ?? (window as unknown as { webkitSpeechRecognition?: new () => Reconocedor }).webkitSpeechRecognition;
+
+function escucharFrase(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!ReconocedorVoz) return reject(new Error('Este navegador no permite dictar.'));
+    const r = new ReconocedorVoz();
+    r.lang = 'es-ES';
+    r.interimResults = false;
+    r.maxAlternatives = 1;
+    let texto = '';
+    r.onresult = (e) => {
+      texto = e.results[0]?.[0]?.transcript ?? '';
+    };
+    r.onerror = (e) => reject(new Error(e.error === 'not-allowed' ? 'Hay que permitir el micrófono para dictar.' : 'No se ha entendido, prueba otra vez.'));
+    r.onend = () => (texto ? resolve(texto) : reject(new Error('No se ha oído nada, prueba otra vez.')));
+    r.start();
+  });
 }
 
 // El total del albarán lleva IVA y recargo de equivalencia (10 % + 1,4 %
@@ -208,6 +223,73 @@ function CompraEditor({
       }),
     );
 
+  const sugerir = (texto: string) => sugerirProducto(texto, proveedor, datos.alias, productos);
+
+  // Al escribir o corregir el nombre de una línea sin producto, se propone uno.
+  const cambiarTexto = (i: number, texto: string) => {
+    const actual = lineas[i];
+    const antes = sugerir(actual.texto);
+    const libre = !actual.producto_id || actual.producto_id === antes?.id;
+    cambiarLinea(i, libre ? { texto, producto_id: sugerir(texto)?.id ?? '' } : { texto });
+  };
+
+  // Para los albaranes escritos a mano: «rape 4,64 a 21,50» → una línea.
+  const [escuchando, setEscuchando] = useState(false);
+  const dictar = async () => {
+    setError(null);
+    setEscuchando(true);
+    try {
+      const d = leerDictado(await escucharFrase());
+      const productoId = sugerir(d.texto)?.id ?? '';
+      setLineas((p) => {
+        // Si ese producto ya está sin kg (copiado de la última compra), se
+        // rellena esa línea en vez de añadir otra; si no se dijo el precio,
+        // se queda el de la última vez.
+        const i = p.findIndex(
+          (l) => !l.kg.trim() && ((productoId && l.producto_id === productoId) || normalizarCompra(l.texto) === normalizarCompra(d.texto)),
+        );
+        const previa = i >= 0 ? p[i] : null;
+        const precio = d.precio ?? aNum(previa?.precio ?? '');
+        const importe = d.kg != null && precio != null ? Math.round(d.kg * precio * 100) / 100 : null;
+        const nueva: LineaForm = {
+          texto: previa?.texto || d.texto,
+          kg: aTexto(d.kg),
+          precio: aTexto(precio),
+          importe: aTexto(importe),
+          producto_id: previa?.producto_id || productoId,
+          sumar_stock: previa?.sumar_stock ?? !NO_PRODUCTO.test(d.texto),
+        };
+        return previa ? p.map((l, k) => (k === i ? nueva : l)) : [...p, nueva];
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEscuchando(false);
+    }
+  };
+
+  // Los proveedores de siempre suelen traer lo mismo: se copian los
+  // productos de su última compra confirmada y solo hay que poner kg y precio.
+  const anterior = useMemo(() => {
+    const p = normalizarCompra(proveedor);
+    if (!p) return null;
+    return (
+      datos.compras
+        .filter((c) => c.id !== compra.id && c.estado === 'confirmada' && normalizarCompra(c.proveedor) === p && c.lineas.length)
+        .sort((a, b) => b.fecha.localeCompare(a.fecha))[0] ?? null
+    );
+  }, [datos.compras, proveedor, compra.id]);
+  const copiarAnterior = () => {
+    if (!anterior) return;
+    const ya = new Set(lineas.map((l) => l.producto_id).filter(Boolean));
+    setLineas((p) => [
+      ...p,
+      ...anterior.lineas
+        .filter((l) => !l.producto_id || !ya.has(l.producto_id))
+        .map((l) => ({ texto: l.texto, kg: '', precio: aTexto(l.precio), importe: '', producto_id: l.producto_id ?? '', sumar_stock: l.sumar_stock })),
+    ]);
+  };
+
   const datosCompra = () => ({
     fecha,
     proveedor: proveedor.trim() || null,
@@ -315,24 +397,52 @@ function CompraEditor({
                 </button>
               )}
             </div>
+            {editable && (ReconocedorVoz || anterior) && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {ReconocedorVoz && (
+                  <button
+                    type="button"
+                    onClick={dictar}
+                    disabled={escuchando}
+                    className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-medium border ${
+                      escuchando ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' : 'bg-background-50 border-background-200/70 text-foreground-600 hover:bg-background-100'
+                    }`}
+                  >
+                    <i className="ri-mic-fill"></i>
+                    {escuchando ? 'Escuchando… di «rape 4,64 a 21,50»' : 'Dictar línea'}
+                  </button>
+                )}
+                {anterior && (
+                  <button
+                    type="button"
+                    onClick={copiarAnterior}
+                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-medium border bg-background-50 border-background-200/70 text-foreground-600 hover:bg-background-100"
+                  >
+                    <i className="ri-history-line"></i>
+                    Igual que el {formatFecha(anterior.fecha)}
+                  </button>
+                )}
+              </div>
+            )}
             {lineas.length === 0 && (
               <p className="text-xs text-foreground-400 bg-background-100 rounded-lg p-3">
-                No se ha leído ninguna línea de producto. Puedes añadirlas a mano o confirmar solo el gasto.
+                No se ha leído ninguna línea de producto (¿escrito a mano?). Díctalas con el micrófono, cópialas de la última compra
+                a este proveedor o añádelas a mano. También puedes confirmar solo el gasto.
               </p>
             )}
             <div className="space-y-2">
               {lineas.map((l, i) => {
                 const d = lineasDatos[i];
                 const ok = d.kg != null && d.precio != null && d.importe != null && Math.abs(d.kg * d.precio - d.importe) <= 0.06;
-                const recordado =
-                  !!d.producto_id && datos.alias.some((a) => a.producto_id === d.producto_id && a.texto_norm === normalizarCompra(l.texto));
+                const s = d.producto_id ? sugerir(l.texto) : null;
+                const motivo = s && s.id === d.producto_id ? s.motivo : null;
                 return (
                   <div key={i} className={`rounded-xl border p-2.5 ${ok ? 'border-background-200/70' : 'border-amber-300 bg-amber-50/50'}`}>
                     <div className="flex items-center gap-2">
                       <i className={`${ok ? 'ri-checkbox-circle-fill text-emerald-600' : 'ri-error-warning-fill text-amber-500'} text-base flex-shrink-0`}></i>
                       <input
                         value={l.texto}
-                        onChange={(e) => cambiarLinea(i, { texto: e.target.value })}
+                        onChange={(e) => cambiarTexto(i, e.target.value)}
                         placeholder="Producto (como viene en el albarán)"
                         disabled={!editable}
                         className="flex-1 min-w-0 bg-transparent text-sm font-medium text-foreground-950 focus:outline-none"
@@ -382,7 +492,12 @@ function CompraEditor({
                           </option>
                         ))}
                       </select>
-                      {recordado && <span className="text-[10px] text-emerald-700 flex-shrink-0">recordado</span>}
+                      {motivo === 'recordado' && <span className="text-[10px] text-emerald-700 flex-shrink-0">recordado</span>}
+                      {motivo === 'parecido' && (
+                        <span className="text-[10px] text-amber-700 flex-shrink-0" title="Elegido por el nombre: compruébalo la primera vez">
+                          sugerido
+                        </span>
+                      )}
                       <label className="inline-flex items-center gap-1 text-[11px] text-foreground-500 flex-shrink-0">
                         <input
                           type="checkbox"
@@ -539,7 +654,7 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
         precio: l.precio,
         importe: l.importe,
         producto_id: sugerirProducto(l.texto, a.proveedor, datos.alias, productos)?.id ?? null,
-        sumar_stock: true,
+        sumar_stock: !NO_PRODUCTO.test(l.texto),
       }));
 
       setProgreso('Guardando…');
