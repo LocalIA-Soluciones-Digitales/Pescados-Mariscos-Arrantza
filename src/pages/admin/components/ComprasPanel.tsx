@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { useCompras } from '@/hooks/useCompras';
 import type { Compra, CompraAlias, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
-import { agruparLineas, leerAlbaran, normalizarCompra, sumaLineas } from '@/lib/comprasOcr';
+import { leerAlbaran, normalizarCompra, sumaLineas, type OcrCaja } from '@/lib/comprasOcr';
 import { leerTextoFoto, prepararFoto } from '@/lib/comprasFoto';
 
 type ComprasDatos = ReturnType<typeof useCompras>;
@@ -48,11 +48,13 @@ function sugerirProducto(texto: string, proveedor: string | null, alias: CompraA
   return mejor ? { id: mejor.id, recordado: false } : null;
 }
 
-// El total del albarán lleva IVA y la suma de líneas no: se da por bueno si
-// cuadra sin IVA, con el 10 % o con el 21 % (unos céntimos de margen).
-function cuadraTotal(suma: number, total: number | null): boolean {
-  if (total == null || suma <= 0) return false;
-  return [1, 1.1, 1.21].some((iva) => Math.abs(suma * iva - total) <= Math.max(0.1, total * 0.002));
+// El total del albarán lleva IVA y recargo de equivalencia (10 % + 1,4 %
+// en pescado, 21 % + 5,2 % en transporte…) y la suma de líneas no: se da
+// por bueno si el total queda entre la suma y la suma + 27 %.
+function impuestosTotal(suma: number, total: number | null): number | null {
+  if (total == null || suma <= 0) return null;
+  const pct = (total / suma - 1) * 100;
+  return pct >= -0.1 && pct <= 27 ? Math.max(0, pct) : null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -188,7 +190,8 @@ function CompraEditor({
   }));
   const suma = sumaLineas(lineasDatos);
   const totalNum = aNum(total);
-  const cuadra = cuadraTotal(suma, totalNum);
+  const impuestos = impuestosTotal(suma, totalNum);
+  const cuadra = impuestos != null;
   const alStock = lineasDatos.filter((l) => l.producto_id && l.sumar_stock && (l.kg ?? 0) > 0);
 
   const cambiarLinea = (i: number, patch: Partial<LineaForm>) =>
@@ -401,7 +404,7 @@ function CompraEditor({
             </p>
             <p className="text-xs mt-0.5">
               {cuadra
-                ? 'Cuadra con el total (sin IVA, 10 % o 21 %).'
+                ? `Cuadra con el total: IVA y recargo ${impuestos.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %.`
                 : totalNum == null
                   ? 'Escribe el total que pone el albarán.'
                   : 'No cuadra: revisa las líneas marcadas en naranja o el total.'}
@@ -494,18 +497,17 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
       setProgreso('Preparando la foto…');
       const foto = await prepararFoto(file);
 
-      let texto: string[] = [];
+      let cajas: OcrCaja[] = [];
       let fallo: string | null = null;
       try {
-        setProgreso('Leyendo el albarán… La primera vez descarga el lector (unos 25 MB), puede tardar un poco.');
-        const { cajas } = await leerTextoFoto(foto.ocr);
-        texto = agruparLineas(cajas);
+        setProgreso('Leyendo el albarán… Tarda entre 10 segundos y un minuto; la primera vez descarga además el lector (unos 25 MB).');
+        ({ cajas } = await leerTextoFoto(foto.ocr));
       } catch (e) {
         // La foto se guarda igual para no perderla: se rellena a mano.
         fallo = e instanceof Error ? e.message : String(e);
       }
 
-      const a = leerAlbaran(texto);
+      const a = leerAlbaran(cajas);
       const lineas: CompraLinea[] = a.lineas.map((l) => ({
         texto: l.texto,
         kg: l.kg,
@@ -522,7 +524,7 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
         numero: a.numero,
         total: a.total,
         lineas,
-        ocr_texto: fallo ? `No se pudo leer: ${fallo}` : texto.join('\n'),
+        ocr_texto: fallo ? `No se pudo leer: ${fallo}` : a.texto.join('\n'),
         foto: foto.jpeg,
       });
       if (fallo) setAviso('La foto se ha guardado, pero no se ha podido leer. Rellena los datos a mano.');
