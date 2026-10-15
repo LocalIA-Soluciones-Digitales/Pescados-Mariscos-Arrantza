@@ -15,7 +15,9 @@ import HoyPanel from './HoyPanel';
 import ClientesPanel from './ClientesPanel';
 import HosteleriaPanel from './HosteleriaPanel';
 import BasculasPanel from './BasculasPanel';
+import ComprasPanel from './ComprasPanel';
 import { useBasculasCambios } from '@/hooks/useBasculasCambios';
+import { useCompras } from '@/hooks/useCompras';
 import {
   HOY_INFO_ITEMS,
   VENTAS_INFO_ITEMS,
@@ -28,6 +30,7 @@ import {
   RESENAS_INFO_ITEMS,
   HOSTELERIA_INFO_ITEMS,
   BASCULA_INFO_ITEMS,
+  COMPRAS_INFO_ITEMS,
 } from './infoItems';
 import { usePedidos } from '@/hooks/usePedidos';
 import { useResenas } from '@/hooks/useResenas';
@@ -43,7 +46,7 @@ import PushToggle from './PushToggle';
 import InfoHint from '@/components/base/InfoHint';
 import SearchInput from '@/components/base/SearchInput';
 
-type Tab = 'hoy' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes' | 'hosteleria' | 'bascula';
+type Tab = 'hoy' | 'compras' | 'productos' | 'ventas' | 'caja' | 'resenas' | 'stock' | 'reservas' | 'solicitudes' | 'clientes' | 'hosteleria' | 'bascula';
 
 const ESTADO_LABELS: Record<ProductoEstado, string> = {
   available: 'Normal',
@@ -198,6 +201,7 @@ function ProductoCard({
 
 const TABS: { value: Tab; label: string; info: { icon: string; text: string }[] }[] = [
   { value: 'hoy', label: 'Hoy', info: HOY_INFO_ITEMS },
+  { value: 'compras', label: 'Compras', info: COMPRAS_INFO_ITEMS },
   { value: 'ventas', label: 'Ventas', info: VENTAS_INFO_ITEMS },
   { value: 'caja', label: 'Contabilidad', info: CAJA_INFO_ITEMS },
   { value: 'hosteleria', label: 'Hostelería', info: HOSTELERIA_INFO_ITEMS },
@@ -264,6 +268,9 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   // Cambios de las básculas: se cargan aquí para el contador de «sin ver» de
   // la pestaña. ?tab=basculas&buscar=714 (aviso push) abre los de ese artículo.
   const basculas = useBasculasCambios();
+  // Albaranes de compra: aquí por el contador de «por revisar» de la pestaña.
+  const compras = useCompras();
+  const comprasPendientes = useMemo(() => compras.compras.filter((c) => c.estado === 'pendiente').length, [compras.compras]);
   const { resenas, loading: loadingResenas } = useResenas();
   const { reservas, loading: loadingReservas } = useReservas();
   const { solicitudes } = useSolicitudesStock();
@@ -383,7 +390,9 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
                         ? hosteleriaPendientes
                         : t.value === 'bascula'
                           ? basculas.nuevos
-                          : 0;
+                          : t.value === 'compras'
+                            ? comprasPendientes
+                            : 0;
         const pulse =
           t.value === 'hoy'
             ? pedidosPulse || reservasPulse
@@ -486,6 +495,8 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
           loading={loadingPedidos || loadingReservas || loadingResenas || loadingProductos}
           onNavigate={setTab}
         />
+      ) : tab === 'compras' ? (
+        <ComprasPanel datos={compras} productos={productos} />
       ) : tab === 'ventas' ? (
         <VentasPanel />
       ) : tab === 'caja' ? (

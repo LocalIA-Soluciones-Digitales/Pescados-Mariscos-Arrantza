@@ -17,7 +17,7 @@
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; connect-src 'self' https://*.supabase.co; img-src 'self' https://*.supabase.co data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; frame-src https://www.google.com; frame-ancestors 'none'"
+          "value": "default-src 'self'; connect-src 'self' https://*.supabase.co; img-src 'self' https://*.supabase.co data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'wasm-unsafe-eval'; frame-src https://www.google.com; frame-ancestors 'none'"
         }
       ]
     }

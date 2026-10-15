@@ -75,9 +75,16 @@ export default defineConfig({
     outDir: 'out',
   },
   resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
-    },
+    alias: [
+      { find: "@", replacement: resolve(__dirname, "./src") },
+      // El lector de albaranes (ppu-paddle-ocr) solo usa el motor WASM: así
+      // basta con servir ort-wasm-simd-threaded.wasm y no las variantes
+      // WebGPU/JSEP (otros ~30 MB).
+      { find: /^onnxruntime-web$/, replacement: "onnxruntime-web/wasm" },
+    ],
+  },
+  worker: {
+    format: "es",
   },
   server: {
     port: 3000,

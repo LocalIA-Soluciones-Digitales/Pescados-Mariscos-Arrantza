@@ -69,6 +69,13 @@ export const STOCK_INFO_ITEMS = [
   { icon: 'ri-barcode-line', text: 'Cada báscula tiene su propio catálogo de códigos: indica el código de cada terminal donde se venda este producto.' },
 ];
 
+export const COMPRAS_INFO_ITEMS = [
+  { icon: 'ri-camera-line', text: '«Foto del albarán» abre la cámara: haz la foto en la lonja y sigue con lo tuyo. El móvil la lee solo (sin enviarla a ningún servicio) y la deja «Por revisar».' },
+  { icon: 'ri-checkbox-circle-line', text: 'Al revisarla, lo verde cuadra (kg × €/kg = importe) y lo naranja hay que mirarlo. «Confirmar» apunta el gasto en Contabilidad y suma los kg al stock.' },
+  { icon: 'ri-brain-line', text: 'El producto que elijas para cada nombre del albarán se recuerda para ese proveedor: la próxima vez sale ya puesto.' },
+  { icon: 'ri-arrow-go-back-line', text: 'Si te equivocas, abre el albarán confirmado y «Anular»: se borra el gasto y se restan los kg del stock. La foto se guarda siempre.' },
+];
+
 export const BASCULA_INFO_ITEMS = [
   { icon: 'ri-global-line', text: '«Báscula 1 y web»: todos los artículos de la báscula 1 por código y familia, y dónde sale cada uno en la web: Tienda (familias 1 a 5), Reservas (Navidad) u Hostelería (portal, tras iniciar sesión). "Solo báscula": no sale en ningún sitio.' },
   { icon: 'ri-git-compare-line', text: '«Cambios y diferencias»: cada cambio hecho en la báscula 1 o en la 2 (precio, alta, baja, familia, unidades) con cómo estaba antes, y los artículos en que la báscula 2 no coincide con la 1.' },

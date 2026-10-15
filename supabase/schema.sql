@@ -3446,3 +3446,241 @@ create table if not exists public.bascula_copias_seguridad (
 );
 
 alter table public.bascula_copias_seguridad enable row level security;
+
+-- ============================================================
+-- Compras: albaranes de proveedores (Mercabilbao) por foto
+-- David hace la foto con el móvil desde la pestaña Compras; el móvil lee
+-- el albarán (PaddleOCR en el navegador, sin servicios de pago) y se
+-- guarda aquí como 'pendiente' con lo leído. Al confirmarlo
+-- (confirmar_compra) se crea el gasto en caja_movimientos y se suman los
+-- kg de cada línea al stock, todo en una transacción. No confundir con
+-- bascula_albaran_lineas, que son albaranes de VENTA de la báscula.
+-- ============================================================
+
+create table if not exists public.compras (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  estado text not null default 'pendiente' check (estado in ('pendiente', 'confirmada', 'anulada')),
+  fecha date not null default current_date,
+  proveedor text,
+  numero text,
+  -- Total del albarán con IVA: es el importe del gasto en Caja.
+  total numeric(10, 2) check (total is null or total >= 0),
+  -- [{texto, kg, precio, importe, producto_id, sumar_stock}] — texto es el
+  -- nombre tal como viene impreso en el albarán.
+  lineas jsonb not null default '[]'::jsonb,
+  -- Ruta dentro del bucket privado 'compras' (<cliente_id>/<año>/<id>.jpg).
+  -- Las fotos no se borran solas: se depuran a mano.
+  foto_path text,
+  -- Texto leído por el OCR, línea a línea, para revisar si algo falla.
+  ocr_texto text,
+  caja_movimiento_id uuid references public.caja_movimientos (id) on delete set null,
+  confirmada_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_compras_updated_at on public.compras;
+create trigger trg_compras_updated_at
+  before update on public.compras
+  for each row execute function public.set_updated_at();
+
+create index if not exists idx_compras_fecha on public.compras (cliente_id, estado, fecha desc);
+
+alter table public.compras enable row level security;
+
+drop policy if exists "compras_admin" on public.compras;
+create policy "compras_admin"
+  on public.compras for all
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+-- Memoria de nombres: "LUBINA RAC 2/3" de tal proveedor es nuestra Lubina.
+-- Se rellena sola al confirmar; la clave va normalizada con compras_norm.
+create table if not exists public.compras_alias (
+  cliente_id uuid not null references public.clientes (id),
+  proveedor_norm text not null,
+  texto_norm text not null,
+  producto_id uuid not null references public.productos (id) on delete cascade,
+  updated_at timestamptz not null default now(),
+  primary key (cliente_id, proveedor_norm, texto_norm)
+);
+
+alter table public.compras_alias enable row level security;
+
+drop policy if exists "compras_alias_admin" on public.compras_alias;
+create policy "compras_alias_admin"
+  on public.compras_alias for all
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+-- Misma normalización que normalizarCompra() en src/lib/comprasOcr.ts:
+-- minúsculas, sin tildes y espacios simples.
+create or replace function public.compras_norm(p text)
+returns text as $$
+  select trim(regexp_replace(lower(translate(coalesce(p, ''), 'ÁÉÍÓÚÜÑáéíóúüñ', 'AEIOUUNaeiouun')), '\s+', ' ', 'g'));
+$$ language sql immutable set search_path = public;
+
+-- Bucket privado para las fotos de los albaranes (precios de compra: nunca
+-- público). Cada cliente solo ve su carpeta <cliente_id>/.
+insert into storage.buckets (id, name, public)
+values ('compras', 'compras', false)
+on conflict (id) do nothing;
+
+drop policy if exists "compras_storage_lectura" on storage.objects;
+create policy "compras_storage_lectura"
+  on storage.objects for select
+  to authenticated
+  using (bucket_id = 'compras' and (is_developer() or (storage.foldername(name))[1] = mi_cliente_id()::text));
+
+drop policy if exists "compras_storage_subida" on storage.objects;
+create policy "compras_storage_subida"
+  on storage.objects for insert
+  to authenticated
+  with check (
+    bucket_id = 'compras'
+    and (is_developer() or (storage.foldername(name))[1] = mi_cliente_id()::text)
+    and (metadata->>'size')::bigint < 5242880
+    and (metadata->>'mimetype') in ('image/jpeg', 'image/png', 'image/webp')
+  );
+
+drop policy if exists "compras_storage_borrado" on storage.objects;
+create policy "compras_storage_borrado"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'compras' and (is_developer() or (storage.foldername(name))[1] = mi_cliente_id()::text));
+
+-- Confirma una compra pendiente con los datos ya revisados (p_datos:
+-- fecha, proveedor, numero, total, lineas): crea el gasto en Caja, suma
+-- al stock los kg de cada línea con producto y sumar_stock, y recuerda el
+-- producto elegido para cada nombre de ese proveedor. Corre con los
+-- permisos de quien la llama (RLS de compras, caja_movimientos y productos).
+create or replace function public.confirmar_compra(p_id uuid, p_datos jsonb)
+returns uuid as $$
+declare
+  c public.compras;
+  l jsonb;
+  v_caja uuid;
+  v_ref text;
+  v_kg numeric;
+  v_prod uuid;
+begin
+  select * into c from public.compras where id = p_id for update;
+  if c.id is null then
+    raise exception 'Compra no encontrada';
+  end if;
+  if c.estado <> 'pendiente' then
+    raise exception 'Esta compra ya está %', c.estado;
+  end if;
+
+  update public.compras
+  set fecha = coalesce((p_datos->>'fecha')::date, fecha),
+      proveedor = nullif(trim(p_datos->>'proveedor'), ''),
+      numero = nullif(trim(p_datos->>'numero'), ''),
+      total = (p_datos->>'total')::numeric,
+      lineas = coalesce(p_datos->'lineas', '[]'::jsonb)
+  where id = p_id
+  returning * into c;
+
+  if c.total is null or c.total <= 0 then
+    raise exception 'Falta el total del albarán';
+  end if;
+
+  v_ref := 'Compra ' || coalesce(c.proveedor, 'sin proveedor') || coalesce(' nº ' || c.numero, '');
+
+  insert into public.caja_movimientos (cliente_id, fecha, tipo, concepto, importe, foto_url, origen)
+  values (c.cliente_id, c.fecha, 'gasto_factura', v_ref, c.total, 'compras/' || c.foto_path, null)
+  returning id into v_caja;
+
+  perform set_config('arrantza.stock_tipo', 'entrada', true);
+  perform set_config('arrantza.stock_origen', '', true);
+  perform set_config('arrantza.stock_ref', v_ref, true);
+
+  for l in select * from jsonb_array_elements(c.lineas)
+  loop
+    v_prod := nullif(l->>'producto_id', '')::uuid;
+    v_kg := nullif(l->>'kg', '')::numeric;
+    if v_prod is null then
+      continue;
+    end if;
+    if coalesce((l->>'sumar_stock')::boolean, true) and v_kg > 0 then
+      -- Si el producto saca su género de otro (stock_de), suma a ese.
+      update public.productos p
+      set stock_kg = p.stock_kg + v_kg,
+          disponible = true
+      from public.productos v
+      where v.id = v_prod and p.id = coalesce(v.stock_de, v.id);
+    end if;
+    if nullif(trim(l->>'texto'), '') is not null then
+      insert into public.compras_alias (cliente_id, proveedor_norm, texto_norm, producto_id)
+      values (c.cliente_id, compras_norm(c.proveedor), compras_norm(l->>'texto'), v_prod)
+      on conflict (cliente_id, proveedor_norm, texto_norm)
+      do update set producto_id = excluded.producto_id, updated_at = now();
+    end if;
+  end loop;
+
+  update public.compras
+  set estado = 'confirmada', caja_movimiento_id = v_caja, confirmada_at = now()
+  where id = p_id;
+
+  return v_caja;
+end;
+$$ language plpgsql set search_path = public;
+
+revoke all on function public.confirmar_compra(uuid, jsonb) from public;
+grant execute on function public.confirmar_compra(uuid, jsonb) to authenticated;
+
+-- Deshace una compra confirmada: borra su gasto de Caja y resta del stock
+-- lo que sumó (sin bajar de 0). La compra queda 'anulada' con su foto.
+create or replace function public.anular_compra(p_id uuid)
+returns void as $$
+declare
+  c public.compras;
+  l jsonb;
+  v_kg numeric;
+  v_prod uuid;
+begin
+  select * into c from public.compras where id = p_id for update;
+  if c.id is null or c.estado <> 'confirmada' then
+    raise exception 'Solo se puede anular una compra confirmada';
+  end if;
+
+  perform set_config('arrantza.stock_tipo', 'ajuste', true);
+  perform set_config('arrantza.stock_origen', '', true);
+  perform set_config('arrantza.stock_ref',
+    'Compra anulada ' || coalesce(c.proveedor, '') || coalesce(' nº ' || c.numero, ''), true);
+
+  for l in select * from jsonb_array_elements(c.lineas)
+  loop
+    v_prod := nullif(l->>'producto_id', '')::uuid;
+    v_kg := nullif(l->>'kg', '')::numeric;
+    if v_prod is not null and coalesce((l->>'sumar_stock')::boolean, true) and v_kg > 0 then
+      update public.productos p
+      set stock_kg = greatest(p.stock_kg - v_kg, 0)
+      from public.productos v
+      where v.id = v_prod and p.id = coalesce(v.stock_de, v.id);
+    end if;
+  end loop;
+
+  if c.caja_movimiento_id is not null then
+    delete from public.caja_movimientos where id = c.caja_movimiento_id;
+  end if;
+
+  update public.compras set estado = 'anulada', caja_movimiento_id = null where id = p_id;
+end;
+$$ language plpgsql set search_path = public;
+
+revoke all on function public.anular_compra(uuid) from public;
+grant execute on function public.anular_compra(uuid) to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'compras'
+  ) then
+    alter publication supabase_realtime add table public.compras;
+  end if;
+end $$;
