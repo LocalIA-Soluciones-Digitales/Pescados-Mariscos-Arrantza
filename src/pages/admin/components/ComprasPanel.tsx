@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { useCompras } from '@/hooks/useCompras';
 import type { Compra, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
-import { leerAlbaran, normalizarCompra, sumaLineas, type OcrCaja } from '@/lib/comprasOcr';
+import { leerAlbaran, normalizarCompra, sumaLineas, unificarProveedor, type OcrCaja } from '@/lib/comprasOcr';
 import { leerDictado, NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
 import { enderezar, leerTextoFoto, prepararFoto } from '@/lib/comprasFoto';
 import { esPdf, prepararPdf } from '@/lib/comprasPdf';
@@ -680,19 +680,23 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
       }
 
       const a = leerAlbaran(cajas);
+      const proveedor = unificarProveedor(
+        a.proveedor,
+        datos.compras.map((c) => c.proveedor).filter((p): p is string => !!p),
+      );
       const lineas: CompraLinea[] = a.lineas.map((l) => ({
         texto: l.texto,
         kg: l.kg,
         precio: l.precio,
         importe: l.importe,
-        producto_id: sugerirProducto(l.texto, a.proveedor, datos.alias, productos)?.id ?? null,
+        producto_id: sugerirProducto(l.texto, proveedor, datos.alias, productos)?.id ?? null,
         sumar_stock: !NO_PRODUCTO.test(l.texto),
       }));
 
       setProgreso('Guardando…');
       const compra = await datos.crearCompra({
         fecha: a.fecha ?? hoyISO(),
-        proveedor: a.proveedor,
+        proveedor,
         numero: a.numero,
         total: a.total,
         lineas,

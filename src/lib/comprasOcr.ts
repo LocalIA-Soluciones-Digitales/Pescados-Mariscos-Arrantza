@@ -180,20 +180,58 @@ function leerFecha(l: string): string | null {
 
 const SUFIJO_EMPRESA = /\b(s\.?\s?l\.?\s?u?\.?|s\.?\s?a\.?|s\.?\s?coop)(\s|$|,|-)/i;
 
+// Datos de David como cliente, que también salen en la cabecera.
+const DATOS_CLIENTE = /tamayo|huerta|arrantza|zorrilla|arana|barakaldo|baracaldo|bizkaia|españa|espana/i;
+// «Pescados y Mariscos Gaizka S.L.» dentro de una frase (la letra pequeña
+// de protección de datos), por si el nombre de la cabecera es un logo.
+const EMPRESA_EN_FRASE = /((?:[A-ZÁÉÍÓÚÑ][\wáéíóúñ.&'-]*\s+(?:y\s+|de\s+)?){1,5})(S\.\s?L\.?\s?U?\.?|S\.\s?A\.?|SL|SA)(?=[\s.,;]|$)/;
+
 function leerProveedor(filas: string[]): string | null {
+  const limpiar = (t: string) => t.replace(/\s*-\s*[A-Z]-?\d{7,8}\s*$/, '').replace(/[.\s]+$/, (m) => (m.includes('.') ? '.' : '')).replace(/\s+/g, ' ').trim();
   const trozos = filas.slice(0, 14).flatMap((l) => l.split(/\s{2,}/));
-  const valido = (t: string) => /[a-z]{3,}/i.test(t) && !/asociaci|asentadores|tamayo|cliente|albar[aá]n|fecha|tel[eé]?f|e-?mail|@/i.test(t);
-  const elegido =
-    trozos.find((t) => valido(t) && SUFIJO_EMPRESA.test(t + ' ')) ??
-    trozos.find((t) => valido(t) && /pescados?|mariscos?|frigor/i.test(t)) ??
-    trozos.find(valido);
-  return elegido ? elegido.replace(/\s*-\s*[A-Z]-?\d{7,8}\s*$/, '').replace(/\s+/g, ' ').trim() : null;
+  const valido = (t: string) =>
+    /[a-z]{3,}/i.test(t) && !/\d/.test(t) && !DATOS_CLIENTE.test(t) && !/asociaci|asentadores|cliente|albar[aá]n|factura|fecha|tel[eé]?f|e-?mail|@/i.test(t);
+  const conSufijo = (t: string) =>
+    t.trim().split(/\s+/).length <= 7 && SUFIJO_EMPRESA.test(t + ' ') && /[a-z]{3,}/i.test(t) && !DATOS_CLIENTE.test(t) && !/@/.test(t);
+  const cabecera = trozos.find(conSufijo);
+  if (cabecera) return limpiar(cabecera);
+  for (const l of filas) {
+    const m = l.match(EMPRESA_EN_FRASE);
+    if (m && !DATOS_CLIENTE.test(m[0]) && !/^(De|En|La|El|Los|Las)\s/.test(m[1])) return limpiar(m[0]);
+  }
+  const elegido = trozos.find((t) => valido(t) && /pescados?|mariscos?|frigor/i.test(t)) ?? trozos.find(valido);
+  return elegido ? limpiar(elegido) : null;
+}
+
+// «PESCA S BIZKAIMAR,S.L.U» leído hoy y «Pescados Bizkaimar, S.L.U» de otra
+// vez son el mismo: se usa el nombre ya conocido, así la memoria de
+// productos (que va por proveedor) no se reparte entre variantes.
+export function unificarProveedor(leido: string | null, conocidos: string[]): string | null {
+  if (!leido) return leido;
+  const palabras = (t: string) =>
+    new Set(
+      normalizarCompra(t)
+        .replace(/\bs\.?\s?(l|a)\.?\s?u?\.?\b/g, ' ')
+        .split(/[^a-z0-9]+/)
+        .filter((w) => w.length >= 4 && !['pescados', 'mariscos', 'comercial', 'distribucion'].includes(w)),
+    );
+  const a = palabras(leido);
+  let mejor: { nombre: string; parecido: number } | null = null;
+  for (const c of new Set(conocidos)) {
+    const b = palabras(c);
+    if (!a.size || !b.size) continue;
+    let comunes = 0;
+    for (const w of a) if ([...b].some((v) => v === w || (w.length >= 5 && v.length >= 5 && (v.startsWith(w.slice(0, 5)) || w.startsWith(v.slice(0, 5)))))) comunes++;
+    const parecido = comunes / Math.min(a.size, b.size);
+    if (parecido >= 0.99 && (!mejor || parecido > mejor.parecido)) mejor = { nombre: c, parecido };
+  }
+  return mejor?.nombre ?? leido;
 }
 
 function leerNumero(filas: string[]): string | null {
   for (const l of filas) {
     const m =
-      l.match(/albar[aá]n\b[^\d]{0,25}?([A-Z]{0,3}\d{1,4}\/[\d.]+|[A-Z]{1,3}-?\d{3,}|\d{4,})/i) ??
+      l.match(/albar[aá]n\b[^\d]{0,25}?([A-Z]{0,3}\d{1,4}\/[\d.]+|[A-Z]{1,3}-?\d{3,}|\d{4,}|\d{1,3}(?:\.\d{3})+)/i) ??
       l.match(/\bn[º°o.]{1,2}\s*:?\s*([A-Z]{0,3}-?\d{4,})/i);
     if (m) return m[1];
   }
@@ -257,8 +295,9 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
       }
       const n = p.nums.map((x) => x.n);
       const linea = n.length === 3 ? cuadrarLinea(nombre, n[0], n[1], n[2]) : cuadrarLinea(nombre, n[0], null, n[1]);
-      // Una fila de números sin nombre solo cuenta si cuadra (no es basura).
-      if (nombre || linea.estado === 'ok') r.lineas.push(linea);
+      // Una fila de números sin nombre solo cuenta si cuadra, aunque sea
+      // corrigiendo un número (si no, es basura).
+      if (nombre || linea.estado !== 'revisar') r.lineas.push(linea);
     });
   }
 

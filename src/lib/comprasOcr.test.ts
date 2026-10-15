@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { agruparLineas, aNumero, cuadrarLinea, leerAlbaran, limpiarNombre, normalizarCompra, sumaLineas, type OcrCaja } from './comprasOcr';
+import {
+  agruparLineas,
+  aNumero,
+  cuadrarLinea,
+  leerAlbaran,
+  limpiarNombre,
+  normalizarCompra,
+  sumaLineas,
+  unificarProveedor,
+  type OcrCaja,
+} from './comprasOcr';
 
 // Convierte filas de texto en trozos de OCR con posición: cada grupo
 // separado por 2+ espacios es un trozo, a 10 px por carácter y 30 px por
@@ -138,6 +148,43 @@ describe('leerAlbaran', () => {
     const a = leerAlbaran(cajas(['PESCADO TRIANA,', 'CLASE DE PESCADO   BRUTO   NETO   PRECIO   IMPORTE', 'de  de 20  26  TOTAL  31\'94']));
     expect(a.lineas).toEqual([]);
     expect(a.total).toBe(31.94);
+  });
+});
+
+describe('proveedor', () => {
+  it('si el nombre de la cabecera es un logo, lo saca de la letra pequeña y no de la dirección del cliente', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Cliente:',
+        'CLIENTE DE EJEMPLO',
+        'Kalea,7,pb-II',
+        'MERCABILBAO Bº Ibarreta, 1 Puesto 118 - 48970 Basauri (Bizkaia)',
+        'email: pymgaizka@gmail.com',
+        'Descripción       Unidades     Precio     Importe(EUR)',
+        'Albarán nº  G /  915.874  de fecha  08/10/2026',
+        'LENGUADO     0,950     48,000     45,60',
+        'Base IVA   %IVA   Cuota IVA',
+        '45,60   10,00   4,56   1,40   0,64',
+        'Líquido(EUR):   50,80',
+        'serán tratados en los ficheros titularidad de Pescados y Mariscos Gaizka S.L.. con el fin de',
+      ]),
+    );
+    expect(a.proveedor).toBe('Pescados y Mariscos Gaizka S.L.');
+    expect(a.numero).toBe('915.874');
+    expect(a.lineas).toEqual([{ texto: 'LENGUADO', kg: 0.95, precio: 48, importe: 45.6, estado: 'ok' }]);
+    expect(a.total).toBe(50.8);
+  });
+
+  it('una fila sin nombre cuyo precio se ha corregido también cuenta', () => {
+    const a = leerAlbaran(cajas(['KILOS     PRECIO     IMPORTE', '11,600     2,600     32,48', 'TOTAL  32,48']));
+    expect(a.lineas).toEqual([{ texto: '', kg: 11.6, precio: 2.8, importe: 32.48, estado: 'corregida' }]);
+  });
+
+  it('unificarProveedor usa el nombre ya conocido si es el mismo mal leído', () => {
+    const conocidos = ['Pescados Bizkaimar, S.L.U', 'Las Capotinas, S.A.', 'Arraiza Gutierrez, S.L.'];
+    expect(unificarProveedor('PESCA S BIZKAIMAR,S.L.U', conocidos)).toBe('Pescados Bizkaimar, S.L.U');
+    expect(unificarProveedor('ARRAIZA GUTIERREZ, S.L.', conocidos)).toBe('Arraiza Gutierrez, S.L.');
+    expect(unificarProveedor('JOSE CRESPO, S.A.', conocidos)).toBe('JOSE CRESPO, S.A.');
   });
 });
 
