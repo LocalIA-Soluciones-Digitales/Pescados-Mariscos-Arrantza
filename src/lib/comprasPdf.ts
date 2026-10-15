@@ -19,6 +19,22 @@ export interface PdfPreparado {
   jpeg: Blob;
 }
 
+type PaginaPdf = Awaited<ReturnType<Awaited<ReturnType<typeof import('pdfjs-dist/legacy/build/pdf.mjs').getDocument>['promise']>['getPage']>>;
+type ItemTexto = Awaited<ReturnType<PaginaPdf['getTextContent']>>['items'][number];
+
+// getTextContent() recorre un ReadableStream con «for await», que Safari en
+// iPhone no admite («undefined is not a function»): se lee a mano.
+async function textoDePagina(pagina: PaginaPdf): Promise<ItemTexto[]> {
+  const lector = pagina.streamTextContent().getReader();
+  const items: ItemTexto[] = [];
+  for (;;) {
+    const { done, value } = await lector.read();
+    if (done) break;
+    items.push(...(value as { items: ItemTexto[] }).items);
+  }
+  return items;
+}
+
 export function esPdf(file: File): boolean {
   return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 }
@@ -52,8 +68,7 @@ export async function prepararPdf(file: File): Promise<PdfPreparado> {
       await pagina.render({ canvas: lienzo, canvasContext: ctx, viewport: vista }).promise;
       paginas.push(lienzo);
 
-      const contenido = await pagina.getTextContent();
-      for (const item of contenido.items) {
+      for (const item of await textoDePagina(pagina)) {
         if (!('str' in item) || !item.str.trim()) continue;
         const [x, yBase] = vista.convertToViewportPoint(item.transform[4], item.transform[5]);
         const alto = Math.max(Math.hypot(item.transform[2], item.transform[3]), item.height) * escala;
