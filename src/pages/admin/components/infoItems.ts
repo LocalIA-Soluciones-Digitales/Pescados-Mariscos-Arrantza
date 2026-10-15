@@ -71,6 +71,8 @@ export const STOCK_INFO_ITEMS = [
 
 export const COMPRAS_INFO_ITEMS = [
   { icon: 'ri-camera-line', text: '«Foto del albarán» abre la cámara: haz la foto en la lonja y sigue con lo tuyo. El móvil la lee solo (sin enviarla a ningún servicio) y la deja «Por revisar».' },
+  { icon: 'ri-file-pdf-2-line', text: '«Galería o PDF» sirve para una foto que ya tengas o para el PDF que mande el proveedor por email: si el PDF lleva texto se lee al instante y sin errores.' },
+  { icon: 'ri-edit-line', text: 'Los albaranes escritos a mano no se leen: se guarda la foto y las líneas se escriben en la tarjeta.' },
   { icon: 'ri-checkbox-circle-line', text: 'Al revisarla, lo verde cuadra (kg × €/kg = importe) y lo naranja hay que mirarlo. «Confirmar» apunta el gasto en Contabilidad y suma los kg al stock.' },
   { icon: 'ri-brain-line', text: 'El producto que elijas para cada nombre del albarán se recuerda para ese proveedor: la próxima vez sale ya puesto.' },
   { icon: 'ri-arrow-go-back-line', text: 'Si te equivocas, abre el albarán confirmado y «Anular»: se borra el gasto y se restan los kg del stock. La foto se guarda siempre.' },

@@ -77,6 +77,22 @@ function colorFondo(c: HTMLCanvasElement): string {
   return `rgb(${media.join(',')})`;
 }
 
+// Sin subir el contraste ni ampliar el lienzo al girar: en las pruebas las
+// dos cosas hacían que el OCR perdiera números. También para las páginas de
+// un PDF escaneado.
+export function enderezar(original: HTMLCanvasElement): { canvas: HTMLCanvasElement; giro: number } {
+  const giro = anguloTorcido(original);
+  if (giro === 0) return { canvas: original, giro };
+  const recto = lienzo(original.width, original.height);
+  const ctx = recto.getContext('2d')!;
+  ctx.fillStyle = colorFondo(original);
+  ctx.fillRect(0, 0, recto.width, recto.height);
+  ctx.translate(recto.width / 2, recto.height / 2);
+  ctx.rotate((giro * Math.PI) / 180);
+  ctx.drawImage(original, -original.width / 2, -original.height / 2);
+  return { canvas: recto, giro };
+}
+
 export interface FotoPreparada {
   ocr: HTMLCanvasElement;
   jpeg: Blob;
@@ -90,19 +106,7 @@ export async function prepararFoto(file: File): Promise<FotoPreparada> {
   original.getContext('2d')!.drawImage(img, 0, 0, original.width, original.height);
   img.close();
 
-  // Sin subir el contraste ni ampliar el lienzo al girar: en las pruebas
-  // las dos cosas hacían que el OCR perdiera números.
-  const giro = anguloTorcido(original);
-  let ocr = original;
-  if (giro !== 0) {
-    ocr = lienzo(original.width, original.height);
-    const ctx = ocr.getContext('2d')!;
-    ctx.fillStyle = colorFondo(original);
-    ctx.fillRect(0, 0, ocr.width, ocr.height);
-    ctx.translate(ocr.width / 2, ocr.height / 2);
-    ctx.rotate((giro * Math.PI) / 180);
-    ctx.drawImage(original, -original.width / 2, -original.height / 2);
-  }
+  const { canvas: ocr, giro } = enderezar(original);
 
   const e = Math.min(1, LADO_GUARDADO / Math.max(ocr.width, ocr.height));
   const guardado = lienzo(ocr.width * e, ocr.height * e);

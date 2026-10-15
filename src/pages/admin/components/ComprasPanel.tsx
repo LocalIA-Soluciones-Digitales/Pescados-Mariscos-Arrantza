@@ -3,7 +3,8 @@ import type { useCompras } from '@/hooks/useCompras';
 import type { Compra, CompraAlias, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
 import { leerAlbaran, normalizarCompra, sumaLineas, type OcrCaja } from '@/lib/comprasOcr';
-import { leerTextoFoto, prepararFoto } from '@/lib/comprasFoto';
+import { enderezar, leerTextoFoto, prepararFoto } from '@/lib/comprasFoto';
+import { esPdf, prepararPdf } from '@/lib/comprasPdf';
 
 type ComprasDatos = ReturnType<typeof useCompras>;
 
@@ -86,9 +87,9 @@ function Camara({ onFoto, ocupado }: { onFoto: (f: File) => void; ocupado: boole
             ocupado ? 'text-foreground-300 border-background-200 pointer-events-none' : 'text-foreground-600 border-background-200/70 hover:bg-background-100 cursor-pointer'
           }`}
         >
-          <i className="ri-image-line"></i>
-          Galería
-          <input type="file" accept="image/*" onChange={elegir} disabled={ocupado} className="hidden" />
+          <i className="ri-attachment-2"></i>
+          Galería o PDF
+          <input type="file" accept="image/*,application/pdf,.pdf" onChange={elegir} disabled={ocupado} className="hidden" />
         </label>
       </div>
     </div>
@@ -494,17 +495,41 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
   const procesarFoto = async (file: File) => {
     setAviso(null);
     try {
-      setProgreso('Preparando la foto…');
-      const foto = await prepararFoto(file);
-
+      const lento = 'Leyendo el albarán… Tarda entre 10 segundos y un minuto; la primera vez descarga además el lector (unos 25 MB).';
       let cajas: OcrCaja[] = [];
+      let jpeg: Blob;
       let fallo: string | null = null;
-      try {
-        setProgreso('Leyendo el albarán… Tarda entre 10 segundos y un minuto; la primera vez descarga además el lector (unos 25 MB).');
-        ({ cajas } = await leerTextoFoto(foto.ocr));
-      } catch (e) {
-        // La foto se guarda igual para no perderla: se rellena a mano.
-        fallo = e instanceof Error ? e.message : String(e);
+      if (esPdf(file)) {
+        setProgreso('Abriendo el PDF…');
+        const pdf = await prepararPdf(file);
+        jpeg = pdf.jpeg;
+        if (pdf.cajas) {
+          cajas = pdf.cajas; // PDF con texto: no hace falta OCR
+        } else {
+          // PDF escaneado: cada página por el OCR, una debajo de otra.
+          try {
+            setProgreso(lento);
+            let y = 0;
+            for (const pagina of pdf.paginas) {
+              const r = await leerTextoFoto(enderezar(pagina).canvas);
+              cajas.push(...r.cajas.map((c) => ({ ...c, y: c.y + y })));
+              y += pagina.height;
+            }
+          } catch (e) {
+            fallo = e instanceof Error ? e.message : String(e);
+          }
+        }
+      } else {
+        setProgreso('Preparando la foto…');
+        const foto = await prepararFoto(file);
+        jpeg = foto.jpeg;
+        try {
+          setProgreso(lento);
+          ({ cajas } = await leerTextoFoto(foto.ocr));
+        } catch (e) {
+          // La foto se guarda igual para no perderla: se rellena a mano.
+          fallo = e instanceof Error ? e.message : String(e);
+        }
       }
 
       const a = leerAlbaran(cajas);
@@ -525,7 +550,7 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
         total: a.total,
         lineas,
         ocr_texto: fallo ? `No se pudo leer: ${fallo}` : a.texto.join('\n'),
-        foto: foto.jpeg,
+        foto: jpeg,
       });
       if (fallo) setAviso('La foto se ha guardado, pero no se ha podido leer. Rellena los datos a mano.');
       setAbiertaId(compra.id);

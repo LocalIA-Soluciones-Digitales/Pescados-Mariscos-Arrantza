@@ -93,6 +93,18 @@ describe('leerAlbaran', () => {
     expect(a.total).toBe(103.34);
   });
 
+  it('un producto que contiene «iva» (Almeja fina viva) no corta la tabla', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Descripcion       Kilos     Precio     Total',
+        '2210 Almeja fina viva    1    2,50    28,00    70,00',
+        '2305 Mejillon Galicia    1   10,00     2,10    21,00',
+        'IVA 10%: 9,10',
+      ]),
+    );
+    expect(a.lineas.map((l) => l.texto)).toEqual(['Almeja fina viva', 'Mejillon Galicia']);
+  });
+
   it('corrige el precio mal leído y acepta líneas negativas (devoluciones)', () => {
     const a = leerAlbaran(
       cajas([
@@ -103,6 +115,23 @@ describe('leerAlbaran', () => {
     );
     expect(a.lineas[0]).toEqual({ texto: 'Gamba blanca Huelva', kg: 1.2, precio: 42, importe: 50.4, estado: 'corregida' });
     expect(a.lineas[1]).toEqual({ texto: 'JUREL / CHICHARRO', kg: -2.5, precio: 5.8, importe: -14.5, estado: 'ok' });
+  });
+
+  it('PDF con cada línea en un solo trozo de texto: separa nombre y números', () => {
+    const linea = (text: string, y: number) => ({ text, x: 40, y, width: text.length * 10, height: 20 });
+    const a = leerAlbaran([
+      linea('Las Capotinas, S.A.', 0),
+      linea('Articulo Descripción Unidades Precio Importe', 60),
+      linea('34 ANCHOA 12,000 3,200 38,40', 90),
+      linea('2046 MEJILLON NOVO 10,000 3,000 30,00', 120),
+      linea('Base I.V.A. 68,40 10,00 6,84', 160),
+      linea('Líquido(EUR): 76,20', 190),
+    ]);
+    expect(a.lineas.map((l) => [l.texto, l.kg, l.precio, l.importe, l.estado])).toEqual([
+      ['ANCHOA', 12, 3.2, 38.4, 'ok'],
+      ['MEJILLON NOVO', 10, 3, 30, 'ok'],
+    ]);
+    expect(a.total).toBe(76.2);
   });
 
   it('sin líneas legibles (albarán a mano) aún saca el total si pone «TOTAL»', () => {

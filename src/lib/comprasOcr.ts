@@ -66,8 +66,39 @@ function agruparFilas(cajas: Caja[]): Fila[] {
 
 const textoFila = (f: Fila) => f.cajas.map((c) => c.text).join('  ');
 
+// Un trozo con nombre y números juntos ("MERLUZA 18,40 9,80 180,32", típico
+// de los PDF con texto y a veces del OCR) se parte: cada número va aparte,
+// con su posición estimada por la de sus letras dentro del trozo.
+function partir(c: OcrCaja): OcrCaja[] {
+  const texto = c.text.trim();
+  if (!/[a-zñ]/i.test(texto) || !new RegExp(NUM).test(texto)) return [{ ...c, text: texto }];
+  const ancho = c.width / Math.max(1, c.text.length);
+  const partes: OcrCaja[] = [];
+  let palabras: { t: string; i: number }[] = [];
+  const cerrar = () => {
+    if (!palabras.length) return;
+    const ini = palabras[0].i;
+    const fin = palabras.at(-1)!.i + palabras.at(-1)!.t.length;
+    partes.push({ ...c, text: palabras.map((p) => p.t).join(' '), x: c.x + ini * ancho, width: (fin - ini) * ancho });
+    palabras = [];
+  };
+  for (const m of c.text.matchAll(/\S+/g)) {
+    if (new RegExp(`^${NUM}$`).test(m[0])) {
+      cerrar();
+      partes.push({ ...c, text: m[0], x: c.x + m.index! * ancho, width: m[0].length * ancho });
+    } else {
+      palabras.push({ t: m[0], i: m.index! });
+    }
+  }
+  cerrar();
+  return partes;
+}
+
 function preparar(cajas: OcrCaja[]): Caja[] {
-  return cajas.map((c) => ({ ...c, text: c.text.trim(), cy: c.y + c.height / 2 })).filter((c) => c.text);
+  return cajas
+    .flatMap(partir)
+    .map((c) => ({ ...c, text: c.text.trim(), cy: c.y + c.height / 2 }))
+    .filter((c) => c.text);
 }
 
 export function agruparLineas(cajas: OcrCaja[]): string[] {
@@ -122,7 +153,8 @@ export function cuadrarLinea(texto: string, kg: number | null, precio: number | 
 
 const CABECERA = /(precio|importe|kilos|peso|unidades|cantidad|\bneto\b)/i;
 const TITULOS = /(descripci|art[ií]culo|detalle|concepto|clase|\bc[oó]d(igo)?\b|bultuak|azalpena|lotea|partida)/i;
-const FIN_TABLA = /(\btotal|\bbase\b|base\s*i|subtotal|\bbruto\b|\bsuma\b|i\.?\s?v\.?\s?a|recargo|observaciones|conforme|l[ií]quido)/i;
+// «IVA» solo como palabra: «Almeja fina viva» no es la fila del IVA.
+const FIN_TABLA = /(\btotal|\bbase\b|base\s*i|subtotal|\bbruto\b|\bsuma\b|\bi\.?\s?v\.?\s?a\b|recargo|observaciones|conforme|l[ií]quido)/i;
 
 // "SALMONETE DE ROC MULLUS SURMULENTUS CS20260902" → sin el lote; "0041
 // JUREL" → sin el código; deja tallas como 40/50, 1.5/2 o 400+.
