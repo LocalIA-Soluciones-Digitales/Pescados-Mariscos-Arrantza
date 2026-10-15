@@ -6,6 +6,8 @@ import { leerAlbaran, normalizarCompra, sumaLineas, unificarProveedor, type OcrC
 import { leerDictado, NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
 import { enderezar, leerTextoFoto, prepararFoto } from '@/lib/comprasFoto';
 import { esPdf, prepararPdf } from '@/lib/comprasPdf';
+import { calcularMarcas, type MarcasAlbaran } from '@/lib/comprasMarcas';
+import { FotoMarcada, PuntoColor, VisorAlbaran } from './AlbaranLeido';
 
 type ComprasDatos = ReturnType<typeof useCompras>;
 
@@ -214,10 +216,15 @@ function CompraEditor({
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { urlFoto } = datos;
+  const [marcas, setMarcas] = useState<MarcasAlbaran | null>(null);
+  const [visor, setVisor] = useState(false);
+
+  const { urlFoto, cargarMarcas } = datos;
   useEffect(() => {
-    if (compra.foto_path) urlFoto(compra.foto_path).then(setFoto);
-  }, [compra.foto_path, urlFoto]);
+    if (!compra.foto_path) return;
+    urlFoto(compra.foto_path).then(setFoto);
+    cargarMarcas(compra.id).then(setMarcas);
+  }, [compra.foto_path, compra.id, urlFoto, cargarMarcas]);
 
   const productosOrdenados = useMemo(
     () => [...productos].sort((a, b) => a.nombre_es.localeCompare(b.nombre_es, 'es')),
@@ -357,247 +364,320 @@ function CompraEditor({
     ejecutar(() => datos.confirmarCompra(compra.id, datosCompra()));
   };
 
+  const titulo = editable ? 'Revisar albarán' : compra.estado === 'confirmada' ? 'Albarán confirmado' : 'Albarán anulado';
+  const textoLeido = compra.ocr_texto && !compra.ocr_texto.startsWith('No se pudo leer') ? compra.ocr_texto : null;
+
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-foreground-950/40 sm:p-4" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
         className="relative flex flex-col w-full sm:max-w-[640px] max-h-[94vh] sm:max-h-[90vh] bg-background-50 rounded-t-2xl sm:rounded-lg border border-background-200/70 shadow-2xl"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-background-200/70 flex-shrink-0">
-          <h2 className="text-base font-heading font-semibold text-foreground-950">
-            {editable ? 'Revisar albarán' : compra.estado === 'confirmada' ? 'Albarán confirmado' : 'Albarán anulado'}
-          </h2>
-          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-100 hover:text-foreground-950">
-            <i className="ri-close-line"></i>
+        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-background-200/70 flex-shrink-0">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-heading font-semibold text-foreground-950">{titulo}</h2>
+            <p className="text-[11px] text-foreground-400 truncate">
+              {proveedor || 'Proveedor sin leer'} · {formatFecha(fecha)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="w-9 h-9 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-100 hover:text-foreground-950"
+          >
+            <i className="ri-close-line text-lg"></i>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          <div className="flex gap-4">
-            <a
-              href={foto ?? undefined}
-              target="_blank"
-              rel="noreferrer"
-              className="w-24 h-32 rounded-lg overflow-hidden bg-background-100 border border-background-200/70 flex-shrink-0 flex items-center justify-center text-foreground-300"
-              title="Ver la foto entera"
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-5">
+          {/* Foto con lo leído: se toca para verla entera. */}
+          {foto ? (
+            <button
+              type="button"
+              onClick={() => setVisor(true)}
+              className="relative block w-full h-40 overflow-hidden rounded-2xl border border-background-200/70 bg-background-100 text-left"
             >
-              {foto ? <img src={foto} alt="Foto del albarán" className="w-full h-full object-cover" /> : <i className="ri-image-line text-2xl"></i>}
-            </a>
-            <div className="flex-1 min-w-0 space-y-2">
+              <FotoMarcada src={foto} marcas={marcas} resto={false} />
+              <span className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-foreground-950/75 to-transparent" />
+              <span className="absolute left-3 right-3 bottom-2.5 flex items-center gap-2 text-background-50">
+                <i className="ri-scan-2-line text-lg"></i>
+                <span className="flex-1 text-sm font-semibold">{marcas ? 'Ver lo que ha leído' : 'Ver la foto'}</span>
+                <i className="ri-fullscreen-line"></i>
+              </span>
+            </button>
+          ) : compra.foto_path ? (
+            <div className="h-40 rounded-2xl bg-background-100 animate-pulse" />
+          ) : null}
+
+          {/* Datos del albarán */}
+          <div className="grid grid-cols-2 gap-x-2 gap-y-3">
+            <label className="col-span-2 block">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground-500 mb-1">
+                <PuntoColor tipo="proveedor" /> Proveedor
+              </span>
               <input
                 value={proveedor}
                 onChange={(e) => setProveedor(e.target.value)}
                 list="compras-proveedores"
-                placeholder="Proveedor"
+                placeholder="¿De quién es?"
                 disabled={!editable}
-                className={inputCls}
+                className={`${inputCls} text-base font-semibold`}
               />
               <datalist id="compras-proveedores">
                 {proveedores.map((p) => (
                   <option key={p} value={p} />
                 ))}
               </datalist>
-              <div className="grid grid-cols-2 gap-2">
-                <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} disabled={!editable} className={inputCls} />
-                <input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Nº albarán" disabled={!editable} className={inputCls} />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs font-medium text-foreground-500 flex-shrink-0">Total pagado</label>
-                <input
-                  value={total}
-                  onChange={(e) => setTotal(e.target.value)}
-                  inputMode="decimal"
-                  placeholder="0,00"
-                  disabled={!editable}
-                  className={`${inputCls} text-right font-semibold`}
-                />
-                <span className="text-sm text-foreground-500">€</span>
-              </div>
-            </div>
+            </label>
+            <label className="block">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground-500 mb-1">
+                <PuntoColor tipo="fecha" /> Fecha
+              </span>
+              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} disabled={!editable} className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground-500 mb-1">
+                <PuntoColor tipo="numero" /> Nº albarán
+              </span>
+              <input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Opcional" disabled={!editable} className={inputCls} />
+            </label>
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-400">Líneas del albarán</h3>
-              {editable && (
-                <button
-                  type="button"
-                  onClick={() => setLineas((p) => [...p, { texto: '', kg: '', precio: '', importe: '', producto_id: '', sumar_stock: true }])}
-                  className="text-xs font-medium text-primary-600 hover:text-primary-700"
-                >
-                  <i className="ri-add-line"></i> Añadir línea
-                </button>
-              )}
-            </div>
-            {editable && (ReconocedorVoz || anterior) && (
-              <div className="flex flex-wrap gap-2 mb-2">
+          {/* Productos */}
+          <section>
+            <h3 className="text-sm font-semibold text-foreground-950 mb-2">
+              Productos <span className="ml-1 text-xs font-medium text-foreground-400">{lineas.length}</span>
+            </h3>
+            {editable && (
+              <div className="flex gap-2 overflow-x-auto pb-1 mb-2 -mx-1 px-1">
                 {ReconocedorVoz && (
                   <button
                     type="button"
                     onClick={dictar}
                     disabled={escuchando}
-                    className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-medium border ${
-                      escuchando ? 'bg-red-50 border-red-200 text-red-600 animate-pulse' : 'bg-background-50 border-background-200/70 text-foreground-600 hover:bg-background-100'
+                    className={`inline-flex items-center gap-1.5 h-10 px-4 rounded-full text-xs font-semibold flex-shrink-0 ${
+                      escuchando ? 'bg-red-500 text-white animate-pulse' : 'bg-foreground-950 text-background-50 hover:bg-foreground-800'
                     }`}
                   >
-                    <i className="ri-mic-fill"></i>
-                    {escuchando ? 'Escuchando… di «rape 4,64 a 21,50»' : 'Dictar línea'}
+                    <i className="ri-mic-fill text-sm"></i>
+                    {escuchando ? 'Escuchando… «rape 4,64 a 21,50»' : 'Dictar'}
                   </button>
                 )}
                 {anterior && (
                   <button
                     type="button"
                     onClick={copiarAnterior}
-                    className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-medium border bg-background-50 border-background-200/70 text-foreground-600 hover:bg-background-100"
+                    className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full text-xs font-medium border bg-background-50 border-background-200/70 text-foreground-700 hover:bg-background-100 flex-shrink-0"
                   >
-                    <i className="ri-history-line"></i>
+                    <i className="ri-history-line text-sm"></i>
                     Igual que el {formatFecha(anterior.fecha)}
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setLineas((p) => [...p, { texto: '', kg: '', precio: '', importe: '', producto_id: '', sumar_stock: true }])}
+                  className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full text-xs font-medium border bg-background-50 border-background-200/70 text-foreground-700 hover:bg-background-100 flex-shrink-0"
+                >
+                  <i className="ri-add-line text-sm"></i>
+                  A mano
+                </button>
               </div>
             )}
             {lineas.length === 0 && (
-              <p className="text-xs text-foreground-400 bg-background-100 rounded-lg p-3">
-                No se ha leído ninguna línea de producto (¿escrito a mano?). Díctalas con el micrófono, cópialas de la última compra
-                a este proveedor o añádelas a mano. También puedes confirmar solo el gasto.
-              </p>
+              <div className="flex flex-col items-center text-center gap-1 rounded-2xl border border-dashed border-background-200 p-5 text-foreground-400">
+                <i className="ri-file-search-line text-2xl"></i>
+                <p className="text-xs leading-snug">
+                  No se ha leído ningún producto (¿escrito a mano?).
+                  <br />
+                  Díctalos, cópialos de la última compra o añádelos a mano. También puedes confirmar solo el gasto.
+                </p>
+              </div>
             )}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {lineas.map((l, i) => {
                 const d = lineasDatos[i];
-                const ok = d.kg != null && d.precio != null && d.importe != null && Math.abs(d.kg * d.precio - d.importe) <= 0.06;
+                const completa = d.kg != null && d.precio != null && d.importe != null;
+                const ok = completa && Math.abs(d.kg! * d.precio! - d.importe!) <= 0.06;
                 const s = d.producto_id ? sugerir(l.texto) : null;
                 const motivo = s && s.id === d.producto_id ? s.motivo : null;
+                const num = (campo: 'kg' | 'precio' | 'importe', etiqueta: string, negrita = false) => (
+                  <label className="block min-w-0">
+                    <span className="flex items-center gap-1 text-[10px] font-medium text-foreground-400 mb-0.5">
+                      <PuntoColor tipo={campo} /> {etiqueta}
+                    </span>
+                    <input
+                      value={l[campo]}
+                      onChange={(e) => cambiarLinea(i, { [campo]: e.target.value })}
+                      inputMode="decimal"
+                      disabled={!editable}
+                      className={`w-full min-w-0 px-2 py-2 bg-background-100 border border-background-200/70 rounded-lg text-base text-right tabular-nums focus:outline-none focus:border-foreground-300/60 ${
+                        negrita ? 'font-semibold' : ''
+                      }`}
+                    />
+                  </label>
+                );
                 return (
-                  <div key={i} className={`rounded-xl border p-2.5 ${ok ? 'border-background-200/70' : 'border-amber-300 bg-amber-50/50'}`}>
+                  <div key={i} className={`rounded-2xl border p-3 ${ok ? 'border-background-200/70 bg-background-50' : 'border-amber-300 bg-amber-50/60'}`}>
                     <div className="flex items-center gap-2">
-                      <i className={`${ok ? 'ri-checkbox-circle-fill text-emerald-600' : 'ri-error-warning-fill text-amber-500'} text-base flex-shrink-0`}></i>
+                      <span
+                        className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          ok ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                        }`}
+                      >
+                        <i className={`${ok ? 'ri-check-line' : 'ri-error-warning-line'} text-sm`}></i>
+                      </span>
+                      <PuntoColor tipo="producto" />
                       <input
                         value={l.texto}
                         onChange={(e) => cambiarTexto(i, e.target.value)}
                         placeholder="Producto (como viene en el albarán)"
                         disabled={!editable}
-                        className="flex-1 min-w-0 bg-transparent text-sm font-medium text-foreground-950 focus:outline-none"
+                        className="flex-1 min-w-0 bg-transparent text-base font-semibold text-foreground-950 focus:outline-none"
                       />
                       {editable && (
                         <button
                           type="button"
                           onClick={() => setLineas((p) => p.filter((_, k) => k !== i))}
                           aria-label="Quitar línea"
-                          className="w-7 h-7 flex items-center justify-center rounded-full text-foreground-300 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
+                          className="w-8 h-8 flex items-center justify-center rounded-full text-foreground-300 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
                         >
-                          <i className="ri-delete-bin-line text-sm"></i>
+                          <i className="ri-delete-bin-line"></i>
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      {(
-                        [
-                          ['kg', 'Kg'],
-                          ['precio', '€/kg'],
-                          ['importe', 'Importe €'],
-                        ] as const
-                      ).map(([campo, etiqueta]) => (
-                        <label key={campo} className="block">
-                          <span className="block text-[10px] text-foreground-400 mb-0.5">{etiqueta}</span>
-                          <input
-                            value={l[campo]}
-                            onChange={(e) => cambiarLinea(i, { [campo]: e.target.value })}
-                            inputMode="decimal"
-                            disabled={!editable}
-                            className="w-full px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-lg text-sm text-right focus:outline-none focus:border-foreground-300/60"
-                          />
-                        </label>
-                      ))}
+
+                    {/* kg × €/kg = importe */}
+                    <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-end gap-1.5 mt-2.5">
+                      {num('kg', 'Kg')}
+                      <span className="pb-2.5 text-foreground-300 text-sm">×</span>
+                      {num('precio', '€/kg')}
+                      <span className="pb-2.5 text-foreground-300 text-sm">=</span>
+                      {num('importe', 'Importe €', true)}
                     </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <select
-                        value={l.producto_id}
-                        onChange={(e) => cambiarLinea(i, { producto_id: e.target.value })}
-                        disabled={!editable}
-                        className="flex-1 min-w-0 px-2 py-1.5 bg-background-100 border border-background-200/70 rounded-lg text-xs focus:outline-none"
+                    {!ok && (
+                      <p className="text-[11px] text-amber-700 mt-1.5">
+                        {completa ? 'Kg × €/kg no da el importe: revisa los números.' : 'Falta algún número.'}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-2 mt-2.5">
+                      <div className="relative flex-1 min-w-0">
+                        <i className="ri-store-2-line absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground-400 text-sm pointer-events-none"></i>
+                        <select
+                          value={l.producto_id}
+                          onChange={(e) => cambiarLinea(i, { producto_id: e.target.value })}
+                          disabled={!editable}
+                          className="w-full pl-8 pr-2 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm focus:outline-none"
+                        >
+                          <option value="">Sin producto</option>
+                          {productosOrdenados.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.nombre_es}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => cambiarLinea(i, { sumar_stock: !l.sumar_stock })}
+                        disabled={!editable || !l.producto_id}
+                        title={l.producto_id ? 'Sumar estos kg al stock al confirmar' : 'Elige un producto para poder sumarlo al stock'}
+                        className={`inline-flex items-center gap-1 h-9 px-3 rounded-full text-xs font-medium border flex-shrink-0 disabled:opacity-50 ${
+                          l.producto_id && l.sumar_stock
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                            : 'bg-background-50 border-background-200/70 text-foreground-400'
+                        }`}
                       >
-                        <option value="">— Sin producto (no suma stock) —</option>
-                        {productosOrdenados.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.nombre_es}
-                          </option>
-                        ))}
-                      </select>
-                      {motivo === 'recordado' && <span className="text-[10px] text-emerald-700 flex-shrink-0">recordado</span>}
-                      {motivo === 'parecido' && (
-                        <span className="text-[10px] text-amber-700 flex-shrink-0" title="Elegido por el nombre: compruébalo la primera vez">
-                          sugerido
-                        </span>
-                      )}
-                      <label className="inline-flex items-center gap-1 text-[11px] text-foreground-500 flex-shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={l.sumar_stock}
-                          onChange={(e) => cambiarLinea(i, { sumar_stock: e.target.checked })}
-                          disabled={!editable || !l.producto_id}
-                        />
+                        <i className={l.producto_id && l.sumar_stock ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'}></i>
                         Stock
-                      </label>
+                      </button>
                     </div>
+                    {motivo === 'recordado' && <p className="text-[10px] text-emerald-700 mt-1">Recordado de otras compras a este proveedor.</p>}
+                    {motivo === 'parecido' && <p className="text-[10px] text-amber-700 mt-1">Sugerido por el nombre: compruébalo esta primera vez.</p>}
                   </div>
                 );
               })}
             </div>
+          </section>
+
+          {/* Total y cuadre */}
+          <div className={`rounded-2xl p-4 ${cuadra ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+            <div className="flex items-center gap-3">
+              <span
+                className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  cuadra ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                }`}
+              >
+                <i className={`${cuadra ? 'ri-check-double-line' : 'ri-scales-3-line'} text-xl`}></i>
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{cuadra ? 'Cuadra' : totalNum == null ? 'Falta el total' : 'No cuadra'}</p>
+                <p className="text-xs opacity-90">
+                  Productos {formatEUR(suma)}
+                  {cuadra
+                    ? ` + IVA y recargo ${impuestos.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %`
+                    : totalNum == null
+                      ? ' · escribe lo que pone el albarán'
+                      : ' · revisa los productos en naranja o el total'}
+                </p>
+              </div>
+            </div>
+            <label className="mt-3 flex items-center gap-2 rounded-xl bg-background-50/80 px-3 py-2">
+              <PuntoColor tipo="total" />
+              <span className="text-xs font-medium text-foreground-600 flex-shrink-0">Total pagado</span>
+              <input
+                value={total}
+                onChange={(e) => setTotal(e.target.value)}
+                inputMode="decimal"
+                placeholder="0,00"
+                disabled={!editable}
+                className="flex-1 min-w-0 bg-transparent text-right text-xl font-bold text-foreground-950 tabular-nums focus:outline-none"
+              />
+              <span className="text-base font-semibold text-foreground-500">€</span>
+            </label>
           </div>
 
-          <div className={`rounded-xl p-3 text-sm ${cuadra ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
-            <p className="font-semibold">
-              Suma de líneas {formatEUR(suma)} · Total {formatEUR(totalNum)}
-            </p>
-            <p className="text-xs mt-0.5">
-              {cuadra
-                ? `Cuadra con el total: IVA y recargo ${impuestos.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %.`
-                : totalNum == null
-                  ? 'Escribe el total que pone el albarán.'
-                  : 'No cuadra: revisa las líneas marcadas en naranja o el total.'}
-            </p>
-          </div>
-
-          {compra.ocr_texto && (
+          {!compra.foto_path && textoLeido && (
             <details className="text-xs text-foreground-500">
-              <summary className="cursor-pointer select-none">Ver el texto leído de la foto</summary>
-              <pre className="mt-2 p-2 bg-background-100 rounded-lg whitespace-pre-wrap font-mono text-[11px] leading-snug">{compra.ocr_texto}</pre>
+              <summary className="cursor-pointer select-none">Ver el texto leído</summary>
+              <pre className="mt-2 p-2 bg-background-100 rounded-lg whitespace-pre-wrap font-mono text-[11px] leading-snug">{textoLeido}</pre>
             </details>
           )}
 
           {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg p-2">{error}</p>}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-t border-background-200/70 flex-shrink-0">
+        <div className="flex items-center gap-2 px-4 sm:px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-background-200/70 flex-shrink-0">
           {editable ? (
             <>
               <button
                 type="button"
                 disabled={trabajando}
                 onClick={() => confirm('¿Borrar este albarán y su foto?') && ejecutar(() => datos.borrarCompra(compra))}
-                className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                aria-label="Borrar albarán"
+                title="Borrar albarán"
+                className="w-11 h-11 flex items-center justify-center rounded-full text-red-600 hover:bg-red-50 disabled:opacity-50 flex-shrink-0"
               >
-                Borrar
+                <i className="ri-delete-bin-line text-lg"></i>
               </button>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={trabajando}
-                  onClick={() => ejecutar(() => datos.guardarCompra(compra.id, datosCompra()))}
-                  className="h-10 px-4 rounded-full text-xs font-medium bg-background-100 border border-background-200/70 text-foreground-600 hover:bg-background-200/70 disabled:opacity-50"
-                >
-                  Guardar para luego
-                </button>
-                <button
-                  type="button"
-                  disabled={trabajando}
-                  onClick={confirmar}
-                  className="h-10 px-4 rounded-full text-xs font-semibold bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50"
-                >
-                  {trabajando ? 'Guardando…' : 'Confirmar'}
-                </button>
-              </div>
+              <button
+                type="button"
+                disabled={trabajando}
+                onClick={() => ejecutar(() => datos.guardarCompra(compra.id, datosCompra()))}
+                className="h-11 px-4 rounded-full text-sm font-medium bg-background-100 border border-background-200/70 text-foreground-700 hover:bg-background-200/70 disabled:opacity-50"
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                disabled={trabajando}
+                onClick={confirmar}
+                className="flex-1 h-11 px-4 rounded-full text-sm font-semibold bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+              >
+                <i className="ri-check-line text-base"></i>
+                {trabajando ? 'Guardando…' : 'Confirmar'}
+              </button>
             </>
           ) : compra.estado === 'confirmada' ? (
             <button
@@ -623,6 +703,8 @@ function CompraEditor({
           )}
         </div>
       </div>
+
+      {visor && foto && <VisorAlbaran src={foto} marcas={marcas} texto={textoLeido} onClose={() => setVisor(false)} />}
     </div>
   );
 }
@@ -646,10 +728,15 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
       let cajas: OcrCaja[] = [];
       let jpeg: Blob;
       let fallo: string | null = null;
+      // Tamaño de la imagen sobre la que están las posiciones de `cajas`.
+      let ancho = 1;
+      let alto = 1;
       if (esPdf(file)) {
         setProgreso('Abriendo el PDF…');
         const pdf = await prepararPdf(file);
         jpeg = pdf.jpeg;
+        ancho = pdf.paginas[0]?.width ?? 1;
+        alto = pdf.paginas.reduce((t, p) => t + p.height, 0) || 1;
         if (pdf.cajas) {
           cajas = pdf.cajas; // PDF con texto: no hace falta OCR
         } else {
@@ -670,6 +757,8 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
         setProgreso('Preparando la foto…');
         const foto = await prepararFoto(file);
         jpeg = foto.jpeg;
+        ancho = foto.ocr.width;
+        alto = foto.ocr.height;
         try {
           setProgreso(lento);
           ({ cajas } = await leerTextoFoto(foto.ocr));
@@ -701,6 +790,7 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
         total: a.total,
         lineas,
         ocr_texto: fallo ? `No se pudo leer: ${fallo}` : a.texto.join('\n'),
+        ocr_marcas: cajas.length ? calcularMarcas(cajas, a, ancho, alto) : null,
         foto: jpeg,
       });
       if (fallo) setAviso('La foto se ha guardado, pero no se ha podido leer. Rellena los datos a mano.');

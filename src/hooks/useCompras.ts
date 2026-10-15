@@ -3,9 +3,13 @@ import { supabase } from '@/lib/supabaseClient';
 import { getMiClienteId } from '@/lib/clienteContext';
 import { useRealtimeTable } from './useRealtimeTable';
 import type { Compra, CompraAlias, CompraLinea } from '@/types/compra';
+import type { MarcasAlbaran } from '@/lib/comprasMarcas';
 
 const BUCKET = 'compras';
 const MAX_ROWS = 300;
+// Todo menos ocr_marcas (unos KB por albarán), que solo se pide al abrir uno.
+const COLUMNAS =
+  'id, cliente_id, estado, fecha, proveedor, numero, total, lineas, foto_path, ocr_texto, caja_movimiento_id, confirmada_at, created_at, updated_at';
 
 export interface NuevaCompraInput {
   fecha: string;
@@ -14,6 +18,7 @@ export interface NuevaCompraInput {
   total: number | null;
   lineas: CompraLinea[];
   ocr_texto: string;
+  ocr_marcas: MarcasAlbaran | null;
   foto: Blob;
 }
 
@@ -27,7 +32,7 @@ export function useCompras() {
   const fetchCompras = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     const [{ data }, { data: dataAlias }] = await Promise.all([
-      supabase.from('compras').select('*').order('created_at', { ascending: false }).limit(MAX_ROWS),
+      supabase.from('compras').select(COLUMNAS).order('created_at', { ascending: false }).limit(MAX_ROWS),
       supabase.from('compras_alias').select('proveedor_norm, texto_norm, producto_id'),
     ]);
     setCompras((data as Compra[] | null) ?? []);
@@ -54,7 +59,7 @@ export function useCompras() {
     const { data, error } = await supabase
       .from('compras')
       .insert({ ...datos, id, cliente_id, foto_path })
-      .select()
+      .select(COLUMNAS)
       .single();
     if (error) {
       await supabase.storage.from(BUCKET).remove([foto_path]);
@@ -103,5 +108,10 @@ export function useCompras() {
     return data?.signedUrl ?? null;
   }, []);
 
-  return { compras, alias, loading, crearCompra, guardarCompra, confirmarCompra, anularCompra, borrarCompra, urlFoto };
+  const cargarMarcas = useCallback(async (id: string): Promise<MarcasAlbaran | null> => {
+    const { data } = await supabase.from('compras').select('ocr_marcas').eq('id', id).maybeSingle();
+    return (data?.ocr_marcas as MarcasAlbaran | null) ?? null;
+  }, []);
+
+  return { compras, alias, loading, crearCompra, guardarCompra, confirmarCompra, anularCompra, borrarCompra, urlFoto, cargarMarcas };
 }

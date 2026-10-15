@@ -3474,11 +3474,16 @@ create table if not exists public.compras (
   foto_path text,
   -- Texto leído por el OCR, línea a línea, para revisar si algo falla.
   ocr_texto text,
+  -- Recuadros de colores de lo leído sobre la foto: {v:1, m:[[tipo,x,y,w,h],…]}
+  -- en milésimas de la imagen. Solo se carga al abrir el albarán.
+  ocr_marcas jsonb,
   caja_movimiento_id uuid references public.caja_movimientos (id) on delete set null,
   confirmada_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.compras add column if not exists ocr_marcas jsonb;
 
 drop trigger if exists trg_compras_updated_at on public.compras;
 create trigger trg_compras_updated_at
