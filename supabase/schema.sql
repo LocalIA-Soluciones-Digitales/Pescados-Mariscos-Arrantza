@@ -3525,9 +3525,13 @@ $$ language sql immutable set search_path = public;
 
 -- Bucket privado para las fotos de los albaranes (precios de compra: nunca
 -- público). Cada cliente solo ve su carpeta <cliente_id>/.
-insert into storage.buckets (id, name, public)
-values ('compras', 'compras', false)
-on conflict (id) do nothing;
+-- El tamaño y el tipo se limitan en el bucket: en la política de subida
+-- metadata aún va vacío y la subida fallaría siempre por RLS.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('compras', 'compras', false, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update
+  set file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists "compras_storage_lectura" on storage.objects;
 create policy "compras_storage_lectura"
@@ -3542,8 +3546,6 @@ create policy "compras_storage_subida"
   with check (
     bucket_id = 'compras'
     and (is_developer() or (storage.foldername(name))[1] = mi_cliente_id()::text)
-    and (metadata->>'size')::bigint < 5242880
-    and (metadata->>'mimetype') in ('image/jpeg', 'image/png', 'image/webp')
   );
 
 drop policy if exists "compras_storage_borrado" on storage.objects;
