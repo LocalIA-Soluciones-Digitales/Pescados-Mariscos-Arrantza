@@ -47,7 +47,28 @@ const ReconocedorVoz = (
   window as unknown as { SpeechRecognition?: new () => Reconocedor; webkitSpeechRecognition?: new () => Reconocedor }
 ).SpeechRecognition ?? (window as unknown as { webkitSpeechRecognition?: new () => Reconocedor }).webkitSpeechRecognition;
 
-function escucharFrase(): Promise<string> {
+const MICRO_BLOQUEADO =
+  'El micrófono está bloqueado para esta web. Actívalo y vuelve a pulsar «Dictar»: en el iPhone, Ajustes › Safari › Micrófono › Preguntar (o «aA» en la barra de dirección › Ajustes del sitio web › Micrófono); en Chrome, el candado junto a la dirección › Micrófono › Permitir.';
+
+// Si el permiso se rechazó antes, el reconocedor falla sin volver a
+// preguntar. Pedir el micrófono a mano hace que el navegador lo pregunte
+// otra vez siempre que pueda; si sigue bloqueado, se explica cómo activarlo.
+async function pedirMicrofono(): Promise<void> {
+  if (!navigator.mediaDevices?.getUserMedia) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((t) => t.stop());
+  } catch (e) {
+    const nombre = e instanceof DOMException ? e.name : '';
+    if (nombre === 'NotAllowedError' || nombre === 'SecurityError') throw new Error(MICRO_BLOQUEADO);
+    if (nombre === 'NotFoundError') throw new Error('No se encuentra ningún micrófono.');
+    throw e;
+  }
+}
+
+async function escucharFrase(): Promise<string> {
+  if (!ReconocedorVoz) throw new Error('Este navegador no permite dictar.');
+  await pedirMicrofono();
   return new Promise((resolve, reject) => {
     if (!ReconocedorVoz) return reject(new Error('Este navegador no permite dictar.'));
     const r = new ReconocedorVoz();
@@ -58,7 +79,18 @@ function escucharFrase(): Promise<string> {
     r.onresult = (e) => {
       texto = e.results[0]?.[0]?.transcript ?? '';
     };
-    r.onerror = (e) => reject(new Error(e.error === 'not-allowed' ? 'Hay que permitir el micrófono para dictar.' : 'No se ha entendido, prueba otra vez.'));
+    r.onerror = (e) =>
+      reject(
+        new Error(
+          e.error === 'not-allowed' || e.error === 'service-not-allowed'
+            ? MICRO_BLOQUEADO
+            : e.error === 'no-speech'
+              ? 'No se ha oído nada, prueba otra vez.'
+              : e.error === 'network'
+                ? 'Sin conexión para dictar, prueba otra vez.'
+                : 'No se ha entendido, prueba otra vez.',
+        ),
+      );
     r.onend = () => (texto ? resolve(texto) : reject(new Error('No se ha oído nada, prueba otra vez.')));
     r.start();
   });
