@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { useCompras } from '@/hooks/useCompras';
 import type { Compra, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
@@ -962,6 +962,111 @@ function CompraEditor({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Día: flechas para ir día a día o elegirlo en el calendario         */
+/* ------------------------------------------------------------------ */
+function sumarDias(fecha: string, n: number): string {
+  const [y, m, d] = fecha.split('-').map(Number);
+  return new Date(y, m - 1, d + n).toLocaleDateString('sv-SE');
+}
+
+function nombreDia(fecha: string): string {
+  const hoy = hoyISO();
+  if (fecha === hoy) return 'Hoy';
+  if (fecha === sumarDias(hoy, -1)) return 'Ayer';
+  const [y, m, d] = fecha.split('-').map(Number);
+  const f = new Date(y, m - 1, d);
+  const texto = f.toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    ...(y !== new Date().getFullYear() ? { year: 'numeric' } : {}),
+  });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+function SelectorDia({ dia, onDia, total, n }: { dia: string | null; onDia: (d: string | null) => void; total: number; n: number }) {
+  const calendario = useRef<HTMLInputElement>(null);
+  const hoy = hoyISO();
+  const base = dia ?? hoy;
+  const anterior = dia ? sumarDias(base, -1) : sumarDias(hoy, -1);
+  const siguiente = dia ? sumarDias(base, 1) : hoy;
+  const puedeSiguiente = !dia || dia < hoy;
+
+  const abrirCalendario = () => {
+    const el = calendario.current;
+    if (!el) return;
+    try {
+      el.showPicker();
+    } catch {
+      el.focus();
+      el.click();
+    }
+  };
+
+  const flecha = 'w-9 h-9 md:w-8 md:h-8 flex-shrink-0 rounded-full flex items-center justify-center text-foreground-600 hover:bg-background-100 hover:text-foreground-950 disabled:opacity-30 disabled:hover:bg-transparent transition-colors';
+
+  return (
+    <div className="flex items-center gap-1 mb-3 p-1 rounded-2xl bg-background-50 border border-background-200/70 shadow-card">
+      <button type="button" onClick={() => onDia(anterior)} aria-label="Día anterior" title="Día anterior" className={flecha}>
+        <i className="ri-arrow-left-s-line text-lg"></i>
+      </button>
+      <div className="relative min-w-0">
+        <button
+          type="button"
+          onClick={abrirCalendario}
+          className="inline-flex items-center gap-2 h-9 md:h-8 px-3 rounded-full hover:bg-background-100 text-sm font-semibold text-foreground-950 whitespace-nowrap"
+          title="Elegir día en el calendario"
+        >
+          <i className="ri-calendar-line text-foreground-500"></i>
+          {dia ? nombreDia(dia) : 'Todos los días'}
+        </button>
+        <input
+          ref={calendario}
+          type="date"
+          value={dia ?? ''}
+          max={hoy}
+          onChange={(e) => e.target.value && onDia(e.target.value)}
+          tabIndex={-1}
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={() => onDia(siguiente)}
+        disabled={!puedeSiguiente}
+        aria-label="Día siguiente"
+        title="Día siguiente"
+        className={flecha}
+      >
+        <i className="ri-arrow-right-s-line text-lg"></i>
+      </button>
+      <div className="ml-auto flex items-center gap-2 pr-1 min-w-0">
+        {dia && (
+          <span className="hidden sm:inline text-xs text-foreground-500 tabular-nums whitespace-nowrap">
+            {n} {n === 1 ? 'albarán' : 'albaranes'} · {formatEUR(total)}
+          </span>
+        )}
+        {dia && dia !== hoy && (
+          <button type="button" onClick={() => onDia(hoy)} className="h-8 px-3 rounded-full text-xs font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-950">
+            Hoy
+          </button>
+        )}
+        {dia && (
+          <button
+            type="button"
+            onClick={() => onDia(null)}
+            className="h-8 px-3 rounded-full text-xs font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-950 whitespace-nowrap"
+          >
+            Todos
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Panel                                                              */
 /* ------------------------------------------------------------------ */
 export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos; productos: Producto[] }) {
@@ -970,6 +1075,8 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
   const [abiertaId, setAbiertaId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<'pendientes' | 'confirmadas' | 'anuladas' | 'todas'>('pendientes');
   const [busqueda, setBusqueda] = useState('');
+  // Día del albarán que se está viendo (null = todos los días).
+  const [dia, setDia] = useState<string | null>(null);
 
   const pendientes = datos.compras.filter((c) => c.estado === 'pendiente');
   const abierta = datos.compras.find((c) => c.id === abiertaId) ?? null;
@@ -979,6 +1086,7 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
       setAbiertaId(ids[0]);
     } else if (ids.length > 1) {
       setFiltro('pendientes');
+      setDia(null);
       setAviso(`Guardados ${ids.length} albaranes: los tienes en «Por revisar».`);
     }
   };
@@ -992,14 +1100,16 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
     if (files.length) bandeja.añadir(files);
   };
 
+  const delDia = dia ? datos.compras.filter((c) => c.fecha === dia) : datos.compras;
   const cuentas = {
-    pendientes: pendientes.length,
-    confirmadas: datos.compras.filter((c) => c.estado === 'confirmada').length,
-    anuladas: datos.compras.filter((c) => c.estado === 'anulada').length,
-    todas: datos.compras.length,
+    pendientes: delDia.filter((c) => c.estado === 'pendiente').length,
+    confirmadas: delDia.filter((c) => c.estado === 'confirmada').length,
+    anuladas: delDia.filter((c) => c.estado === 'anulada').length,
+    todas: delDia.length,
   };
+  const totalDia = delDia.filter((c) => c.estado !== 'anulada').reduce((s, c) => s + (c.total ?? 0), 0);
   const q = normalizarCompra(busqueda);
-  const visibles = datos.compras
+  const visibles = delDia
     .filter((c) =>
       filtro === 'todas'
         ? true
@@ -1059,6 +1169,7 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
         </aside>
 
         <section className="min-w-0">
+          <SelectorDia dia={dia} onDia={setDia} total={totalDia} n={cuentas.todas - cuentas.anuladas} />
           <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-3">
             <div className="flex gap-1 p-1 rounded-full bg-background-100 border border-background-200/70 overflow-x-auto scrollbar-hide self-start max-w-full">
               {PESTANAS.map((t) => (
@@ -1100,12 +1211,20 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
                 <i className={`${q ? 'ri-search-line' : filtro === 'pendientes' ? 'ri-inbox-2-line' : 'ri-file-list-3-line'} text-xl`}></i>
               </span>
               <p className="text-sm font-semibold text-foreground-950">
-                {q ? 'Nada coincide con la búsqueda' : filtro === 'pendientes' ? 'No hay albaranes por revisar' : 'Todavía no hay albaranes aquí'}
+                {q
+                  ? 'Nada coincide con la búsqueda'
+                  : dia
+                    ? `No hay albaranes ${filtro === 'pendientes' ? 'por revisar ' : ''}con fecha ${nombreDia(dia).toLowerCase()}`
+                    : filtro === 'pendientes'
+                      ? 'No hay albaranes por revisar'
+                      : 'Todavía no hay albaranes aquí'}
               </p>
               <p className="text-xs text-foreground-500 max-w-xs">
                 {q
                   ? 'Prueba con otro proveedor, número o producto.'
-                  : filtro === 'pendientes'
+                  : dia
+                    ? 'Muévete con las flechas, elige otro día en el calendario o pulsa «Todos».'
+                    : filtro === 'pendientes'
                     ? 'Haz la foto del albarán (o sube el PDF) y aparecerá aquí, ya leído, para revisarlo y confirmarlo.'
                     : 'Los albaranes confirmados y anulados se quedan aquí, con su foto.'}
               </p>
