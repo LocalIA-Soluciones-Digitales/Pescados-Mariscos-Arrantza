@@ -107,76 +107,167 @@ function impuestosTotal(suma: number, total: number | null): number | null {
   return pct >= -0.1 && pct <= 27 ? Math.max(0, pct) : null;
 }
 
+const lineaCuadra = (l: { kg: number | null; precio: number | null; importe: number | null }) =>
+  l.kg != null && l.precio != null && l.importe != null && Math.abs(l.kg * l.precio - l.importe) <= 0.06;
+
+// Cómo está un albarán de un vistazo: lo que hay que hacer con él.
+type Situacion = { etiqueta: string; icono: string; clase: string };
+function situacion(c: Compra): Situacion {
+  if (c.estado === 'confirmada') return { etiqueta: 'Confirmado', icono: 'ri-checkbox-circle-fill', clase: 'bg-emerald-50 text-emerald-700 ring-emerald-200' };
+  if (c.estado === 'anulada') return { etiqueta: 'Anulado', icono: 'ri-close-circle-line', clase: 'bg-background-100 text-foreground-500 ring-background-200' };
+  if (!c.lineas.length) return { etiqueta: 'Sin productos', icono: 'ri-edit-line', clase: 'bg-amber-50 text-amber-700 ring-amber-200' };
+  const lista = c.lineas.every(lineaCuadra) && impuestosTotal(sumaLineas(c.lineas), c.total) != null;
+  return lista
+    ? { etiqueta: 'Lista para confirmar', icono: 'ri-check-double-line', clase: 'bg-emerald-50 text-emerald-700 ring-emerald-200' }
+    : { etiqueta: 'Revisar', icono: 'ri-error-warning-line', clase: 'bg-amber-50 text-amber-700 ring-amber-200' };
+}
+
+function resumenProductos(c: Compra): string {
+  const nombres = c.lineas.map((l) => l.texto).filter(Boolean);
+  if (!nombres.length) return c.lineas.length ? `${c.lineas.length} líneas sin nombre` : 'Sin productos leídos';
+  const vistos = nombres.slice(0, 3).map((n) => n.charAt(0) + n.slice(1).toLowerCase());
+  return vistos.join(', ') + (nombres.length > 3 ? ` y ${nombres.length - 3} más` : '');
+}
+
+function fechaRelativa(fecha: string): string {
+  const hoy = hoyISO();
+  const ayer = new Date(Date.now() - 864e5).toLocaleDateString('sv-SE');
+  return fecha === hoy ? 'Hoy' : fecha === ayer ? 'Ayer' : formatFecha(fecha);
+}
+
 /* ------------------------------------------------------------------ */
-/*  Botón de cámara                                                    */
+/*  Subir la foto o el PDF                                             */
 /* ------------------------------------------------------------------ */
-function Camara({ onFoto, ocupado }: { onFoto: (f: File) => void; ocupado: boolean }) {
+function Captura({ onFoto, progreso }: { onFoto: (f: File) => void; progreso: string | null }) {
   const elegir = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (file) onFoto(file);
   };
+  if (progreso) {
+    return (
+      <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-5 flex items-start gap-3" role="status" aria-live="polite">
+        <span className="w-10 h-10 rounded-full bg-primary-500/10 text-primary-500 flex items-center justify-center flex-shrink-0">
+          <i className="ri-loader-4-line animate-spin text-xl"></i>
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground-950">Leyendo el albarán</p>
+          <p className="text-xs text-foreground-500 leading-snug mt-0.5">{progreso}</p>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-4">
-      <label
-        className={`flex items-center justify-center gap-3 w-full h-20 rounded-xl text-base font-semibold transition-colors ${
-          ocupado ? 'bg-background-200 text-foreground-400 pointer-events-none' : 'bg-primary-500 text-background-50 hover:bg-primary-600 cursor-pointer'
-        }`}
-      >
-        <i className="ri-camera-fill text-3xl"></i>
+    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-3 lg:p-4">
+      {/* Móvil: la cámara manda. */}
+      <label className="lg:hidden flex items-center justify-center gap-3 w-full h-[72px] rounded-xl text-base font-semibold bg-primary-500 text-background-50 active:bg-primary-600 cursor-pointer">
+        <i className="ri-camera-fill text-[28px]"></i>
         Foto del albarán
-        <input type="file" accept="image/*" capture="environment" onChange={elegir} disabled={ocupado} className="hidden" />
+        <input type="file" accept="image/*" capture="environment" onChange={elegir} className="hidden" />
       </label>
-      <div className="flex items-center justify-between gap-3 mt-3">
-        <p className="text-[11px] text-foreground-400 leading-snug">
-          Apoyado en algo plano, entero y ocupando casi toda la pantalla. Sin flash.
-        </p>
-        <label
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border flex-shrink-0 ${
-            ocupado ? 'text-foreground-300 border-background-200 pointer-events-none' : 'text-foreground-600 border-background-200/70 hover:bg-background-100 cursor-pointer'
-          }`}
-        >
+      {/* Ordenador: arrastrar y soltar o elegir el archivo. */}
+      <label className="hidden lg:flex flex-col items-center justify-center text-center gap-2 w-full rounded-xl border-2 border-dashed border-background-200 hover:border-primary-500/50 hover:bg-primary-500/[0.03] px-4 py-6 cursor-pointer transition-colors">
+        <span className="w-11 h-11 rounded-full bg-primary-500 text-background-50 flex items-center justify-center">
+          <i className="ri-upload-cloud-2-line text-xl"></i>
+        </span>
+        <span className="text-sm font-semibold text-foreground-950">Sube la foto o el PDF del albarán</span>
+        <span className="text-xs text-foreground-400">Arrástralo aquí o haz clic para elegirlo</span>
+        <input type="file" accept="image/*,application/pdf,.pdf" onChange={elegir} className="hidden" />
+      </label>
+      <div className="lg:hidden flex items-center justify-between gap-3 mt-2.5 px-1">
+        <p className="text-[11px] text-foreground-400 leading-snug">Plano, entero y sin flash.</p>
+        <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-medium border border-background-200/70 text-foreground-600 active:bg-background-100 cursor-pointer flex-shrink-0">
           <i className="ri-attachment-2"></i>
           Galería o PDF
-          <input type="file" accept="image/*,application/pdf,.pdf" onChange={elegir} disabled={ocupado} className="hidden" />
+          <input type="file" accept="image/*,application/pdf,.pdf" onChange={elegir} className="hidden" />
         </label>
       </div>
+      <p className="hidden lg:block text-[11px] text-foreground-400 text-center mt-2.5">
+        PDF con texto: se lee al instante. Fotos y escaneados: entre 10 s y 1 min.
+      </p>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Tarjeta de la lista                                                */
+/*  Resumen (columna izquierda en el ordenador)                        */
 /* ------------------------------------------------------------------ */
-function CompraCard({ compra, onAbrir }: { compra: Compra; onAbrir: () => void }) {
-  const estilo =
-    compra.estado === 'pendiente'
-      ? 'bg-amber-100/80 text-amber-700'
-      : compra.estado === 'confirmada'
-        ? 'bg-emerald-100/80 text-emerald-700'
-        : 'bg-foreground-200/70 text-foreground-500';
-  const etiqueta = compra.estado === 'pendiente' ? 'Por revisar' : compra.estado === 'confirmada' ? 'Confirmado' : 'Anulado';
+function Resumen({ compras }: { compras: Compra[] }) {
+  const pendientes = compras.filter((c) => c.estado === 'pendiente');
+  const listas = pendientes.filter((c) => situacion(c).etiqueta === 'Lista para confirmar').length;
+  const mes = hoyISO().slice(0, 7);
+  const confirmadasMes = compras.filter((c) => c.estado === 'confirmada' && c.fecha.startsWith(mes));
+  const cifra = (valor: string, texto: string, detalle?: string) => (
+    <div className="px-4 py-3">
+      <p className="text-[11px] font-medium text-foreground-400">{texto}</p>
+      <p className="text-lg font-semibold text-foreground-950 tabular-nums leading-tight mt-0.5">{valor}</p>
+      {detalle && <p className="text-[11px] text-foreground-500 mt-0.5">{detalle}</p>}
+    </div>
+  );
+  return (
+    <div className="hidden lg:block bg-background-50 border border-background-200/70 rounded-2xl shadow-card divide-y divide-background-200/70">
+      {cifra(
+        String(pendientes.length),
+        'Por revisar',
+        pendientes.length ? `${formatEUR(pendientes.reduce((t, c) => t + (c.total ?? 0), 0))} · ${listas} listos para confirmar` : 'Todo al día',
+      )}
+      {cifra(
+        formatEUR(confirmadasMes.reduce((t, c) => t + (c.total ?? 0), 0)),
+        'Compras confirmadas este mes',
+        `${confirmadasMes.length} ${confirmadasMes.length === 1 ? 'albarán' : 'albaranes'}`,
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Fila de la lista                                                   */
+/* ------------------------------------------------------------------ */
+function FilaCompra({ compra, onAbrir }: { compra: Compra; onAbrir: () => void }) {
+  const s = situacion(compra);
+  const chip = (
+    <span className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-medium ring-1 ring-inset whitespace-nowrap ${s.clase}`}>
+      <i className={`${s.icono} text-xs`}></i>
+      {s.etiqueta}
+    </span>
+  );
   return (
     <button
       type="button"
       onClick={onAbrir}
-      className="w-full text-left bg-background-50 border border-background-200/70 rounded-xl shadow-card hover:shadow-card-hover transition-shadow p-3 flex items-center gap-3"
+      className="group w-full text-left bg-background-50 hover:bg-background-100/60 border border-background-200/70 md:border-0 md:border-b md:last:border-b-0 rounded-xl md:rounded-none p-3 md:px-4 md:py-3 transition-colors"
     >
-      <div className="w-10 h-10 rounded-lg bg-background-100 flex items-center justify-center flex-shrink-0 text-foreground-400">
-        <i className="ri-file-list-3-line text-xl"></i>
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${estilo}`}>{etiqueta}</span>
-          <span className="text-[11px] text-foreground-400">{formatFecha(compra.fecha)}</span>
+      {/* Móvil */}
+      <div className="md:hidden">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-semibold text-foreground-950 truncate">{compra.proveedor || 'Proveedor sin leer'}</p>
+            <p className="text-xs text-foreground-500 truncate mt-0.5">{resumenProductos(compra)}</p>
+          </div>
+          <p className="text-[15px] font-semibold text-foreground-950 tabular-nums flex-shrink-0">{formatEUR(compra.total)}</p>
         </div>
-        <p className="text-sm font-semibold text-foreground-950 truncate mt-0.5">{compra.proveedor || 'Proveedor sin leer'}</p>
-        <p className="text-xs text-foreground-500">
-          {compra.lineas.length} {compra.lineas.length === 1 ? 'línea' : 'líneas'}
-          {compra.numero && <> · nº {compra.numero}</>}
-        </p>
+        <div className="flex items-center gap-2 mt-2">
+          {chip}
+          <span className="text-[11px] text-foreground-400 truncate">
+            {fechaRelativa(compra.fecha)}
+            {compra.numero && <> · nº {compra.numero}</>}
+          </span>
+        </div>
       </div>
-      <span className="text-sm font-semibold text-foreground-950 flex-shrink-0">{formatEUR(compra.total)}</span>
+      {/* Ordenador */}
+      <div className="hidden md:grid grid-cols-[88px_minmax(0,1fr)_170px_110px_20px] items-center gap-4">
+        <span className="text-xs text-foreground-500 tabular-nums">{fechaRelativa(compra.fecha)}</span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground-950 truncate">
+            {compra.proveedor || 'Proveedor sin leer'}
+            {compra.numero && <span className="ml-2 text-xs font-normal text-foreground-400">nº {compra.numero}</span>}
+          </p>
+          <p className="text-xs text-foreground-500 truncate">{resumenProductos(compra)}</p>
+        </div>
+        <span>{chip}</span>
+        <span className="text-sm font-semibold text-foreground-950 tabular-nums text-right">{formatEUR(compra.total)}</span>
+        <i className="ri-arrow-right-s-line text-foreground-300 group-hover:text-foreground-500"></i>
+      </div>
     </button>
   );
 }
@@ -366,16 +457,149 @@ function CompraEditor({
 
   const titulo = editable ? 'Revisar albarán' : compra.estado === 'confirmada' ? 'Albarán confirmado' : 'Albarán anulado';
   const textoLeido = compra.ocr_texto && !compra.ocr_texto.startsWith('No se pudo leer') ? compra.ocr_texto : null;
+  const sit = situacion(compra);
+
+  // Piezas de cada línea, compartidas por la tarjeta (móvil) y la fila (ordenador).
+  const infoLinea = (i: number) => {
+    const d = lineasDatos[i];
+    const completa = d.kg != null && d.precio != null && d.importe != null;
+    const s = d.producto_id ? sugerir(lineas[i].texto) : null;
+    return { completa, ok: lineaCuadra(d), motivo: s && s.id === d.producto_id ? s.motivo : null };
+  };
+  const iconoEstado = (ok: boolean) => (
+    <span
+      title={ok ? 'Kg × €/kg = importe' : 'Revisar'}
+      className={`w-[22px] h-[22px] rounded-full flex items-center justify-center flex-shrink-0 ${ok ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}
+    >
+      <i className={`${ok ? 'ri-check-line' : 'ri-error-warning-line'} text-xs`}></i>
+    </span>
+  );
+  const campoNum = (i: number, campo: 'kg' | 'precio' | 'importe', etiqueta: string, op: { compacto?: boolean; negrita?: boolean } = {}) => {
+    const input = (
+      <input
+        value={lineas[i][campo]}
+        onChange={(e) => cambiarLinea(i, { [campo]: e.target.value })}
+        inputMode="decimal"
+        disabled={!editable}
+        aria-label={etiqueta}
+        className={`w-full min-w-0 bg-background-100 border border-background-200/70 rounded-lg text-right tabular-nums focus:outline-none focus:border-foreground-300/60 focus:bg-background-50 ${
+          op.compacto ? 'h-9 px-2 text-sm' : 'px-2 py-2 text-base'
+        } ${op.negrita ? 'font-semibold' : ''}`}
+      />
+    );
+    if (op.compacto) return input;
+    return (
+      <label className="block min-w-0">
+        <span className="flex items-center gap-1 text-[10px] font-medium text-foreground-400 mb-0.5">
+          <PuntoColor tipo={campo} /> {etiqueta}
+        </span>
+        {input}
+      </label>
+    );
+  };
+  const selectProducto = (i: number, compacto = false) => {
+    const motivo = infoLinea(i).motivo;
+    return (
+    <div className="relative flex-1 min-w-0">
+      {!compacto && <i className="ri-store-2-line absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground-400 text-sm pointer-events-none"></i>}
+      <select
+        value={lineas[i].producto_id}
+        onChange={(e) => cambiarLinea(i, { producto_id: e.target.value })}
+        disabled={!editable}
+        aria-label="Producto nuestro"
+        title={
+          motivo === 'parecido'
+            ? 'Sugerido por el nombre: compruébalo esta primera vez'
+            : motivo === 'recordado'
+              ? 'Recordado de otras compras a este proveedor'
+              : undefined
+        }
+        className={`w-full bg-background-100 border rounded-lg text-sm focus:outline-none focus:border-foreground-300/60 ${
+          compacto ? 'h-9 px-2' : 'pl-8 pr-2 py-2'
+        } ${lineas[i].producto_id ? 'text-foreground-950' : 'text-foreground-400'} ${
+          motivo === 'parecido' ? 'border-amber-400 ring-2 ring-amber-200/70' : motivo === 'recordado' ? 'border-emerald-300' : 'border-background-200/70'
+        }`}
+      >
+        <option value="">Sin producto</option>
+        {productosOrdenados.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.nombre_es}
+          </option>
+        ))}
+      </select>
+    </div>
+    );
+  };
+  const botonStock = (i: number, compacto = false) => {
+    const l = lineas[i];
+    const activo = !!l.producto_id && l.sumar_stock;
+    return (
+      <button
+        type="button"
+        onClick={() => cambiarLinea(i, { sumar_stock: !l.sumar_stock })}
+        disabled={!editable || !l.producto_id}
+        aria-pressed={activo}
+        title={l.producto_id ? (activo ? 'Sumará estos kg al stock al confirmar' : 'No suma al stock') : 'Elige un producto para poder sumarlo al stock'}
+        className={`inline-flex items-center justify-center gap-1 rounded-full text-xs font-medium border flex-shrink-0 disabled:opacity-40 ${
+          compacto ? 'w-9 h-9' : 'h-9 px-3'
+        } ${activo ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-background-50 border-background-200/70 text-foreground-400'}`}
+      >
+        <i className={activo ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'}></i>
+        {!compacto && 'Stock'}
+      </button>
+    );
+  };
+  const botonQuitar = (i: number) =>
+    editable ? (
+      <button
+        type="button"
+        onClick={() => setLineas((p) => p.filter((_, k) => k !== i))}
+        aria-label="Quitar línea"
+        title="Quitar línea"
+        className="w-8 h-8 flex items-center justify-center rounded-full text-foreground-300 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
+      >
+        <i className="ri-delete-bin-line"></i>
+      </button>
+    ) : (
+      <span />
+    );
+  const sugeridos = lineas.filter((_, i) => infoLinea(i).motivo === 'parecido').length;
+
+  // Esc cierra (si la foto a pantalla completa está abierta, la cierra ella).
+  useEffect(() => {
+    const alPulsar = (e: KeyboardEvent) => e.key === 'Escape' && !visor && onClose();
+    window.addEventListener('keydown', alPulsar);
+    return () => window.removeEventListener('keydown', alPulsar);
+  }, [visor, onClose]);
+
+  const resumenCuadre = (
+    <>
+      <span className="font-semibold">{cuadra ? 'Cuadra' : totalNum == null ? 'Falta el total' : lineas.length === 0 ? 'Sin productos' : 'No cuadra'}</span>
+      <span className="opacity-90">
+        {' · '}Productos {formatEUR(suma)}
+        {cuadra ? ` + IVA y recargo ${impuestos.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %` : lineas.length === 0 ? ' · solo se apuntará el gasto' : ''}
+      </span>
+    </>
+  );
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-foreground-950/40 sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-foreground-950/40 sm:p-4 lg:p-6" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative flex flex-col w-full sm:max-w-[640px] max-h-[94vh] sm:max-h-[90vh] bg-background-50 rounded-t-2xl sm:rounded-lg border border-background-200/70 shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label={titulo}
+        className="relative flex flex-col w-full sm:max-w-[640px] md:max-w-3xl xl:max-w-[1360px] max-h-[94vh] sm:max-h-[92vh] xl:h-[92vh] bg-background-50 rounded-t-2xl sm:rounded-2xl border border-background-200/70 shadow-2xl overflow-hidden"
       >
-        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-background-200/70 flex-shrink-0">
+        <div className="flex items-center gap-3 px-4 sm:px-5 py-3 border-b border-background-200/70 flex-shrink-0">
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-heading font-semibold text-foreground-950">{titulo}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-heading font-semibold text-foreground-950 truncate">{titulo}</h2>
+              <span className={`hidden sm:inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-medium ring-1 ring-inset ${sit.clase}`}>
+                <i className={`${sit.icono} text-xs`}></i>
+                {sit.etiqueta}
+              </span>
+            </div>
             <p className="text-[11px] text-foreground-400 truncate">
               {proveedor || 'Proveedor sin leer'} · {formatFecha(fecha)}
             </p>
@@ -384,19 +608,47 @@ function CompraEditor({
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
+            title="Cerrar (Esc)"
             className="w-9 h-9 flex items-center justify-center rounded-full text-foreground-400 hover:bg-background-100 hover:text-foreground-950"
           >
             <i className="ri-close-line text-lg"></i>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-5">
-          {/* Foto con lo leído: se toca para verla entera. */}
+        <div className="flex-1 min-h-0 flex">
+        {/* Ordenador ancho: la foto siempre a la vista, al lado del formulario. */}
+        {(foto || compra.foto_path) && (
+          <aside className="hidden xl:flex flex-col w-[440px] flex-shrink-0 border-r border-background-200/70 bg-background-100/70">
+            <div className="flex-1 overflow-y-auto p-4">
+              {foto ? (
+                <button
+                  type="button"
+                  onClick={() => setVisor(true)}
+                  title="Ver a pantalla completa"
+                  className="block w-full overflow-hidden rounded-xl border border-background-200/70 bg-background-50 shadow-card cursor-zoom-in"
+                >
+                  <FotoMarcada src={foto} marcas={marcas} resto={false} />
+                </button>
+              ) : (
+                <div className="h-[60vh] rounded-xl bg-background-200/60 animate-pulse" />
+              )}
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2.5 border-t border-background-200/70 text-xs text-foreground-500">
+              <span className="flex-1">{marcas ? 'Los colores marcan de dónde sale cada dato.' : 'Foto del albarán'}</span>
+              <button type="button" onClick={() => setVisor(true)} className="inline-flex items-center gap-1 font-medium text-foreground-700 hover:text-foreground-950">
+                <i className="ri-fullscreen-line"></i> Ampliar
+              </button>
+            </div>
+          </aside>
+        )}
+
+        <div className="flex-1 min-w-0 overflow-y-auto px-4 sm:px-5 xl:px-6 py-4 space-y-5">
+          {/* Foto con lo leído: se toca para verla entera (móvil y tablet). */}
           {foto ? (
             <button
               type="button"
               onClick={() => setVisor(true)}
-              className="relative block w-full h-40 overflow-hidden rounded-2xl border border-background-200/70 bg-background-100 text-left"
+              className="xl:hidden relative block w-full h-40 md:h-48 overflow-hidden rounded-2xl border border-background-200/70 bg-background-100 text-left"
             >
               <FotoMarcada src={foto} marcas={marcas} resto={false} />
               <span className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-foreground-950/75 to-transparent" />
@@ -407,11 +659,11 @@ function CompraEditor({
               </span>
             </button>
           ) : compra.foto_path ? (
-            <div className="h-40 rounded-2xl bg-background-100 animate-pulse" />
+            <div className="xl:hidden h-40 rounded-2xl bg-background-100 animate-pulse" />
           ) : null}
 
           {/* Datos del albarán */}
-          <div className="grid grid-cols-2 gap-x-2 gap-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-3 gap-y-3">
             <label className="col-span-2 block">
               <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground-500 mb-1">
                 <PuntoColor tipo="proveedor" /> Proveedor
@@ -446,43 +698,54 @@ function CompraEditor({
 
           {/* Productos */}
           <section>
-            <h3 className="text-sm font-semibold text-foreground-950 mb-2">
-              Productos <span className="ml-1 text-xs font-medium text-foreground-400">{lineas.length}</span>
-            </h3>
-            {editable && (
-              <div className="flex gap-2 overflow-x-auto pb-1 mb-2 -mx-1 px-1">
-                {ReconocedorVoz && (
+            <div className="flex flex-wrap items-center gap-2 mb-2.5">
+              <h3 className="text-sm font-semibold text-foreground-950 mr-auto">
+                Productos <span className="ml-1 text-xs font-medium text-foreground-400">{lineas.length}</span>
+              </h3>
+              {editable && (
+                <div className="flex gap-2 overflow-x-auto -mx-1 px-1 w-full md:w-auto">
+                  {ReconocedorVoz && (
+                    <button
+                      type="button"
+                      onClick={dictar}
+                      disabled={escuchando}
+                      className={`inline-flex items-center gap-1.5 h-10 md:h-9 px-4 rounded-full text-xs font-semibold flex-shrink-0 ${
+                        escuchando ? 'bg-red-500 text-white animate-pulse' : 'bg-foreground-950 text-background-50 hover:bg-foreground-800'
+                      }`}
+                    >
+                      <i className="ri-mic-fill text-sm"></i>
+                      {escuchando ? 'Escuchando… «rape 4,64 a 21,50»' : 'Dictar'}
+                    </button>
+                  )}
+                  {anterior && (
+                    <button
+                      type="button"
+                      onClick={copiarAnterior}
+                      className="inline-flex items-center gap-1.5 h-10 md:h-9 px-4 rounded-full text-xs font-medium border bg-background-50 border-background-200/70 text-foreground-700 hover:bg-background-100 flex-shrink-0"
+                    >
+                      <i className="ri-history-line text-sm"></i>
+                      Igual que el {formatFecha(anterior.fecha)}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={dictar}
-                    disabled={escuchando}
-                    className={`inline-flex items-center gap-1.5 h-10 px-4 rounded-full text-xs font-semibold flex-shrink-0 ${
-                      escuchando ? 'bg-red-500 text-white animate-pulse' : 'bg-foreground-950 text-background-50 hover:bg-foreground-800'
-                    }`}
+                    onClick={() => setLineas((p) => [...p, { texto: '', kg: '', precio: '', importe: '', producto_id: '', sumar_stock: true }])}
+                    className="inline-flex items-center gap-1.5 h-10 md:h-9 px-4 rounded-full text-xs font-medium border bg-background-50 border-background-200/70 text-foreground-700 hover:bg-background-100 flex-shrink-0"
                   >
-                    <i className="ri-mic-fill text-sm"></i>
-                    {escuchando ? 'Escuchando… «rape 4,64 a 21,50»' : 'Dictar'}
+                    <i className="ri-add-line text-sm"></i>
+                    Añadir línea
                   </button>
-                )}
-                {anterior && (
-                  <button
-                    type="button"
-                    onClick={copiarAnterior}
-                    className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full text-xs font-medium border bg-background-50 border-background-200/70 text-foreground-700 hover:bg-background-100 flex-shrink-0"
-                  >
-                    <i className="ri-history-line text-sm"></i>
-                    Igual que el {formatFecha(anterior.fecha)}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setLineas((p) => [...p, { texto: '', kg: '', precio: '', importe: '', producto_id: '', sumar_stock: true }])}
-                  className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full text-xs font-medium border bg-background-50 border-background-200/70 text-foreground-700 hover:bg-background-100 flex-shrink-0"
-                >
-                  <i className="ri-add-line text-sm"></i>
-                  A mano
-                </button>
-              </div>
+                </div>
+              )}
+            </div>
+            {editable && sugeridos > 0 && (
+              <p className="flex items-start gap-2 mb-2.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+                <i className="ri-lightbulb-line text-sm leading-none mt-px"></i>
+                <span>
+                  {sugeridos === 1 ? 'Un producto está elegido' : `${sugeridos} productos están elegidos`} por parecido de nombre (borde naranja):
+                  compruébalos esta primera vez. Al confirmar se recuerdan y la próxima vez salen solos.
+                </span>
+              </p>
             )}
             {lineas.length === 0 && (
               <div className="flex flex-col items-center text-center gap-1 rounded-2xl border border-dashed border-background-200 p-5 text-foreground-400">
@@ -494,39 +757,15 @@ function CompraEditor({
                 </p>
               </div>
             )}
-            <div className="space-y-2.5">
+
+            {/* Móvil: una tarjeta por línea, con números grandes para el dedo. */}
+            <div className="md:hidden space-y-2.5">
               {lineas.map((l, i) => {
-                const d = lineasDatos[i];
-                const completa = d.kg != null && d.precio != null && d.importe != null;
-                const ok = completa && Math.abs(d.kg! * d.precio! - d.importe!) <= 0.06;
-                const s = d.producto_id ? sugerir(l.texto) : null;
-                const motivo = s && s.id === d.producto_id ? s.motivo : null;
-                const num = (campo: 'kg' | 'precio' | 'importe', etiqueta: string, negrita = false) => (
-                  <label className="block min-w-0">
-                    <span className="flex items-center gap-1 text-[10px] font-medium text-foreground-400 mb-0.5">
-                      <PuntoColor tipo={campo} /> {etiqueta}
-                    </span>
-                    <input
-                      value={l[campo]}
-                      onChange={(e) => cambiarLinea(i, { [campo]: e.target.value })}
-                      inputMode="decimal"
-                      disabled={!editable}
-                      className={`w-full min-w-0 px-2 py-2 bg-background-100 border border-background-200/70 rounded-lg text-base text-right tabular-nums focus:outline-none focus:border-foreground-300/60 ${
-                        negrita ? 'font-semibold' : ''
-                      }`}
-                    />
-                  </label>
-                );
+                const { ok, completa } = infoLinea(i);
                 return (
                   <div key={i} className={`rounded-2xl border p-3 ${ok ? 'border-background-200/70 bg-background-50' : 'border-amber-300 bg-amber-50/60'}`}>
                     <div className="flex items-center gap-2">
-                      <span
-                        className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          ok ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
-                        }`}
-                      >
-                        <i className={`${ok ? 'ri-check-line' : 'ri-error-warning-line'} text-sm`}></i>
-                      </span>
+                      {iconoEstado(ok)}
                       <PuntoColor tipo="producto" />
                       <input
                         value={l.texto}
@@ -535,75 +774,82 @@ function CompraEditor({
                         disabled={!editable}
                         className="flex-1 min-w-0 bg-transparent text-base font-semibold text-foreground-950 focus:outline-none"
                       />
-                      {editable && (
-                        <button
-                          type="button"
-                          onClick={() => setLineas((p) => p.filter((_, k) => k !== i))}
-                          aria-label="Quitar línea"
-                          className="w-8 h-8 flex items-center justify-center rounded-full text-foreground-300 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
-                        >
-                          <i className="ri-delete-bin-line"></i>
-                        </button>
-                      )}
+                      {botonQuitar(i)}
                     </div>
-
-                    {/* kg × €/kg = importe */}
                     <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-end gap-1.5 mt-2.5">
-                      {num('kg', 'Kg')}
+                      {campoNum(i, 'kg', 'Kg')}
                       <span className="pb-2.5 text-foreground-300 text-sm">×</span>
-                      {num('precio', '€/kg')}
+                      {campoNum(i, 'precio', '€/kg')}
                       <span className="pb-2.5 text-foreground-300 text-sm">=</span>
-                      {num('importe', 'Importe €', true)}
+                      {campoNum(i, 'importe', 'Importe €', { negrita: true })}
                     </div>
                     {!ok && (
                       <p className="text-[11px] text-amber-700 mt-1.5">
                         {completa ? 'Kg × €/kg no da el importe: revisa los números.' : 'Falta algún número.'}
                       </p>
                     )}
-
                     <div className="flex items-center gap-2 mt-2.5">
-                      <div className="relative flex-1 min-w-0">
-                        <i className="ri-store-2-line absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground-400 text-sm pointer-events-none"></i>
-                        <select
-                          value={l.producto_id}
-                          onChange={(e) => cambiarLinea(i, { producto_id: e.target.value })}
-                          disabled={!editable}
-                          className="w-full pl-8 pr-2 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm focus:outline-none"
-                        >
-                          <option value="">Sin producto</option>
-                          {productosOrdenados.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.nombre_es}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => cambiarLinea(i, { sumar_stock: !l.sumar_stock })}
-                        disabled={!editable || !l.producto_id}
-                        title={l.producto_id ? 'Sumar estos kg al stock al confirmar' : 'Elige un producto para poder sumarlo al stock'}
-                        className={`inline-flex items-center gap-1 h-9 px-3 rounded-full text-xs font-medium border flex-shrink-0 disabled:opacity-50 ${
-                          l.producto_id && l.sumar_stock
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                            : 'bg-background-50 border-background-200/70 text-foreground-400'
-                        }`}
-                      >
-                        <i className={l.producto_id && l.sumar_stock ? 'ri-checkbox-circle-fill' : 'ri-checkbox-blank-circle-line'}></i>
-                        Stock
-                      </button>
+                      {selectProducto(i)}
+                      {botonStock(i)}
                     </div>
-                    {motivo === 'recordado' && <p className="text-[10px] text-emerald-700 mt-1">Recordado de otras compras a este proveedor.</p>}
-                    {motivo === 'parecido' && <p className="text-[10px] text-amber-700 mt-1">Sugerido por el nombre: compruébalo esta primera vez.</p>}
                   </div>
                 );
               })}
             </div>
+
+            {/* Ordenador: tabla compacta, una fila por línea. */}
+            {lineas.length > 0 && (
+              <div className="hidden md:block rounded-xl border border-background-200/70 overflow-hidden">
+                <div className="grid grid-cols-[22px_minmax(0,1.25fr)_76px_12px_80px_12px_88px_minmax(0,1fr)_36px_32px] items-center gap-2 px-3 py-2 bg-background-100/70 text-[10px] font-semibold uppercase tracking-wide text-foreground-400">
+                  <span></span>
+                  <span className="flex items-center gap-1.5"><PuntoColor tipo="producto" /> En el albarán</span>
+                  <span className="flex items-center gap-1 justify-end"><PuntoColor tipo="kg" /> Kg</span>
+                  <span></span>
+                  <span className="flex items-center gap-1 justify-end"><PuntoColor tipo="precio" /> €/kg</span>
+                  <span></span>
+                  <span className="flex items-center gap-1 justify-end"><PuntoColor tipo="importe" /> Importe</span>
+                  <span>Producto nuestro</span>
+                  <span className="text-center" title="Sumar al stock al confirmar">Stock</span>
+                  <span></span>
+                </div>
+                {lineas.map((l, i) => {
+                  const { ok, completa } = infoLinea(i);
+                  return (
+                    <div key={i} className={`border-t border-background-200/70 px-3 py-2 ${ok ? '' : 'bg-amber-50/60'}`}>
+                      <div className="grid grid-cols-[22px_minmax(0,1.25fr)_76px_12px_80px_12px_88px_minmax(0,1fr)_36px_32px] items-center gap-2">
+                        {iconoEstado(ok)}
+                        <input
+                          value={l.texto}
+                          onChange={(e) => cambiarTexto(i, e.target.value)}
+                          placeholder="Producto"
+                          disabled={!editable}
+                          title={l.texto}
+                          className="w-full min-w-0 h-9 px-2 bg-transparent hover:bg-background-100 focus:bg-background-100 rounded-md text-sm font-medium text-foreground-950 focus:outline-none"
+                        />
+                        {campoNum(i, 'kg', 'Kg', { compacto: true })}
+                        <span className="text-center text-foreground-300 text-xs">×</span>
+                        {campoNum(i, 'precio', '€/kg', { compacto: true })}
+                        <span className="text-center text-foreground-300 text-xs">=</span>
+                        {campoNum(i, 'importe', 'Importe €', { compacto: true, negrita: true })}
+                        {selectProducto(i, true)}
+                        {botonStock(i, true)}
+                        {botonQuitar(i)}
+                      </div>
+                      {!ok && (
+                        <p className="pl-[30px] mt-0.5 text-[11px] text-amber-700">
+                          {completa ? 'Kg × €/kg no da el importe: revisa los números.' : 'Falta algún número.'}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           {/* Total y cuadre */}
-          <div className={`rounded-2xl p-4 ${cuadra ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
-            <div className="flex items-center gap-3">
+          <div className={`rounded-2xl p-4 md:flex md:items-center md:gap-4 ${cuadra ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+            <div className="flex items-center gap-3 md:flex-1 md:min-w-0">
               <span
                 className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                   cuadra ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
@@ -612,18 +858,20 @@ function CompraEditor({
                 <i className={`${cuadra ? 'ri-check-double-line' : 'ri-scales-3-line'} text-xl`}></i>
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold">{cuadra ? 'Cuadra' : totalNum == null ? 'Falta el total' : 'No cuadra'}</p>
+                <p className="font-semibold">{cuadra ? 'Cuadra' : totalNum == null ? 'Falta el total' : lineas.length === 0 ? 'Sin productos' : 'No cuadra'}</p>
                 <p className="text-xs opacity-90">
                   Productos {formatEUR(suma)}
                   {cuadra
                     ? ` + IVA y recargo ${impuestos.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %`
                     : totalNum == null
                       ? ' · escribe lo que pone el albarán'
-                      : ' · revisa los productos en naranja o el total'}
+                      : lineas.length === 0
+                        ? ' · solo se apuntará el gasto'
+                        : ' · revisa los productos en naranja o el total'}
                 </p>
               </div>
             </div>
-            <label className="mt-3 flex items-center gap-2 rounded-xl bg-background-50/80 px-3 py-2">
+            <label className="mt-3 md:mt-0 md:w-80 flex items-center gap-2 rounded-xl bg-background-50/80 px-3 py-2 ring-1 ring-inset ring-current/10">
               <PuntoColor tipo="total" />
               <span className="text-xs font-medium text-foreground-600 flex-shrink-0">Total pagado</span>
               <input
@@ -647,10 +895,18 @@ function CompraEditor({
 
           {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg p-2">{error}</p>}
         </div>
+        </div>
 
+        {editable && (
+          <p className={`md:hidden flex-shrink-0 border-t px-4 py-2 text-xs truncate ${cuadra ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
+            <i className={`${cuadra ? 'ri-check-double-line' : 'ri-scales-3-line'} mr-1`}></i>
+            {resumenCuadre}
+          </p>
+        )}
         <div className="flex items-center gap-2 px-4 sm:px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-background-200/70 flex-shrink-0">
           {editable ? (
             <>
+              <p className={`hidden md:block flex-1 min-w-0 truncate text-xs ${cuadra ? 'text-emerald-700' : 'text-amber-700'}`}>{resumenCuadre}</p>
               <button
                 type="button"
                 disabled={trabajando}
@@ -667,13 +923,13 @@ function CompraEditor({
                 onClick={() => ejecutar(() => datos.guardarCompra(compra.id, datosCompra()))}
                 className="h-11 px-4 rounded-full text-sm font-medium bg-background-100 border border-background-200/70 text-foreground-700 hover:bg-background-200/70 disabled:opacity-50"
               >
-                Guardar
+                Guardar<span className="hidden md:inline"> para luego</span>
               </button>
               <button
                 type="button"
                 disabled={trabajando}
                 onClick={confirmar}
-                className="flex-1 h-11 px-4 rounded-full text-sm font-semibold bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
+                className="flex-1 md:flex-none md:min-w-[200px] h-11 px-5 rounded-full text-sm font-semibold bg-primary-500 text-background-50 hover:bg-primary-600 disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
               >
                 <i className="ri-check-line text-base"></i>
                 {trabajando ? 'Guardando…' : 'Confirmar'}
@@ -716,9 +972,10 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
   const [progreso, setProgreso] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [abiertaId, setAbiertaId] = useState<string | null>(null);
+  const [filtro, setFiltro] = useState<'pendientes' | 'confirmadas' | 'anuladas' | 'todas'>('pendientes');
+  const [busqueda, setBusqueda] = useState('');
 
   const pendientes = datos.compras.filter((c) => c.estado === 'pendiente');
-  const historial = datos.compras.filter((c) => c.estado !== 'pendiente');
   const abierta = datos.compras.find((c) => c.id === abiertaId) ?? null;
 
   const procesarFoto = async (file: File) => {
@@ -802,45 +1059,148 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
     }
   };
 
-  return (
-    <div className="px-4 md:px-8 py-4 max-w-3xl mx-auto space-y-5">
-      <Camara onFoto={procesarFoto} ocupado={!!progreso} />
+  // Arrastrar y soltar la foto o el PDF en cualquier parte del panel (ordenador).
+  const [arrastrando, setArrastrando] = useState(false);
+  const soltar = (e: React.DragEvent) => {
+    e.preventDefault();
+    setArrastrando(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && !progreso && (file.type.startsWith('image/') || esPdf(file))) procesarFoto(file);
+  };
 
-      {progreso && (
-        <div className="flex items-center gap-3 bg-background-50 border border-background-200/70 rounded-xl p-3 text-sm text-foreground-600">
-          <i className="ri-loader-4-line animate-spin text-xl text-primary-500 flex-shrink-0"></i>
-          {progreso}
+  const cuentas = {
+    pendientes: pendientes.length,
+    confirmadas: datos.compras.filter((c) => c.estado === 'confirmada').length,
+    anuladas: datos.compras.filter((c) => c.estado === 'anulada').length,
+    todas: datos.compras.length,
+  };
+  const q = normalizarCompra(busqueda);
+  const visibles = datos.compras
+    .filter((c) =>
+      filtro === 'todas'
+        ? true
+        : filtro === 'pendientes'
+          ? c.estado === 'pendiente'
+          : filtro === 'confirmadas'
+            ? c.estado === 'confirmada'
+            : c.estado === 'anulada',
+    )
+    .filter((c) => !q || normalizarCompra([c.proveedor, c.numero, ...c.lineas.map((l) => l.texto)].join(' ')).includes(q))
+    .sort((a, b) =>
+      filtro === 'pendientes' ? b.created_at.localeCompare(a.created_at) : b.fecha.localeCompare(a.fecha) || b.created_at.localeCompare(a.created_at),
+    );
+  const PESTANAS: { valor: typeof filtro; texto: string; n: number }[] = [
+    { valor: 'pendientes', texto: 'Por revisar', n: cuentas.pendientes },
+    { valor: 'confirmadas', texto: 'Confirmados', n: cuentas.confirmadas },
+    { valor: 'anuladas', texto: 'Anulados', n: cuentas.anuladas },
+    { valor: 'todas', texto: 'Todos', n: cuentas.todas },
+  ];
+
+  return (
+    <div
+      className="relative px-4 md:px-6 lg:px-8 py-4 lg:py-6 max-w-[1400px] mx-auto"
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        setArrastrando(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setArrastrando(false);
+      }}
+      onDrop={soltar}
+    >
+      {arrastrando && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-primary-500/10 backdrop-blur-[1px]">
+          <div className="rounded-2xl border-2 border-dashed border-primary-500 bg-background-50 px-8 py-6 text-center shadow-2xl">
+            <i className="ri-upload-cloud-2-line text-3xl text-primary-500"></i>
+            <p className="mt-1 text-sm font-semibold text-foreground-950">Suelta para leer el albarán</p>
+          </div>
         </div>
       )}
-      {aviso && <p className="text-xs text-amber-800 bg-amber-50 rounded-xl p-3">{aviso}</p>}
 
-      <section>
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-foreground-400 mb-2">
-          Por revisar {pendientes.length > 0 && `(${pendientes.length})`}
-        </h2>
-        {datos.loading ? (
-          <p className="text-xs text-foreground-400">Cargando…</p>
-        ) : pendientes.length === 0 ? (
-          <p className="text-xs text-foreground-400">No hay albaranes pendientes.</p>
-        ) : (
-          <div className="space-y-2">
-            {pendientes.map((c) => (
-              <CompraCard key={c.id} compra={c} onAbrir={() => setAbiertaId(c.id)} />
-            ))}
-          </div>
-        )}
-      </section>
+      <div className="lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-6 lg:items-start space-y-4 lg:space-y-0">
+        <aside className="space-y-4 lg:sticky" style={{ top: 'calc(var(--admin-header-height, 0px) + 1.5rem)' }}>
+          <Captura onFoto={procesarFoto} progreso={progreso} />
+          {aviso && (
+            <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <i className="ri-error-warning-line text-base leading-none"></i>
+              <p className="flex-1">{aviso}</p>
+              <button type="button" onClick={() => setAviso(null)} aria-label="Cerrar aviso" className="text-amber-700 hover:text-amber-900">
+                <i className="ri-close-line"></i>
+              </button>
+            </div>
+          )}
+          <Resumen compras={datos.compras} />
+        </aside>
 
-      {historial.length > 0 && (
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-foreground-400 mb-2">Últimos albaranes</h2>
-          <div className="space-y-2">
-            {historial.slice(0, 40).map((c) => (
-              <CompraCard key={c.id} compra={c} onAbrir={() => setAbiertaId(c.id)} />
-            ))}
+        <section className="min-w-0">
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-3">
+            <div className="flex gap-1 p-1 rounded-full bg-background-100 border border-background-200/70 overflow-x-auto scrollbar-hide self-start max-w-full">
+              {PESTANAS.map((t) => (
+                <button
+                  key={t.valor}
+                  type="button"
+                  onClick={() => setFiltro(t.valor)}
+                  aria-pressed={filtro === t.valor}
+                  className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                    filtro === t.valor ? 'bg-background-50 text-foreground-950 shadow-card' : 'text-foreground-500 hover:text-foreground-950'
+                  }`}
+                >
+                  {t.texto}
+                  <span className={`tabular-nums text-[11px] ${filtro === t.valor ? 'text-foreground-500' : 'text-foreground-400'}`}>{t.n}</span>
+                </button>
+              ))}
+            </div>
+            <label className="relative md:ml-auto md:w-72">
+              <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm pointer-events-none"></i>
+              <input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar proveedor, nº o producto"
+                aria-label="Buscar albaranes"
+                className="w-full h-10 md:h-9 pl-9 pr-3 rounded-full bg-background-50 border border-background-200/70 text-sm focus:outline-none focus:border-foreground-300/60"
+              />
+            </label>
           </div>
+
+          {datos.loading ? (
+            <div className="space-y-2" aria-busy="true">
+              {[0, 1, 2].map((k) => (
+                <div key={k} className="h-[68px] rounded-xl bg-background-50 border border-background-200/70 animate-pulse" />
+              ))}
+            </div>
+          ) : visibles.length === 0 ? (
+            <div className="flex flex-col items-center text-center gap-2 rounded-2xl border border-dashed border-background-200 bg-background-50/60 px-6 py-12">
+              <span className="w-12 h-12 rounded-full bg-background-100 text-foreground-400 flex items-center justify-center">
+                <i className={`${q ? 'ri-search-line' : filtro === 'pendientes' ? 'ri-inbox-2-line' : 'ri-file-list-3-line'} text-xl`}></i>
+              </span>
+              <p className="text-sm font-semibold text-foreground-950">
+                {q ? 'Nada coincide con la búsqueda' : filtro === 'pendientes' ? 'No hay albaranes por revisar' : 'Todavía no hay albaranes aquí'}
+              </p>
+              <p className="text-xs text-foreground-500 max-w-xs">
+                {q
+                  ? 'Prueba con otro proveedor, número o producto.'
+                  : filtro === 'pendientes'
+                    ? 'Haz la foto del albarán (o sube el PDF) y aparecerá aquí, ya leído, para revisarlo y confirmarlo.'
+                    : 'Los albaranes confirmados y anulados se quedan aquí, con su foto.'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 md:space-y-0 md:rounded-2xl md:border md:border-background-200/70 md:bg-background-50 md:shadow-card md:overflow-hidden">
+              <div className="hidden md:grid grid-cols-[88px_minmax(0,1fr)_170px_110px_20px] gap-4 px-4 py-2 bg-background-100/70 border-b border-background-200/70 text-[10px] font-semibold uppercase tracking-wide text-foreground-400">
+                <span>Fecha</span>
+                <span>Proveedor y productos</span>
+                <span>Estado</span>
+                <span className="text-right">Total</span>
+                <span></span>
+              </div>
+              {visibles.slice(0, 100).map((c) => (
+                <FilaCompra key={c.id} compra={c} onAbrir={() => setAbiertaId(c.id)} />
+              ))}
+            </div>
+          )}
         </section>
-      )}
+      </div>
 
       {abierta && <CompraEditor key={abierta.id} compra={abierta} datos={datos} productos={productos} onClose={() => setAbiertaId(null)} />}
     </div>

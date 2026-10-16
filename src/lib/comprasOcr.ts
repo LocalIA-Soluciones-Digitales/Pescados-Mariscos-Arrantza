@@ -186,11 +186,42 @@ const DATOS_CLIENTE = /tamayo|huerta|arrantza|zorrilla|arana|barakaldo|baracaldo
 // de protección de datos), por si el nombre de la cabecera es un logo.
 const EMPRESA_EN_FRASE = /((?:[A-ZÁÉÍÓÚÑ][\wáéíóúñ.&'-]*\s+(?:y\s+|de\s+)?){1,5})(S\.\s?L\.?\s?U?\.?|S\.\s?A\.?|SL|SA)(?=[\s.,;]|$)/;
 
+// Proveedores de David en Mercabilbao (sacados de sus albaranes). El CIF
+// casi siempre se lee bien aunque el nombre salga destrozado («ANMAT2A
+// 007128882, 8.5. - B48077069» es Arraiza); las pistas se buscan solo en
+// la cabecera, porque la letra pequeña puede nombrar a otra empresa.
+export const PROVEEDORES_CONOCIDOS: { nombre: string; cif?: string; pistas: string[] }[] = [
+  { nombre: 'Pescados y Mariscos Adelaida, S.L.', cif: 'B95719746', pistas: ['adelaida'] },
+  { nombre: 'Arraiza Gutiérrez, S.L.', cif: 'B48077069', pistas: ['arraiza', 'pescadosarraiza'] },
+  { nombre: 'Arrainko Anaiak, S.L.', cif: 'B75560151', pistas: ['arrainko'] },
+  { nombre: 'Pescados Bizkaimar, S.L.U.', cif: 'B95750824', pistas: ['bizkaimar'] },
+  { nombre: 'Las Capotinas, S.A.', pistas: ['capotinas'] },
+  { nombre: 'Conifres, S.L.', cif: 'B48482376', pistas: ['conifres'] },
+  { nombre: 'José Crespo, S.A.', cif: 'A48102883', pistas: ['jose crespo', 'crespopescados'] },
+  { nombre: 'Pescados y Mariscos Gaizka, S.L.', cif: 'B95091203', pistas: ['gaizka'] },
+  { nombre: 'Pérez Viñas Comercial, S.L.', pistas: ['perez vinas', 'perez vins', 'perez vinns'] },
+  { nombre: 'Pescados Triana, S.A.', cif: 'A48161715', pistas: ['triana'] },
+  { nombre: 'Pescados Txalupa, S.L.', cif: 'B95681201', pistas: ['txalupa'] },
+];
+
+function proveedorConocido(filas: string[]): string | null {
+  const todo = filas.join(' ').toUpperCase().replace(/[\s.-]/g, '');
+  const porCif = PROVEEDORES_CONOCIDOS.find((p) => p.cif && todo.includes(p.cif));
+  if (porCif) return porCif.nombre;
+  const cabecera = normalizarCompra(filas.slice(0, 12).join(' '));
+  return PROVEEDORES_CONOCIDOS.find((p) => p.pistas.some((k) => cabecera.includes(k)))?.nombre ?? null;
+}
+
 function leerProveedor(filas: string[]): string | null {
+  const conocido = proveedorConocido(filas);
+  if (conocido) return conocido;
   const limpiar = (t: string) => t.replace(/\s*-\s*[A-Z]-?\d{7,8}\s*$/, '').replace(/[.\s]+$/, (m) => (m.includes('.') ? '.' : '')).replace(/\s+/g, ' ').trim();
   const trozos = filas.slice(0, 14).flatMap((l) => l.split(/\s{2,}/));
   const valido = (t: string) =>
-    /[a-z]{3,}/i.test(t) && !/\d/.test(t) && !DATOS_CLIENTE.test(t) && !/asociaci|asentadores|cliente|albar[aá]n|factura|fecha|tel[eé]?f|e-?mail|@/i.test(t);
+    /[a-z]{3,}/i.test(t) &&
+    !/\d/.test(t) &&
+    !DATOS_CLIENTE.test(t) &&
+    !/asociaci|asentadores|cliente|albar[aá]n|factura|fecha|tel[eé]?f|e-?mail|@|www|\.(com|es|net|org|eus)\b/i.test(t);
   const conSufijo = (t: string) =>
     t.trim().split(/\s+/).length <= 7 && SUFIJO_EMPRESA.test(t + ' ') && /[a-z]{3,}/i.test(t) && !DATOS_CLIENTE.test(t) && !/@/.test(t);
   const cabecera = trozos.find(conSufijo);

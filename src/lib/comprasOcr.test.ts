@@ -70,7 +70,8 @@ describe('leerAlbaran', () => {
         'Credito acumulado total. 1.520,62',
       ]),
     );
-    expect(a.proveedor).toBe('JOSE CRESPO, S.A.');
+    // Por el CIF (A48102883): nombre de la lista de proveedores conocidos.
+    expect(a.proveedor).toBe('José Crespo, S.A.');
     expect(a.fecha).toBe('2026-09-11');
     expect(a.lineas).toEqual([
       { texto: 'FILETE BACALAO G', kg: 10, precio: 15.3, importe: 153, estado: 'ok' },
@@ -159,20 +160,30 @@ describe('proveedor', () => {
         'CLIENTE DE EJEMPLO',
         'Kalea,7,pb-II',
         'MERCABILBAO Bº Ibarreta, 1 Puesto 118 - 48970 Basauri (Bizkaia)',
-        'email: pymgaizka@gmail.com',
+        'email: pescadosejemplo@gmail.com',
         'Descripción       Unidades     Precio     Importe(EUR)',
         'Albarán nº  G /  915.874  de fecha  08/10/2026',
         'LENGUADO     0,950     48,000     45,60',
         'Base IVA   %IVA   Cuota IVA',
         '45,60   10,00   4,56   1,40   0,64',
         'Líquido(EUR):   50,80',
-        'serán tratados en los ficheros titularidad de Pescados y Mariscos Gaizka S.L.. con el fin de',
+        'serán tratados en los ficheros titularidad de Pescados y Mariscos Ejemplo S.L.. con el fin de',
       ]),
     );
-    expect(a.proveedor).toBe('Pescados y Mariscos Gaizka S.L.');
+    expect(a.proveedor).toBe('Pescados y Mariscos Ejemplo S.L.');
     expect(a.numero).toBe('915.874');
     expect(a.lineas).toEqual([{ texto: 'LENGUADO', kg: 0.95, precio: 48, importe: 45.6, estado: 'ok' }]);
     expect(a.total).toBe(50.8);
+  });
+
+  it('un proveedor conocido se reconoce por el CIF aunque el nombre salga destrozado', () => {
+    const a = leerAlbaran(cajas(['ANMAT2A 007128882, 8.5. - B48077069', 'Mercabilbao, Pusto 124 - 48970 Basaur', 'infodperecadoearrasss.com']));
+    expect(a.proveedor).toBe('Arraiza Gutiérrez, S.L.');
+  });
+
+  it('sin CIF ni nombre, nunca toma una dirección web como proveedor', () => {
+    const a = leerAlbaran(cajas(['XQ 0071 8.5.', 'infodperecadoearrasss.com', 'Pescados del Puerto']));
+    expect(a.proveedor).toBe('Pescados del Puerto');
   });
 
   it('una fila sin nombre cuyo precio se ha corregido también cuenta', () => {
