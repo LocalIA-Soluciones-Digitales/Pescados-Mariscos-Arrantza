@@ -150,6 +150,47 @@ describe('leerAlbaran', () => {
     expect(a.lineas).toEqual([]);
     expect(a.total).toBe(31.94);
   });
+
+  it('el ticket es un albarán y no nombra otros albaranes', () => {
+    const a = leerAlbaran(cajas(TICKET));
+    expect(a.tipo).toBe('albaran');
+    expect(a.albaranes).toEqual([]);
+  });
+});
+
+describe('facturas', () => {
+  it('factura que nombra sus albaranes: nº de factura y lista de albaranes', () => {
+    const a = leerAlbaran(
+      cajas([
+        'PESCADOS Y MARISCOS ADELAIDA, S.L.   B95719746',
+        'FACTURA   A26 / 2905   Fecha 16/10/2026',
+        'Albarán A26 / 5040 de 14/10/2026',
+        'ARTICULO          KG    EUR/KG     IMPORTE',
+        'MERLUZA PINCHO    10,000    9,80    98,00',
+        'Albarán A26 / 5055 de 16/10/2026',
+        'RAPE BLANCO G     6,000    14,50     87,00',
+        'BASE IMPONIBLE: 185,00',
+        'TOTAL FACTURA: 206,09',
+      ]),
+    );
+    expect(a.tipo).toBe('factura');
+    expect(a.numero).toBe('A26 / 2905');
+    expect(a.albaranes).toEqual(['A26 / 5040', 'A26 / 5055']);
+    expect(a.fecha).toBe('2026-10-16');
+  });
+
+  it('un albarán que menciona «factura» en la letra pequeña sigue siendo albarán', () => {
+    const a = leerAlbaran(cajas(['PESCADOS TRIANA, S.A.', 'ALBARAN Nº 11784', 'ARTICULO   KG   PRECIO   IMPORTE', 'Este documento no es factura']));
+    expect(a.tipo).toBe('albaran');
+    expect(a.numero).toBe('11784');
+  });
+
+  it('factura TicketBAI sin albaranes: el nº es el de la factura', () => {
+    const a = leerAlbaran(cajas(['PESCADOS Y MARISCOS GAIZKA S.L.', 'FACTURA SIMPLIFICADA Nº: F26-00889', 'TOTAL 312,40']));
+    expect(a.tipo).toBe('factura');
+    expect(a.numero).toBe('F26-00889');
+    expect(a.albaranes).toEqual([]);
+  });
 });
 
 describe('proveedor', () => {

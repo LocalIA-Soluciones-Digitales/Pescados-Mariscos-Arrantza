@@ -30,3 +30,6 @@ verify_jwt = false
 
 [functions.bascula-copiar]
 verify_jwt = false
+
+[functions.compras-correo]
+verify_jwt = false

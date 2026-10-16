@@ -18,6 +18,7 @@ import BasculasPanel from './BasculasPanel';
 import ComprasPanel from './ComprasPanel';
 import { useBasculasCambios } from '@/hooks/useBasculasCambios';
 import { useCompras } from '@/hooks/useCompras';
+import { useCorreoCompras } from '@/hooks/useCorreoCompras';
 import {
   HOY_INFO_ITEMS,
   VENTAS_INFO_ITEMS,
@@ -270,6 +271,8 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
   const basculas = useBasculasCambios();
   // Albaranes de compra: aquí por el contador de «por revisar» de la pestaña.
   const compras = useCompras();
+  // Facturas que llegan por email: se leen y guardan solas con el panel abierto.
+  const correoCompras = useCorreoCompras(compras, productos);
   const comprasPendientes = useMemo(() => compras.compras.filter((c) => c.estado === 'pendiente').length, [compras.compras]);
   const { resenas, loading: loadingResenas } = useResenas();
   const { reservas, loading: loadingReservas } = useReservas();
@@ -496,7 +499,7 @@ export default function AdminDashboard({ onSignOut, viewSwitch }: { onSignOut: (
           onNavigate={setTab}
         />
       ) : tab === 'compras' ? (
-        <ComprasPanel datos={compras} productos={productos} />
+        <ComprasPanel datos={compras} productos={productos} correo={correoCompras} />
       ) : tab === 'ventas' ? (
         <VentasPanel />
       ) : tab === 'caja' ? (

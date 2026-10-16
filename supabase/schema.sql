@@ -3595,7 +3595,8 @@ begin
     raise exception 'Falta el total del albarán';
   end if;
 
-  v_ref := 'Compra ' || coalesce(c.proveedor, 'sin proveedor') || coalesce(' nº ' || c.numero, '');
+  v_ref := case when c.tipo = 'factura' then 'Factura ' else 'Compra ' end
+    || coalesce(c.proveedor, 'sin proveedor') || coalesce(' nº ' || c.numero, '');
 
   insert into public.caja_movimientos (cliente_id, fecha, tipo, concepto, importe, foto_url, origen)
   values (c.cliente_id, c.fecha, 'gasto_factura', v_ref, c.total, 'compras/' || c.foto_path, null)
@@ -3689,5 +3690,107 @@ begin
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'compras'
   ) then
     alter publication supabase_realtime add table public.compras;
+  end if;
+end $$;
+
+-- ============================================================
+-- Compras por correo: facturas y albaranes en PDF que llegan al email
+-- David reenvía las facturas de los proveedores a soporte.localia@gmail.com;
+-- un Apps Script de esa cuenta (scripts/gmail-compras-correo.gs) manda
+-- cada adjunto a la Edge Function compras-correo, que lo guarda en el
+-- bucket 'compras' y lo apunta aquí como 'nuevo'. El panel (useCorreoCompras)
+-- lo lee con el mismo lector de las fotos y, si no está ya guardado
+-- (comprasCoincidencias.ts), crea la compra «por revisar».
+-- ============================================================
+
+-- tipo: una factura puede cubrir varios albaranes (los nº en `albaranes`).
+-- origen: 'email' si entró sola desde el correo. nota: por qué cuenta lo
+-- que cuenta (p. ej. solo la diferencia de una factura semanal).
+alter table public.compras add column if not exists tipo text not null default 'albaran'
+  check (tipo in ('albaran', 'factura'));
+alter table public.compras add column if not exists origen text not null default 'foto'
+  check (origen in ('foto', 'email'));
+alter table public.compras add column if not exists albaranes text[] not null default '{}';
+alter table public.compras add column if not exists nota text;
+
+create table if not exists public.compras_correo (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  -- Id del mensaje de Gmail y nº de adjunto: no se recoge dos veces.
+  mensaje_id text not null,
+  adjunto int not null default 0,
+  nombre text not null,
+  tipo_mime text not null,
+  remitente text,
+  -- Quien lo mandó de verdad (el proveedor), sacado del reenvío.
+  remitente_original text,
+  asunto text,
+  recibido timestamptz,
+  -- Ruta del PDF/foto original en el bucket 'compras'.
+  archivo_path text not null,
+  -- nuevo → leyendo (un panel lo ha cogido) → metido | repetido | error.
+  estado text not null default 'nuevo'
+    check (estado in ('nuevo', 'leyendo', 'metido', 'repetido', 'error')),
+  -- La compra creada ('metido') o la que ya lo contenía ('repetido').
+  compra_id uuid references public.compras (id) on delete set null,
+  nota text,
+  tomado_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (cliente_id, mensaje_id, adjunto)
+);
+
+drop trigger if exists trg_compras_correo_updated_at on public.compras_correo;
+create trigger trg_compras_correo_updated_at
+  before update on public.compras_correo
+  for each row execute function public.set_updated_at();
+
+create index if not exists idx_compras_correo_estado on public.compras_correo (cliente_id, estado, created_at desc);
+
+alter table public.compras_correo enable row level security;
+
+drop policy if exists "compras_correo_admin" on public.compras_correo;
+create policy "compras_correo_admin"
+  on public.compras_correo for all
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+-- Los PDF del correo van al mismo bucket privado.
+update storage.buckets
+set allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+    file_size_limit = 10485760
+where id = 'compras';
+
+-- Aviso al móvil de los desarrolladores (en pruebas; luego, a David con
+-- enviar_push) cuando entra un documento por correo.
+create or replace function public.trg_compras_correo_aviso()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  perform public.enviar_push_desarrollador(
+    new.cliente_id,
+    'Compra por correo',
+    coalesce(nullif(new.remitente_original, ''), new.remitente, 'Correo') || ': ' || new.nombre,
+    'compras-correo',
+    '/admin?tab=compras'
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_compras_correo_aviso on public.compras_correo;
+create trigger trg_compras_correo_aviso
+  after insert on public.compras_correo
+  for each row execute function public.trg_compras_correo_aviso();
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'compras_correo'
+  ) then
+    alter publication supabase_realtime add table public.compras_correo;
   end if;
 end $$;

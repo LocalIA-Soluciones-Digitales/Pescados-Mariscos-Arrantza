@@ -9,9 +9,13 @@ const BUCKET = 'compras';
 const MAX_ROWS = 300;
 // Todo menos ocr_marcas (unos KB por albarán), que solo se pide al abrir uno.
 const COLUMNAS =
-  'id, cliente_id, estado, fecha, proveedor, numero, total, lineas, foto_path, ocr_texto, caja_movimiento_id, confirmada_at, created_at, updated_at';
+  'id, cliente_id, estado, tipo, origen, albaranes, nota, fecha, proveedor, numero, total, lineas, foto_path, ocr_texto, caja_movimiento_id, confirmada_at, created_at, updated_at';
 
 export interface NuevaCompraInput {
+  tipo?: Compra['tipo'];
+  origen?: Compra['origen'];
+  albaranes?: string[];
+  nota?: string | null;
   fecha: string;
   proveedor: string | null;
   numero: string | null;

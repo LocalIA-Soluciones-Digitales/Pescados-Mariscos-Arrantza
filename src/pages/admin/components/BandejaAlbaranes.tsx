@@ -9,7 +9,8 @@ import type { CompraLinea } from '@/types/compra';
 import { leerAlbaran, unificarProveedor, type AlbaranLeido } from '@/lib/comprasOcr';
 import { NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
 import { calcularMarcas } from '@/lib/comprasMarcas';
-import { agruparHojas, buscarRepetida } from '@/lib/comprasHojas';
+import { agruparHojas } from '@/lib/comprasHojas';
+import { buscarCoincidencia, describirCoincidencia } from '@/lib/comprasCoincidencias';
 import { juntarHojas } from '@/lib/comprasBandeja';
 import type { Bandeja, HojaBandeja as Hoja } from '@/hooks/useBandeja';
 
@@ -53,8 +54,30 @@ export function BandejaAlbaranes({
       const proveedor = unificarProveedor(leidos.find((l) => l.proveedor)?.proveedor ?? null, conocidos);
       const numero = leidos.find((l) => l.numero)?.numero ?? null;
       const total = [...leidos].reverse().find((l) => l.total != null)?.total ?? null;
-      const repetida = buscarRepetida(datos.compras, proveedor, numero);
-      return { hojas: g, proveedor, numero, total, lineas: leidos.reduce((t, l) => t + l.lineas.length, 0), repetida, saltar: !!repetida && !forzadas.has(g[0].id) };
+      // ¿Ya está guardado? El mismo albarán (papel + PDF del email) o dentro
+      // de una factura que ya llegó por correo (albarán a mano).
+      const coincide = buscarCoincidencia(
+        {
+          tipo: leidos.some((l) => l.tipo === 'factura') ? 'factura' : 'albaran',
+          proveedor,
+          numero,
+          fecha: leidos.find((l) => l.fecha)?.fecha ?? hoyISO(),
+          total,
+          albaranes: [...new Set(leidos.flatMap((l) => l.albaranes))],
+        },
+        datos.compras,
+      );
+      const repetida = coincide && coincide.tipo !== 'parcial' && coincide.tipo !== 'posible' ? coincide : null;
+      return {
+        hojas: g,
+        proveedor,
+        numero,
+        total,
+        lineas: leidos.reduce((t, l) => t + l.lineas.length, 0),
+        coincide,
+        repetida,
+        saltar: !!repetida && !forzadas.has(g[0].id),
+      };
     });
   }, [hojas, conocidos, datos.compras, forzadas]);
 
@@ -83,11 +106,15 @@ export function BandejaAlbaranes({
           sumar_stock: !NO_PRODUCTO.test(l.texto),
         }));
         const fallo = leidas.find((h) => h.fallo)?.fallo ?? null;
+        const c = g.coincide && !g.saltar ? g.coincide : null;
         const compra = await datos.crearCompra({
+          tipo: a.tipo,
+          albaranes: a.albaranes,
+          nota: c ? describirCoincidencia(c, formatFecha) : null,
           fecha: a.fecha ?? hoyISO(),
           proveedor,
           numero: a.numero,
-          total: a.total,
+          total: c?.tipo === 'parcial' ? c.resto : a.total,
           lineas,
           ocr_texto: fallo && !junto.cajas.length ? `No se pudo leer: ${fallo}` : a.texto.join('\n'),
           ocr_marcas: junto.cajas.length ? calcularMarcas(junto.cajas, a, junto.ancho, junto.alto) : null,
@@ -217,10 +244,15 @@ export function BandejaAlbaranes({
                 className="mt-0.5"
               />
               <span>
-                Ya está guardado (nº {g.repetida.numero} del {formatFecha(g.repetida.fecha)}): el papel y el PDF del email son el mismo albarán. No se
-                guardará otra vez salvo que marques esta casilla.
+                {describirCoincidencia(g.repetida, formatFecha)} No se guardará otra vez salvo que marques esta casilla.
               </span>
             </label>
+          )}
+          {g.coincide && !g.repetida && (
+            <p className="mt-2 flex items-start gap-2 text-[11px] text-amber-800">
+              <i className="ri-error-warning-line mt-0.5"></i>
+              <span>{describirCoincidencia(g.coincide, formatFecha)}</span>
+            </p>
           )}
         </div>
       ))}

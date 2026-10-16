@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { useCompras } from '@/hooks/useCompras';
-import type { Compra, CompraLinea } from '@/types/compra';
+import type { Compra, CompraCorreo, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
 import { normalizarCompra, sumaLineas } from '@/lib/comprasOcr';
 import { leerDictado, NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
 import { esPdf } from '@/lib/comprasPdf';
 import type { MarcasAlbaran } from '@/lib/comprasMarcas';
-import { buscarRepetida } from '@/lib/comprasHojas';
+import { buscarCoincidencia, describirCoincidencia } from '@/lib/comprasCoincidencias';
+import type { CorreoCompras } from '@/hooks/useCorreoCompras';
 import { useBandeja } from '@/hooks/useBandeja';
 import { BandejaAlbaranes } from './BandejaAlbaranes';
 import { FotoMarcada, PuntoColor, VisorAlbaran } from './AlbaranLeido';
@@ -214,6 +215,17 @@ function Resumen({ compras }: { compras: Compra[] }) {
 /* ------------------------------------------------------------------ */
 /*  Fila de la lista                                                   */
 /* ------------------------------------------------------------------ */
+function Marcas({ compra }: { compra: Compra }) {
+  return (
+    <>
+      {compra.tipo === 'factura' && (
+        <span className="ml-1.5 inline-flex items-center h-5 px-1.5 rounded-md bg-sky-50 text-sky-700 text-[10px] font-semibold align-middle">FACTURA</span>
+      )}
+      {compra.origen === 'email' && <i title="Llegó por correo" className="ri-mail-line ml-1.5 text-xs text-foreground-400 align-middle"></i>}
+    </>
+  );
+}
+
 function FilaCompra({ compra, onAbrir }: { compra: Compra; onAbrir: () => void }) {
   const s = situacion(compra);
   const chip = (
@@ -232,7 +244,10 @@ function FilaCompra({ compra, onAbrir }: { compra: Compra; onAbrir: () => void }
       <div className="md:hidden">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-semibold text-foreground-950 truncate">{compra.proveedor || 'Proveedor sin leer'}</p>
+            <p className="text-[15px] font-semibold text-foreground-950 truncate">
+              {compra.proveedor || 'Proveedor sin leer'}
+              <Marcas compra={compra} />
+            </p>
             <p className="text-xs text-foreground-500 truncate mt-0.5">{resumenProductos(compra)}</p>
           </div>
           <p className="text-[15px] font-semibold text-foreground-950 tabular-nums flex-shrink-0">{formatEUR(compra.total)}</p>
@@ -252,6 +267,7 @@ function FilaCompra({ compra, onAbrir }: { compra: Compra; onAbrir: () => void }
           <p className="text-sm font-semibold text-foreground-950 truncate">
             {compra.proveedor || 'Proveedor sin leer'}
             {compra.numero && <span className="ml-2 text-xs font-normal text-foreground-400">nº {compra.numero}</span>}
+            <Marcas compra={compra} />
           </p>
           <p className="text-xs text-foreground-500 truncate">{resumenProductos(compra)}</p>
         </div>
@@ -432,7 +448,16 @@ function CompraEditor({
     }
   };
 
-  const repetida = buscarRepetida(datos.compras, proveedor.trim() || null, numero.trim() || null, compra.id);
+  // ¿Ya está contado? Solo frente a lo que entró antes (cuenta el primero):
+  // la factura que llega después ya descontó este albarán al guardarse.
+  const coincide = editable
+    ? buscarCoincidencia(
+        { tipo: compra.tipo, proveedor: proveedor.trim() || null, numero: numero.trim() || null, fecha, total: totalNum, albaranes: compra.albaranes },
+        datos.compras.filter((c) => c.created_at < compra.created_at),
+        compra.id,
+      )
+    : null;
+  const repetida = coincide && coincide.tipo !== 'parcial' && coincide.tipo !== 'posible' ? coincide : null;
 
   const confirmar = () => {
     if (!totalNum || totalNum <= 0) {
@@ -444,14 +469,21 @@ function CompraEditor({
       `Se apuntará un gasto de ${formatEUR(totalNum)} en Contabilidad` +
       (alStock.length ? ` y se sumarán ${aTexto(Math.round(kg * 100) / 100)} kg al stock de ${alStock.length} producto(s).` : '.') +
       (cuadra ? '' : '\n\nOjo: la suma de las líneas no cuadra con el total.') +
-      (repetida
-        ? `\n\nOjo: ya hay otro albarán ${repetida.estado === 'confirmada' ? 'confirmado' : 'por revisar'} con el nº ${repetida.numero} (${formatFecha(repetida.fecha)}). Si es el mismo (papel y PDF del email), no lo confirmes dos veces.`
-        : '');
+      (repetida ? `\n\nOjo: ${describirCoincidencia(repetida, formatFecha)} No lo confirmes dos veces.` : '');
     if (!confirm(msg)) return;
     ejecutar(() => datos.confirmarCompra(compra.id, datosCompra()));
   };
 
-  const titulo = editable ? 'Revisar albarán' : compra.estado === 'confirmada' ? 'Albarán confirmado' : 'Albarán anulado';
+  const doc = compra.tipo === 'factura' ? 'factura' : 'albarán';
+  const titulo = editable
+    ? `Revisar ${doc}`
+    : compra.estado === 'confirmada'
+      ? compra.tipo === 'factura'
+        ? 'Factura confirmada'
+        : 'Albarán confirmado'
+      : compra.tipo === 'factura'
+        ? 'Factura anulada'
+        : 'Albarán anulado';
   const textoLeido = compra.ocr_texto && !compra.ocr_texto.startsWith('No se pudo leer') ? compra.ocr_texto : null;
   const sit = situacion(compra);
 
@@ -658,6 +690,22 @@ function CompraEditor({
             <div className="xl:hidden h-40 rounded-2xl bg-background-100 animate-pulse" />
           ) : null}
 
+          {(repetida || compra.nota || compra.origen === 'email') && (
+            <div className={`flex items-start gap-2 rounded-xl p-3 text-xs ${repetida ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>
+              <i className={`${compra.origen === 'email' ? 'ri-mail-line' : 'ri-error-warning-line'} text-base leading-none`}></i>
+              <div className="space-y-1">
+                {compra.origen === 'email' && (
+                  <p>
+                    Ha llegado por correo
+                    {compra.tipo === 'factura' && compra.albaranes.length ? ` · factura de los albaranes ${compra.albaranes.join(', ')}` : ''}.
+                  </p>
+                )}
+                {compra.nota && <p>{compra.nota}</p>}
+                {repetida && <p className="font-semibold">{describirCoincidencia(repetida, formatFecha)} No lo confirmes dos veces.</p>}
+              </div>
+            </div>
+          )}
+
           {/* Datos del albarán */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 md:gap-x-3 gap-y-3">
             <label className="col-span-2 block">
@@ -686,7 +734,7 @@ function CompraEditor({
             </label>
             <label className="block">
               <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground-500 mb-1">
-                <PuntoColor tipo="numero" /> Nº albarán
+                <PuntoColor tipo="numero" /> Nº {doc}
               </span>
               <input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Opcional" disabled={!editable} className={inputCls} />
             </label>
@@ -962,6 +1010,87 @@ function CompraEditor({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Lo que llega por correo                                            */
+/* ------------------------------------------------------------------ */
+const ESTADO_CORREO: Record<CompraCorreo['estado'], { texto: string; clase: string }> = {
+  nuevo: { texto: 'En cola', clase: 'bg-background-100 text-foreground-500' },
+  leyendo: { texto: 'Leyendo…', clase: 'bg-sky-50 text-sky-700' },
+  metido: { texto: 'Guardado', clase: 'bg-emerald-50 text-emerald-700' },
+  repetido: { texto: 'Ya estaba', clase: 'bg-background-100 text-foreground-600' },
+  error: { texto: 'Error', clase: 'bg-red-50 text-red-700' },
+};
+
+// «Pescados Arraiza <noresponder@…>» → «Pescados Arraiza».
+const quien = (c: CompraCorreo) => (c.remitente_original ?? c.remitente ?? '').replace(/\s*<[^>]*>\s*/g, '').trim() || c.nombre;
+
+function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: Compra[]; onAbrir: (id: string) => void }) {
+  const [todos, setTodos] = useState(false);
+  if (!correo.correo.length) return null;
+  const lista = todos ? correo.correo : correo.correo.slice(0, 6);
+  const existe = (id: string | null) => !!id && compras.some((c) => c.id === id);
+  const verArchivo = async (c: CompraCorreo) => {
+    const url = await correo.urlArchivo(c.archivo_path);
+    if (url) window.open(url, '_blank', 'noopener');
+  };
+  return (
+    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-4 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <i className="ri-mail-line text-foreground-400"></i>
+        <h2 className="text-sm font-semibold text-foreground-950 flex-1">Del correo</h2>
+        {correo.leyendo && <i className="ri-loader-4-line animate-spin text-primary-500" title={`Leyendo ${correo.leyendo}`}></i>}
+      </div>
+      <ul className="divide-y divide-background-200/70">
+        {lista.map((c) => {
+          const e = ESTADO_CORREO[c.estado];
+          return (
+            <li key={c.id} className="py-2 first:pt-0 last:pb-0">
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => verArchivo(c)} title={`Ver ${c.nombre}`} className="min-w-0 flex-1 text-left">
+                  <p className="text-xs font-medium text-foreground-900 truncate">{quien(c)}</p>
+                  <p className="text-[11px] text-foreground-400 truncate">
+                    {c.nombre} · {new Date(c.recibido ?? c.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                  </p>
+                </button>
+                {existe(c.compra_id) && (c.estado === 'metido' || c.estado === 'repetido') ? (
+                  <button
+                    type="button"
+                    onClick={() => onAbrir(c.compra_id!)}
+                    className={`h-6 px-2 rounded-full text-[11px] font-medium whitespace-nowrap ${e.clase} hover:brightness-95`}
+                  >
+                    {e.texto} <i className="ri-arrow-right-s-line"></i>
+                  </button>
+                ) : (
+                  <span className={`h-6 px-2 inline-flex items-center rounded-full text-[11px] font-medium whitespace-nowrap ${e.clase}`}>{e.texto}</span>
+                )}
+              </div>
+              {(c.estado === 'repetido' || c.estado === 'error') && (
+                <div className="mt-1 text-[11px] text-foreground-500">
+                  {c.nota}{' '}
+                  {c.estado === 'repetido' ? (
+                    <button type="button" onClick={() => correo.guardarIgualmente(c)} className="font-medium text-primary-600 hover:underline">
+                      No es el mismo: guardarlo
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => correo.reintentar(c.id)} className="font-medium text-primary-600 hover:underline">
+                      Reintentar
+                    </button>
+                  )}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {correo.correo.length > 6 && (
+        <button type="button" onClick={() => setTodos((v) => !v)} className="text-[11px] font-medium text-foreground-500 hover:text-foreground-900">
+          {todos ? 'Ver menos' : `Ver los ${correo.correo.length}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Día: flechas para ir día a día o elegirlo en el calendario         */
 /* ------------------------------------------------------------------ */
 function sumarDias(fecha: string, n: number): string {
@@ -1069,7 +1198,7 @@ function SelectorDia({ dia, onDia, total, n }: { dia: string | null; onDia: (d: 
 /* ------------------------------------------------------------------ */
 /*  Panel                                                              */
 /* ------------------------------------------------------------------ */
-export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos; productos: Producto[] }) {
+export default function ComprasPanel({ datos, productos, correo }: { datos: ComprasDatos; productos: Producto[]; correo: CorreoCompras }) {
   const bandeja = useBandeja();
   const [aviso, setAviso] = useState<string | null>(null);
   const [abiertaId, setAbiertaId] = useState<string | null>(null);
@@ -1165,6 +1294,7 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
               </button>
             </div>
           )}
+          <Correo correo={correo} compras={datos.compras} onAbrir={setAbiertaId} />
           <Resumen compras={datos.compras} />
         </aside>
 

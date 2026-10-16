@@ -19,6 +19,13 @@ export interface Compra {
   numero: string | null;
   total: number | null;
   lineas: CompraLinea[];
+  // Factura: puede cubrir varios albaranes (sus nº en `albaranes`).
+  tipo: 'albaran' | 'factura';
+  // 'email': entró sola desde el correo (compras_correo).
+  origen: 'foto' | 'email';
+  albaranes: string[];
+  // Por qué cuenta lo que cuenta (p. ej. la diferencia de una factura semanal).
+  nota: string | null;
   foto_path: string | null;
   ocr_texto: string | null;
   caja_movimiento_id: string | null;
@@ -31,4 +38,23 @@ export interface CompraAlias {
   proveedor_norm: string;
   texto_norm: string;
   producto_id: string;
+}
+
+export type CompraCorreoEstado = 'nuevo' | 'leyendo' | 'metido' | 'repetido' | 'error';
+
+// Un adjunto (PDF o foto) recogido del correo: ver compras_correo en schema.sql.
+export interface CompraCorreo {
+  id: string;
+  nombre: string;
+  tipo_mime: string;
+  remitente: string | null;
+  remitente_original: string | null;
+  asunto: string | null;
+  recibido: string | null;
+  archivo_path: string;
+  estado: CompraCorreoEstado;
+  compra_id: string | null;
+  nota: string | null;
+  tomado_at: string | null;
+  created_at: string;
 }

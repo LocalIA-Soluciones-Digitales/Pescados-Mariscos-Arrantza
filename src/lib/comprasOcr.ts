@@ -30,9 +30,13 @@ export interface LineaLeida {
 }
 
 export interface AlbaranLeido {
+  // Factura: la que llega por email (diaria o semanal); su `numero` es el de
+  // la factura y `albaranes` los nº de albarán que nombra, si los nombra.
+  tipo: 'albaran' | 'factura';
   proveedor: string | null;
   fecha: string | null; // YYYY-MM-DD
   numero: string | null;
+  albaranes: string[];
   total: number | null;
   lineas: LineaLeida[];
   texto: string[];
@@ -269,11 +273,66 @@ function leerNumero(filas: string[]): string | null {
   return null;
 }
 
+// Nº de documento: «A26 / 5055», «M10780», «2026_1_21914», «12.345».
+const NUM_DOC = String.raw`[A-Z]{0,3}\d{1,4}\s?\/\s?[\d.]+|\d{4}_\d+_\d+|[A-Z]{1,3}\d{0,4}-?\d{3,}|\d{4,}|\d{1,3}(?:\.\d{3})+`;
+
+// Factura o albarán: manda la palabra que sale antes en la cabecera (los
+// albaranes a veces dicen «factura» en la letra pequeña, y las facturas
+// tienen una columna «Albarán»).
+function leerTipo(filas: string[]): 'albaran' | 'factura' {
+  for (const l of filas.slice(0, 20)) {
+    const f = l.search(/\bfactura\b/i);
+    const a = l.search(/\balbar[aá]n\b/i);
+    if (f >= 0 && (a < 0 || f < a)) return 'factura';
+    if (a >= 0) return 'albaran';
+  }
+  return 'albaran';
+}
+
+function leerNumeroFactura(filas: string[]): string | null {
+  for (const l of filas) {
+    const m = l.match(new RegExp(String.raw`factura\b(?:\s*simplificada)?[^\d]{0,25}?(${NUM_DOC})`, 'i'));
+    if (m) return m[1].replace(/\s+/g, ' ').trim();
+  }
+  return null;
+}
+
+// Albaranes que nombra una factura («Albarán A26/5055 de 16/10/2026»,
+// «Alb. nº 12345»), sin repetir.
+function leerAlbaranesCitados(filas: string[]): string[] {
+  const vistos = new Map<string, string>();
+  const re = new RegExp(String.raw`\balb(?:ar[aá]n(?:es)?|\.)\s*(?:n[º°o.]{1,2}\s*)?:?\s*(${NUM_DOC})`, 'gi');
+  for (const l of filas) {
+    for (const m of l.matchAll(re)) {
+      const n = m[1].replace(/\s+/g, ' ').trim();
+      const clave = n.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (clave.length >= 3 && !vistos.has(clave)) vistos.set(clave, n);
+    }
+  }
+  return [...vistos.values()];
+}
+
 export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
   const cajas = preparar(ocr);
   const filas = agruparFilas(cajas);
   const texto = filas.map(textoFila);
-  const r: AlbaranLeido = { proveedor: leerProveedor(texto), fecha: null, numero: leerNumero(texto), total: null, lineas: [], texto };
+  const tipo = leerTipo(texto);
+  const albaranes = tipo === 'factura' ? leerAlbaranesCitados(texto) : [];
+  // En una factura, leerNumero() cogería el primer albarán que nombra.
+  const numeroSuelto = leerNumero(texto);
+  const r: AlbaranLeido = {
+    tipo,
+    proveedor: leerProveedor(texto),
+    fecha: null,
+    numero:
+      tipo === 'factura'
+        ? (leerNumeroFactura(texto) ?? (albaranes.some((a) => a.replace(/\s/g, '') === numeroSuelto?.replace(/\s/g, '')) ? null : numeroSuelto))
+        : numeroSuelto,
+    albaranes,
+    total: null,
+    lineas: [],
+    texto,
+  };
   for (const l of texto) r.fecha ??= leerFecha(l);
 
   // 1) Filas de números de producto, por debajo de la cabecera de la tabla.
