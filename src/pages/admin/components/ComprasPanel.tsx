@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import type { useCompras } from '@/hooks/useCompras';
 import type { Compra, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
-import { leerAlbaran, normalizarCompra, sumaLineas, unificarProveedor, type OcrCaja } from '@/lib/comprasOcr';
+import { normalizarCompra, sumaLineas } from '@/lib/comprasOcr';
 import { leerDictado, NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
-import { enderezar, leerTextoFoto, prepararFoto } from '@/lib/comprasFoto';
-import { esPdf, prepararPdf } from '@/lib/comprasPdf';
-import { calcularMarcas, type MarcasAlbaran } from '@/lib/comprasMarcas';
+import { esPdf } from '@/lib/comprasPdf';
+import type { MarcasAlbaran } from '@/lib/comprasMarcas';
+import { buscarRepetida } from '@/lib/comprasHojas';
+import { useBandeja } from '@/hooks/useBandeja';
+import { BandejaAlbaranes } from './BandejaAlbaranes';
 import { FotoMarcada, PuntoColor, VisorAlbaran } from './AlbaranLeido';
 
 type ComprasDatos = ReturnType<typeof useCompras>;
@@ -138,25 +140,14 @@ function fechaRelativa(fecha: string): string {
 /* ------------------------------------------------------------------ */
 /*  Subir la foto o el PDF                                             */
 /* ------------------------------------------------------------------ */
-function Captura({ onFoto, progreso }: { onFoto: (f: File) => void; progreso: string | null }) {
+// Varias a la vez: páginas de un mismo albarán o albaranes distintos; la
+// bandeja las agrupa.
+function Captura({ onFotos }: { onFotos: (f: File[]) => void }) {
   const elegir = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (file) onFoto(file);
+    if (files.length) onFotos(files);
   };
-  if (progreso) {
-    return (
-      <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-5 flex items-start gap-3" role="status" aria-live="polite">
-        <span className="w-10 h-10 rounded-full bg-primary-500/10 text-primary-500 flex items-center justify-center flex-shrink-0">
-          <i className="ri-loader-4-line animate-spin text-xl"></i>
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground-950">Leyendo el albarán</p>
-          <p className="text-xs text-foreground-500 leading-snug mt-0.5">{progreso}</p>
-        </div>
-      </div>
-    );
-  }
   return (
     <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-3 lg:p-4">
       {/* Móvil: la cámara manda. */}
@@ -170,16 +161,16 @@ function Captura({ onFoto, progreso }: { onFoto: (f: File) => void; progreso: st
         <span className="w-11 h-11 rounded-full bg-primary-500 text-background-50 flex items-center justify-center">
           <i className="ri-upload-cloud-2-line text-xl"></i>
         </span>
-        <span className="text-sm font-semibold text-foreground-950">Sube la foto o el PDF del albarán</span>
-        <span className="text-xs text-foreground-400">Arrástralo aquí o haz clic para elegirlo</span>
-        <input type="file" accept="image/*,application/pdf,.pdf" onChange={elegir} className="hidden" />
+        <span className="text-sm font-semibold text-foreground-950">Sube las fotos o PDF de los albaranes</span>
+        <span className="text-xs text-foreground-400">Arrástralos aquí o haz clic para elegirlos (varios a la vez)</span>
+        <input type="file" accept="image/*,application/pdf,.pdf" multiple onChange={elegir} className="hidden" />
       </label>
       <div className="lg:hidden flex items-center justify-between gap-3 mt-2.5 px-1">
         <p className="text-[11px] text-foreground-400 leading-snug">Plano, entero y sin flash.</p>
         <label className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full text-xs font-medium border border-background-200/70 text-foreground-600 active:bg-background-100 cursor-pointer flex-shrink-0">
           <i className="ri-attachment-2"></i>
           Galería o PDF
-          <input type="file" accept="image/*,application/pdf,.pdf" onChange={elegir} className="hidden" />
+          <input type="file" accept="image/*,application/pdf,.pdf" multiple onChange={elegir} className="hidden" />
         </label>
       </div>
       <p className="hidden lg:block text-[11px] text-foreground-400 text-center mt-2.5">
@@ -441,6 +432,8 @@ function CompraEditor({
     }
   };
 
+  const repetida = buscarRepetida(datos.compras, proveedor.trim() || null, numero.trim() || null, compra.id);
+
   const confirmar = () => {
     if (!totalNum || totalNum <= 0) {
       setError('Falta el total del albarán (lo que se ha pagado).');
@@ -450,7 +443,10 @@ function CompraEditor({
     const msg =
       `Se apuntará un gasto de ${formatEUR(totalNum)} en Contabilidad` +
       (alStock.length ? ` y se sumarán ${aTexto(Math.round(kg * 100) / 100)} kg al stock de ${alStock.length} producto(s).` : '.') +
-      (cuadra ? '' : '\n\nOjo: la suma de las líneas no cuadra con el total.');
+      (cuadra ? '' : '\n\nOjo: la suma de las líneas no cuadra con el total.') +
+      (repetida
+        ? `\n\nOjo: ya hay otro albarán ${repetida.estado === 'confirmada' ? 'confirmado' : 'por revisar'} con el nº ${repetida.numero} (${formatFecha(repetida.fecha)}). Si es el mismo (papel y PDF del email), no lo confirmes dos veces.`
+        : '');
     if (!confirm(msg)) return;
     ejecutar(() => datos.confirmarCompra(compra.id, datosCompra()));
   };
@@ -969,7 +965,7 @@ function CompraEditor({
 /*  Panel                                                              */
 /* ------------------------------------------------------------------ */
 export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos; productos: Producto[] }) {
-  const [progreso, setProgreso] = useState<string | null>(null);
+  const bandeja = useBandeja();
   const [aviso, setAviso] = useState<string | null>(null);
   const [abiertaId, setAbiertaId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<'pendientes' | 'confirmadas' | 'anuladas' | 'todas'>('pendientes');
@@ -978,84 +974,12 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
   const pendientes = datos.compras.filter((c) => c.estado === 'pendiente');
   const abierta = datos.compras.find((c) => c.id === abiertaId) ?? null;
 
-  const procesarFoto = async (file: File) => {
-    setAviso(null);
-    try {
-      const lento = 'Leyendo el albarán… Tarda entre 10 segundos y un minuto; la primera vez descarga además el lector (unos 25 MB).';
-      let cajas: OcrCaja[] = [];
-      let jpeg: Blob;
-      let fallo: string | null = null;
-      // Tamaño de la imagen sobre la que están las posiciones de `cajas`.
-      let ancho = 1;
-      let alto = 1;
-      if (esPdf(file)) {
-        setProgreso('Abriendo el PDF…');
-        const pdf = await prepararPdf(file);
-        jpeg = pdf.jpeg;
-        ancho = pdf.paginas[0]?.width ?? 1;
-        alto = pdf.paginas.reduce((t, p) => t + p.height, 0) || 1;
-        if (pdf.cajas) {
-          cajas = pdf.cajas; // PDF con texto: no hace falta OCR
-        } else {
-          // PDF escaneado: cada página por el OCR, una debajo de otra.
-          try {
-            setProgreso(lento);
-            let y = 0;
-            for (const pagina of pdf.paginas) {
-              const r = await leerTextoFoto(enderezar(pagina).canvas);
-              cajas.push(...r.cajas.map((c) => ({ ...c, y: c.y + y })));
-              y += pagina.height;
-            }
-          } catch (e) {
-            fallo = e instanceof Error ? e.message : String(e);
-          }
-        }
-      } else {
-        setProgreso('Preparando la foto…');
-        const foto = await prepararFoto(file);
-        jpeg = foto.jpeg;
-        ancho = foto.ocr.width;
-        alto = foto.ocr.height;
-        try {
-          setProgreso(lento);
-          ({ cajas } = await leerTextoFoto(foto.ocr));
-        } catch (e) {
-          // La foto se guarda igual para no perderla: se rellena a mano.
-          fallo = e instanceof Error ? e.message : String(e);
-        }
-      }
-
-      const a = leerAlbaran(cajas);
-      const proveedor = unificarProveedor(
-        a.proveedor,
-        datos.compras.map((c) => c.proveedor).filter((p): p is string => !!p),
-      );
-      const lineas: CompraLinea[] = a.lineas.map((l) => ({
-        texto: l.texto,
-        kg: l.kg,
-        precio: l.precio,
-        importe: l.importe,
-        producto_id: sugerirProducto(l.texto, proveedor, datos.alias, productos)?.id ?? null,
-        sumar_stock: !NO_PRODUCTO.test(l.texto),
-      }));
-
-      setProgreso('Guardando…');
-      const compra = await datos.crearCompra({
-        fecha: a.fecha ?? hoyISO(),
-        proveedor,
-        numero: a.numero,
-        total: a.total,
-        lineas,
-        ocr_texto: fallo ? `No se pudo leer: ${fallo}` : a.texto.join('\n'),
-        ocr_marcas: cajas.length ? calcularMarcas(cajas, a, ancho, alto) : null,
-        foto: jpeg,
-      });
-      if (fallo) setAviso('La foto se ha guardado, pero no se ha podido leer. Rellena los datos a mano.');
-      setAbiertaId(compra.id);
-    } catch (e) {
-      setAviso(e instanceof Error ? e.message : String(e));
-    } finally {
-      setProgreso(null);
+  const alGuardar = (ids: string[]) => {
+    if (ids.length === 1) {
+      setAbiertaId(ids[0]);
+    } else if (ids.length > 1) {
+      setFiltro('pendientes');
+      setAviso(`Guardados ${ids.length} albaranes: los tienes en «Por revisar».`);
     }
   };
 
@@ -1064,8 +988,8 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
   const soltar = (e: React.DragEvent) => {
     e.preventDefault();
     setArrastrando(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && !progreso && (file.type.startsWith('image/') || esPdf(file))) procesarFoto(file);
+    const files = Array.from(e.dataTransfer.files ?? []).filter((f) => f.type.startsWith('image/') || esPdf(f));
+    if (files.length) bandeja.añadir(files);
   };
 
   const cuentas = {
@@ -1113,14 +1037,15 @@ export default function ComprasPanel({ datos, productos }: { datos: ComprasDatos
         <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-primary-500/10 backdrop-blur-[1px]">
           <div className="rounded-2xl border-2 border-dashed border-primary-500 bg-background-50 px-8 py-6 text-center shadow-2xl">
             <i className="ri-upload-cloud-2-line text-3xl text-primary-500"></i>
-            <p className="mt-1 text-sm font-semibold text-foreground-950">Suelta para leer el albarán</p>
+            <p className="mt-1 text-sm font-semibold text-foreground-950">Suelta para leer los albaranes</p>
           </div>
         </div>
       )}
 
       <div className="lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-6 lg:items-start space-y-4 lg:space-y-0">
         <aside className="space-y-4 lg:sticky" style={{ top: 'calc(var(--admin-header-height, 0px) + 1.5rem)' }}>
-          <Captura onFoto={procesarFoto} progreso={progreso} />
+          {bandeja.hojas.length === 0 && <Captura onFotos={bandeja.añadir} />}
+          <BandejaAlbaranes bandeja={bandeja} datos={datos} productos={productos} onGuardadas={alGuardar} />
           {aviso && (
             <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
               <i className="ri-error-warning-line text-base leading-none"></i>
