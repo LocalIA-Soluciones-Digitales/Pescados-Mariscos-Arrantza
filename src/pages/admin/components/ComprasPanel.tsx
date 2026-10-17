@@ -182,7 +182,7 @@ function Captura({ onFotos }: { onFotos: (f: File[]) => void }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Resumen (columna izquierda en el ordenador)                        */
+/*  Resumen (columna izquierda en el ordenador; dos cifras en el móvil) */
 /* ------------------------------------------------------------------ */
 function Resumen({ compras }: { compras: Compra[] }) {
   const pendientes = compras.filter((c) => c.estado === 'pendiente');
@@ -197,7 +197,7 @@ function Resumen({ compras }: { compras: Compra[] }) {
     </div>
   );
   return (
-    <div className="hidden lg:block bg-background-50 border border-background-200/70 rounded-2xl shadow-card divide-y divide-background-200/70">
+    <div className="grid grid-cols-2 lg:grid-cols-1 bg-background-50 border border-background-200/70 rounded-2xl shadow-card divide-x lg:divide-x-0 lg:divide-y divide-background-200/70">
       {cifra(
         String(pendientes.length),
         'Por revisar',
@@ -1183,8 +1183,9 @@ function SelectorDia({ dia, onDia, total, n }: { dia: string | null; onDia: (d: 
       </button>
       <div className="ml-auto flex items-center gap-2 pr-1 min-w-0">
         {dia && (
-          <span className="hidden sm:inline text-xs text-foreground-500 tabular-nums whitespace-nowrap">
-            {n} {n === 1 ? 'albarán' : 'albaranes'} · {formatEUR(total)}
+          <span className="text-xs text-foreground-500 tabular-nums whitespace-nowrap">
+            <span className="hidden sm:inline">{n} {n === 1 ? 'albarán' : 'albaranes'} · </span>
+            {formatEUR(total)}
           </span>
         )}
         {dia && dia !== hoy && (
