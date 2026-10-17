@@ -317,6 +317,8 @@ function CompraEditor({
       sumar_stock: l.sumar_stock,
     })),
   );
+  // Líneas leídas sin producto que David ha quitado (ver botonQuitar).
+  const [quitadas, setQuitadas] = useState<string[]>([]);
   const [foto, setFoto] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -478,7 +480,14 @@ function CompraEditor({
       (cuadra ? '' : '\n\nOjo: la suma de las líneas no cuadra con el total.') +
       (repetida ? `\n\nOjo: ${describirCoincidencia(repetida, formatFecha)} No lo confirmes dos veces.` : '');
     if (!confirm(msg)) return;
-    ejecutar(() => datos.confirmarCompra(compra.id, datosCompra()));
+    const d = datosCompra();
+    ejecutar(async () => {
+      await datos.confirmarCompra(compra.id, d);
+      // Si ha vuelto a escribir la misma línea, no se olvida.
+      const olvidar = quitadas.filter((t) => !d.lineas.some((l) => normalizarCompra(l.texto) === normalizarCompra(t)));
+      // La compra ya está confirmada: si esto falla, solo se pierde el recuerdo.
+      await datos.recordarQuitadas(d.proveedor, olvidar).catch((e) => console.warn('No se recordaron las líneas quitadas', e));
+    });
   };
 
   const doc = compra.tipo === 'factura' ? 'factura' : 'albarán';
@@ -599,9 +608,16 @@ function CompraEditor({
     editable ? (
       <button
         type="button"
-        onClick={() => setLineas((p) => p.filter((_, k) => k !== i))}
+        onClick={() => {
+          const l = lineas[i];
+          // Una línea leída y sin producto que se quita es basura (p. ej.
+          // «Forma de pago…»): al confirmar se recuerda para este proveedor.
+          if (l.texto.trim() && !l.producto_id && compra.lineas.some((o) => !o.producto_id && normalizarCompra(o.texto) === normalizarCompra(l.texto)))
+            setQuitadas((q) => [...q, l.texto]);
+          setLineas((p) => p.filter((_, k) => k !== i));
+        }}
         aria-label="Quitar línea"
-        title="Quitar línea"
+        title={lineas[i]?.producto_id ? 'Quitar línea' : 'Quitar línea (no volverá a salir en los albaranes de este proveedor)'}
         className="w-8 h-8 flex items-center justify-center rounded-full text-foreground-300 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
       >
         <i className="ri-delete-bin-line"></i>
@@ -1030,86 +1046,211 @@ function CompraEditor({
 /* ------------------------------------------------------------------ */
 /*  Lo que llega por correo                                            */
 /* ------------------------------------------------------------------ */
-const ESTADO_CORREO: Record<CompraCorreo['estado'], { texto: string; clase: string }> = {
-  nuevo: { texto: 'En cola', clase: 'bg-background-100 text-foreground-500' },
-  leyendo: { texto: 'Leyendo…', clase: 'bg-sky-50 text-sky-700' },
-  metido: { texto: 'Guardado', clase: 'bg-emerald-50 text-emerald-700' },
-  repetido: { texto: 'Ya estaba', clase: 'bg-background-100 text-foreground-600' },
-  error: { texto: 'Error', clase: 'bg-red-50 text-red-700' },
-};
-
 // «Pescados Arraiza <noresponder@…>» → «Pescados Arraiza».
 const quien = (c: CompraCorreo) => (c.remitente_original ?? c.remitente ?? '').replace(/\s*<[^>]*>\s*/g, '').trim() || c.nombre;
 
+const fechaCorta = (iso: string) => new Date(iso).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+
+// Qué es el documento, en palabras: el tipo de la compra que creó o, si no,
+// lo que dice el nombre del archivo (ADELAIDA_CLIFAC_… → Factura).
+function tipoDocumento(c: CompraCorreo, compra: Compra | undefined): string {
+  if (compra && c.estado === 'metido') return compra.tipo === 'factura' ? 'Factura' : 'Albarán';
+  if (/fac|fra/i.test(c.nombre)) return 'Factura';
+  if (/alb/i.test(c.nombre)) return 'Albarán';
+  return c.tipo_mime.startsWith('image/') ? 'Foto' : 'Documento';
+}
+
+const ICONO_CORREO: Partial<Record<CompraCorreo['estado'], { icono: string; clase: string; caja: string }>> = {
+  repetido: { icono: 'ri-file-copy-2-line', clase: 'bg-amber-100 text-amber-700', caja: 'border-amber-200 bg-amber-50/50' },
+  error: { icono: 'ri-error-warning-line', clase: 'bg-red-100 text-red-600', caja: 'border-red-200 bg-red-50/50' },
+  leyendo: { icono: 'ri-loader-4-line animate-spin', clase: 'bg-sky-100 text-sky-600', caja: 'border-background-200/70' },
+  nuevo: { icono: 'ri-time-line', clase: 'bg-background-100 text-foreground-500', caja: 'border-background-200/70' },
+};
+
 function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: Compra[]; onAbrir: (id: string) => void }) {
-  const [todos, setTodos] = useState(false);
+  const [verGuardados, setVerGuardados] = useState(false);
+  const [trabajando, setTrabajando] = useState<string | null>(null);
   if (!correo.correo.length) return null;
-  // Se ven los 6 últimos en el ordenador y los 3 últimos en el móvil, para que
-  // no empuje la lista de albaranes.
-  const lista = todos ? correo.correo : correo.correo.slice(0, 6);
-  const ocultos = (n: number) => (todos ? 0 : Math.max(0, correo.correo.length - n));
-  const existe = (id: string | null) => !!id && compras.some((c) => c.id === id);
+
+  const compraDe = (c: CompraCorreo) => (c.compra_id ? compras.find((x) => x.id === c.compra_id) : undefined);
+  // El proveedor que sacó el lector antes que la dirección de correo.
+  const nombre = (c: CompraCorreo) => compraDe(c)?.proveedor || quien(c);
   const verArchivo = async (c: CompraCorreo) => {
     const url = await correo.urlArchivo(c.archivo_path);
     if (url) window.open(url, '_blank', 'noopener');
   };
+  const accion = async (c: CompraCorreo, fn: () => Promise<unknown>) => {
+    setTrabajando(c.id);
+    try {
+      await fn();
+    } finally {
+      setTrabajando(null);
+    }
+  };
+
+  // Arriba solo lo que pide hacer algo; lo guardado solo queda plegado.
+  const atencion = correo.correo.filter((c) => c.estado !== 'metido');
+  const guardados = correo.correo.filter((c) => c.estado === 'metido');
+  const avisos = atencion.filter((c) => c.estado === 'repetido' || c.estado === 'error').length;
+
+  const documento = (c: CompraCorreo) => (
+    <button
+      type="button"
+      onClick={() => verArchivo(c)}
+      title={`Abrir ${c.nombre}`}
+      className="inline-flex items-center gap-1 max-w-full text-[11px] text-foreground-500 hover:text-foreground-900"
+    >
+      <i className={`${c.tipo_mime.startsWith('image/') ? 'ri-image-line' : 'ri-file-pdf-2-line'} text-xs`}></i>
+      <span className="truncate">
+        {tipoDocumento(c, compraDe(c))} · {fechaCorta(c.recibido ?? c.created_at)}
+      </span>
+    </button>
+  );
+  const boton = 'h-9 lg:h-8 px-3 rounded-full text-xs font-medium inline-flex items-center justify-center gap-1 whitespace-nowrap disabled:opacity-50 transition-colors';
+
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-4 space-y-2.5">
-      <div className="flex items-center gap-2">
-        <i className="ri-mail-line text-foreground-400"></i>
-        <h2 className="text-sm font-semibold text-foreground-950 flex-1">Del correo</h2>
-        {correo.leyendo && <i className="ri-loader-4-line animate-spin text-primary-500" title={`Leyendo ${correo.leyendo}`}></i>}
+    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card overflow-hidden">
+      <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-3">
+        <span className="w-8 h-8 rounded-full bg-primary-500/10 text-primary-600 flex items-center justify-center flex-shrink-0">
+          <i className="ri-mail-line"></i>
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold text-foreground-950 leading-tight">Del correo</h2>
+          <p className="text-[11px] text-foreground-400 leading-tight truncate">
+            {correo.leyendo ? 'Leyendo un documento nuevo…' : 'Facturas y albaranes que llegan solos'}
+          </p>
+        </div>
+        {avisos > 0 && (
+          <span
+            title={`${avisos} por mirar`}
+            className="h-6 min-w-[24px] px-2 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold inline-flex items-center justify-center tabular-nums"
+          >
+            {avisos}
+          </span>
+        )}
       </div>
-      <ul className="divide-y divide-background-200/70">
-        {lista.map((c, i) => {
-          const e = ESTADO_CORREO[c.estado];
-          return (
-            <li key={c.id} className={`py-2.5 lg:py-2 first:pt-0 last:pb-0 ${!todos && i >= 3 ? 'hidden lg:block' : ''}`}>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => verArchivo(c)} title={`Ver ${c.nombre}`} className="min-w-0 flex-1 text-left">
-                  <p className="text-xs font-medium text-foreground-900 truncate">{quien(c)}</p>
-                  <p className="text-[11px] text-foreground-400 truncate">
-                    {c.nombre} · {new Date(c.recibido ?? c.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                  </p>
-                </button>
-                {existe(c.compra_id) && (c.estado === 'metido' || c.estado === 'repetido') ? (
-                  <button
-                    type="button"
-                    onClick={() => onAbrir(c.compra_id!)}
-                    className={`h-8 lg:h-6 px-2.5 lg:px-2 rounded-full text-xs lg:text-[11px] font-medium whitespace-nowrap ${e.clase} hover:brightness-95`}
-                  >
-                    {e.texto} <i className="ri-arrow-right-s-line"></i>
-                  </button>
-                ) : (
-                  <span className={`h-8 lg:h-6 px-2.5 lg:px-2 inline-flex items-center rounded-full text-xs lg:text-[11px] font-medium whitespace-nowrap ${e.clase}`}>{e.texto}</span>
-                )}
-              </div>
-              {(c.estado === 'repetido' || c.estado === 'error') && (
-                <div className="mt-1 text-xs lg:text-[11px] text-foreground-500">
-                  {c.nota}{' '}
-                  {c.estado === 'repetido' ? (
-                    <button type="button" onClick={() => correo.guardarIgualmente(c)} className="py-1.5 lg:py-0 font-medium text-primary-600 hover:underline">
-                      No es el mismo: guardarlo
-                    </button>
-                  ) : (
-                    <button type="button" onClick={() => correo.reintentar(c.id)} className="py-1.5 lg:py-0 font-medium text-primary-600 hover:underline">
-                      Reintentar
-                    </button>
-                  )}
+
+      {atencion.length === 0 ? (
+        <div className="mx-3 mb-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
+          <i className="ri-checkbox-circle-fill text-base text-emerald-500"></i>
+          Todo lo del correo está guardado.
+        </div>
+      ) : (
+        <ul className="px-3 pb-3 space-y-2">
+          {atencion.map((c) => {
+            const ic = ICONO_CORREO[c.estado] ?? ICONO_CORREO.nuevo!;
+            const ya = compraDe(c);
+            const ocupado = trabajando === c.id;
+            return (
+              <li key={c.id} className={`rounded-xl border p-3 ${ic.caja}`}>
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${ic.clase}`}>
+                    <i className={ic.icono}></i>
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground-950 truncate leading-tight">{nombre(c)}</p>
+                    {documento(c)}
+                  </div>
                 </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      {(todos || ocultos(3) > 0) && (
-        <button
-          type="button"
-          onClick={() => setTodos((v) => !v)}
-          className={`h-9 lg:h-auto text-xs lg:text-[11px] font-medium text-foreground-500 hover:text-foreground-900 ${!todos && ocultos(6) === 0 ? 'lg:hidden' : ''}`}
-        >
-          {todos ? 'Ver menos' : `Ver los ${correo.correo.length}`}
-        </button>
+                {c.estado === 'repetido' && (
+                  <>
+                    <p className="mt-2 text-xs text-foreground-600 leading-snug">
+                      <span className="font-medium text-amber-800">Parece repetido.</span> {c.nota}
+                    </p>
+                    <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+                      {ya && (
+                        <button
+                          type="button"
+                          onClick={() => onAbrir(ya.id)}
+                          title="Abrir el que ya está guardado"
+                          className={`${boton} px-2 bg-background-50 border border-background-200 text-foreground-800 hover:bg-background-100`}
+                        >
+                          <i className="ri-eye-line"></i>
+                          Ver el guardado
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={ocupado}
+                        onClick={() => accion(c, () => correo.guardarIgualmente(c))}
+                        title="No es el mismo: guardarlo como nuevo"
+                        className={`${boton} px-2 border border-amber-300 text-amber-800 hover:bg-amber-100 ${ya ? '' : 'col-span-2'}`}
+                      >
+                        <i className={ocupado ? 'ri-loader-4-line animate-spin' : 'ri-add-line'}></i>
+                        Es otro, guardarlo
+                      </button>
+                    </div>
+                  </>
+                )}
+                {c.estado === 'error' && (
+                  <>
+                    <p className="mt-2 text-xs text-red-700 leading-snug line-clamp-2" title={c.nota ?? undefined}>
+                      No se pudo leer. {c.nota}
+                    </p>
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        disabled={ocupado}
+                        onClick={() => accion(c, () => correo.reintentar(c.id))}
+                        className={`${boton} bg-background-50 border border-background-200 text-foreground-800 hover:bg-background-100`}
+                      >
+                        <i className={`ri-refresh-line ${ocupado ? 'animate-spin' : ''}`}></i>
+                        Reintentar
+                      </button>
+                    </div>
+                  </>
+                )}
+                {(c.estado === 'leyendo' || c.estado === 'nuevo') && (
+                  <p className="mt-1.5 text-[11px] text-foreground-500">{c.estado === 'leyendo' ? 'Leyendo…' : 'En cola para leer'}</p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {guardados.length > 0 && (
+        <div className="border-t border-background-200/70">
+          <button
+            type="button"
+            onClick={() => setVerGuardados((v) => !v)}
+            aria-expanded={verGuardados}
+            className="w-full flex items-center gap-2 px-4 h-11 lg:h-10 text-xs text-foreground-600 hover:bg-background-100/60 transition-colors"
+          >
+            <i className="ri-check-double-line text-emerald-600 text-sm"></i>
+            <span className="flex-1 text-left">
+              <span className="font-semibold text-foreground-900 tabular-nums">{guardados.length}</span>{' '}
+              {guardados.length === 1 ? 'guardado solo' : 'guardados solos'}
+            </span>
+            <i className={`ri-arrow-down-s-line text-base transition-transform ${verGuardados ? 'rotate-180' : ''}`}></i>
+          </button>
+          {verGuardados && (
+            <ul className="pb-2 max-h-80 overflow-y-auto">
+              {guardados.map((c) => {
+                const compra = compraDe(c);
+                return (
+                  <li key={c.id} className="flex items-center gap-2 px-4 py-1.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-foreground-900 truncate">{nombre(c)}</p>
+                      {documento(c)}
+                    </div>
+                    {compra && (
+                      <button
+                        type="button"
+                        onClick={() => onAbrir(compra.id)}
+                        title="Abrir el albarán"
+                        className="h-8 pl-2.5 pr-1.5 rounded-full text-xs font-medium tabular-nums text-foreground-700 hover:bg-background-100 inline-flex items-center gap-0.5 flex-shrink-0"
+                      >
+                        {formatEUR(compra.total)}
+                        <i className="ri-arrow-right-s-line text-foreground-400"></i>
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );
