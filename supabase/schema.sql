@@ -789,9 +789,10 @@ begin
   for item in select * from jsonb_array_elements(new.items) loop
     begin
       -- Si el producto saca su género de otro (stock_de, p. ej. Cola de
-      -- Merluza → Merluza), descuenta de ese.
+      -- Merluza → Merluza), descuenta de ese. Sin tope en 0 (ver
+      -- descontar_stock_bascula).
       update public.productos p
-      set stock_kg = greatest(p.stock_kg - coalesce((item->>'kg')::numeric, 0), 0)
+      set stock_kg = p.stock_kg - coalesce((item->>'kg')::numeric, 0)
       from public.productos v
       where v.id = (item->>'productoId')::uuid
         and p.id = coalesce(v.stock_de, v.id);
@@ -993,8 +994,11 @@ returns numeric as $$
            where m.cliente_id = p_cliente_id and m.origen = p_origen and m.codigo_bascula = p_codigo_bascula
              and m.producto_venta_id <> m.producto_id
          ), ''), true);
+  -- Sin tope en 0: si la venta llega antes de apuntar la compra (David sube
+  -- los albaranes por la noche), el stock queda en negativo y la entrada
+  -- posterior lo cuadra; con tope se perderían esos kilos.
   update public.productos p
-  set stock_kg = greatest(stock_kg - p_kg, 0)
+  set stock_kg = stock_kg - p_kg
   from public.codigos_bascula_stock m
   where m.producto_id = p.id
     and m.cliente_id = p_cliente_id
@@ -3645,7 +3649,8 @@ revoke all on function public.confirmar_compra(uuid, jsonb) from public;
 grant execute on function public.confirmar_compra(uuid, jsonb) to authenticated;
 
 -- Deshace una compra confirmada: borra su gasto de Caja y resta del stock
--- lo que sumó (sin bajar de 0). La compra queda 'anulada' con su foto.
+-- lo que sumó (puede quedar en negativo, como las ventas). La compra queda
+-- 'anulada' con su foto.
 create or replace function public.anular_compra(p_id uuid)
 returns void as $$
 declare
@@ -3670,7 +3675,7 @@ begin
     v_kg := nullif(l->>'kg', '')::numeric;
     if v_prod is not null and coalesce((l->>'sumar_stock')::boolean, true) and v_kg > 0 then
       update public.productos p
-      set stock_kg = greatest(p.stock_kg - v_kg, 0)
+      set stock_kg = p.stock_kg - v_kg
       from public.productos v
       where v.id = v_prod and p.id = coalesce(v.stock_de, v.id);
     end if;
