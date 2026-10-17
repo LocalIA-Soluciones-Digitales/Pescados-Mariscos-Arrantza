@@ -18,7 +18,7 @@ import { leerAlbaran, unificarProveedor } from '@/lib/comprasOcr';
 import { juntarHojas, leerArchivo } from '@/lib/comprasBandeja';
 import { calcularMarcas } from '@/lib/comprasMarcas';
 import { lineasDeCompra, notaQuitadas } from '@/lib/comprasProductos';
-import { buscarCoincidencia, describirCoincidencia, mismasLineas } from '@/lib/comprasCoincidencias';
+import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, describirNoCoincide, mismasLineas } from '@/lib/comprasCoincidencias';
 
 const COLUMNAS =
   'id, nombre, tipo_mime, remitente, remitente_original, asunto, recibido, archivo_path, estado, compra_id, nota, tomado_at, created_at';
@@ -75,17 +75,26 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
       const proveedor = unificarProveedor(a.proveedor, conocidos);
       const fecha = a.fecha ?? new Date(item.recibido ?? item.created_at).toLocaleDateString('sv-SE');
       const doc = { tipo: a.tipo, proveedor, numero: a.numero, fecha, total: a.total, albaranes: a.albaranes };
-      const coincide = forzar ? null : buscarCoincidencia(doc, vistas);
-      const explicacion = coincide ? describirCoincidencia(coincide, formatFecha) : null;
       const leidas = lineasDeCompra(a.lineas, proveedor, d.alias, prods);
       let lineas: CompraLinea[] = leidas.lineas;
+      const hallada = forzar ? null : buscarCoincidencia(doc, vistas);
+      // Solo es repetido si además trae los mismos productos, precios y
+      // total; si no, es otra compra y se guarda (con una nota).
+      const dudosa = hallada && hallada.tipo !== 'parcial' && hallada.tipo !== 'posible' && !confirmarCoincidencia(hallada, { total: a.total, lineas });
+      const coincide = dudosa ? null : hallada;
+      const explicacion = dudosa
+        ? describirNoCoincide(hallada, { total: a.total, lineas }, formatFecha)
+        : coincide
+          ? describirCoincidencia(coincide, formatFecha)
+          : null;
       const ocr_marcas = junto.cajas.length ? calcularMarcas(junto.cajas, a, junto.ancho, junto.alto) : null;
 
       // El mismo documento ya entró por foto: el PDF se lee sin fallos, así
       // que manda el PDF. Pendiente → se cambia su lectura por la del PDF;
       // confirmada → no se toca (gasto y stock ya apuntados), solo se avisa
       // si el PDF trae otras líneas.
-      const foto = coincide?.tipo === 'mismo' ? coincide.con.find((c) => c.origen === 'foto') : undefined;
+      const foto =
+        hallada?.tipo === 'mismo' ? hallada.con.find((c) => c.origen === 'foto' && (c.estado === 'pendiente' || !dudosa)) : undefined;
       if (foto?.estado === 'pendiente') {
         const nueva = await d.reemplazarLectura(foto, {
           tipo: a.tipo,

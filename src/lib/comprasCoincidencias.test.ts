@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buscarCoincidencia, mismasLineas, type DocCompra } from './comprasCoincidencias';
+import { buscarCoincidencia, confirmarCoincidencia, describirNoCoincide, mismasLineas, type DocCompra } from './comprasCoincidencias';
 
 const ADELAIDA = 'Pescados y Mariscos Adelaida, S.L.';
 const GAIZKA = 'Pescados y Mariscos Gaizka, S.L.';
@@ -109,5 +109,41 @@ describe('casos reales 16/17-10', () => {
     const ayer = doc({ proveedor: CRESPO, fecha: '2026-10-16', total: 22.28 });
     expect(buscarCoincidencia(nuevo({ proveedor: CRESPO, fecha: '2026-10-17', total: 22.28 }), [ayer])).toBeNull();
     expect(buscarCoincidencia(nuevo({ proveedor: CRESPO, fecha: '2026-10-16', total: 22.28 }), [ayer])?.tipo).toBe('posible');
+  });
+});
+
+describe('confirmarCoincidencia', () => {
+  const l = (kg: number, importe: number) => ({ kg, importe });
+  const fecha = (iso: string) => iso;
+  // Factura A26/2.905: abono de caja del A26/5.040 + las líneas del A26/5.055.
+  const factura = {
+    ...doc({ tipo: 'factura', numero: 'A26/2.905', total: 222.19, albaranes: ['A26/5.040', 'A26/5.055'] }),
+    lineas: [l(-2, -20), l(18, 108), l(5.25, 73.5), l(2.3, 37.95)],
+  };
+  const albaran = { total: 244.47, lineas: [l(18, 108), l(5.25, 73.5), l(2.3, 37.95)] };
+
+  it('un albarán nombrado en una factura con otro total no es repetido', () => {
+    const r = buscarCoincidencia(nuevo({ numero: 'A26/5.055', total: 244.47 }), [factura]);
+    expect(r?.tipo).toBe('en_factura');
+    expect(confirmarCoincidencia(r!, albaran)).toBe(false);
+    expect(describirNoCoincide(r!, albaran, fecha)).toMatch(/otra compra.*Ojo/);
+  });
+
+  it('mismo nº, mismas líneas y mismo total sí es repetido', () => {
+    const foto = { ...doc({ numero: 'A26/5055', total: 244.47 }), lineas: albaran.lineas };
+    const r = buscarCoincidencia(nuevo({ numero: 'A26/5055', total: 244.47 }), [foto]);
+    expect(confirmarCoincidencia(r!, albaran)).toBe(true);
+  });
+
+  it('mismo nº pero otros precios no es repetido', () => {
+    const foto = { ...doc({ numero: 'A26/5055', total: 244.47 }), lineas: [l(18, 108), l(5.25, 70), l(2.3, 41.45)] };
+    const r = buscarCoincidencia(nuevo({ numero: 'A26/5055', total: 244.47 }), [foto]);
+    expect(confirmarCoincidencia(r!, albaran)).toBe(false);
+  });
+
+  it('albarán a mano sin líneas: basta el total', () => {
+    const mano = { ...doc({ total: 22.28 }), lineas: [] };
+    const r = buscarCoincidencia(nuevo({ tipo: 'factura', total: 22.28 }), [mano]);
+    expect(confirmarCoincidencia(r!, { total: 22.28, lineas: [l(2, 20)] })).toBe(true);
   });
 });

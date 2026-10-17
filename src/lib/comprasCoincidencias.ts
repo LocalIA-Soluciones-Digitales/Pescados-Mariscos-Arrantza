@@ -153,6 +153,52 @@ export function mismasLineas(a: { kg: number | null; importe: number | null }[],
   return ordenar(a) === ordenar(b);
 }
 
+type LineaImporte = { kg: number | null; importe: number | null };
+type ConLineas = { total: number | null; lineas: LineaImporte[] };
+
+const conImporte = (ls: LineaImporte[]) => ls.filter((l) => l.importe != null && l.importe !== 0);
+const claveLinea = (l: LineaImporte) => `${redondear(l.kg ?? 0)}|${redondear(l.importe ?? 0)}`;
+
+// ¿Todas las líneas de `a` salen en `b`? (una por una, kg e importe)
+function lineasDentro(a: LineaImporte[], b: LineaImporte[]): boolean {
+  const resto = conImporte(b).map(claveLinea);
+  return conImporte(a).every((l) => {
+    const i = resto.indexOf(claveLinea(l));
+    if (i < 0) return false;
+    resto.splice(i, 1);
+    return true;
+  });
+}
+
+// Mismos productos y precios (kg e importe) y mismo total. Lo que no se
+// sabe (foto sin total, albarán a mano sin líneas) no cuenta, pero algo
+// tiene que poder compararse.
+function mismoContenido(a: ConLineas, b: ConLineas): boolean {
+  const total = a.total != null && b.total != null ? mismoImporte(a.total, b.total) : null;
+  const lineas = conImporte(a.lineas).length && conImporte(b.lineas).length ? mismasLineas(a.lineas, b.lineas) : null;
+  if (total == null && lineas == null) return false;
+  return total !== false && lineas !== false;
+}
+
+// El nº (o el total) coincide, pero ¿es de verdad lo mismo? Solo si además
+// traen los mismos productos, precios y total; si no, es otra compra
+// (Adelaida: el albarán A26/5.055 nombrado en la factura A26/2.905, que
+// lleva además un abono y otro total).
+export function confirmarCoincidencia<T extends DocCompra & ConLineas>(c: Coincidencia<T>, nuevo: ConLineas): boolean {
+  switch (c.tipo) {
+    case 'mismo':
+    case 'en_factura':
+      return c.con.some((d) => mismoContenido(d, nuevo));
+    case 'cubierta':
+      return mismoContenido(
+        { total: c.con.some((d) => d.total == null) ? null : redondear(c.con.reduce((t, d) => t + d.total!, 0)), lineas: c.con.flatMap((d) => d.lineas) },
+        nuevo,
+      );
+    default:
+      return false;
+  }
+}
+
 // Para los avisos: «ya está: albarán nº 5055 del 16 oct».
 export function describirCoincidencia<T extends DocCompra>(c: Coincidencia<T>, fecha: (iso: string) => string): string {
   const doc = (d: T) => `${d.tipo === 'factura' ? 'la factura' : 'el albarán'}${d.numero ? ` nº ${d.numero}` : ''} del ${fecha(d.fecha)}`;
@@ -169,4 +215,18 @@ export function describirCoincidencia<T extends DocCompra>(c: Coincidencia<T>, f
     case 'posible':
       return `Puede ser lo mismo que ${lista}: compruébalo antes de confirmar.`;
   }
+}
+
+// Parecía repetido pero no coinciden productos, precios o total: se guarda
+// como otra compra. Si aun así sus líneas salen en lo guardado, se avisa
+// para que no se cuente dos veces sin querer.
+export function describirNoCoincide<T extends DocCompra & ConLineas>(c: Coincidencia<T>, nuevo: ConLineas, fecha: (iso: string) => string): string {
+  const doc = (d: T) => `${d.tipo === 'factura' ? 'la factura' : 'el albarán'}${d.numero ? ` nº ${d.numero}` : ''} del ${fecha(d.fecha)}`;
+  const lista = c.con.map(doc).join(', ');
+  const parecido = c.tipo === 'mismo' ? `Tiene el mismo nº que ${lista}` : `Se nombra o suma como ${lista}`;
+  const dentro = conImporte(nuevo.lineas).length > 0 && lineasDentro(nuevo.lineas, c.con.flatMap((d) => d.lineas));
+  return (
+    `${parecido}, pero no coinciden los productos, los precios o el total: se cuenta como otra compra.` +
+    (dentro ? ' Ojo: sus productos también salen allí; si es la misma compra, anula una de las dos.' : '')
+  );
 }

@@ -6,7 +6,7 @@ import { normalizarCompra, sumaLineas } from '@/lib/comprasOcr';
 import { leerDictado, NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
 import { esPdf } from '@/lib/comprasPdf';
 import type { MarcasAlbaran } from '@/lib/comprasMarcas';
-import { buscarCoincidencia, describirCoincidencia } from '@/lib/comprasCoincidencias';
+import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, describirNoCoincide } from '@/lib/comprasCoincidencias';
 import type { CorreoCompras } from '@/hooks/useCorreoCompras';
 import { useBandeja } from '@/hooks/useBandeja';
 import { BandejaAlbaranes } from './BandejaAlbaranes';
@@ -466,7 +466,10 @@ function CompraEditor({
         compra.id,
       )
     : null;
-  const repetida = coincide && coincide.tipo !== 'parcial' && coincide.tipo !== 'posible' ? coincide : null;
+  // Repetida solo si además coinciden productos, precios y total.
+  const parecida = coincide && coincide.tipo !== 'parcial' && coincide.tipo !== 'posible' ? coincide : null;
+  const repetida = parecida && confirmarCoincidencia(parecida, { total: totalNum, lineas: lineasDatos }) ? parecida : null;
+  const noCoincide = parecida && !repetida ? describirNoCoincide(parecida, { total: totalNum, lineas: lineasDatos }, formatFecha) : null;
 
   const confirmar = () => {
     if (!totalNum || totalNum <= 0) {
@@ -724,7 +727,7 @@ function CompraEditor({
             <div className="xl:hidden h-40 rounded-2xl bg-background-100 animate-pulse" />
           ) : null}
 
-          {(repetida || compra.nota || compra.origen === 'email') && (
+          {(repetida || noCoincide || compra.nota || compra.origen === 'email') && (
             <div className={`flex items-start gap-2 rounded-xl p-3 text-xs ${repetida ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>
               <i className={`${compra.origen === 'email' ? 'ri-mail-line' : 'ri-error-warning-line'} text-base leading-none`}></i>
               <div className="space-y-1">
@@ -735,6 +738,7 @@ function CompraEditor({
                   </p>
                 )}
                 {compra.nota && <p>{compra.nota}</p>}
+                {noCoincide && noCoincide !== compra.nota && <p>{noCoincide}</p>}
                 {repetida && <p className="font-semibold">{describirCoincidencia(repetida, formatFecha)} No lo confirmes dos veces.</p>}
               </div>
             </div>

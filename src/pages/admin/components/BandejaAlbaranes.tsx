@@ -9,7 +9,7 @@ import { leerAlbaran, unificarProveedor, type AlbaranLeido } from '@/lib/compras
 import { lineasDeCompra, notaQuitadas } from '@/lib/comprasProductos';
 import { calcularMarcas } from '@/lib/comprasMarcas';
 import { agruparHojas } from '@/lib/comprasHojas';
-import { buscarCoincidencia, describirCoincidencia } from '@/lib/comprasCoincidencias';
+import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, describirNoCoincide } from '@/lib/comprasCoincidencias';
 import { juntarHojas } from '@/lib/comprasBandeja';
 import type { Bandeja, HojaBandeja as Hoja } from '@/hooks/useBandeja';
 
@@ -66,7 +66,12 @@ export function BandejaAlbaranes({
         },
         datos.compras,
       );
-      const repetida = coincide && coincide.tipo !== 'parcial' && coincide.tipo !== 'posible' ? coincide : null;
+      // Repetida solo si además coinciden productos, precios y total; si
+      // no, es otra compra y se guarda con una nota.
+      const leido = { total, lineas: leidos.flatMap((l) => l.lineas) };
+      const parecida = coincide && coincide.tipo !== 'parcial' && coincide.tipo !== 'posible' ? coincide : null;
+      const repetida = parecida && confirmarCoincidencia(parecida, leido) ? parecida : null;
+      const aviso = !coincide ? null : parecida && !repetida ? describirNoCoincide(parecida, leido, formatFecha) : describirCoincidencia(coincide, formatFecha);
       return {
         hojas: g,
         proveedor,
@@ -75,6 +80,7 @@ export function BandejaAlbaranes({
         lineas: leidos.reduce((t, l) => t + l.lineas.length, 0),
         coincide,
         repetida,
+        aviso,
         saltar: !!repetida && !forzadas.has(g[0].id),
       };
     });
@@ -102,7 +108,7 @@ export function BandejaAlbaranes({
         const compra = await datos.crearCompra({
           tipo: a.tipo,
           albaranes: a.albaranes,
-          nota: [c ? describirCoincidencia(c, formatFecha) : null, notaQuitadas(quitadas)].filter(Boolean).join(' ') || null,
+          nota: [c ? g.aviso : null, notaQuitadas(quitadas)].filter(Boolean).join(' ') || null,
           fecha: a.fecha ?? hoyISO(),
           proveedor,
           numero: a.numero,
@@ -243,7 +249,7 @@ export function BandejaAlbaranes({
           {g.coincide && !g.repetida && (
             <p className="mt-2 flex items-start gap-2 text-[11px] text-amber-800">
               <i className="ri-error-warning-line mt-0.5"></i>
-              <span>{describirCoincidencia(g.coincide, formatFecha)}</span>
+              <span>{g.aviso}</span>
             </p>
           )}
         </div>
