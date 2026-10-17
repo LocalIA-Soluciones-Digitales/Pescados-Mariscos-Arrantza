@@ -527,6 +527,17 @@ function CompraEditor({
   };
   const selectProducto = (i: number, compacto = false) => {
     const motivo = infoLinea(i).motivo;
+    // Ya confirmado o anulado: un desplegable bloqueado corta el nombre y no se
+    // puede abrir, así que se enseña el nombre entero como texto.
+    if (!editable) {
+      const nombre = productosOrdenados.find((p) => p.id === lineas[i].producto_id)?.nombre_es;
+      return (
+        <p className={`flex-1 min-w-0 text-sm leading-snug break-words ${nombre ? 'text-foreground-950' : 'text-foreground-400'} ${compacto ? 'px-2 py-1.5' : 'py-1'}`}>
+          {!compacto && <i className="ri-store-2-line text-foreground-400 mr-1.5"></i>}
+          {nombre ?? 'Sin producto'}
+        </p>
+      );
+    }
     return (
     <div className="relative flex-1 min-w-0">
       {!compacto && <i className="ri-store-2-line absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground-400 text-sm pointer-events-none"></i>}
