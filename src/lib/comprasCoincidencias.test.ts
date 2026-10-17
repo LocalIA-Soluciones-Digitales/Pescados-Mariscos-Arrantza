@@ -110,6 +110,14 @@ describe('casos reales 16/17-10', () => {
     expect(buscarCoincidencia(nuevo({ proveedor: CRESPO, fecha: '2026-10-17', total: 22.28 }), [ayer])).toBeNull();
     expect(buscarCoincidencia(nuevo({ proveedor: CRESPO, fecha: '2026-10-16', total: 22.28 }), [ayer])?.tipo).toBe('posible');
   });
+
+  it('José Crespo: cada factura va con el albarán de su día aunque sean iguales', () => {
+    const d16 = doc({ proveedor: CRESPO, fecha: '2026-10-16', total: 22.28 });
+    const d17 = doc({ proveedor: CRESPO, fecha: '2026-10-17', total: 22.28 });
+    const factura = (fecha: string) => nuevo({ proveedor: CRESPO, tipo: 'factura', fecha, total: 22.28 });
+    expect(buscarCoincidencia(factura('2026-10-16'), [d17, d16])).toEqual({ tipo: 'cubierta', con: [d16] });
+    expect(buscarCoincidencia(factura('2026-10-17'), [d16, d17])).toEqual({ tipo: 'cubierta', con: [d17] });
+  });
 });
 
 describe('confirmarCoincidencia', () => {

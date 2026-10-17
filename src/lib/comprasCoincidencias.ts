@@ -135,7 +135,9 @@ export function buscarCoincidencia<T extends DocCompra>(nuevo: DocNuevo, compras
       const d = dias(nuevo.fecha, c.fecha);
       return d >= -1 && d <= DIAS_FACTURA;
     })
-    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+    // El más cercano a la fecha de la factura primero: José Crespo repite
+    // el mismo pedido varios días y cada factura va con el de su día.
+    .sort((a, b) => Math.abs(dias(nuevo.fecha, a.fecha)) - Math.abs(dias(nuevo.fecha, b.fecha)) || b.fecha.localeCompare(a.fecha));
   const exacto = candidatos.filter((c) => mismoImporte(c.total!, nuevo.total!));
   if (exacto.length) return { tipo: 'cubierta', con: [exacto[0]] };
   const suma = subconjuntoQueSuma(candidatos, nuevo.total);

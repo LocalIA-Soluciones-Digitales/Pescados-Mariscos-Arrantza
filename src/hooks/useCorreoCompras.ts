@@ -7,7 +7,7 @@
 // con la lectura del PDF, y si la foto ya estaba confirmada (o es un albarán
 // que cubre la factura), al menos pasa a enseñar la imagen del PDF.
 // Lo hace el primer panel que lo coge (estado 'leyendo'); si ese panel se
-// cierra a medias, otro lo retoma pasados 10 minutos.
+// cierra a medias (o se recarga), él mismo u otro lo retoma pasados 3 minutos.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRealtimeTable } from './useRealtimeTable';
@@ -23,7 +23,7 @@ import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, descr
 const COLUMNAS =
   'id, nombre, tipo_mime, remitente, remitente_original, asunto, recibido, archivo_path, estado, compra_id, nota, tomado_at, created_at';
 const MAX_ROWS = 60;
-const RETOMAR_MS = 10 * 60_000;
+const RETOMAR_MS = 3 * 60_000;
 
 type ComprasDatos = ReturnType<typeof useCompras>;
 
@@ -225,6 +225,17 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
   useEffect(() => {
     if (hayPendientes && listo) procesarPendientes();
   }, [hayPendientes, listo, procesarPendientes]);
+
+  // Uno que se quedó «leyendo» (panel cerrado o recargado a media lectura):
+  // se retoma en cuanto vence su plazo, sin esperar a que llegue otro.
+  const vence = correo
+    .filter((c) => c.estado === 'leyendo' && c.tomado_at)
+    .reduce((m, c) => Math.min(m, Date.parse(c.tomado_at!) + RETOMAR_MS), Infinity);
+  useEffect(() => {
+    if (!listo || vence === Infinity) return;
+    const t = setTimeout(() => procesarPendientes(), Math.max(vence - Date.now(), 0) + 1000);
+    return () => clearTimeout(t);
+  }, [vence, listo, procesarPendientes]);
 
   const reintentar = useCallback(
     async (id: string) => {
