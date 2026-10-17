@@ -3733,8 +3733,9 @@ create table if not exists public.compras_correo (
   -- Ruta del PDF/foto original en el bucket 'compras'.
   archivo_path text not null,
   -- nuevo → leyendo (un panel lo ha cogido) → metido | repetido | error.
+  -- 'descartado': un repetido que David revisó y era el mismo.
   estado text not null default 'nuevo'
-    check (estado in ('nuevo', 'leyendo', 'metido', 'repetido', 'error')),
+    check (estado in ('nuevo', 'leyendo', 'metido', 'repetido', 'error', 'descartado')),
   -- La compra creada ('metido') o la que ya lo contenía ('repetido').
   compra_id uuid references public.compras (id) on delete set null,
   nota text,
@@ -3743,6 +3744,11 @@ create table if not exists public.compras_correo (
   updated_at timestamptz not null default now(),
   unique (cliente_id, mensaje_id, adjunto)
 );
+
+-- Para bases ya creadas: el check se amplió con 'descartado'.
+alter table public.compras_correo drop constraint if exists compras_correo_estado_check;
+alter table public.compras_correo add constraint compras_correo_estado_check
+  check (estado in ('nuevo', 'leyendo', 'metido', 'repetido', 'error', 'descartado'));
 
 drop trigger if exists trg_compras_correo_updated_at on public.compras_correo;
 create trigger trg_compras_correo_updated_at

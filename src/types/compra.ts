@@ -41,7 +41,8 @@ export interface CompraAlias {
   producto_id: string | null;
 }
 
-export type CompraCorreoEstado = 'nuevo' | 'leyendo' | 'metido' | 'repetido' | 'error';
+// 'descartado': un repetido que David revisó y era el mismo.
+export type CompraCorreoEstado = 'nuevo' | 'leyendo' | 'metido' | 'repetido' | 'error' | 'descartado';
 
 // Un adjunto (PDF o foto) recogido del correo: ver compras_correo en schema.sql.
 export interface CompraCorreo {

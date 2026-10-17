@@ -219,12 +219,19 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
     [procesar, anotar],
   );
 
+  // Un repetido que sí era el mismo: deja de pedir atención (queda con lo guardado).
+  const descartar = useCallback(async (id: string) => {
+    const { error } = await supabase.from('compras_correo').update({ estado: 'descartado' }).eq('id', id);
+    if (error) throw new Error(error.message);
+    setCorreo((p) => p.map((c) => (c.id === id ? { ...c, estado: 'descartado' } : c)));
+  }, []);
+
   const urlArchivo = useCallback(async (path: string) => {
     const { data } = await supabase.storage.from('compras').createSignedUrl(path, 60 * 60);
     return data?.signedUrl ?? null;
   }, []);
 
-  return { correo, leyendo, reintentar, guardarIgualmente, urlArchivo };
+  return { correo, leyendo, reintentar, guardarIgualmente, descartar, urlArchivo };
 }
 
 export type CorreoCompras = ReturnType<typeof useCorreoCompras>;

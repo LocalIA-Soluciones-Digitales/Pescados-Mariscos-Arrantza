@@ -1088,9 +1088,12 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
     }
   };
 
-  // Arriba solo lo que pide hacer algo; lo guardado solo queda plegado.
-  const atencion = correo.correo.filter((c) => c.estado !== 'metido');
-  const guardados = correo.correo.filter((c) => c.estado === 'metido');
+  // Arriba solo lo que pide hacer algo; lo guardado solo y los repetidos ya
+  // revisados quedan plegados.
+  const resuelto = (c: CompraCorreo) => c.estado === 'metido' || c.estado === 'descartado';
+  const atencion = correo.correo.filter((c) => !resuelto(c));
+  const guardados = correo.correo.filter(resuelto);
+  const nRepetidos = guardados.filter((c) => c.estado === 'descartado').length;
   const avisos = atencion.filter((c) => c.estado === 'repetido' || c.estado === 'error').length;
 
   const documento = (c: CompraCorreo) => (
@@ -1179,6 +1182,16 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
                         <i className={ocupado ? 'ri-loader-4-line animate-spin' : 'ri-add-line'}></i>
                         Es otro, guardarlo
                       </button>
+                      <button
+                        type="button"
+                        disabled={ocupado}
+                        onClick={() => accion(c, () => correo.descartar(c.id))}
+                        title="Ya está guardado: quitar el aviso"
+                        className={`${boton} col-span-2 text-emerald-700 hover:bg-emerald-50`}
+                      >
+                        <i className="ri-check-line"></i>
+                        Sí, es el mismo: quitar aviso
+                      </button>
                     </div>
                   </>
                 )}
@@ -1219,8 +1232,18 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
           >
             <i className="ri-check-double-line text-emerald-600 text-sm"></i>
             <span className="flex-1 text-left">
-              <span className="font-semibold text-foreground-900 tabular-nums">{guardados.length}</span>{' '}
-              {guardados.length === 1 ? 'guardado solo' : 'guardados solos'}
+              {guardados.length > nRepetidos && (
+                <>
+                  <span className="font-semibold text-foreground-900 tabular-nums">{guardados.length - nRepetidos}</span>{' '}
+                  {guardados.length - nRepetidos === 1 ? 'guardado solo' : 'guardados solos'}
+                </>
+              )}
+              {nRepetidos > 0 && (
+                <span className={guardados.length > nRepetidos ? 'text-foreground-400' : ''}>
+                  {guardados.length > nRepetidos ? ' · ' : ''}
+                  {nRepetidos} {nRepetidos === 1 ? 'repetido revisado' : 'repetidos revisados'}
+                </span>
+              )}
             </span>
             <i className={`ri-arrow-down-s-line text-base transition-transform ${verGuardados ? 'rotate-180' : ''}`}></i>
           </button>
@@ -1238,10 +1261,17 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
                       <button
                         type="button"
                         onClick={() => onAbrir(compra.id)}
-                        title="Abrir el albarán"
+                        title={c.estado === 'descartado' ? 'Abrir el que ya estaba guardado' : 'Abrir el albarán'}
                         className="h-8 pl-2.5 pr-1.5 rounded-full text-xs font-medium tabular-nums text-foreground-700 hover:bg-background-100 inline-flex items-center gap-0.5 flex-shrink-0"
                       >
-                        {formatEUR(compra.total)}
+                        {c.estado === 'descartado' ? (
+                          <span className="inline-flex items-center gap-1 text-foreground-500">
+                            <i className="ri-file-copy-2-line"></i>
+                            Ya estaba
+                          </span>
+                        ) : (
+                          formatEUR(compra.total)
+                        )}
                         <i className="ri-arrow-right-s-line text-foreground-400"></i>
                       </button>
                     )}
