@@ -150,20 +150,26 @@ function Captura({ onFotos }: { onFotos: (f: File[]) => void }) {
     if (files.length) onFotos(files);
   };
   return (
-    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-3 lg:p-4">
+    <div className="bg-background-50 border border-background-200/70 rounded-2xl shadow-card p-3">
       {/* Móvil: la cámara manda. */}
       <label className="lg:hidden flex items-center justify-center gap-3 w-full h-[72px] rounded-xl text-base font-semibold bg-primary-500 text-background-50 active:bg-primary-600 cursor-pointer">
         <i className="ri-camera-fill text-[28px]"></i>
         Foto del albarán
         <input type="file" accept="image/*" capture="environment" onChange={elegir} className="hidden" />
       </label>
-      {/* Ordenador: arrastrar y soltar o elegir el archivo. */}
-      <label className="hidden lg:flex flex-col items-center justify-center text-center gap-2 w-full rounded-xl border-2 border-dashed border-background-200 hover:border-primary-500/50 hover:bg-primary-500/[0.03] px-4 py-6 cursor-pointer transition-colors">
-        <span className="w-11 h-11 rounded-full bg-primary-500 text-background-50 flex items-center justify-center">
-          <i className="ri-upload-cloud-2-line text-xl"></i>
+      {/* Ordenador: arrastrar y soltar o elegir el archivo. Compacto para que
+          el correo y el resumen quepan en la misma pantalla. */}
+      <label
+        title="PDF con texto: se lee al instante. Fotos y escaneados: entre 10 s y 1 min."
+        className="hidden lg:flex items-center gap-3 w-full rounded-xl border-2 border-dashed border-background-200 hover:border-primary-500/50 hover:bg-primary-500/[0.03] px-3 py-2.5 cursor-pointer transition-colors"
+      >
+        <span className="w-9 h-9 flex-shrink-0 rounded-full bg-primary-500 text-background-50 flex items-center justify-center">
+          <i className="ri-upload-cloud-2-line text-lg"></i>
         </span>
-        <span className="text-sm font-semibold text-foreground-950">Sube las fotos o PDF de los albaranes</span>
-        <span className="text-xs text-foreground-400">Arrástralos aquí o haz clic para elegirlos (varios a la vez)</span>
+        <span className="min-w-0 flex flex-col">
+          <span className="text-sm font-semibold text-foreground-950 leading-tight">Subir fotos o PDF</span>
+          <span className="text-[11px] text-foreground-400 leading-snug">Arrástralos aquí o haz clic · varios a la vez</span>
+        </span>
         <input type="file" accept="image/*,application/pdf,.pdf" multiple onChange={elegir} className="hidden" />
       </label>
       <div className="lg:hidden flex items-center justify-between gap-3 mt-2.5 px-1">
@@ -174,9 +180,6 @@ function Captura({ onFotos }: { onFotos: (f: File[]) => void }) {
           <input type="file" accept="image/*,application/pdf,.pdf" multiple onChange={elegir} className="hidden" />
         </label>
       </div>
-      <p className="hidden lg:block text-[11px] text-foreground-400 text-center mt-2.5">
-        PDF con texto: se lee al instante. Fotos y escaneados: entre 10 s y 1 min.
-      </p>
     </div>
   );
 }
