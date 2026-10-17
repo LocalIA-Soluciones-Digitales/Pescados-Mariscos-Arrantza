@@ -44,7 +44,8 @@ describe('sugerirProducto', () => {
     expect(sugerir('SARDINA G')).toBe('sardinas');
     expect(sugerir('FILETE BACALAO G')).toBe('filete-bakalao');
     expect(sugerir('BAC.DESALADO TAJADA CENTRAL')).toBe('lomo-desalado');
-    expect(sugerir('LANGOSTINO CDO 30-40')).toBe('lang-3040');
+    expect(sugerir('LANGOSTINO CDO 30-40')).toBe('lang-cocido');
+    expect(sugerir('LANGOSTINO 30/40')).toBe('lang-3040');
     expect(sugerir('LANGOSTINO COCIDO')).toBe('lang-cocido');
     expect(sugerir('BONITO / THUNNUS ALALUNGA ALB')).toBe('bonito');
   });

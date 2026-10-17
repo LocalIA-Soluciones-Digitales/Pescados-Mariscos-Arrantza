@@ -107,13 +107,13 @@ function palabras(texto: string): string[] {
     .filter((p) => p && !VACIAS.has(p));
 }
 
-// 2 = misma palabra · 2,5 = misma talla (30/40): manda sobre «cocido» o
-// «crudo», «LANGOSTINO CDO 30-40» es el Langostino 30/40 · 1,5 = abreviada
-// («BAC.» → bacalao, «LANG» → langostino) o pegada a otra por el OCR
-// («SALMONETEDEROC» → salmonete). Más un poco por cada letra que coincide
-// de verdad, para desempatar.
+// 2 = misma palabra · 1,5 = abreviada («BAC.» → bacalao, «LANG» →
+// langostino) o pegada a otra por el OCR («SALMONETEDEROC» → salmonete).
+// Más un poco por cada letra que coincide de verdad, para desempatar: así
+// «LANGOSTINO CDO 30-40» va a Langostino Cocido, que es como se vende en la
+// báscula (el 30/40 es el crudo).
 function coincide(a: string, p: string): number {
-  if (a === p) return (/^\d+\/\d+$/.test(p) ? 2.5 : 2) + p.length * 0.01;
+  if (a === p) return 2 + p.length * 0.01;
   if (!/^[a-z]+$/.test(a)) return 0;
   if (a.length >= 3 && p.length >= 5 && p.startsWith(a)) return 1.5 + a.length * 0.01;
   if (p.length >= 5 && a.length >= p.length + 3 && a.startsWith(p)) return 1.5 + p.length * 0.01;
@@ -157,7 +157,8 @@ export function sugerirProducto(
   if (recordado?.producto_id && productos.some((x) => x.id === recordado.producto_id)) return { id: recordado.producto_id, motivo: 'recordado' };
   if (NO_PRODUCTO.test(t)) return null;
 
-  const albaran = palabras(texto.replace(/\//g, ' '));
+  // «JUREL/ CHICHARRO» son dos nombres; la barra de una talla («30/40») no.
+  const albaran = palabras(texto.replace(/(?<!\d)\/|\/(?!\d)/g, ' '));
   let mejor: { id: string; puntos: number; stock: boolean; largo: number } | null = null;
   for (const prod of productos) {
     const puntos = puntuar(albaran, prod.nombre_es);
