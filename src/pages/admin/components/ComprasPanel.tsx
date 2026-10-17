@@ -1418,6 +1418,22 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
   const [busqueda, setBusqueda] = useState('');
   // Día del albarán que se está viendo (null = todos los días). Se entra en hoy.
   const [dia, setDia] = useState<string | null>(() => hoyISO());
+  // Con el panel abierto de un día para otro, «Hoy» pasa al día nuevo.
+  const hoyVisto = useRef(hoyISO());
+  useEffect(() => {
+    const alVolver = () => {
+      const hoy = hoyISO();
+      if (hoy === hoyVisto.current) return;
+      setDia((d) => (d === hoyVisto.current ? hoy : d));
+      hoyVisto.current = hoy;
+    };
+    const t = setInterval(alVolver, 60_000);
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', alVolver);
+    };
+  }, []);
 
   const pendientes = datos.compras.filter((c) => c.estado === 'pendiente');
   const abierta = datos.compras.find((c) => c.id === abiertaId) ?? null;
@@ -1533,10 +1549,12 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
             >
               <i className="ri-error-warning-line text-base leading-none"></i>
               <span className="flex-1">
-                {pendientesOtrosDias === 1 ? 'Hay 1 albarán por revisar' : `Hay ${pendientesOtrosDias} albaranes por revisar`} de otros días.
+                {pendientesOtrosDias === 1
+                  ? 'Tienes 1 albarán de otro día sin revisar.'
+                  : `Tienes ${pendientesOtrosDias} albaranes de otros días sin revisar.`}
               </span>
               <span className="font-semibold whitespace-nowrap">
-                Ver {pendientesOtrosDias === 1 ? 'lo' : 'los'} <i className="ri-arrow-right-s-line"></i>
+                {pendientesOtrosDias === 1 ? 'Verlo' : 'Verlos'} <i className="ri-arrow-right-s-line"></i>
               </span>
             </button>
           )}
