@@ -1,25 +1,36 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import ErrorLogsPanel from './ErrorLogsPanel';
-import ReportsPanel from './ReportsPanel';
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import SummaryPanel from './SummaryPanel';
-import NewsletterPanel from './NewsletterPanel';
 import ViewSwitcher from './ViewSwitcher';
+import TrafficPanel from './dev/TrafficPanel';
+import FunnelPanel from './dev/FunnelPanel';
+import ErrorsPanel from './dev/ErrorsPanel';
+import SystemPanel from './dev/SystemPanel';
+import { Empty, Loading, RANGE_OPTIONS, Segmented, Toolbar, fmtAgo, fmtInt } from './dev/ui';
+import { useVisits } from '@/hooks/useVisits';
+import { usePedidos } from '@/hooks/usePedidos';
+import { isPublicEvent, resolveRange, type RangeKey } from '@/lib/devAnalytics';
 
-export type Tab = 'informes' | 'resumen' | 'errores' | 'newsletter';
+export type Tab = 'informes' | 'embudo' | 'errores' | 'sistema' | 'resumen';
 
-export const TABS: { value: Tab; label: string }[] = [
-  { value: 'informes', label: 'Informes' },
-  { value: 'resumen', label: 'Resumen' },
-  { value: 'newsletter', label: 'Newsletter' },
-  { value: 'errores', label: 'Errores' },
+// 'informes' mantiene su valor (antes era la única pestaña de tráfico) para
+// que los enlaces ?tab=informes guardados sigan funcionando.
+export const TABS: { value: Tab; label: string; icon: string }[] = [
+  { value: 'informes', label: 'Tráfico', icon: 'ri-line-chart-line' },
+  { value: 'embudo', label: 'Embudo', icon: 'ri-filter-3-line' },
+  { value: 'errores', label: 'Errores', icon: 'ri-bug-line' },
+  { value: 'sistema', label: 'Sistema', icon: 'ri-server-line' },
+  { value: 'resumen', label: 'Resumen', icon: 'ri-file-text-line' },
 ];
 
 const TITLES: Record<Tab, string> = {
-  informes: 'Informes de visitas',
-  resumen: 'Resumen',
-  newsletter: 'Suscriptores del newsletter',
-  errores: 'Registro de errores',
+  informes: 'Tráfico web',
+  embudo: 'Embudo y productos',
+  errores: 'Errores del frontend',
+  sistema: 'Sistema e integraciones',
+  resumen: 'Resumen imprimible',
 };
+
+const RANGE_KEY = 'dev_panel_range';
 
 type ViewSwitch = { label: string; onClick: () => void };
 
@@ -28,6 +39,37 @@ export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOu
     const inicial = new URLSearchParams(window.location.search).get('tab');
     return TABS.some((t) => t.value === inicial) ? (inicial as Tab) : 'informes';
   });
+  const [rangeKey, setRangeKey] = useState<RangeKey>(() => {
+    try {
+      const v = localStorage.getItem(RANGE_KEY);
+      return RANGE_OPTIONS.some((o) => o.value === v) ? (v as RangeKey) : '28d';
+    } catch {
+      return '28d';
+    }
+  });
+
+  // Los datos se cargan una vez aquí y se comparten entre pestañas, para no
+  // volver a bajar hasta 50.000 eventos en cada cambio de pestaña.
+  const { visits: allVisits, loading, refetch } = useVisits();
+  const { pedidos } = usePedidos();
+  const visits = useMemo(() => allVisits.filter(isPublicEvent), [allVisits]);
+  const range = useMemo(() => resolveRange(rangeKey, visits[0]?.created_at), [rangeKey, visits]);
+
+  const changeTab = (t: Tab) => {
+    setTab(t);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', t);
+    window.history.replaceState(null, '', url);
+  };
+  const changeRange = (r: RangeKey) => {
+    setRangeKey(r);
+    try {
+      localStorage.setItem(RANGE_KEY, r);
+    } catch {
+      /* sin almacenamiento: el rango no se recuerda */
+    }
+  };
+
   // Altura de la cabecera para que las barras de filtros fijas queden justo debajo.
   const headerRef = useRef<HTMLElement>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -41,27 +83,32 @@ export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOu
   }, []);
 
   const tabsNav = (
-    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+    <nav className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
       {TABS.map((t) => (
         <button
           key={t.value}
           type="button"
-          onClick={() => setTab(t.value)}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
-            tab === t.value ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200/70'
+          onClick={() => changeTab(t.value)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+            tab === t.value ? 'bg-primary-500 text-background-50' : 'text-foreground-500 hover:text-foreground-950 hover:bg-background-100'
           }`}
         >
+          <i className={`${t.icon} text-sm`} />
           {t.label}
         </button>
       ))}
-    </div>
+    </nav>
   );
+
+  const usesRange = tab === 'informes' || tab === 'embudo' || tab === 'errores';
+  const usesVisits = tab === 'informes' || tab === 'embudo';
+  const lastEvent = visits[visits.length - 1]?.created_at;
 
   return (
     <div className="min-h-screen bg-background-100" style={{ '--admin-header-height': `${headerHeight}px` } as CSSProperties}>
       <header ref={headerRef} className="sticky top-0 z-20 bg-background-50 border-b border-background-200/70 px-4 md:px-8 py-3 md:py-4 print:hidden">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
+          <div className="flex items-center gap-5 min-w-0">
             <div className="min-w-0">
               <h1 className="text-base font-heading font-semibold text-foreground-950 truncate">{TITLES[tab]}</h1>
               <p className="text-xs text-foreground-400 truncate">Pescados y Mariscos Arrantza · Panel de Desarrollo</p>
@@ -90,14 +137,42 @@ export default function DeveloperDashboard({ onSignOut, viewSwitch }: { onSignOu
         <div className="md:hidden mt-3">{tabsNav}</div>
       </header>
 
-      {tab === 'errores' ? (
-        <ErrorLogsPanel />
-      ) : tab === 'resumen' ? (
+      {tab === 'resumen' ? (
         <SummaryPanel />
-      ) : tab === 'newsletter' ? (
-        <NewsletterPanel />
       ) : (
-        <ReportsPanel />
+        <main className="px-4 md:px-8 pb-28 max-w-[1600px] mx-auto">
+          {usesRange && (
+            <Toolbar>
+              <Segmented value={rangeKey} onChange={changeRange} options={RANGE_OPTIONS} />
+              <div className="flex items-center gap-3 text-[11px] text-foreground-400">
+                <span className="tabular-nums hidden sm:inline">
+                  {range.from.toLocaleDateString('es-ES')} – {new Date(range.to.getTime() - 1).toLocaleDateString('es-ES')}
+                </span>
+                {usesVisits && lastEvent && <span className="hidden md:inline">· {fmtInt(visits.length)} eventos · último {fmtAgo(lastEvent)}</span>}
+                {usesVisits && (
+                  <button type="button" onClick={() => refetch()} className="w-8 h-8 rounded-full flex items-center justify-center text-foreground-500 hover:text-foreground-950 hover:bg-background-50" title="Recargar datos">
+                    <i className={`ri-refresh-line ${loading ? 'animate-spin' : ''}`} />
+                  </button>
+                )}
+              </div>
+            </Toolbar>
+          )}
+          <div className="pt-5">
+            {tab === 'errores' ? (
+              <ErrorsPanel range={range} />
+            ) : tab === 'sistema' ? (
+              <SystemPanel visits={allVisits} />
+            ) : loading && visits.length === 0 ? (
+              <Loading />
+            ) : visits.length === 0 ? (
+              <Empty title="Todavía no hay visitas registradas" body="Se registran solo cuando el visitante acepta las cookies de analítica." />
+            ) : tab === 'embudo' ? (
+              <FunnelPanel visits={visits} pedidos={pedidos} range={range} />
+            ) : (
+              <TrafficPanel visits={visits} range={range} />
+            )}
+          </div>
+        </main>
       )}
     </div>
   );
