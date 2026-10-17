@@ -52,7 +52,7 @@ $$ language sql stable set search_path = public;
 
 -- Resuelve el cliente_id a partir del site_key público (VITE_SITE_KEY),
 -- usado por todas las funciones RPC que el frontend llama sin sesión
--- (formularios públicos: pedidos, reseñas, newsletter, analítica...).
+-- (formularios públicos: pedidos, reseñas, analítica...).
 -- Solo devuelve clientes en estado 'activo'.
 create or replace function public.cliente_id_from_site_key(p_site_key uuid)
 returns uuid
@@ -610,8 +610,7 @@ $$;
 
 -- Consulta de un pedido por su Stripe Checkout Session id, usada por la
 -- página de confirmación tras el redirect de pago (sin login: el session id
--- de Stripe es impredecible y funciona como token de acceso, igual que
--- confirm_token/baja_token en newsletter_subscribers).
+-- de Stripe es impredecible y funciona como token de acceso).
 create or replace function public.get_pedido_by_stripe_session(p_session_id text)
 returns setof pedidos
 language sql stable security definer set search_path = public
@@ -657,8 +656,7 @@ grant execute on function public.get_pedidos_by_device(uuid) to anon, authentica
 -- peor caso enviar los datos de un pedido al webhook/secreto de OTRO
 -- cliente si Postgres decide una fila arbitraria. Corrección: añadir
 -- `and cliente_id = new.cliente_id` a las tres consultas de esta
--- función (y a las equivalentes en notificar_stock_bajo y
--- notificar_newsletter_confirmacion).
+-- función (y a las equivalentes en notificar_stock_bajo).
 create or replace function public.notificar_pedido_estado()
 returns trigger as $$
 declare
@@ -1464,159 +1462,14 @@ create policy "caja_movimientos_delete_admin"
 
 create index if not exists idx_caja_movimientos_fecha on public.caja_movimientos (cliente_id, fecha);
 
--- ============================================================
--- Suscriptores del newsletter, con doble confirmación (double opt-in)
--- y baja sin login vía token.
--- ============================================================
-
-create table if not exists public.newsletter_subscribers (
-  id uuid primary key default gen_random_uuid(),
-  cliente_id uuid not null references public.clientes (id),
-  email text not null,
-  idioma text not null default 'es' check (idioma in ('es', 'eu')),
-  confirmado boolean not null default false,
-  confirmado_en timestamptz,
-  confirm_token uuid not null default gen_random_uuid(),
-  baja_token uuid not null default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  unique (cliente_id, email)
-);
-
-alter table public.newsletter_subscribers enable row level security;
-
-drop policy if exists "newsletter_subscribers_select_admin" on public.newsletter_subscribers;
-create policy "newsletter_subscribers_select_admin"
-  on public.newsletter_subscribers for select
-  to authenticated
-  using (is_developer());
-
-drop policy if exists "newsletter_subscribers_delete_admin" on public.newsletter_subscribers;
-create policy "newsletter_subscribers_delete_admin"
-  on public.newsletter_subscribers for delete
-  to authenticated
-  using (is_developer());
-
-create unique index if not exists idx_newsletter_subscribers_confirm_token on public.newsletter_subscribers (confirm_token);
-create unique index if not exists idx_newsletter_subscribers_baja_token on public.newsletter_subscribers (baja_token);
-create index if not exists idx_newsletter_subscribers_created_at on public.newsletter_subscribers (created_at desc);
-
--- Alta/reenvío de confirmación. Devuelve 'nuevo' | 'reenviado' | 'confirmado'.
-create or replace function public.crear_newsletter_subscriber(p_site_key uuid, p_email text, p_idioma text)
-returns text
-language plpgsql security definer set search_path = public
-as $$
-declare
-  v_cliente_id uuid;
-  v_id uuid;
-  v_confirmado boolean;
-begin
-  v_cliente_id := public.cliente_id_from_site_key(p_site_key);
-  if v_cliente_id is null then
-    raise exception 'site_key inválida';
-  end if;
-  if char_length(p_email) < 3 or char_length(p_email) > 255 then
-    raise exception 'email inválido';
-  end if;
-
-  select id, confirmado into v_id, v_confirmado
-  from public.newsletter_subscribers
-  where cliente_id = v_cliente_id and email = p_email;
-
-  if v_id is null then
-    insert into public.newsletter_subscribers (cliente_id, email, idioma)
-    values (v_cliente_id, p_email, p_idioma);
-    return 'nuevo';
-  elsif v_confirmado then
-    return 'confirmado';
-  else
-    update public.newsletter_subscribers
-    set confirm_token = gen_random_uuid(), idioma = p_idioma
-    where id = v_id;
-    return 'reenviado';
-  end if;
-end;
-$$;
-
--- Marca como confirmado el suscriptor dueño de ese token.
--- 'confirmado' | 'ya_confirmado' | 'invalido'.
-create or replace function public.confirmar_newsletter_subscriber(p_token uuid)
-returns text
-language plpgsql security definer set search_path = public
-as $$
-declare
-  v_id uuid;
-  v_confirmado boolean;
-begin
-  select id, confirmado into v_id, v_confirmado
-  from public.newsletter_subscribers
-  where confirm_token = p_token;
-
-  if v_id is null then
-    return 'invalido';
-  elsif v_confirmado then
-    return 'ya_confirmado';
-  end if;
-
-  update public.newsletter_subscribers
-  set confirmado = true, confirmado_en = now()
-  where id = v_id;
-
-  return 'confirmado';
-end;
-$$;
-
--- Da de baja (borra) al suscriptor dueño de ese token. 'baja' | 'invalido'.
-create or replace function public.baja_newsletter_subscriber(p_token uuid)
-returns text
-language plpgsql security definer set search_path = public
-as $$
-declare
-  v_id uuid;
-begin
-  select id into v_id from public.newsletter_subscribers where baja_token = p_token;
-  if v_id is null then
-    return 'invalido';
-  end if;
-
-  delete from public.newsletter_subscribers where id = v_id;
-  return 'baja';
-end;
-$$;
-
--- Envía el correo de confirmación (vía la Edge Function
--- newsletter-confirm). Mismo aviso sobre tenant-scoping pendiente que
--- notificar_pedido_estado (ver comentario allí).
-create or replace function public.notificar_newsletter_confirmacion()
-returns trigger as $$
-declare
-  v_url text;
-  v_secret text;
-begin
-  if new.confirmado = false then
-    select value #>> '{}' into v_url from public.settings where key = 'newsletter_confirm_url';
-    select value #>> '{}' into v_secret from public.settings where key = 'newsletter_confirm_secret';
-
-    if v_url is not null then
-      perform net.http_post(
-        url := v_url,
-        headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', coalesce(v_secret, '')),
-        body := jsonb_build_object(
-          'email', new.email,
-          'idioma', new.idioma,
-          'confirm_token', new.confirm_token,
-          'baja_token', new.baja_token
-        )
-      );
-    end if;
-  end if;
-  return new;
-end;
-$$ language plpgsql security definer set search_path = public, extensions;
-
-drop trigger if exists trg_newsletter_confirmacion on public.newsletter_subscribers;
-create trigger trg_newsletter_confirmacion
-  after insert or update of confirm_token on public.newsletter_subscribers
-  for each row execute function public.notificar_newsletter_confirmacion();
+-- Newsletter retirada (17/10/2026): nunca llegó a tener suscriptores.
+-- Se borra lo que se creó en su día (tabla, funciones, trigger y ajustes).
+drop table if exists public.newsletter_subscribers cascade;
+drop function if exists public.crear_newsletter_subscriber(uuid, text, text);
+drop function if exists public.confirmar_newsletter_subscriber(uuid);
+drop function if exists public.baja_newsletter_subscriber(uuid);
+drop function if exists public.notificar_newsletter_confirmacion();
+delete from public.settings where key in ('newsletter_confirm_url', 'newsletter_confirm_secret');
 
 -- Tras desplegar cada Edge Function de notificación, registra su URL y
 -- el secreto compartido (mismo valor que el `*_SECRET` de la function,
@@ -1626,9 +1479,7 @@ create trigger trg_newsletter_confirmacion
 --   ('<CLIENTE_ID>', 'pedido_estado_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/pedido-estado"'),
 --   ('<CLIENTE_ID>', 'pedido_estado_secret', '"<UN_SECRETO_ALEATORIO>"'),
 --   ('<CLIENTE_ID>', 'stock_alert_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/stock-alert"'),
---   ('<CLIENTE_ID>', 'stock_alert_secret', '"<UN_SECRETO_ALEATORIO>"'),
---   ('<CLIENTE_ID>', 'newsletter_confirm_url', '"https://<PROJECT_REF>.supabase.co/functions/v1/newsletter-confirm"'),
---   ('<CLIENTE_ID>', 'newsletter_confirm_secret', '"<UN_SECRETO_ALEATORIO>"')
+--   ('<CLIENTE_ID>', 'stock_alert_secret', '"<UN_SECRETO_ALEATORIO>"')
 -- on conflict (key, cliente_id) do update set value = excluded.value;
 
 -- Sincronización de stock con las básculas BM5 (Balanzas Marques) de las
@@ -2794,7 +2645,7 @@ $$;
 
 -- ============================================================
 -- Realtime: el panel de gestión (usePedidos, useReservas, useResenas,
--- useProductos, useNewsletter, useReservasEventos, useReservasAjustes,
+-- useProductos, useReservasEventos, useReservasAjustes,
 -- useSolicitudesStock, useCaja, useHosteleriaSolicitudes,
 -- useHosteleriaClientes) se suscribe a estas tablas con Postgres Changes
 -- para refrescarse solo en cuanto cambian, sin recargar la página.
@@ -2812,7 +2663,7 @@ declare
 begin
   foreach t in array array[
     'pedidos', 'reservas', 'reservas_eventos', 'reservas_ajustes',
-    'resenas', 'newsletter_subscribers', 'productos', 'solicitudes_stock',
+    'resenas', 'productos', 'solicitudes_stock',
     'bascula_ventas', 'bascula_catalogo',
     'caja_movimientos',
     'promo_reglas', 'promo_otorgadas',

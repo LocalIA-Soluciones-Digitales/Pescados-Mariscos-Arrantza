@@ -10,7 +10,6 @@ import AvisoLegal from "../pages/legal/AvisoLegal";
 import Cookies from "../pages/legal/Cookies";
 import Privacidad from "../pages/legal/Privacidad";
 import CondicionesContratacion from "../pages/legal/CondicionesContratacion";
-import NewsletterAction from "../pages/newsletter/NewsletterAction";
 import PedidoConfirmado from "../pages/pedido/PedidoConfirmado";
 
 const routes: RouteObject[] = [
@@ -53,14 +52,6 @@ const routes: RouteObject[] = [
   {
     path: "/condiciones-contratacion",
     element: <CondicionesContratacion />,
-  },
-  {
-    path: "/newsletter/confirmar",
-    element: <NewsletterAction mode="confirmar" />,
-  },
-  {
-    path: "/newsletter/baja",
-    element: <NewsletterAction mode="baja" />,
   },
   {
     path: "/pedido/confirmado",

@@ -53,12 +53,6 @@ export default function Privacidad() {
                       <td className="py-2">{t('legal.privacidad.row1.retention')}</td>
                     </tr>
                     <tr className="border-b border-background-100">
-                      <td className="py-2 pr-4">{t('legal.privacidad.row2.purpose')}</td>
-                      <td className="py-2 pr-4">{t('legal.privacidad.row2.data')}</td>
-                      <td className="py-2 pr-4">{t('legal.privacidad.row2.basis')}</td>
-                      <td className="py-2">{t('legal.privacidad.row2.retention')}</td>
-                    </tr>
-                    <tr className="border-b border-background-100">
                       <td className="py-2 pr-4">{t('legal.privacidad.row3.purpose')}</td>
                       <td className="py-2 pr-4">{t('legal.privacidad.row3.data')}</td>
                       <td className="py-2 pr-4">{t('legal.privacidad.row3.basis')}</td>
