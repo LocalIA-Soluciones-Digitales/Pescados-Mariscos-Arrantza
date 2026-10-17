@@ -132,6 +132,28 @@ export function useCompras() {
     return data as Compra;
   }, []);
 
+  // Solo la imagen (y lo leído en ella) de una compra, sin tocar líneas,
+  // gasto ni stock: una foto ya guardada pasa a enseñar el PDF de la factura
+  // que llegó por correo. La imagen anterior se borra.
+  const cambiarImagen = useCallback(
+    async (compra: Compra, input: Pick<NuevaCompraInput, 'foto' | 'ocr_texto' | 'ocr_marcas'>) => {
+      const foto_path = `${compra.cliente_id}/${compra.fecha.slice(0, 4)}/${compra.id}-${Date.now()}.jpg`;
+      const { error: errFoto } = await supabase.storage.from(BUCKET).upload(foto_path, input.foto, { contentType: 'image/jpeg' });
+      if (errFoto) throw new Error(`No se pudo subir la imagen: ${errFoto.message}`);
+      const { error } = await supabase
+        .from('compras')
+        .update({ foto_path, ocr_texto: input.ocr_texto, ocr_marcas: input.ocr_marcas })
+        .eq('id', compra.id);
+      if (error) {
+        await supabase.storage.from(BUCKET).remove([foto_path]);
+        throw new Error(`No se pudo cambiar la imagen: ${error.message}`);
+      }
+      if (compra.foto_path) await supabase.storage.from(BUCKET).remove([compra.foto_path]);
+      setCompras((prev) => prev.map((c) => (c.id === compra.id ? { ...c, foto_path, ocr_texto: input.ocr_texto } : c)));
+    },
+    [],
+  );
+
   const anotarCompra = useCallback(async (id: string, nota: string) => {
     const { error } = await supabase.from('compras').update({ nota }).eq('id', id);
     if (error) throw new Error(error.message);
@@ -172,6 +194,7 @@ export function useCompras() {
     anularCompra,
     borrarCompra,
     reemplazarLectura,
+    cambiarImagen,
     anotarCompra,
     recordarQuitadas,
     urlFoto,

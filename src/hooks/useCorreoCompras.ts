@@ -4,7 +4,8 @@
 // (comprasCoincidencias.ts), se crea la compra «por revisar» con la marca
 // Email. Si ya estaba, se apunta como «repetido» y no se guarda otra vez;
 // si lo que estaba era la foto sin confirmar del mismo documento, se queda
-// con la lectura del PDF.
+// con la lectura del PDF, y si la foto ya estaba confirmada (o es un albarán
+// que cubre la factura), al menos pasa a enseñar la imagen del PDF.
 // Lo hace el primer panel que lo coge (estado 'leyendo'); si ese panel se
 // cierra a medias, otro lo retoma pasados 10 minutos.
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -103,6 +104,27 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
         await anotar(item.id, { estado: 'metido', compra_id: nueva.id, nota: 'Ya estaba por foto: se ha cambiado su lectura por la del PDF.' });
         return null;
       }
+      // Una foto ya guardada de este documento (el mismo, o los albaranes que
+      // cubre esta factura): pasa a enseñar la imagen del PDF, sin tocar
+      // líneas, gasto ni stock. Si lo leído cuadra, no hay nada que revisar.
+      const fotos =
+        coincide?.tipo === 'mismo' || coincide?.tipo === 'cubierta' ? coincide.con.filter((c) => c.origen === 'foto') : [];
+      for (const c of fotos) {
+        await d.cambiarImagen(c, {
+          foto: junto.jpeg,
+          ocr_texto: a.texto.join('\n'),
+          ocr_marcas: coincide!.con.length === 1 ? ocr_marcas : null,
+        });
+      }
+      if (fotos.length && fotos.length === coincide!.con.length && mismasLineas(coincide!.con.flatMap((c) => c.lineas), lineas)) {
+        await anotar(item.id, {
+          estado: 'descartado',
+          compra_id: coincide!.con[0].id,
+          nota: `${explicacion} Ya estaba por foto: se le ha puesto la imagen del PDF.`,
+        });
+        return null;
+      }
+
       if (foto?.estado === 'confirmada' && !mismasLineas(foto.lineas, lineas)) {
         const delPdf = lineas
           .filter((l) => l.importe)
