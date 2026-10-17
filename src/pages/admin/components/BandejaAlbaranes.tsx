@@ -5,9 +5,8 @@
 import { useMemo, useState } from 'react';
 import type { useCompras } from '@/hooks/useCompras';
 import type { Producto } from '@/types/producto';
-import type { CompraLinea } from '@/types/compra';
 import { leerAlbaran, unificarProveedor, type AlbaranLeido } from '@/lib/comprasOcr';
-import { NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
+import { lineasDeCompra, notaQuitadas } from '@/lib/comprasProductos';
 import { calcularMarcas } from '@/lib/comprasMarcas';
 import { agruparHojas } from '@/lib/comprasHojas';
 import { buscarCoincidencia, describirCoincidencia } from '@/lib/comprasCoincidencias';
@@ -97,20 +96,13 @@ export function BandejaAlbaranes({
         const junto = await juntarHojas(leidas);
         const a = leerAlbaran(junto.cajas);
         const proveedor = unificarProveedor(a.proveedor, conocidos);
-        const lineas: CompraLinea[] = a.lineas.map((l) => ({
-          texto: l.texto,
-          kg: l.kg,
-          precio: l.precio,
-          importe: l.importe,
-          producto_id: sugerirProducto(l.texto, proveedor, datos.alias, productos)?.id ?? null,
-          sumar_stock: !NO_PRODUCTO.test(l.texto),
-        }));
+        const { lineas, quitadas } = lineasDeCompra(a.lineas, proveedor, datos.alias, productos);
         const fallo = leidas.find((h) => h.fallo)?.fallo ?? null;
         const c = g.coincide && !g.saltar ? g.coincide : null;
         const compra = await datos.crearCompra({
           tipo: a.tipo,
           albaranes: a.albaranes,
-          nota: c ? describirCoincidencia(c, formatFecha) : null,
+          nota: [c ? describirCoincidencia(c, formatFecha) : null, notaQuitadas(quitadas)].filter(Boolean).join(' ') || null,
           fecha: a.fecha ?? hoyISO(),
           proveedor,
           numero: a.numero,

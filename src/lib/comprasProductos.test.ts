@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canon, leerDictado, sugerirProducto, type ProductoBasico } from './comprasProductos';
+import { canon, leerDictado, lineasDeCompra, notaQuitadas, sugerirProducto, type ProductoBasico } from './comprasProductos';
 
 // Nombres reales de la carta de Arrantza.
 const PRODUCTOS: ProductoBasico[] = [
@@ -72,6 +72,29 @@ describe('sugerirProducto', () => {
     const alias = [{ proveedor_norm: 'capotinas', texto_norm: 'rape', producto_id: 'cola-rape' }];
     expect(sugerirProducto('RAPE', 'Capotinas', alias, PRODUCTOS)).toEqual({ id: 'cola-rape', motivo: 'recordado' });
     expect(sugerirProducto('CHICHARRO', 'Capotinas', alias, PRODUCTOS)).toEqual({ id: 'txitxarro', motivo: 'parecido' });
+  });
+
+  it('una línea quitada otras veces no sale más en los albaranes de ese proveedor', () => {
+    const alias = [{ proveedor_norm: 'adelaida', texto_norm: 'forma de pago............... transfer.', producto_id: null }];
+    const leidas = [
+      { texto: 'MERLUZA PINCHO', kg: 18, precio: 6, importe: 108, estado: 'ok' as const },
+      { texto: 'Forma de pago............... Transfer.', kg: 19.95, precio: 0.14, importe: 2.79, estado: 'corregida' as const },
+    ];
+    const r = lineasDeCompra(leidas, 'Adelaida', alias, PRODUCTOS);
+    expect(r.lineas.map((l) => [l.texto, l.producto_id])).toEqual([['MERLUZA PINCHO', 'merluza-pintxo']]);
+    expect(r.quitadas).toEqual(['Forma de pago............... Transfer.']);
+    expect(notaQuitadas(r.quitadas)).toBe('Quitada como otras veces: Forma de pago............... Transfer..');
+    // Otro proveedor no la quita.
+    expect(lineasDeCompra(leidas, 'Capotinas', alias, PRODUCTOS).lineas).toHaveLength(2);
+  });
+
+  it('una línea quitada no propone producto aunque otro proveedor lo recuerde', () => {
+    const alias = [
+      { proveedor_norm: 'adelaida', texto_norm: 'rape', producto_id: null },
+      { proveedor_norm: 'capotinas', texto_norm: 'rape', producto_id: 'cola-rape' },
+    ];
+    expect(sugerirProducto('RAPE', 'Adelaida', alias, PRODUCTOS)).toBeNull();
+    expect(sugerirProducto('RAPE', 'Gaizka', alias, PRODUCTOS)?.id).toBe('cola-rape');
   });
 
   it('canon', () => {

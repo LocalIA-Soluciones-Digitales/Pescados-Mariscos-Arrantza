@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buscarCoincidencia, type DocCompra } from './comprasCoincidencias';
+import { buscarCoincidencia, mismasLineas, type DocCompra } from './comprasCoincidencias';
 
 const ADELAIDA = 'Pescados y Mariscos Adelaida, S.L.';
 const GAIZKA = 'Pescados y Mariscos Gaizka, S.L.';
@@ -94,6 +94,15 @@ describe('casos reales 16/17-10', () => {
   it('mismo nº pero otro tipo y otro importe: no es el mismo', () => {
     const foto = doc({ proveedor: CONIFRES, tipo: 'albaran', numero: 'M10780', total: 50 });
     expect(buscarCoincidencia(nuevo({ proveedor: CONIFRES, tipo: 'factura', numero: 'M10780', total: 111.4 }), [foto])).toBeNull();
+  });
+
+  it('mismasLineas compara kg e importes, no los nombres', () => {
+    const foto = [
+      { kg: 4.5, importe: 72 },
+      { kg: 1, importe: 28 },
+    ];
+    expect(mismasLineas(foto, [{ kg: 1, importe: 28 }, { kg: 4.5, importe: 72 }])).toBe(true);
+    expect(mismasLineas(foto, [{ kg: 4.5, importe: 72 }])).toBe(false);
   });
 
   it('José Crespo: el mismo pedido otro día es otra compra; el mismo día, solo se avisa', () => {

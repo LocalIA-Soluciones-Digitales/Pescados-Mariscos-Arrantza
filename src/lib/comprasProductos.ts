@@ -9,7 +9,13 @@
 //      productos en vasco («Filete de Bakalao…», «Txitxarro», «Lomo de
 //      Bakalao Desalado»), así que se comparan palabras ya igualadas.
 //   3. Nada: «Sin producto». HIELO, TRANSPORTE o ENVASES nunca son producto.
-import { normalizarCompra } from './comprasOcr';
+//
+// La memoria también guarda lo que no es producto: una línea sin producto
+// que David quita al revisar (p. ej. «Forma de pago…» leída como línea) se
+// recuerda con producto_id null y ya no sale en los albaranes de ese
+// proveedor.
+import { normalizarCompra, type LineaLeida } from './comprasOcr';
+import type { CompraLinea } from '@/types/compra';
 
 export interface ProductoBasico {
   id: string;
@@ -20,8 +26,41 @@ export interface ProductoBasico {
 export interface AliasBasico {
   proveedor_norm: string;
   texto_norm: string;
-  producto_id: string;
+  // null: «esto no es producto» (David quitó la línea).
+  producto_id: string | null;
 }
+
+// ¿David ha quitado esta línea otras veces en albaranes de este proveedor?
+export function esLineaQuitada(texto: string, proveedor: string | null, alias: AliasBasico[]): boolean {
+  const t = normalizarCompra(texto);
+  const p = normalizarCompra(proveedor);
+  return !!t && alias.some((a) => a.producto_id == null && a.texto_norm === t && a.proveedor_norm === p);
+}
+
+// Líneas leídas → líneas de la compra, con el producto propuesto y sin las
+// que David quita siempre (`quitadas`, para avisarle de que se han quitado).
+export function lineasDeCompra(
+  leidas: LineaLeida[],
+  proveedor: string | null,
+  alias: AliasBasico[],
+  productos: ProductoBasico[],
+): { lineas: CompraLinea[]; quitadas: string[] } {
+  const quitadas = leidas.filter((l) => esLineaQuitada(l.texto, proveedor, alias)).map((l) => l.texto);
+  const lineas = leidas
+    .filter((l) => !esLineaQuitada(l.texto, proveedor, alias))
+    .map((l) => ({
+      texto: l.texto,
+      kg: l.kg,
+      precio: l.precio,
+      importe: l.importe,
+      producto_id: sugerirProducto(l.texto, proveedor, alias, productos)?.id ?? null,
+      sumar_stock: !NO_PRODUCTO.test(l.texto),
+    }));
+  return { lineas, quitadas };
+}
+
+export const notaQuitadas = (quitadas: string[]) =>
+  quitadas.length ? `Quitada${quitadas.length > 1 ? 's' : ''} como otras veces: ${quitadas.join(' · ')}.` : null;
 
 export interface Sugerencia {
   id: string;
@@ -112,8 +151,10 @@ export function sugerirProducto(
   const t = normalizarCompra(texto);
   if (!t) return null;
   const p = normalizarCompra(proveedor);
-  const recordado = alias.find((a) => a.texto_norm === t && a.proveedor_norm === p) ?? alias.find((a) => a.texto_norm === t);
-  if (recordado && productos.some((x) => x.id === recordado.producto_id)) return { id: recordado.producto_id, motivo: 'recordado' };
+  const delProveedor = alias.find((a) => a.texto_norm === t && a.proveedor_norm === p);
+  if (delProveedor && delProveedor.producto_id == null) return null;
+  const recordado = delProveedor ?? alias.find((a) => a.texto_norm === t && a.producto_id != null);
+  if (recordado?.producto_id && productos.some((x) => x.id === recordado.producto_id)) return { id: recordado.producto_id, motivo: 'recordado' };
   if (NO_PRODUCTO.test(t)) return null;
 
   const albaran = palabras(texto.replace(/\//g, ' '));

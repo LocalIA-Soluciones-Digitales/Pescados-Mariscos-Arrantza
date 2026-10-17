@@ -145,6 +145,14 @@ export function buscarCoincidencia<T extends DocCompra>(nuevo: DocNuevo, compras
   return sinTotal.length ? { tipo: 'posible', con: sinTotal } : null;
 }
 
+// ¿Dos lecturas del mismo documento traen las mismas líneas? Se comparan
+// kg e importes (los nombres cambian entre la foto y el PDF).
+export function mismasLineas(a: { kg: number | null; importe: number | null }[], b: { kg: number | null; importe: number | null }[]): boolean {
+  const clave = (l: { kg: number | null; importe: number | null }) => `${redondear(l.kg ?? 0)}|${redondear(l.importe ?? 0)}`;
+  const ordenar = (ls: typeof a) => ls.filter((l) => l.importe != null && l.importe !== 0).map(clave).sort().join(';');
+  return ordenar(a) === ordenar(b);
+}
+
 // Para los avisos: «ya está: albarán nº 5055 del 16 oct».
 export function describirCoincidencia<T extends DocCompra>(c: Coincidencia<T>, fecha: (iso: string) => string): string {
   const doc = (d: T) => `${d.tipo === 'factura' ? 'la factura' : 'el albarán'}${d.numero ? ` nº ${d.numero}` : ''} del ${fecha(d.fecha)}`;

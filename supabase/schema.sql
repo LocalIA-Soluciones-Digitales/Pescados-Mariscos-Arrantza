@@ -3507,10 +3507,14 @@ create table if not exists public.compras_alias (
   cliente_id uuid not null references public.clientes (id),
   proveedor_norm text not null,
   texto_norm text not null,
-  producto_id uuid not null references public.productos (id) on delete cascade,
+  producto_id uuid references public.productos (id) on delete cascade,
   updated_at timestamptz not null default now(),
   primary key (cliente_id, proveedor_norm, texto_norm)
 );
+
+-- producto_id null = «no es producto»: David quitó esa línea al revisar
+-- (p. ej. «Forma de pago…» leída como línea) y ya no sale más de ese proveedor.
+alter table public.compras_alias alter column producto_id drop not null;
 
 alter table public.compras_alias enable row level security;
 

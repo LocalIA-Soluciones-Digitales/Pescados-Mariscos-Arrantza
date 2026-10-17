@@ -2,7 +2,9 @@
 // Function compras-correo). Con el panel abierto, cada documento nuevo se
 // lee aquí con el mismo lector que las fotos y, si no estaba ya guardado
 // (comprasCoincidencias.ts), se crea la compra «por revisar» con la marca
-// Email. Si ya estaba, se apunta como «repetido» y no se guarda otra vez.
+// Email. Si ya estaba, se apunta como «repetido» y no se guarda otra vez;
+// si lo que estaba era la foto sin confirmar del mismo documento, se queda
+// con la lectura del PDF.
 // Lo hace el primer panel que lo coge (estado 'leyendo'); si ese panel se
 // cierra a medias, otro lo retoma pasados 10 minutos.
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,8 +16,8 @@ import type { Producto } from '@/types/producto';
 import { leerAlbaran, unificarProveedor } from '@/lib/comprasOcr';
 import { juntarHojas, leerArchivo } from '@/lib/comprasBandeja';
 import { calcularMarcas } from '@/lib/comprasMarcas';
-import { NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
-import { buscarCoincidencia, describirCoincidencia } from '@/lib/comprasCoincidencias';
+import { lineasDeCompra, notaQuitadas } from '@/lib/comprasProductos';
+import { buscarCoincidencia, describirCoincidencia, mismasLineas } from '@/lib/comprasCoincidencias';
 
 const COLUMNAS =
   'id, nombre, tipo_mime, remitente, remitente_original, asunto, recibido, archivo_path, estado, compra_id, nota, tomado_at, created_at';
@@ -74,22 +76,51 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
       const doc = { tipo: a.tipo, proveedor, numero: a.numero, fecha, total: a.total, albaranes: a.albaranes };
       const coincide = forzar ? null : buscarCoincidencia(doc, vistas);
       const explicacion = coincide ? describirCoincidencia(coincide, formatFecha) : null;
+      const leidas = lineasDeCompra(a.lineas, proveedor, d.alias, prods);
+      let lineas: CompraLinea[] = leidas.lineas;
+      const ocr_marcas = junto.cajas.length ? calcularMarcas(junto.cajas, a, junto.ancho, junto.alto) : null;
+
+      // El mismo documento ya entró por foto: el PDF se lee sin fallos, así
+      // que manda el PDF. Pendiente → se cambia su lectura por la del PDF;
+      // confirmada → no se toca (gasto y stock ya apuntados), solo se avisa
+      // si el PDF trae otras líneas.
+      const foto = coincide?.tipo === 'mismo' ? coincide.con.find((c) => c.origen === 'foto') : undefined;
+      if (foto?.estado === 'pendiente') {
+        const nueva = await d.reemplazarLectura(foto, {
+          tipo: a.tipo,
+          origen: 'email',
+          albaranes: a.albaranes,
+          nota: ['Lectura cambiada por la del PDF que llegó por correo (más fiable que la foto).', notaQuitadas(leidas.quitadas)].filter(Boolean).join(' '),
+          fecha,
+          proveedor,
+          numero: a.numero,
+          total: a.total,
+          lineas,
+          ocr_texto: a.texto.join('\n'),
+          ocr_marcas,
+          foto: junto.jpeg,
+        });
+        await anotar(item.id, { estado: 'metido', compra_id: nueva.id, nota: 'Ya estaba por foto: se ha cambiado su lectura por la del PDF.' });
+        return null;
+      }
+      if (foto?.estado === 'confirmada' && !mismasLineas(foto.lineas, lineas)) {
+        const delPdf = lineas
+          .filter((l) => l.importe)
+          .map((l) => `${l.texto || 'sin nombre'} ${l.kg ?? '?'} kg · ${formatEUR(l.importe ?? 0)}`)
+          .join('; ');
+        await d.anotarCompra(
+          foto.id,
+          `El PDF del correo trae otras líneas: ${delPdf}. Si esta lectura está mal, anúlala y en «Correo» pulsa «Guardar igualmente» en ese PDF.`,
+        );
+      }
 
       if (coincide && coincide.tipo !== 'parcial' && coincide.tipo !== 'posible') {
         await anotar(item.id, { estado: 'repetido', compra_id: coincide.con[0].id, nota: explicacion });
         return null;
       }
 
-      let lineas: CompraLinea[] = a.lineas.map((l) => ({
-        texto: l.texto,
-        kg: l.kg,
-        precio: l.precio,
-        importe: l.importe,
-        producto_id: sugerirProducto(l.texto, proveedor, d.alias, prods)?.id ?? null,
-        sumar_stock: !NO_PRODUCTO.test(l.texto),
-      }));
       let total = a.total;
-      let nota = explicacion;
+      let nota = [explicacion, notaQuitadas(leidas.quitadas)].filter(Boolean).join(' ') || null;
       if (coincide?.tipo === 'parcial') {
         // Fuera las líneas que ya entraron con los albaranes guardados (mismo
         // importe, una por una): quedan las de los albaranes que faltan.
@@ -101,7 +132,9 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
           return false;
         });
         total = coincide.resto;
-        nota = `${explicacion} Factura de ${formatEUR(a.total ?? 0)}; aquí cuenta ${formatEUR(coincide.resto)}.`;
+        nota = [`${explicacion} Factura de ${formatEUR(a.total ?? 0)}; aquí cuenta ${formatEUR(coincide.resto)}.`, notaQuitadas(leidas.quitadas)]
+          .filter(Boolean)
+          .join(' ');
       }
 
       return d.crearCompra({
@@ -115,7 +148,7 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
         total,
         lineas,
         ocr_texto: a.texto.join('\n'),
-        ocr_marcas: junto.cajas.length ? calcularMarcas(junto.cajas, a, junto.ancho, junto.alto) : null,
+        ocr_marcas,
         foto: junto.jpeg,
       });
     },

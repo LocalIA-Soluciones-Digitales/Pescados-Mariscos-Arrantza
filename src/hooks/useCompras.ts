@@ -4,6 +4,7 @@ import { getMiClienteId } from '@/lib/clienteContext';
 import { useRealtimeTable } from './useRealtimeTable';
 import type { Compra, CompraAlias, CompraLinea } from '@/types/compra';
 import type { MarcasAlbaran } from '@/lib/comprasMarcas';
+import { normalizarCompra } from '@/lib/comprasOcr';
 
 const BUCKET = 'compras';
 const MAX_ROWS = 300;
@@ -107,6 +108,50 @@ export function useCompras() {
     setCompras((prev) => prev.filter((c) => c.id !== compra.id));
   }, []);
 
+  // Cambia lo leído de una compra pendiente por otra lectura del mismo
+  // documento (el PDF del correo, más fiable que la foto): imagen, líneas,
+  // datos y recuadros. La imagen anterior se borra.
+  const reemplazarLectura = useCallback(async (compra: Compra, input: NuevaCompraInput): Promise<Compra> => {
+    const foto_path = `${compra.cliente_id}/${input.fecha.slice(0, 4)}/${compra.id}-${Date.now()}.jpg`;
+    const { error: errFoto } = await supabase.storage.from(BUCKET).upload(foto_path, input.foto, { contentType: 'image/jpeg' });
+    if (errFoto) throw new Error(`No se pudo subir la imagen: ${errFoto.message}`);
+    const { foto: _foto, ...datos } = input;
+    const { data, error } = await supabase
+      .from('compras')
+      .update({ ...datos, foto_path })
+      .eq('id', compra.id)
+      .eq('estado', 'pendiente')
+      .select(COLUMNAS)
+      .maybeSingle();
+    if (error || !data) {
+      await supabase.storage.from(BUCKET).remove([foto_path]);
+      throw new Error(`No se pudo cambiar la lectura: ${error?.message ?? 'ya no está pendiente'}`);
+    }
+    if (compra.foto_path) await supabase.storage.from(BUCKET).remove([compra.foto_path]);
+    setCompras((prev) => prev.map((c) => (c.id === compra.id ? (data as Compra) : c)));
+    return data as Compra;
+  }, []);
+
+  const anotarCompra = useCallback(async (id: string, nota: string) => {
+    const { error } = await supabase.from('compras').update({ nota }).eq('id', id);
+    if (error) throw new Error(error.message);
+    setCompras((prev) => prev.map((c) => (c.id === id ? { ...c, nota } : c)));
+  }, []);
+
+  // Líneas sin producto que David ha quitado al revisar: la memoria las
+  // guarda sin producto y ya no salen en los albaranes de ese proveedor.
+  const recordarQuitadas = useCallback(async (proveedor: string | null, textos: string[]) => {
+    const p = normalizarCompra(proveedor);
+    const filas = [...new Set(textos.map(normalizarCompra).filter(Boolean))].map((texto_norm) => ({ proveedor_norm: p, texto_norm, producto_id: null }));
+    if (!p || !filas.length) return;
+    const cliente_id = await getMiClienteId();
+    const { error } = await supabase
+      .from('compras_alias')
+      .upsert(filas.map((f) => ({ ...f, cliente_id, updated_at: new Date().toISOString() })), { onConflict: 'cliente_id,proveedor_norm,texto_norm' });
+    if (error) throw new Error(error.message);
+    setAlias((prev) => [...prev.filter((a) => !(a.proveedor_norm === p && filas.some((f) => f.texto_norm === a.texto_norm))), ...filas]);
+  }, []);
+
   const urlFoto = useCallback(async (path: string) => {
     const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
     return data?.signedUrl ?? null;
@@ -117,5 +162,19 @@ export function useCompras() {
     return (data?.ocr_marcas as MarcasAlbaran | null) ?? null;
   }, []);
 
-  return { compras, alias, loading, crearCompra, guardarCompra, confirmarCompra, anularCompra, borrarCompra, urlFoto, cargarMarcas };
+  return {
+    compras,
+    alias,
+    loading,
+    crearCompra,
+    guardarCompra,
+    confirmarCompra,
+    anularCompra,
+    borrarCompra,
+    reemplazarLectura,
+    anotarCompra,
+    recordarQuitadas,
+    urlFoto,
+    cargarMarcas,
+  };
 }

@@ -37,7 +37,8 @@ export interface Compra {
 export interface CompraAlias {
   proveedor_norm: string;
   texto_norm: string;
-  producto_id: string;
+  // null: «esto no es producto», David quitó la línea al revisar.
+  producto_id: string | null;
 }
 
 export type CompraCorreoEstado = 'nuevo' | 'leyendo' | 'metido' | 'repetido' | 'error';
