@@ -26,6 +26,8 @@ const PRODUCTOS: ProductoBasico[] = [
   ['mejillon', 'Mejillón', true],
   ['buey', 'Buey', true],
   ['patas-buey', 'Patas Buey Cocida', true],
+  ['bogavante-pais', 'Bogavante del País', false],
+  ['bogavante-canada', 'Bogavante de Canadá', false],
 ].map(([id, nombre_es, gestion_stock]) => ({ id: id as string, nombre_es: nombre_es as string, gestion_stock: gestion_stock as boolean }));
 
 const sugerir = (texto: string) => sugerirProducto(texto, 'Proveedor', [], PRODUCTOS)?.id ?? null;
@@ -117,5 +119,11 @@ describe('leerDictado', () => {
 
   it('sin precio deja el precio vacío', () => {
     expect(leerDictado('merluza 6 kilos')).toEqual({ texto: 'MERLUZA', kg: 6, precio: null });
+  });
+});
+
+describe('sinónimos de David (17-10)', () => {
+  it('«ABACANTO CANADIENSE» es el Bogavante de Canadá', () => {
+    expect(sugerirProducto('ABACANTO CANADIENSE', 'Otro proveedor', [], PRODUCTOS)?.id).toBe('bogavante-canada');
   });
 });

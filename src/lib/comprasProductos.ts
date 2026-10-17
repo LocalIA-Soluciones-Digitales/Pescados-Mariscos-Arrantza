@@ -84,6 +84,8 @@ const SINONIMOS: Record<string, string> = {
   mulus: 'salmonete', nekora: 'necora', txangurro: 'changurro', chirla: 'chirla', zamburina: 'zamburina',
   // Capotinas llama «volanta» a la merluza (confirmado por David, 17-10).
   volanta: 'merluza',
+  // Gaizka: «ABACANTO CANADIENSE» = Bogavante de Canadá (David, 17-10).
+  abacanto: 'bogavante', canadiense: 'canada',
 };
 
 export const NO_PRODUCTO = /\b(hielo|transporte|portes?|envases?|cajas?|bolsas?|palets?|gastos?)\b/i;
