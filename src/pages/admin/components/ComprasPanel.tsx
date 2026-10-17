@@ -189,9 +189,12 @@ function Resumen({ compras }: { compras: Compra[] }) {
   const listas = pendientes.filter((c) => situacion(c).etiqueta === 'Lista para confirmar').length;
   const mes = hoyISO().slice(0, 7);
   const confirmadasMes = compras.filter((c) => c.estado === 'confirmada' && c.fecha.startsWith(mes));
-  const cifra = (valor: string, texto: string, detalle?: string) => (
-    <div className="px-4 py-3">
-      <p className="text-[11px] font-medium text-foreground-400">{texto}</p>
+  const cifra = (valor: string, texto: string, detalle?: string, textoCorto = texto) => (
+    <div className="px-4 py-3 min-w-0">
+      <p className="text-[11px] font-medium text-foreground-400 truncate">
+        <span className="lg:hidden">{textoCorto}</span>
+        <span className="hidden lg:inline">{texto}</span>
+      </p>
       <p className="text-lg font-semibold text-foreground-950 tabular-nums leading-tight mt-0.5">{valor}</p>
       {detalle && <p className="text-[11px] text-foreground-500 mt-0.5">{detalle}</p>}
     </div>
@@ -207,6 +210,7 @@ function Resumen({ compras }: { compras: Compra[] }) {
         formatEUR(confirmadasMes.reduce((t, c) => t + (c.total ?? 0), 0)),
         'Compras confirmadas este mes',
         `${confirmadasMes.length} ${confirmadasMes.length === 1 ? 'albarán' : 'albaranes'}`,
+        'Confirmado este mes',
       )}
     </div>
   );
@@ -1037,7 +1041,10 @@ const quien = (c: CompraCorreo) => (c.remitente_original ?? c.remitente ?? '').r
 function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: Compra[]; onAbrir: (id: string) => void }) {
   const [todos, setTodos] = useState(false);
   if (!correo.correo.length) return null;
+  // Se ven los 6 últimos en el ordenador y los 3 últimos en el móvil, para que
+  // no empuje la lista de albaranes.
   const lista = todos ? correo.correo : correo.correo.slice(0, 6);
+  const ocultos = (n: number) => (todos ? 0 : Math.max(0, correo.correo.length - n));
   const existe = (id: string | null) => !!id && compras.some((c) => c.id === id);
   const verArchivo = async (c: CompraCorreo) => {
     const url = await correo.urlArchivo(c.archivo_path);
@@ -1051,10 +1058,10 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
         {correo.leyendo && <i className="ri-loader-4-line animate-spin text-primary-500" title={`Leyendo ${correo.leyendo}`}></i>}
       </div>
       <ul className="divide-y divide-background-200/70">
-        {lista.map((c) => {
+        {lista.map((c, i) => {
           const e = ESTADO_CORREO[c.estado];
           return (
-            <li key={c.id} className="py-2 first:pt-0 last:pb-0">
+            <li key={c.id} className={`py-2.5 lg:py-2 first:pt-0 last:pb-0 ${!todos && i >= 3 ? 'hidden lg:block' : ''}`}>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => verArchivo(c)} title={`Ver ${c.nombre}`} className="min-w-0 flex-1 text-left">
                   <p className="text-xs font-medium text-foreground-900 truncate">{quien(c)}</p>
@@ -1066,23 +1073,23 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
                   <button
                     type="button"
                     onClick={() => onAbrir(c.compra_id!)}
-                    className={`h-6 px-2 rounded-full text-[11px] font-medium whitespace-nowrap ${e.clase} hover:brightness-95`}
+                    className={`h-8 lg:h-6 px-2.5 lg:px-2 rounded-full text-xs lg:text-[11px] font-medium whitespace-nowrap ${e.clase} hover:brightness-95`}
                   >
                     {e.texto} <i className="ri-arrow-right-s-line"></i>
                   </button>
                 ) : (
-                  <span className={`h-6 px-2 inline-flex items-center rounded-full text-[11px] font-medium whitespace-nowrap ${e.clase}`}>{e.texto}</span>
+                  <span className={`h-8 lg:h-6 px-2.5 lg:px-2 inline-flex items-center rounded-full text-xs lg:text-[11px] font-medium whitespace-nowrap ${e.clase}`}>{e.texto}</span>
                 )}
               </div>
               {(c.estado === 'repetido' || c.estado === 'error') && (
-                <div className="mt-1 text-[11px] text-foreground-500">
+                <div className="mt-1 text-xs lg:text-[11px] text-foreground-500">
                   {c.nota}{' '}
                   {c.estado === 'repetido' ? (
-                    <button type="button" onClick={() => correo.guardarIgualmente(c)} className="font-medium text-primary-600 hover:underline">
+                    <button type="button" onClick={() => correo.guardarIgualmente(c)} className="py-1.5 lg:py-0 font-medium text-primary-600 hover:underline">
                       No es el mismo: guardarlo
                     </button>
                   ) : (
-                    <button type="button" onClick={() => correo.reintentar(c.id)} className="font-medium text-primary-600 hover:underline">
+                    <button type="button" onClick={() => correo.reintentar(c.id)} className="py-1.5 lg:py-0 font-medium text-primary-600 hover:underline">
                       Reintentar
                     </button>
                   )}
@@ -1092,8 +1099,12 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
           );
         })}
       </ul>
-      {correo.correo.length > 6 && (
-        <button type="button" onClick={() => setTodos((v) => !v)} className="text-[11px] font-medium text-foreground-500 hover:text-foreground-900">
+      {(todos || ocultos(3) > 0) && (
+        <button
+          type="button"
+          onClick={() => setTodos((v) => !v)}
+          className={`h-9 lg:h-auto text-xs lg:text-[11px] font-medium text-foreground-500 hover:text-foreground-900 ${!todos && ocultos(6) === 0 ? 'lg:hidden' : ''}`}
+        >
           {todos ? 'Ver menos' : `Ver los ${correo.correo.length}`}
         </button>
       )}
@@ -1150,15 +1161,23 @@ function SelectorDia({ dia, onDia, total, n }: { dia: string | null; onDia: (d: 
       <button type="button" onClick={() => onDia(anterior)} aria-label="Día anterior" title="Día anterior" className={flecha}>
         <i className="ri-arrow-left-s-line text-lg"></i>
       </button>
-      <div className="relative min-w-0">
+      <div className="relative min-w-0 flex-1 sm:flex-none">
         <button
           type="button"
           onClick={abrirCalendario}
-          className="inline-flex items-center gap-2 h-9 md:h-8 px-3 rounded-full hover:bg-background-100 text-sm font-semibold text-foreground-950 whitespace-nowrap"
+          className="w-full sm:w-auto inline-flex items-center gap-2 min-h-9 md:h-8 px-2 sm:px-3 py-0.5 rounded-xl sm:rounded-full hover:bg-background-100 text-left"
           title="Elegir día en el calendario"
         >
-          <i className="ri-calendar-line text-foreground-500"></i>
-          {dia ? nombreDia(dia) : 'Todos los días'}
+          <i className="ri-calendar-line text-foreground-500 flex-shrink-0"></i>
+          <span className="min-w-0 flex flex-col">
+            <span className="text-sm font-semibold text-foreground-950 truncate leading-tight">{dia ? nombreDia(dia) : 'Todos los días'}</span>
+            {/* Móvil: el total del día va debajo del nombre para que la barra quepa. */}
+            {dia && (
+              <span className="sm:hidden text-[11px] text-foreground-500 tabular-nums truncate leading-tight">
+                {n} {n === 1 ? 'albarán' : 'albaranes'} · {formatEUR(total)}
+              </span>
+            )}
+          </span>
         </button>
         <input
           ref={calendario}
@@ -1181,15 +1200,14 @@ function SelectorDia({ dia, onDia, total, n }: { dia: string | null; onDia: (d: 
       >
         <i className="ri-arrow-right-s-line text-lg"></i>
       </button>
-      <div className="ml-auto flex items-center gap-2 pr-1 min-w-0">
+      <div className="sm:ml-auto flex items-center gap-1 sm:gap-2 pr-1 flex-shrink-0">
         {dia && (
-          <span className="text-xs text-foreground-500 tabular-nums whitespace-nowrap">
-            <span className="hidden sm:inline">{n} {n === 1 ? 'albarán' : 'albaranes'} · </span>
-            {formatEUR(total)}
+          <span className="hidden sm:inline text-xs text-foreground-500 tabular-nums whitespace-nowrap">
+            {n} {n === 1 ? 'albarán' : 'albaranes'} · {formatEUR(total)}
           </span>
         )}
         {dia && dia !== hoy && (
-          <button type="button" onClick={() => onDia(hoy)} className="h-8 px-3 rounded-full text-xs font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-950">
+          <button type="button" onClick={() => onDia(hoy)} className="h-9 md:h-8 px-2.5 sm:px-3 rounded-full text-xs font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-950">
             Hoy
           </button>
         )}
@@ -1197,7 +1215,7 @@ function SelectorDia({ dia, onDia, total, n }: { dia: string | null; onDia: (d: 
           <button
             type="button"
             onClick={() => onDia(null)}
-            className="h-8 px-3 rounded-full text-xs font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-950 whitespace-nowrap"
+            className="h-9 md:h-8 px-2.5 sm:px-3 rounded-full text-xs font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-950 whitespace-nowrap"
           >
             Todos
           </button>
@@ -1295,8 +1313,11 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
         </div>
       )}
 
-      <div className="lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-6 lg:items-start space-y-4 lg:space-y-0">
-        <aside className="space-y-4 lg:sticky" style={{ top: 'calc(var(--admin-header-height, 0px) + 1.5rem)' }}>
+      {/* Móvil: la columna lateral se deshace (contents) para ordenar las piezas:
+          subir y resumen arriba, la lista de albaranes en medio y el correo al final. */}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-6 lg:items-start">
+        <aside className="contents lg:block lg:space-y-4 lg:sticky" style={{ top: 'calc(var(--admin-header-height, 0px) + 1.5rem)' }}>
+          <div className="order-1 space-y-4 empty:hidden">
           {bandeja.hojas.length === 0 && <Captura onFotos={bandeja.añadir} />}
           <BandejaAlbaranes bandeja={bandeja} datos={datos} productos={productos} onGuardadas={alGuardar} />
           {aviso && (
@@ -1308,11 +1329,16 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
               </button>
             </div>
           )}
-          <Correo correo={correo} compras={datos.compras} onAbrir={setAbiertaId} />
-          <Resumen compras={datos.compras} />
+          </div>
+          <div className="order-4 empty:hidden">
+            <Correo correo={correo} compras={datos.compras} onAbrir={setAbiertaId} />
+          </div>
+          <div className="order-2">
+            <Resumen compras={datos.compras} />
+          </div>
         </aside>
 
-        <section className="min-w-0">
+        <section className="order-3 min-w-0">
           <SelectorDia dia={dia} onDia={setDia} total={totalDia} n={cuentas.todas - cuentas.anuladas} />
           {pendientesOtrosDias > 0 && (
             <button
@@ -1333,14 +1359,14 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
             </button>
           )}
           <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-3">
-            <div className="flex gap-1 p-1 rounded-full bg-background-100 border border-background-200/70 overflow-x-auto scrollbar-hide self-start max-w-full">
+            <div className="flex gap-0.5 md:gap-1 p-1 rounded-full bg-background-100 border border-background-200/70 overflow-x-auto scrollbar-hide w-full md:w-auto md:self-start">
               {PESTANAS.map((t) => (
                 <button
                   key={t.valor}
                   type="button"
                   onClick={() => setFiltro(t.valor)}
                   aria-pressed={filtro === t.valor}
-                  className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                  className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1 md:gap-1.5 h-9 md:h-8 px-2 md:px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
                     filtro === t.valor ? 'bg-background-50 text-foreground-950 shadow-card' : 'text-foreground-500 hover:text-foreground-950'
                   }`}
                 >
