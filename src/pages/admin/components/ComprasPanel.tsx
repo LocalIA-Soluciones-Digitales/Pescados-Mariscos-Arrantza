@@ -1360,8 +1360,12 @@ function SelectorDia({ dia, onDia, total, n }: { dia: string | null; onDia: (d: 
           max={hoy}
           onChange={(e) => e.target.value && onDia(e.target.value)}
           tabIndex={-1}
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+          aria-label="Elegir día en el calendario"
+          // Táctil (iPhone sobre todo): showPicker() no abre nada, el calendario
+          // solo sale si el dedo toca el propio campo; por eso ahí el campo
+          // invisible tapa el botón. Con ratón lo abre el botón (showPicker).
+          // text-base: con letra < 16px el iPhone hace zoom al tocarlo.
+          className="absolute inset-0 z-10 block w-full h-full opacity-0 appearance-none text-base cursor-pointer pointer-events-none [@media(pointer:coarse)]:pointer-events-auto"
         />
       </div>
       <button
