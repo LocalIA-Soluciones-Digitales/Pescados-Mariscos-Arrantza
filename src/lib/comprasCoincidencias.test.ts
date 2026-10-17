@@ -80,3 +80,25 @@ describe('buscarCoincidencia', () => {
     expect(buscarCoincidencia(nuevo({ tipo: 'factura', total: 100 }), [viejo])).toBeNull();
   });
 });
+
+describe('casos reales 16/17-10', () => {
+  const CONIFRES = 'Conifres, S.L.';
+  const CRESPO = 'José Crespo, S.A.';
+
+  it('captura de la factura de Conifres leída como albarán + el PDF del email: el mismo', () => {
+    const foto = doc({ proveedor: CONIFRES, tipo: 'albaran', numero: 'M10780', total: 111.4 });
+    const r = buscarCoincidencia(nuevo({ proveedor: CONIFRES, tipo: 'factura', numero: 'M10780', total: 111.4, albaranes: ['AM/OUT/11121'] }), [foto]);
+    expect(r?.tipo).toBe('mismo');
+  });
+
+  it('mismo nº pero otro tipo y otro importe: no es el mismo', () => {
+    const foto = doc({ proveedor: CONIFRES, tipo: 'albaran', numero: 'M10780', total: 50 });
+    expect(buscarCoincidencia(nuevo({ proveedor: CONIFRES, tipo: 'factura', numero: 'M10780', total: 111.4 }), [foto])).toBeNull();
+  });
+
+  it('José Crespo: el mismo pedido otro día es otra compra; el mismo día, solo se avisa', () => {
+    const ayer = doc({ proveedor: CRESPO, fecha: '2026-10-16', total: 22.28 });
+    expect(buscarCoincidencia(nuevo({ proveedor: CRESPO, fecha: '2026-10-17', total: 22.28 }), [ayer])).toBeNull();
+    expect(buscarCoincidencia(nuevo({ proveedor: CRESPO, fecha: '2026-10-16', total: 22.28 }), [ayer])?.tipo).toBe('posible');
+  });
+});

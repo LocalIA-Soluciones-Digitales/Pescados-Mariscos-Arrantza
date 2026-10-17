@@ -44,7 +44,8 @@ describe('sugerirProducto', () => {
     expect(sugerir('SARDINA G')).toBe('sardinas');
     expect(sugerir('FILETE BACALAO G')).toBe('filete-bakalao');
     expect(sugerir('BAC.DESALADO TAJADA CENTRAL')).toBe('lomo-desalado');
-    expect(sugerir('LANGOSTINO CDO 30-40')).toBe('lang-cocido');
+    expect(sugerir('LANGOSTINO CDO 30-40')).toBe('lang-3040');
+    expect(sugerir('LANGOSTINO COCIDO')).toBe('lang-cocido');
     expect(sugerir('BONITO / THUNNUS ALALUNGA ALB')).toBe('bonito');
   });
 
@@ -60,7 +61,11 @@ describe('sugerirProducto', () => {
   it('hielo, transporte o algo que no tenemos no se asigna a nada', () => {
     expect(sugerir('HIELO')).toBeNull();
     expect(sugerir('TRAN TRANSPORTE')).toBeNull();
-    expect(sugerir('VOLANTA')).toBeNull();
+    expect(sugerir('CENTOLLO')).toBeNull();
+  });
+
+  it('volanta es merluza (Capotinas)', () => {
+    expect(sugerir('VOLANTA')).toBe('merluza');
   });
 
   it('lo recordado manda sobre el parecido', () => {

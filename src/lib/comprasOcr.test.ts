@@ -265,4 +265,127 @@ describe('utilidades', () => {
   it('cuadrarLinea calcula el número que falta', () => {
     expect(cuadrarLinea('x', 2, 10, null)).toMatchObject({ importe: 20, estado: 'corregida' });
   });
+
+  it('limpiarNombre quita nombre científico, código FAO y código de artículo; deja «JUREL / CHICHARRO»', () => {
+    expect(limpiarNombre('BESUGO/PANCHETA / Pagellus Bogaraveo ( SBR )')).toBe('BESUGO/PANCHETA');
+    expect(limpiarNombre('BONITO / THUNNUS ALALUNGA ALB')).toBe('BONITO');
+    expect(limpiarNombre('JUREL / CHICHARRO')).toBe('JUREL / CHICHARRO');
+    expect(limpiarNombre('[4002]CAMARON COCIDO PEQUEÑO +350 PZAS KILO 43256')).toBe('CAMARON COCIDO PEQUEÑO +350 PZAS KILO');
+  });
+});
+
+// Albaranes y facturas reales del 16 y 17-10-2026 que se leyeron mal.
+describe('casos reales 16/17-10', () => {
+  // Fila de tabla con columnas alineadas: el nombre ocupa siempre el mismo
+  // ancho y cada número va en su columna.
+  const fila = (nombre: string, ...nums: string[]) => nombre.padEnd(70) + nums.map((n) => n.padStart(12)).join('');
+
+  it('Adelaida: corta la tabla en «IMPORTE BRUTO … TOTAL» (sin «Forma de pago») y quita el nombre científico', () => {
+    const a = leerAlbaran(
+      cajas([
+        'PESCADOS Y MARISCOS ADELAIDA, S.L.  FACTURA  A26/2.905',
+        'FECHA  16/10/2026',
+        fila('CODIGO  DESCRIPCIÓN  LOTE', 'KILOS', 'PRECIO', 'IMPORTE'),
+        'ALBARAN:  A26/5.040  FECHA:  13/10/2026',
+        fila('CCO  CAJA COLOR TG / TG ( )', '-2,00', '10,000', '-20,00'),
+        'ALBARAN:  A26/5.055  FECHA:  16/10/2026',
+        fila('0009  MERLUZA-CARIOCA-PESCADILLA / Merluccius Merluccius  ST20261007', '18,00', '6,000', '108,00'),
+        '( HKE )',
+        fila('0004  BESUGO/PANCHETA / Pagellus Bogaraveo ( SBR )  LA20261015', '5,25', '14,000', '73,50'),
+        fila('0070  ZAPATERO/PALOMETA / LITHOGNATHUS MORMYRUS (  ST20261005', '2,30', '16,500', '37,95'),
+        'SSB )',
+        'IMPORTE BRUTO  DTO.  BASE IMPONIBLE  I.V.A.  R.E.  TOTAL',
+        fila('199,45  199,45  10,00  %', '19,95', '1,40  %', '2,79'),
+        '222,19  €',
+        fila('Forma de pago...............  Transfer. ES7501825937470201526707', '19,95', '1,40', '2,79'),
+      ]),
+    );
+    expect(a.lineas.map((l) => [l.texto, l.kg, l.precio, l.importe])).toEqual([
+      ['CCO CAJA COLOR TG / TG', -2, 10, -20],
+      ['MERLUZA-CARIOCA-PESCADILLA', 18, 6, 108],
+      ['BESUGO/PANCHETA', 5.25, 14, 73.5],
+      ['ZAPATERO/PALOMETA', 2.3, 16.5, 37.95],
+    ]);
+    expect(a.albaranes).toEqual(['A26/5.040', 'A26/5.055']);
+    expect(a.total).toBe(222.19);
+  });
+
+  it('Capotinas con la columna Importe cortada en la foto: kg y €/kg, total con IVA y recargo', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Las Capotinas, S.A.',
+        fila('Articulo  Descripción', 'Unidades', 'Precio'),
+        fila('34  ANCHOA', '6,000', '2,900'),
+        fila('239  VOLANTA', '19,000', '10,900'),
+        fila('29  COLA DE RAPE X', '4,400', '17,800'),
+        fila('330  hielo', '2,000', '7,000'),
+        fila('23  SALMON', '18,400', '11,800'),
+        fila('004  LUBINA 800/900', '6,000', '11,000'),
+        fila('006  LUBINA 1100/1400', '6,000', '12,200'),
+        fila('007  LUBINA 1400/1800', '1,700', '15,500'),
+        'Observaciones  Base I.V.A.  %I.V.A  I.V.A.  %Rec  Reca',
+        '699,49  10,00  69,95  1,40',
+        'Importe Neto  699,49  Líquido(EUR):',
+      ]),
+    );
+    expect(a.lineas.map((l) => [l.texto, l.kg, l.precio, l.importe])).toEqual([
+      ['ANCHOA', 6, 2.9, 17.4],
+      ['VOLANTA', 19, 10.9, 207.1],
+      ['COLA DE RAPE X', 4.4, 17.8, 78.32],
+      ['hielo', 2, 7, 14],
+      ['SALMON', 18.4, 11.8, 217.12],
+      ['LUBINA 800/900', 6, 11, 66],
+      ['LUBINA 1100/1400', 6, 12.2, 73.2],
+      ['LUBINA 1400/1800', 1.7, 15.5, 26.35],
+    ]);
+    expect(sumaLineas(a.lineas)).toBe(699.49);
+    expect(a.total).toBe(779.23);
+  });
+
+  it('Triana: «PIL PIL» es un nombre aunque tenga palabras de 3 letras', () => {
+    const a = leerAlbaran(
+      cajas([
+        'PESCADOS TRIANA, S.A.',
+        'FACTURA',
+        fila('Bultos  Detalle Producto  Lote', 'Bruto', 'Neto', 'Precio', 'Importe'),
+        fila('PIL PIL 1/  0283701  2837', '1,02', '1,02', '28,50', '28,93'),
+        'SUBTOTAL  DESCUENTOS  BASES  IVA%  CUOTAS  REC%  CUOTA/R  TOTAL',
+        '28,93  28,93  10,00  2,89  1,40  0,41  32,23 €',
+      ]),
+    );
+    expect(a.lineas.map((l) => [l.texto, l.kg, l.importe])).toEqual([['PIL PIL', 1.02, 28.93]]);
+    expect(a.total).toBe(32.23);
+  });
+
+  it('Conifres: no toma «Técnica de pesca…» por producto y lee el albarán que cita', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Factura Nº M10780',
+        'Fecha:  Cliente Código:',
+        '16/10/2026  43002926  78880797C',
+        fila('Descripción  Lote', 'Cantidad', 'Precio', 'Importe'),
+        'Pedido: PV24560 ( Orden 01474-006-0107 ) Albarán: 16/10/2026 AM/OUT/11121',
+        fila('[4306] LANG. SALVAJE 20/30 PEIX  [L2PEIX28 20/24]PEIX0001', '4,500', '16,000', '72,00 €'),
+        'Técnica de pesca:  Redes de arrastre  Área de pesca:  31.0  Atlantic, Western Central',
+        fila('[4002] CAMARON COCIDO PEQUEÑO +350 PZAS KILO  43256', '1,000', '28,000', '28,00 €'),
+        'Técnica de pesca:  Nasas y trampas  Área de pesca:  27.0  Atlantic, Northeast',
+        'Subtotal:  100,00  €',
+        'Base Imponible  100,00 €',
+        'Total  111,40 €',
+      ]),
+    );
+    expect(a.tipo).toBe('factura');
+    expect(a.numero).toBe('M10780');
+    expect(a.albaranes).toEqual(['AM/OUT/11121']);
+    expect(a.lineas.map((l) => [l.texto, l.kg, l.importe])).toEqual([
+      ['LANG. SALVAJE 20/30 PEIX', 4.5, 72],
+      ['CAMARON COCIDO PEQUEÑO +350 PZAS KILO', 1, 28],
+    ]);
+    expect(a.total).toBe(111.4);
+  });
+
+  it('Gaizka: el albarán que cita la factura lleva serie («G / 926.237»)', () => {
+    const a = leerAlbaran(cajas(['FACTURA', 'Albarán nº  G /  926.237  de fecha  10/10/2026']));
+    expect(a.albaranes).toEqual(['G / 926.237']);
+  });
 });

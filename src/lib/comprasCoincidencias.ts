@@ -73,10 +73,16 @@ export function buscarCoincidencia<T extends DocCompra>(nuevo: DocNuevo, compras
   const vivas = compras.filter((c) => c.id !== excepto && c.estado !== 'anulada');
   const clave = claveNumero(nuevo.numero);
 
-  // 1) El mismo documento.
+  // 1) El mismo documento. Una captura de la factura del PDF puede haberse
+  // leído como albarán (Conifres M10780: foto + email): con otro tipo hace
+  // falta además el mismo proveedor y, si se sabe, el mismo total.
   if (clave.length >= 3) {
     const mismo = vivas.filter(
-      (c) => c.tipo === nuevo.tipo && claveNumero(c.numero) === clave && (!c.proveedor || !nuevo.proveedor || mismoProveedor(nuevo.proveedor, c.proveedor)),
+      (c) =>
+        claveNumero(c.numero) === clave &&
+        (c.tipo === nuevo.tipo
+          ? !c.proveedor || !nuevo.proveedor || mismoProveedor(nuevo.proveedor, c.proveedor)
+          : delProveedor(c, nuevo.proveedor) && (c.total == null || nuevo.total == null || mismoImporte(c.total, nuevo.total))),
     );
     if (mismo.length) return { tipo: 'mismo', con: mismo };
   }
@@ -97,6 +103,13 @@ export function buscarCoincidencia<T extends DocCompra>(nuevo: DocNuevo, compras
       if (f.length) return { tipo: 'en_factura', con: f };
     } else if (cerca.length) {
       return { tipo: 'posible', con: cerca };
+    }
+    // La misma foto subida dos veces: albarán sin nº del mismo día y total.
+    // Otro día con el mismo importe es otro pedido (José Crespo repite a
+    // menudo 2 kg de langostino), así que solo se avisa.
+    if (nuevo.total != null && clave.length < 3) {
+      const igual = albaranes.filter((c) => c.fecha === nuevo.fecha && c.total != null && mismoImporte(c.total, nuevo.total!) && claveNumero(c.numero).length < 3);
+      if (igual.length) return { tipo: 'posible', con: igual };
     }
     return null;
   }

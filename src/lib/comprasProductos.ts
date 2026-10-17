@@ -43,6 +43,8 @@ const SINONIMOS: Record<string, string> = {
   jurel: 'chicharro', chicharrito: 'chicharrito', thunnus: 'bonito', alalunga: 'bonito', pixin: 'rape',
   legatza: 'merluza', antxoa: 'anchoa', bocarte: 'anchoa', boqueron: 'anchoa', bacaladilla: 'lirio',
   mulus: 'salmonete', nekora: 'necora', txangurro: 'changurro', chirla: 'chirla', zamburina: 'zamburina',
+  // Capotinas llama «volanta» a la merluza (confirmado por David, 17-10).
+  volanta: 'merluza',
 };
 
 export const NO_PRODUCTO = /\b(hielo|transporte|portes?|envases?|cajas?|bolsas?|palets?|gastos?)\b/i;
@@ -66,11 +68,13 @@ function palabras(texto: string): string[] {
     .filter((p) => p && !VACIAS.has(p));
 }
 
-// 2 = misma palabra · 1,5 = abreviada («BAC.» → bacalao, «LANG» →
-// langostino) o pegada a otra por el OCR («SALMONETEDEROC» → salmonete).
-// Más un poco por cada letra que coincide de verdad, para desempatar.
+// 2 = misma palabra · 2,5 = misma talla (30/40): manda sobre «cocido» o
+// «crudo», «LANGOSTINO CDO 30-40» es el Langostino 30/40 · 1,5 = abreviada
+// («BAC.» → bacalao, «LANG» → langostino) o pegada a otra por el OCR
+// («SALMONETEDEROC» → salmonete). Más un poco por cada letra que coincide
+// de verdad, para desempatar.
 function coincide(a: string, p: string): number {
-  if (a === p) return 2 + p.length * 0.01;
+  if (a === p) return (/^\d+\/\d+$/.test(p) ? 2.5 : 2) + p.length * 0.01;
   if (!/^[a-z]+$/.test(a)) return 0;
   if (a.length >= 3 && p.length >= 5 && p.startsWith(a)) return 1.5 + a.length * 0.01;
   if (p.length >= 5 && a.length >= p.length + 3 && a.startsWith(p)) return 1.5 + p.length * 0.01;
@@ -79,11 +83,11 @@ function coincide(a: string, p: string): number {
 
 // Puntos: por cada palabra del producto, lo que valga su coincidencia en el
 // albarán, y −0,5 si no aparece; a igualdad, gana el nombre más largo que
-// coincide (Salmonete antes que Salmón). Un producto con «/» («Sapito /
-// Rape») cuenta cada nombre aparte.
+// coincide (Salmonete antes que Salmón). Un producto con « / » («Sapito /
+// Rape») cuenta cada nombre aparte; la barra de una talla («30/40») no.
 function puntuar(albaran: string[], nombreProducto: string): number {
   let mejor = -Infinity;
-  for (const alternativa of nombreProducto.split('/')) {
+  for (const alternativa of nombreProducto.split(/\s+\/\s*|\s*\/\s+/)) {
     const ps = palabras(alternativa);
     if (!ps.length) continue;
     let puntos = 0;

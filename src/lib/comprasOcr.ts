@@ -159,18 +159,37 @@ const CABECERA = /(precio|importe|kilos|peso|unidades|cantidad|\bneto\b)/i;
 const TITULOS = /(descripci|art[ií]culo|detalle|concepto|clase|\bc[oó]d(igo)?\b|bultuak|azalpena|lotea|partida)/i;
 // «IVA» solo como palabra: «Almeja fina viva» no es la fila del IVA.
 const FIN_TABLA = /(\btotal|\bbase\b|base\s*i|subtotal|\bbruto\b|\bsuma\b|\bi\.?\s?v\.?\s?a\b|recargo|observaciones|conforme|l[ií]quido)/i;
+// Fila de totales que también nombra columnas («IMPORTE BRUTO … TOTAL» de
+// Adelaida): corta la tabla aunque parezca cabecera.
+const FIN_FUERTE = /(\bbruto\b|base\s*imponible|subtotal|\btotal\b)/i;
+// Renglones que no son producto aunque caigan entre ellos: trazabilidad
+// («Técnica de pesca…» de Conifres) y pie («Forma de pago… Transfer.»).
+const NO_NOMBRE =
+  /(t[eé]cnica de pesca|[aá]rea de pesca|zona de pesca|arte de pesca|nombre t[eé]cnico|m[eé]todo de producci|forma de pago|vencimiento|transfer|iban\b|albar[aá]n\s*(n[º°o.]|:))/i;
 
 // "SALMONETE DE ROC MULLUS SURMULENTUS CS20260902" → sin el lote; "0041
 // JUREL" → sin el código; deja tallas como 40/50, 1.5/2 o 400+.
+// "BESUGO/PANCHETA / Pagellus Bogaraveo ( SBR )" → sin el nombre científico
+// ni el código FAO; "[4002] CAMARON…" → sin el código de artículo.
 export function limpiarNombre(texto: string): string {
-  const tokens = texto.replace(/\s+/g, ' ').trim().split(' ');
+  let t = texto
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*\[\d+\]\s*/, '')
+    .replace(/\(\s*[A-Z]{2,4}\s*\)/g, ' ')
+    .replace(/\(\s*\)/g, ' ');
+  // Nombre científico: lo que va tras el último « / » si son 2+ palabras
+  // («JUREL / CHICHARRO» se queda, es un solo nombre comercial).
+  const barra = t.lastIndexOf(' / ');
+  if (barra > 0 && /^\s*[a-zñ]{3,}\s+[a-zñ]{3,}/i.test(t.slice(barra + 3))) t = t.slice(0, barra);
+  const tokens = t.replace(/[\s(]+$/, '').trim().split(' ');
   while (tokens.length && /^-?[\d.,'’′]+$/.test(tokens[0])) tokens.shift();
   const corte = tokens.findIndex(
     (t) => /^\d{5,}$/.test(t) || (t.length >= 4 && /[a-z]/i.test(t) && /\d/.test(t) && !/^n[º°o]/i.test(t)),
   );
   const nombre = corte >= 0 ? tokens.slice(0, corte) : tokens;
-  // Cajas o envases sueltos al final ("GALLO 200/300 … 6") y restos como "0,".
-  while (nombre.length && /^[\d.,'’′]+$/.test(nombre.at(-1)!)) nombre.pop();
+  // Cajas o envases sueltos al final ("GALLO 200/300 … 6") y restos como
+  // "0," o "1/" ("PIL PIL 1/" de Triana).
+  while (nombre.length && /^[\d.,'’′]+\/?$/.test(nombre.at(-1)!)) nombre.pop();
   return nombre.join(' ').trim();
 }
 
@@ -273,8 +292,11 @@ function leerNumero(filas: string[]): string | null {
   return null;
 }
 
-// Nº de documento: «A26 / 5055», «M10780», «2026_1_21914», «12.345».
-const NUM_DOC = String.raw`[A-Z]{0,3}\d{1,4}\s?\/\s?[\d.]+|\d{4}_\d+_\d+|[A-Z]{1,3}\d{0,4}-?\d{3,}|\d{4,}|\d{1,3}(?:\.\d{3})+`;
+// Nº de documento: «A26 / 5055», «M10780», «2026_1_21914», «12.345»,
+// «AM/OUT/11121» (Conifres), «G / 926.237» (Gaizka).
+const NUM_DOC = String.raw`[A-Z]{1,3}\/[A-Z]{2,4}\/\d{3,}|[A-Z]{1,3}\s*\/\s*\d{1,3}(?:\.\d{3})+|[A-Z]{0,3}\d{1,4}\s?\/\s?[\d.]+|\d{4}_\d+_\d+|[A-Z]{1,3}\d{0,4}-?\d{3,}|\d{4,}|\d{1,3}(?:\.\d{3})+`;
+// Fecha que va delante del nº («Albarán: 16/10/2026 AM/OUT/11121»).
+const FECHA_DELANTE = String.raw`(?:\d{1,2}\/\d{1,2}\/\d{2,4}\s+)?`;
 
 // Factura o albarán: manda la palabra que sale antes en la cabecera (los
 // albaranes a veces dicen «factura» en la letra pequeña, y las facturas
@@ -301,7 +323,7 @@ function leerNumeroFactura(filas: string[]): string | null {
 // «Alb. nº 12345»), sin repetir.
 function leerAlbaranesCitados(filas: string[]): string[] {
   const vistos = new Map<string, string>();
-  const re = new RegExp(String.raw`\balb(?:ar[aá]n(?:es)?|\.)\s*(?:n[º°o.]{1,2}\s*)?:?\s*(${NUM_DOC})`, 'gi');
+  const re = new RegExp(String.raw`\balb(?:ar[aá]n(?:es)?|\.)\s*(?:n[º°o.]{1,2}\s*)?:?\s*${FECHA_DELANTE}(${NUM_DOC})`, 'gi');
   for (const l of filas) {
     for (const m of l.matchAll(re)) {
       const n = m[1].replace(/\s+/g, ' ').trim();
@@ -348,8 +370,15 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
 
   // 2) La tabla acaba en la primera fila de totales tras el primer producto.
   const yPrimera = candidatas[0]?.cy ?? Infinity;
-  const yFin = filas.find((f) => f.cy > yPrimera + 1 && FIN_TABLA.test(textoFila(f)) && !CABECERA.test(textoFila(f)))?.cy ?? Infinity;
+  const yFin =
+    filas.find((f) => {
+      const t = textoFila(f);
+      return f.cy > yPrimera + 1 && FIN_TABLA.test(t) && (!CABECERA.test(t) || FIN_FUERTE.test(t));
+    })?.cy ?? Infinity;
   const productos = candidatas.filter((f) => f.cy < yFin - 1);
+  // Filas con solo dos números: kg y, en principio, importe (en 4b se
+  // comprueba si era el precio).
+  const dosNumeros: { linea: LineaLeida; kg: number; segundo: number }[] = [];
 
   if (productos.length > 0) {
     // 3) Nombres: lo que hay a la izquierda de la primera columna de números.
@@ -362,7 +391,14 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
       .map((f) => ({ cy: f.cy, crudo: textoFila(f), nombre: limpiarNombre(textoFila(f)) }))
       .filter(
         (f) =>
-          /[a-zñ]{4,}/i.test(f.nombre) && !/^[(*]/.test(f.crudo.trim()) && !TITULOS.test(f.crudo) && !FIN_TABLA.test(f.crudo) && !CABECERA.test(f.crudo),
+          // «PIL PIL» vale: basta una palabra de 3 letras y 4 letras en total.
+          /[a-zñ]{3,}/i.test(f.nombre) &&
+          (f.nombre.match(/[a-zñ]/gi)?.length ?? 0) >= 4 &&
+          !/^[(*]/.test(f.crudo.trim()) &&
+          !TITULOS.test(f.crudo) &&
+          !FIN_TABLA.test(f.crudo) &&
+          !CABECERA.test(f.crudo) &&
+          !NO_NOMBRE.test(f.crudo),
       );
 
     // 4) Emparejar: si hay tantos nombres como filas de números, en orden
@@ -387,18 +423,42 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
       const linea = n.length === 3 ? cuadrarLinea(nombre, n[0], n[1], n[2]) : cuadrarLinea(nombre, n[0], null, n[1]);
       // Una fila de números sin nombre solo cuenta si cuadra, aunque sea
       // corrigiendo un número (si no, es basura).
-      if (nombre || linea.estado !== 'revisar') r.lineas.push(linea);
+      if (nombre || linea.estado !== 'revisar') {
+        r.lineas.push(linea);
+        if (n.length === 2) dosNumeros.push({ linea, kg: n[0], segundo: n[1] });
+      }
     });
+  }
+
+  const yTotales = productos.length ? productos.at(-1)!.cy : -Infinity;
+  const numsTras = filas
+    .filter((f) => f.cy > yTotales && !/cr[eé]dito|acumulado/i.test(textoFila(f)))
+    .flatMap((f) => decimales(textoFila(f)));
+  const aparece = (s: number) => numsTras.some((n) => Math.abs(n - s) <= 0.05);
+
+  // 4b) Foto cortada por la derecha (Capotinas sin la columna Importe):
+  // los dos números son kg y €/kg. Se sabe porque así la suma de las
+  // líneas coincide con la base o el total de abajo, y si no, no.
+  if (dosNumeros.length) {
+    const alternativa = r.lineas.map((l) => {
+      const d = dosNumeros.find((x) => x.linea === l);
+      return d ? { ...l, precio: d.segundo, importe: redondear(d.kg * d.segundo), estado: 'ok' as const } : l;
+    });
+    if (!aparece(sumaLineas(r.lineas)) && aparece(sumaLineas(alternativa))) r.lineas = alternativa;
   }
 
   // 5) Total: el mayor importe tras la tabla que quede entre la suma de las
   // líneas y la suma + IVA + recargo. Sin líneas, el que acompañe a "total".
   const suma = sumaLineas(r.lineas);
-  const yTotales = productos.length ? productos.at(-1)!.cy : -Infinity;
   if (suma > 0) {
-    const tras = filas.filter((f) => f.cy > yTotales && !/cr[eé]dito|acumulado/i.test(textoFila(f)));
-    const posibles = tras.flatMap((f) => decimales(textoFila(f))).filter((n) => n >= suma - 0.05 && n <= suma * 1.3 + 0.05);
+    const posibles = numsTras.filter((n) => n >= suma - 0.05 && n <= suma * 1.3 + 0.05);
     r.total = posibles.length ? Math.max(...posibles) : null;
+    // Solo se ve la base (el líquido cortado en la foto): base + cuota de
+    // IVA leída + recargo del 1,4 % si aparece.
+    if (r.total != null && Math.abs(r.total - suma) <= 0.05) {
+      const iva = [0.1, 0.21, 0.04].map((t) => redondear(suma * t)).find(aparece);
+      if (iva != null) r.total = redondear(suma + iva + (numsTras.includes(1.4) ? redondear(suma * 0.014) : 0));
+    }
   }
   if (r.total == null) {
     for (const l of texto) {
