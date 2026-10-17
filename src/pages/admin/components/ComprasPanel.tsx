@@ -1204,8 +1204,8 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
   const [abiertaId, setAbiertaId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<'pendientes' | 'confirmadas' | 'anuladas' | 'todas'>('pendientes');
   const [busqueda, setBusqueda] = useState('');
-  // Día del albarán que se está viendo (null = todos los días).
-  const [dia, setDia] = useState<string | null>(null);
+  // Día del albarán que se está viendo (null = todos los días). Se entra en hoy.
+  const [dia, setDia] = useState<string | null>(() => hoyISO());
 
   const pendientes = datos.compras.filter((c) => c.estado === 'pendiente');
   const abierta = datos.compras.find((c) => c.id === abiertaId) ?? null;
@@ -1237,6 +1237,8 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
     todas: delDia.length,
   };
   const totalDia = delDia.filter((c) => c.estado !== 'anulada').reduce((s, c) => s + (c.total ?? 0), 0);
+  // Que no se olvide lo pendiente de otros días aunque se esté viendo uno.
+  const pendientesOtrosDias = dia ? pendientes.filter((c) => c.fecha !== dia).length : 0;
   const q = normalizarCompra(busqueda);
   const visibles = delDia
     .filter((c) =>
@@ -1300,6 +1302,24 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
 
         <section className="min-w-0">
           <SelectorDia dia={dia} onDia={setDia} total={totalDia} n={cuentas.todas - cuentas.anuladas} />
+          {pendientesOtrosDias > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setDia(null);
+                setFiltro('pendientes');
+              }}
+              className="w-full mb-3 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-left text-xs text-amber-800 hover:bg-amber-100"
+            >
+              <i className="ri-error-warning-line text-base leading-none"></i>
+              <span className="flex-1">
+                {pendientesOtrosDias === 1 ? 'Hay 1 albarán por revisar' : `Hay ${pendientesOtrosDias} albaranes por revisar`} de otros días.
+              </span>
+              <span className="font-semibold whitespace-nowrap">
+                Ver {pendientesOtrosDias === 1 ? 'lo' : 'los'} <i className="ri-arrow-right-s-line"></i>
+              </span>
+            </button>
+          )}
           <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-3">
             <div className="flex gap-1 p-1 rounded-full bg-background-100 border border-background-200/70 overflow-x-auto scrollbar-hide self-start max-w-full">
               {PESTANAS.map((t) => (
