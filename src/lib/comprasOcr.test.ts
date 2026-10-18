@@ -389,3 +389,110 @@ describe('casos reales 16/17-10', () => {
     expect(a.albaranes).toEqual(['G / 926.237']);
   });
 });
+
+describe('casos reales 18-10: gastos sin stock y listado del gremio', () => {
+  it('Castañares (limpieza): es gasto, lee las dos líneas y el total de 90,45', () => {
+    const a = leerAlbaran(
+      cajas([
+        '.L. CASTAÑARES, S.L.  Coa Es  Fabricación de Papeles:  2en 1',
+        'NIF: B95555421  de basura, kraft, manias, fim',
+        'DAVID TAMAYO HUERTA  balanza, secamanos',
+        'FACTURA',
+        'BIZKAIA  48950  ERANDIO  Número Factura  00/5.551',
+        'N..F 78880797  Fecha  08/10/2026',
+        'DIRECCIÓN DE ENTREGA',
+        'CÓDIGO  DESCRIPCIÓN',
+        'ALBARÁN 00 /  6.136  DE FECHA 08/10/202',
+        'BA35X50KGA  KA 5 X NI  1  20,000  2,95  59,00',
+        'SECAMANOS  SECAMANOS (FARDO DE 6 UNIDADES  1  6,000  2,63  15,75',
+        'NOTA  OBIETA  0,000  0,00',
+        'TOTALIIMPORTEDto P.P  BASE  % IVA  IMP. IVA  % RE  RECARGO  TOTAL FACTURA',
+        '74,75  74,75  21,00  15,70',
+        '90,45 €',
+        'Vencimientos  08/10/2026  90,45 €  0',
+      ]),
+    );
+    expect(a.clase).toBe('gasto');
+    expect(a.proveedor).toBe('J.L. Castañares, S.L.');
+    expect(a.total).toBe(90.45);
+    expect(a.lineas.map((l) => [l.kg, l.precio, l.importe])).toEqual([
+      [20, 2.95, 59],
+      [6, 2.63, 15.75],
+    ]);
+    expect(a.lineas[1].texto).toContain('SECAMANOS');
+  });
+
+  it('Frío Bilbao: cantidad entera (3 kg), langostino 20/30 y no la fila del cliente', () => {
+    const a = leerAlbaran(
+      cajas([
+        'TAMAYO HUERTA DAVID',
+        'CIF/NIF  78880797C',
+        '14/05/25  101  No. Factura:  500964  6129260',
+        'REF.  ARTÍCULO  CANTIDAD  PRECIO  IMPORTE  %IVA',
+        '6129260  TAMAYO HUERTA DAVID  Alb:  2505-979853  Fecha:  14/05/25',
+        '13075  LANG.20/30 L2 BLANCO A BORD  KGR  3  13,20  39,60  10',
+        'SUMA  39,60  39,60',
+        'Vencimiento:  14/05/25  39,60  10  1,4  3,96  0,55  4,51',
+        'TOTAL IMPORTE  44,11',
+        'Registro Mercantil de Vizaya, Tomo 1.171, Libro 727 - Fecha 7/2/83. C.I.F: A48137426',
+      ]),
+    );
+    expect(a.proveedor).toBe('Frío Bilbao, S.A.');
+    expect(a.clase).toBe('genero');
+    expect(a.lineas).toEqual([{ texto: 'LANG.20/30 L2 BLANCO A BORD', kg: 3, precio: 13.2, importe: 39.6, estado: 'ok' }]);
+    expect(a.total).toBe(44.11);
+  });
+
+  it('Consorcio de Aguas: gasto con Agua (tasas consorcio) y Basuras (tasas municipales)', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Faktura  Factura',
+        '15258935  2026251  08/09/2026',
+        'IFK / C.I.F.: P4800005C  12609063278  25/05/2026  21/08/2026',
+        'www.consorciodeaguas.eus',
+        'PARTZUERGOAREN TASAK  TASAS CONSORCIO  UDALAREN TASAK  TASAS MUNICIPALES',
+        'Ur hornidura  Abastecimiento  55,38  Zaborra  Basura  137,57',
+        'Saneamendua  Saneamiento  56,94',
+        'Kontagailua  Contador  2,05',
+        'BEZ  IVA  11,66',
+        'PARTZUERGOAREN TASAK GUZTIRA  UDALAREN TASAK GUZTIRA',
+        '126,03  €  137,57  €',
+        'TOTAL TASAS CONSORCIO  TOTAL TASAS MUNICIPALES',
+        'GUZTIRA',
+        '263,60  €',
+        'Faktura zk  Nº de factura  12609063278',
+      ]),
+    );
+    expect(a.clase).toBe('gasto');
+    expect(a.proveedor).toBe('Consorcio de Aguas Bilbao Bizkaia');
+    expect(a.fecha).toBe('2026-09-08');
+    expect(a.numero).toBe('12609063278');
+    expect(a.lineas.map((l) => [l.texto, l.kg, l.importe])).toEqual([
+      ['Agua', null, 126.03],
+      ['Basuras', null, 137.57],
+    ]);
+    expect(a.total).toBe(263.6);
+  });
+
+  it('listado de recibos del gremio: ni gasto ni líneas, solo los recibos', () => {
+    const a = leerAlbaran(
+      cajas([
+        'LISTADO  RECIBOS ENTREGADOS  AL  17-10-2026  PAG.: 1',
+        'CODIGO  NOMBRE  FECHA  FACTURA  IMPORTE',
+        '03  ARRAINKO ANAIAK, S.L.  15-10-2026  013337  34,94',
+        'TOTAL MAYORISTA  ........  34,94',
+        '07  PEREZ  VI¥AS  COMERCIAL, S.L.  14-10-2026  910428  125,08',
+        '18  LAS  CAPOTINAS,  S.A.  17-10-2026  007638  2.994,49',
+        'TOTAL FACTURAS .....  4.627,87',
+      ]),
+    );
+    expect(a.clase).toBe('listado');
+    expect(a.lineas).toEqual([]);
+    expect(a.total).toBe(4627.87);
+    expect(a.recibos).toEqual([
+      { proveedor: 'ARRAINKO ANAIAK, S.L.', fecha: '2026-10-15', factura: '013337', importe: 34.94 },
+      { proveedor: 'PEREZ VIÑAS COMERCIAL, S.L.', fecha: '2026-10-14', factura: '910428', importe: 125.08 },
+      { proveedor: 'LAS CAPOTINAS, S.A.', fecha: '2026-10-17', factura: '007638', importe: 2994.49 },
+    ]);
+  });
+});

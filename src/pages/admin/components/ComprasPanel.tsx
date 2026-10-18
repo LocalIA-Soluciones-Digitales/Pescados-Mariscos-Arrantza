@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { useCompras } from '@/hooks/useCompras';
 import type { Compra, CompraCorreo, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
-import { normalizarCompra, sumaLineas } from '@/lib/comprasOcr';
+import { esProveedorGasto, normalizarCompra, sumaLineas } from '@/lib/comprasOcr';
+import { MARCA_LISTADO } from '@/lib/comprasListado';
 import { leerDictado, NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
 import { esPdf } from '@/lib/comprasPdf';
 import type { MarcasAlbaran } from '@/lib/comprasMarcas';
@@ -110,8 +111,13 @@ function impuestosTotal(suma: number, total: number | null): number | null {
   return pct >= -0.1 && pct <= 27 ? Math.max(0, pct) : null;
 }
 
+// Una línea de solo importe («Agua 126,03», «Basuras 137,57») también vale.
 const lineaCuadra = (l: { kg: number | null; precio: number | null; importe: number | null }) =>
-  l.kg != null && l.precio != null && l.importe != null && Math.abs(l.kg * l.precio - l.importe) <= 0.06;
+  (l.kg == null && l.precio == null && l.importe != null) ||
+  (l.kg != null && l.precio != null && l.importe != null && Math.abs(l.kg * l.precio - l.importe) <= 0.06);
+
+// «+ IVA y recargo 11,4 %», o nada si el total ya es la suma (agua y basuras).
+const textoImpuestos = (pct: number) => (pct < 0.05 ? '' : ` + IVA y recargo ${pct.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %`);
 
 // Cómo está un albarán de un vistazo: lo que hay que hacer con él.
 type Situacion = { etiqueta: string; icono: string; clase: string };
@@ -369,7 +375,9 @@ function CompraEditor({
       }),
     );
 
-  const sugerir = (texto: string) => sugerirProducto(texto, proveedor, datos.alias, productos);
+  // Limpieza, agua…: solo gasto, nunca se propone un producto ni stock.
+  const esGasto = esProveedorGasto(proveedor);
+  const sugerir = (texto: string) => (esGasto ? null : sugerirProducto(texto, proveedor, datos.alias, productos));
 
   // Al escribir o corregir el nombre de una línea sin producto, se propone uno.
   const cambiarTexto = (i: number, texto: string) => {
@@ -642,7 +650,7 @@ function CompraEditor({
       <span className="font-semibold">{cuadra ? 'Cuadra' : totalNum == null ? 'Falta el total' : lineas.length === 0 ? 'Sin productos' : 'No cuadra'}</span>
       <span className="opacity-90">
         {' · '}Productos {formatEUR(suma)}
-        {cuadra ? ` + IVA y recargo ${impuestos.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %` : lineas.length === 0 ? ' · solo se apuntará el gasto' : ''}
+        {cuadra ? textoImpuestos(impuestos) : lineas.length === 0 ? ' · solo se apuntará el gasto' : ''}
       </span>
     </>
   );
@@ -727,6 +735,12 @@ function CompraEditor({
             <div className="xl:hidden h-40 rounded-2xl bg-background-100 animate-pulse" />
           ) : null}
 
+          {esGasto && (
+            <div className="flex items-start gap-2 rounded-xl p-3 text-xs bg-sky-50 text-sky-800">
+              <i className="ri-receipt-line text-base leading-none"></i>
+              <p>No es género: solo se apunta el gasto en Contabilidad, no se suma nada al stock.</p>
+            </div>
+          )}
           {(repetida || noCoincide || compra.nota || compra.origen === 'email') && (
             <div className={`flex items-start gap-2 rounded-xl p-3 text-xs ${repetida ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>
               <i className={`${compra.origen === 'email' ? 'ri-mail-line' : 'ri-error-warning-line'} text-base leading-none`}></i>
@@ -944,7 +958,7 @@ function CompraEditor({
                 <p className="text-xs opacity-90">
                   Productos {formatEUR(suma)}
                   {cuadra
-                    ? ` + IVA y recargo ${impuestos.toLocaleString('es-ES', { maximumFractionDigits: 1 })} %`
+                    ? textoImpuestos(impuestos)
                     : totalNum == null
                       ? ' · escribe lo que pone el albarán'
                       : lineas.length === 0
@@ -1057,7 +1071,10 @@ const fechaCorta = (iso: string) => new Date(iso).toLocaleDateString('es-ES', { 
 
 // Qué es el documento, en palabras: el tipo de la compra que creó o, si no,
 // lo que dice el nombre del archivo (ADELAIDA_CLIFAC_… → Factura).
+const esListado = (c: CompraCorreo) => !!c.nota?.startsWith(MARCA_LISTADO);
+
 function tipoDocumento(c: CompraCorreo, compra: Compra | undefined): string {
+  if (esListado(c)) return 'Listado del gremio';
   if (compra && c.estado === 'metido') return compra.tipo === 'factura' ? 'Factura' : 'Albarán';
   if (/fac|fra/i.test(c.nombre)) return 'Factura';
   if (/alb/i.test(c.nombre)) return 'Albarán';
@@ -1096,7 +1113,9 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
   // revisados quedan plegados.
   const resuelto = (c: CompraCorreo) => c.estado === 'metido' || c.estado === 'descartado';
   const atencion = correo.correo.filter((c) => !resuelto(c));
-  const guardados = correo.correo.filter(resuelto);
+  // Listados del gremio: no se guardan, solo se enseña el contraste.
+  const listados = correo.correo.filter(esListado);
+  const guardados = correo.correo.filter((c) => resuelto(c) && !esListado(c));
   const nRepetidos = guardados.filter((c) => c.estado === 'descartado').length;
   const avisos = atencion.filter((c) => c.estado === 'repetido' || c.estado === 'error').length;
 
@@ -1223,6 +1242,25 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
               </li>
             );
           })}
+        </ul>
+      )}
+
+      {listados.length > 0 && (
+        <ul className="px-3 pb-3 space-y-2">
+          {listados.slice(0, 2).map((c) => (
+            <li key={c.id} className="rounded-xl border border-sky-200 bg-sky-50/60 p-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-sky-100 text-sky-700">
+                  <i className="ri-scales-3-line"></i>
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground-950 truncate leading-tight">Listado del gremio</p>
+                  {documento(c)}
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-foreground-700 leading-snug">{c.nota?.slice(MARCA_LISTADO.length).replace(/^[^:]*:\s*/, '')}</p>
+            </li>
+          ))}
         </ul>
       )}
 

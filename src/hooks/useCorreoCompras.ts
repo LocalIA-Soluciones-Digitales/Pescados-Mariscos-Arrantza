@@ -18,6 +18,7 @@ import { leerAlbaran, unificarProveedor } from '@/lib/comprasOcr';
 import { juntarHojas, leerArchivo } from '@/lib/comprasBandeja';
 import { calcularMarcas } from '@/lib/comprasMarcas';
 import { lineasDeCompra, notaQuitadas } from '@/lib/comprasProductos';
+import { contrastarListado, notaListado } from '@/lib/comprasListado';
 import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, describirNoCoincide, mismasLineas } from '@/lib/comprasCoincidencias';
 
 const COLUMNAS =
@@ -71,11 +72,16 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
       if (hoja.fallo && !hoja.cajas.length) throw new Error(`No se pudo leer: ${hoja.fallo}`);
       const junto = await juntarHojas([hoja]);
       const a = leerAlbaran(junto.cajas);
+      // Listado del gremio: no es compra. Solo se contrasta con lo guardado.
+      if (a.clase === 'listado') {
+        await anotar(item.id, { estado: 'descartado', nota: notaListado(contrastarListado(a.recibos, vistas), a.fecha) });
+        return null;
+      }
       const conocidos = vistas.map((c) => c.proveedor).filter((p): p is string => !!p);
       const proveedor = unificarProveedor(a.proveedor, conocidos);
       const fecha = a.fecha ?? new Date(item.recibido ?? item.created_at).toLocaleDateString('sv-SE');
       const doc = { tipo: a.tipo, proveedor, numero: a.numero, fecha, total: a.total, albaranes: a.albaranes };
-      const leidas = lineasDeCompra(a.lineas, proveedor, d.alias, prods);
+      const leidas = lineasDeCompra(a.lineas, proveedor, d.alias, prods, a.clase === 'gasto');
       let lineas: CompraLinea[] = leidas.lineas;
       const hallada = forzar ? null : buscarCoincidencia(doc, vistas);
       // Solo es repetido si además trae los mismos productos, precios y

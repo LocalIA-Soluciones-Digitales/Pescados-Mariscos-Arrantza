@@ -29,10 +29,24 @@ export interface LineaLeida {
   estado: 'ok' | 'corregida' | 'revisar';
 }
 
+// Un recibo del listado semanal del gremio de minoristas (Mercabilbao):
+// una factura de un mayorista. Solo sirve para contrastar con Compras.
+export interface ReciboListado {
+  proveedor: string;
+  fecha: string; // YYYY-MM-DD
+  factura: string;
+  importe: number;
+}
+
 export interface AlbaranLeido {
   // Factura: la que llega por email (diaria o semanal); su `numero` es el de
   // la factura y `albaranes` los nº de albarán que nombra, si los nombra.
   tipo: 'albaran' | 'factura';
+  // 'genero': pescado o marisco, suma al stock · 'gasto': limpieza, agua…
+  // (solo gasto, nunca stock) · 'listado': resumen del gremio, ni gasto ni
+  // stock, solo para contrastar (ver `recibos`).
+  clase: 'genero' | 'gasto' | 'listado';
+  recibos: ReciboListado[];
   proveedor: string | null;
   fecha: string | null; // YYYY-MM-DD
   numero: string | null;
@@ -157,6 +171,11 @@ export function cuadrarLinea(texto: string, kg: number | null, precio: number | 
 
 const CABECERA = /(precio|importe|kilos|peso|unidades|cantidad|\bneto\b)/i;
 const TITULOS = /(descripci|art[ií]culo|detalle|concepto|clase|\bc[oó]d(igo)?\b|bultuak|azalpena|lotea|partida)/i;
+// Cabecera de la tabla: sin números con decimales («SECAMANOS (FARDO DE 6
+// UNIDADES 1 6,000 2,63 15,75» es un producto) y, si no nombra columnas de
+// números, al menos dos títulos («CÓDIGO DESCRIPCIÓN» de Castañares).
+const esCabecera = (t: string) =>
+  decimales(t).length === 0 && (CABECERA.test(t) || (t.match(new RegExp(TITULOS.source, 'gi'))?.length ?? 0) >= 2);
 // «IVA» solo como palabra: «Almeja fina viva» no es la fila del IVA.
 const FIN_TABLA = /(\btotal|\bbase\b|base\s*i|subtotal|\bbruto\b|\bsuma\b|\bi\.?\s?v\.?\s?a\b|recargo|observaciones|conforme|l[ií]quido)/i;
 // Fila de totales que también nombra columnas («IMPORTE BRUTO … TOTAL» de
@@ -165,7 +184,7 @@ const FIN_FUERTE = /(\bbruto\b|base\s*imponible|subtotal|\btotal\b)/i;
 // Renglones que no son producto aunque caigan entre ellos: trazabilidad
 // («Técnica de pesca…» de Conifres) y pie («Forma de pago… Transfer.»).
 const NO_NOMBRE =
-  /(t[eé]cnica de pesca|[aá]rea de pesca|zona de pesca|arte de pesca|nombre t[eé]cnico|m[eé]todo de producci|forma de pago|vencimiento|transfer|iban\b|albar[aá]n\s*(n[º°o.]|:))/i;
+  /(t[eé]cnica de pesca|[aá]rea de pesca|zona de pesca|arte de pesca|nombre t[eé]cnico|m[eé]todo de producci|forma de pago|vencimiento|transfer|iban\b|albar[aá]n\s*(n[º°o.]|:)|\balb\.?\s*:|tamayo|huerta)/i;
 
 // "SALMONETE DE ROC MULLUS SURMULENTUS CS20260902" → sin el lote; "0041
 // JUREL" → sin el código; deja tallas como 40/50, 1.5/2 o 400+.
@@ -184,12 +203,14 @@ export function limpiarNombre(texto: string): string {
   const tokens = t.replace(/[\s(]+$/, '').trim().split(' ');
   while (tokens.length && /^-?[\d.,'’′]+$/.test(tokens[0])) tokens.shift();
   const corte = tokens.findIndex(
-    (t) => /^\d{5,}$/.test(t) || (t.length >= 4 && /[a-z]/i.test(t) && /\d/.test(t) && !/^n[º°o]/i.test(t)),
+    // «LANG.20/30» (Frío Bilbao) lleva la talla pegada: no es un lote.
+    (t) => /^\d{5,}$/.test(t) || (t.length >= 4 && /[a-z]/i.test(t) && /\d/.test(t) && !/^n[º°o]/i.test(t) && !/\d\/\d/.test(t)),
   );
   const nombre = corte >= 0 ? tokens.slice(0, corte) : tokens;
   // Cajas o envases sueltos al final ("GALLO 200/300 … 6") y restos como
   // "0," o "1/" ("PIL PIL 1/" de Triana).
-  while (nombre.length && /^[\d.,'’′]+\/?$/.test(nombre.at(-1)!)) nombre.pop();
+  // También la unidad de venta («… A BORD KGR»).
+  while (nombre.length && (/^[\d.,'’′]+\/?$/.test(nombre.at(-1)!) || /^(kgr?s?|uds?|un)$/i.test(nombre.at(-1)!))) nombre.pop();
   return nombre.join(' ').trim();
 }
 
@@ -213,7 +234,8 @@ const EMPRESA_EN_FRASE = /((?:[A-ZÁÉÍÓÚÑ][\wáéíóúñ.&'-]*\s+(?:y\s+|d
 // casi siempre se lee bien aunque el nombre salga destrozado («ANMAT2A
 // 007128882, 8.5. - B48077069» es Arraiza); las pistas se buscan solo en
 // la cabecera, porque la letra pequeña puede nombrar a otra empresa.
-export const PROVEEDORES_CONOCIDOS: { nombre: string; cif?: string; pistas: string[] }[] = [
+// `gasto`: no vende género (limpieza, agua…): solo se apunta el gasto.
+export const PROVEEDORES_CONOCIDOS: { nombre: string; cif?: string; pistas: string[]; gasto?: true }[] = [
   { nombre: 'Pescados y Mariscos Adelaida, S.L.', cif: 'B95719746', pistas: ['adelaida'] },
   { nombre: 'Arraiza Gutiérrez, S.L.', cif: 'B48077069', pistas: ['arraiza', 'pescadosarraiza'] },
   { nombre: 'Arrainko Anaiak, S.L.', cif: 'B75560151', pistas: ['arrainko'] },
@@ -225,18 +247,29 @@ export const PROVEEDORES_CONOCIDOS: { nombre: string; cif?: string; pistas: stri
   { nombre: 'Pérez Viñas Comercial, S.L.', pistas: ['perez vinas', 'perez vins', 'perez vinns'] },
   { nombre: 'Pescados Triana, S.A.', cif: 'A48161715', pistas: ['triana'] },
   { nombre: 'Pescados Txalupa, S.L.', cif: 'B95681201', pistas: ['txalupa'] },
+  // Cabecera en logo: se reconoce por el CIF del pie.
+  { nombre: 'Frío Bilbao, S.A.', cif: 'A48137426', pistas: ['frio bilbao', 'friobilbao'] },
+  // Bolsas, secamanos y papel: material de limpieza.
+  { nombre: 'J.L. Castañares, S.L.', cif: 'B95555421', pistas: ['castanares', 'castaares'], gasto: true },
+  { nombre: 'Consorcio de Aguas Bilbao Bizkaia', cif: 'P4800005C', pistas: ['consorcio de aguas', 'consorciodeaguas', 'partzuergoa'], gasto: true },
 ];
 
-function proveedorConocido(filas: string[]): string | null {
+function proveedorConocido(filas: string[]): (typeof PROVEEDORES_CONOCIDOS)[number] | null {
   const todo = filas.join(' ').toUpperCase().replace(/[\s.-]/g, '');
   const porCif = PROVEEDORES_CONOCIDOS.find((p) => p.cif && todo.includes(p.cif));
-  if (porCif) return porCif.nombre;
+  if (porCif) return porCif;
   const cabecera = normalizarCompra(filas.slice(0, 12).join(' '));
-  return PROVEEDORES_CONOCIDOS.find((p) => p.pistas.some((k) => cabecera.includes(k)))?.nombre ?? null;
+  return PROVEEDORES_CONOCIDOS.find((p) => p.pistas.some((k) => cabecera.includes(k))) ?? null;
+}
+
+// ¿Es de un proveedor que no vende género? Por el nombre ya guardado.
+export function esProveedorGasto(proveedor: string | null | undefined): boolean {
+  const p = normalizarCompra(proveedor);
+  return !!p && PROVEEDORES_CONOCIDOS.some((k) => k.gasto && (normalizarCompra(k.nombre) === p || k.pistas.some((x) => p.includes(x))));
 }
 
 function leerProveedor(filas: string[]): string | null {
-  const conocido = proveedorConocido(filas);
+  const conocido = proveedorConocido(filas)?.nombre;
   if (conocido) return conocido;
   const limpiar = (t: string) => t.replace(/\s*-\s*[A-Z]-?\d{7,8}\s*$/, '').replace(/[.\s]+$/, (m) => (m.includes('.') ? '.' : '')).replace(/\s+/g, ' ').trim();
   const trozos = filas.slice(0, 14).flatMap((l) => l.split(/\s{2,}/));
@@ -344,6 +377,8 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
   const numeroSuelto = leerNumero(texto);
   const r: AlbaranLeido = {
     tipo,
+    clase: proveedorConocido(texto)?.gasto ? 'gasto' : 'genero',
+    recibos: [],
     proveedor: leerProveedor(texto),
     fecha: null,
     numero:
@@ -357,8 +392,13 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
   };
   for (const l of texto) r.fecha ??= leerFecha(l);
 
+  const listado = leerListado(texto);
+  if (listado) return { ...r, ...listado, tipo: 'factura', clase: 'listado', proveedor: 'Listado del gremio', numero: null, albaranes: [] };
+  const aguas = leerAguas(texto);
+  if (aguas) return { ...r, ...aguas, tipo: 'factura', numero: leerNumeroFactura(texto) ?? r.numero };
+
   // 1) Filas de números de producto, por debajo de la cabecera de la tabla.
-  const iCab = filas.findIndex((f) => CABECERA.test(textoFila(f)));
+  const iCab = filas.findIndex((f) => esCabecera(textoFila(f)));
   const yCab = iCab >= 0 ? filas[iCab].cy : -Infinity;
   const numericas = cajas.filter((c) => c.cy > yCab && esNumerica(c.text));
   const candidatas = agruparFilas(numericas)
@@ -366,7 +406,8 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
       const nums = f.cajas.flatMap((c) => decimales(c.text.replace(/\s*(€|eur|-?r-?|%)\s*$/i, '')).map((n) => ({ n, x: c.x })));
       return { cy: f.cy, h: f.h, nums: nums.slice(-3), filaTexto: textoFila(f) };
     })
-    .filter((f) => f.nums.length >= 2 && !/%/.test(f.filaTexto));
+    // Fuera las filas a cero («NOTA OBIETA 0,000 0,00»: una nota, no un producto).
+    .filter((f) => f.nums.length >= 2 && !/%/.test(f.filaTexto) && f.nums.some((x) => x.n !== 0));
 
   // 2) La tabla acaba en la primera fila de totales tras el primer producto.
   const yPrimera = candidatas[0]?.cy ?? Infinity;
@@ -397,7 +438,8 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
           !/^[(*]/.test(f.crudo.trim()) &&
           !TITULOS.test(f.crudo) &&
           !FIN_TABLA.test(f.crudo) &&
-          !CABECERA.test(f.crudo) &&
+          // «SECAMANOS (FARDO DE 6 UNIDADES» no es la cabecera.
+          !CABECERA.test(f.crudo.replace(/\(.*$/, '')) &&
           !NO_NOMBRE.test(f.crudo),
       );
 
@@ -419,7 +461,15 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
           nombre = nombres[mejor].nombre;
         }
       }
-      const n = p.nums.map((x) => x.n);
+      let n = p.nums.map((x) => x.n);
+      // Cantidad entera («KGR 3 13,20 39,60» de Frío Bilbao): sin decimales
+      // no entra en las columnas; vale si 3 × 13,20 = 39,60.
+      if (n.length === 2) {
+        const entero = cajas.find(
+          (c) => Math.abs(c.cy - p.cy) < p.h * 0.55 && c.x < p.nums[0].x && /^\d{1,3}$/.test(c.text) && Math.abs(Number(c.text) * n[0] - n[1]) <= 0.06,
+        );
+        if (entero && Number(entero.text) > 0) n = [Number(entero.text), ...n];
+      }
       const linea = n.length === 3 ? cuadrarLinea(nombre, n[0], n[1], n[2]) : cuadrarLinea(nombre, n[0], null, n[1]);
       // Una fila de números sin nombre solo cuenta si cuadra, aunque sea
       // corrigiendo un número (si no, es basura).
@@ -467,6 +517,46 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
     }
   }
   return r;
+}
+
+// Listado de recibos del gremio de minoristas («LISTADO RECIBOS ENTREGADOS
+// … TOTAL MAYORISTA»): una fila por factura de cada mayorista de la semana.
+// No es una compra: no cuenta como gasto ni suma al stock.
+function leerListado(texto: string[]): Pick<AlbaranLeido, 'recibos' | 'total' | 'lineas'> | null {
+  if (!texto.some((l) => /listado\s+recibos|total\s+mayorista/i.test(l))) return null;
+  const fila = new RegExp(String.raw`^\s*\d{1,3}\s+(.+?)\s+(\d{1,2})-(\d{1,2})-(\d{4})\s+(\S+)\s+(${NUM})\s*$`);
+  const recibos: ReciboListado[] = [];
+  for (const l of texto) {
+    const m = l.match(fila);
+    if (!m) continue;
+    recibos.push({
+      proveedor: m[1].replace(/\s+/g, ' ').replace(/¥/g, 'Ñ').trim(),
+      fecha: `${m[4]}-${m[3].padStart(2, '0')}-${m[2].padStart(2, '0')}`,
+      factura: m[5],
+      importe: aNumero(m[6]),
+    });
+  }
+  const t = texto.map((l) => l.match(new RegExp(String.raw`total\s+facturas[^\d-]*(${NUM})`, 'i'))).find(Boolean);
+  return { recibos, total: t ? aNumero(t[1]) : sumaLineas(recibos), lineas: [] };
+}
+
+// Recibo del Consorcio de Aguas: dos apartados sin kg, «Total tasas
+// consorcio» (agua: abastecimiento, saneamiento, contador e IVA) y «Total
+// tasas municipales» (basuras). Los importes van en la fila de al lado de
+// esos títulos (en euskera y castellano, encima o debajo).
+function leerAguas(texto: string[]): Pick<AlbaranLeido, 'lineas' | 'total' | 'clase'> | null {
+  const i = texto.findIndex((l) => /total\s+tasas\s+consorcio/i.test(l));
+  if (i < 0 || !texto.some((l) => /consorcio\s*de\s*aguas|partzuergoa/i.test(l))) return null;
+  const nums = [i, i - 1, i + 1, i - 2, i + 2]
+    .filter((k) => k >= 0 && k < texto.length)
+    .map((k) => decimales(texto[k]))
+    .find((n) => n.length >= 2);
+  if (!nums) return null;
+  const lineas: LineaLeida[] = [
+    { texto: 'Agua', kg: null, precio: null, importe: nums[0], estado: 'ok' },
+    { texto: 'Basuras', kg: null, precio: null, importe: nums[1], estado: 'ok' },
+  ];
+  return { clase: 'gasto', lineas, total: sumaLineas(lineas) };
 }
 
 export function sumaLineas(lineas: { importe: number | null }[]): number {

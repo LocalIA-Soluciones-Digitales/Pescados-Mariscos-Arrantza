@@ -7,6 +7,7 @@ import type { useCompras } from '@/hooks/useCompras';
 import type { Producto } from '@/types/producto';
 import { leerAlbaran, unificarProveedor, type AlbaranLeido } from '@/lib/comprasOcr';
 import { lineasDeCompra, notaQuitadas } from '@/lib/comprasProductos';
+import { contrastarListado, notaListado } from '@/lib/comprasListado';
 import { calcularMarcas } from '@/lib/comprasMarcas';
 import { agruparHojas } from '@/lib/comprasHojas';
 import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, describirNoCoincide } from '@/lib/comprasCoincidencias';
@@ -50,6 +51,12 @@ export function BandejaAlbaranes({
     hojas.forEach((h, i) => (unidas[i] && r.length ? r.at(-1)!.push(h) : r.push([h])));
     return r.map((g) => {
       const leidos = g.map((h) => h.leido).filter((l): l is AlbaranLeido => !!l);
+      // Listado del gremio: no se guarda (ni gasto ni stock), solo se contrasta.
+      const listado = leidos.find((l) => l.clase === 'listado');
+      if (listado) {
+        const aviso = notaListado(contrastarListado(listado.recibos, datos.compras), listado.fecha);
+        return { hojas: g, proveedor: listado.proveedor, numero: null, total: listado.total, lineas: 0, coincide: null, repetida: null, aviso, saltar: true, listado: true };
+      }
       const proveedor = unificarProveedor(leidos.find((l) => l.proveedor)?.proveedor ?? null, conocidos);
       const numero = leidos.find((l) => l.numero)?.numero ?? null;
       const total = [...leidos].reverse().find((l) => l.total != null)?.total ?? null;
@@ -82,6 +89,7 @@ export function BandejaAlbaranes({
         repetida,
         aviso,
         saltar: !!repetida && !forzadas.has(g[0].id),
+        listado: false,
       };
     });
   }, [hojas, conocidos, datos.compras, forzadas]);
@@ -102,7 +110,7 @@ export function BandejaAlbaranes({
         const junto = await juntarHojas(leidas);
         const a = leerAlbaran(junto.cajas);
         const proveedor = unificarProveedor(a.proveedor, conocidos);
-        const { lineas, quitadas } = lineasDeCompra(a.lineas, proveedor, datos.alias, productos);
+        const { lineas, quitadas } = lineasDeCompra(a.lineas, proveedor, datos.alias, productos, a.clase === 'gasto');
         const fallo = leidas.find((h) => h.fallo)?.fallo ?? null;
         const c = g.coincide && !g.saltar ? g.coincide : null;
         const compra = await datos.crearCompra({
@@ -245,6 +253,12 @@ export function BandejaAlbaranes({
                 {describirCoincidencia(g.repetida, formatFecha)} No se guardará otra vez salvo que marques esta casilla.
               </span>
             </label>
+          )}
+          {g.listado && (
+            <p className="mt-2 flex items-start gap-2 text-[11px] text-sky-800">
+              <i className="ri-scales-3-line mt-0.5"></i>
+              <span>{g.aviso} No se guarda.</span>
+            </p>
           )}
           {g.coincide && !g.repetida && (
             <p className="mt-2 flex items-start gap-2 text-[11px] text-amber-800">

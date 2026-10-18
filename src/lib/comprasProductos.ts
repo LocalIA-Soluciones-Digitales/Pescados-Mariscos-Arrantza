@@ -44,6 +44,8 @@ export function lineasDeCompra(
   proveedor: string | null,
   alias: AliasBasico[],
   productos: ProductoBasico[],
+  // Gasto sin género (limpieza, agua…): ni producto ni stock.
+  gasto = false,
 ): { lineas: CompraLinea[]; quitadas: string[] } {
   const quitadas = leidas.filter((l) => esLineaQuitada(l.texto, proveedor, alias)).map((l) => l.texto);
   const lineas = leidas
@@ -53,8 +55,8 @@ export function lineasDeCompra(
       kg: l.kg,
       precio: l.precio,
       importe: l.importe,
-      producto_id: sugerirProducto(l.texto, proveedor, alias, productos)?.id ?? null,
-      sumar_stock: !NO_PRODUCTO.test(l.texto),
+      producto_id: gasto ? null : (sugerirProducto(l.texto, proveedor, alias, productos)?.id ?? null),
+      sumar_stock: !gasto && !NO_PRODUCTO.test(l.texto),
     }));
   return { lineas, quitadas };
 }
