@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canon, leerDictado, lineasDeCompra, notaQuitadas, sugerirProducto, type ProductoBasico } from './comprasProductos';
+import { canon, esAtrasado, leerDictado, lineasDeCompra, notaQuitadas, sugerirProducto, type ProductoBasico } from './comprasProductos';
 
 // Nombres reales de la carta de Arrantza.
 const PRODUCTOS: ProductoBasico[] = [
@@ -125,5 +125,29 @@ describe('leerDictado', () => {
 describe('sinónimos de David (17-10)', () => {
   it('«ABACANTO CANADIENSE» es el Bogavante de Canadá', () => {
     expect(sugerirProducto('ABACANTO CANADIENSE', 'Otro proveedor', [], PRODUCTOS)?.id).toBe('bogavante-canada');
+  });
+});
+
+describe('revisión 18-10', () => {
+  it('«VIRREY» de Kazaeder es nuestro Rey', () => {
+    const productos = [
+      { id: 'rey', nombre_es: 'Rey', gestion_stock: true },
+      { id: 'reo', nombre_es: 'Reo', gestion_stock: true },
+    ];
+    expect(sugerirProducto('VIRREY', 'Kazaeder, S.L.', [], productos)?.id).toBe('rey');
+  });
+
+  it('documento atrasado: propone producto pero no suma stock', () => {
+    expect(esAtrasado('2026-10-09', new Date('2026-10-18T10:00:00'))).toBe(true);
+    expect(esAtrasado('2026-10-16', new Date('2026-10-18T10:00:00'))).toBe(false);
+    const { lineas } = lineasDeCompra(
+      [{ texto: 'VIRREY', kg: 3.8, precio: 15.5, importe: 58.9, estado: 'ok' }],
+      'Kazaeder, S.L.',
+      [],
+      [{ id: 'rey', nombre_es: 'Rey', gestion_stock: true }],
+      false,
+      true,
+    );
+    expect(lineas[0]).toMatchObject({ producto_id: 'rey', sumar_stock: false });
   });
 });

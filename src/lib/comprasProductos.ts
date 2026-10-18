@@ -46,6 +46,9 @@ export function lineasDeCompra(
   productos: ProductoBasico[],
   // Gasto sin género (limpieza, agua…): ni producto ni stock.
   gasto = false,
+  // Documento atrasado: ese género ya se vendió (y David lo apuntó a mano),
+  // así que se propone el producto pero no se suma al stock.
+  atrasado = false,
 ): { lineas: CompraLinea[]; quitadas: string[] } {
   const quitadas = leidas.filter((l) => esLineaQuitada(l.texto, proveedor, alias)).map((l) => l.texto);
   const lineas = leidas
@@ -56,10 +59,20 @@ export function lineasDeCompra(
       precio: l.precio,
       importe: l.importe,
       producto_id: gasto ? null : (sugerirProducto(l.texto, proveedor, alias, productos)?.id ?? null),
-      sumar_stock: !gasto && !NO_PRODUCTO.test(l.texto),
+      sumar_stock: !gasto && !atrasado && !NO_PRODUCTO.test(l.texto),
     }));
   return { lineas, quitadas };
 }
+
+// Más de 3 días antes de hoy: el género ya no está en la tienda.
+export const DIAS_ATRASADO = 3;
+export function esAtrasado(fecha: string | null, hoy = new Date()): boolean {
+  if (!fecha) return false;
+  const dias = (Date.parse(`${hoy.toLocaleDateString('sv-SE')}T12:00:00Z`) - Date.parse(`${fecha}T12:00:00Z`)) / 86_400_000;
+  return dias > DIAS_ATRASADO;
+}
+export const notaAtrasado = (fecha: string) =>
+  `Es del ${fecha.slice(8, 10)}-${fecha.slice(5, 7)}-${fecha.slice(0, 4)}: no suma al stock (ese género ya se vendió). Si aún lo tienes, marca «Stock» en sus líneas.`;
 
 export const notaQuitadas = (quitadas: string[]) =>
   quitadas.length ? `Quitada${quitadas.length > 1 ? 's' : ''} como otras veces: ${quitadas.join(' · ')}.` : null;
@@ -88,6 +101,8 @@ const SINONIMOS: Record<string, string> = {
   volanta: 'merluza',
   // Gaizka: «ABACANTO CANADIENSE» = Bogavante de Canadá (David, 17-10).
   abacanto: 'bogavante', canadiense: 'canada',
+  // Kazaeder: «VIRREY» (alfonsino) es nuestro Rey (David, 18-10).
+  virrey: 'rey',
 };
 
 export const NO_PRODUCTO = /\b(hielo|transporte|portes?|envases?|cajas?|bolsas?|palets?|gastos?)\b/i;
@@ -138,8 +153,9 @@ function puntuar(albaran: string[], nombreProducto: string): number {
     for (const p of ps) {
       const v = Math.max(0, ...albaran.map((a) => coincide(a, p)));
       puntos += v || -0.5;
-      // Al menos una palabra con chicha (no solo la talla o un número).
-      if (v && /[a-z]{4,}/.test(p)) util = true;
+      // Al menos una palabra con chicha (no solo la talla o un número); de 3
+      // letras («Rey») solo si es la palabra entera.
+      if (v && (/[a-z]{4,}/.test(p) || (v >= 2 && /^[a-z]{3}$/.test(p)))) util = true;
     }
     if (util) mejor = Math.max(mejor, puntos);
   }

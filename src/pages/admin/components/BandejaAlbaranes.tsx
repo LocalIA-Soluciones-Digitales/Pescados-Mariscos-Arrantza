@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import type { useCompras } from '@/hooks/useCompras';
 import type { Producto } from '@/types/producto';
 import { leerAlbaran, unificarProveedor, type AlbaranLeido } from '@/lib/comprasOcr';
-import { lineasDeCompra, notaQuitadas } from '@/lib/comprasProductos';
+import { esAtrasado, lineasDeCompra, notaAtrasado, notaQuitadas } from '@/lib/comprasProductos';
 import { contrastarListado, notaListado } from '@/lib/comprasListado';
 import { calcularMarcas } from '@/lib/comprasMarcas';
 import { agruparHojas } from '@/lib/comprasHojas';
@@ -110,14 +110,16 @@ export function BandejaAlbaranes({
         const junto = await juntarHojas(leidas);
         const a = leerAlbaran(junto.cajas);
         const proveedor = unificarProveedor(a.proveedor, conocidos);
-        const { lineas, quitadas } = lineasDeCompra(a.lineas, proveedor, datos.alias, productos, a.clase === 'gasto');
+        const fecha = a.fecha ?? hoyISO();
+        const atrasado = a.clase === 'genero' && a.lineas.length > 0 && esAtrasado(fecha);
+        const { lineas, quitadas } = lineasDeCompra(a.lineas, proveedor, datos.alias, productos, a.clase === 'gasto', atrasado);
         const fallo = leidas.find((h) => h.fallo)?.fallo ?? null;
         const c = g.coincide && !g.saltar ? g.coincide : null;
         const compra = await datos.crearCompra({
           tipo: a.tipo,
           albaranes: a.albaranes,
-          nota: [c ? g.aviso : null, notaQuitadas(quitadas)].filter(Boolean).join(' ') || null,
-          fecha: a.fecha ?? hoyISO(),
+          nota: [c ? g.aviso : null, notaQuitadas(quitadas), atrasado ? notaAtrasado(fecha) : null].filter(Boolean).join(' ') || null,
+          fecha,
           proveedor,
           numero: a.numero,
           total: c?.tipo === 'parcial' ? c.resto : a.total,

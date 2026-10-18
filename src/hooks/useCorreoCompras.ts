@@ -17,7 +17,7 @@ import type { Producto } from '@/types/producto';
 import { leerAlbaran, unificarProveedor } from '@/lib/comprasOcr';
 import { juntarHojas, leerArchivo } from '@/lib/comprasBandeja';
 import { calcularMarcas } from '@/lib/comprasMarcas';
-import { lineasDeCompra, notaQuitadas } from '@/lib/comprasProductos';
+import { esAtrasado, lineasDeCompra, notaAtrasado, notaQuitadas } from '@/lib/comprasProductos';
 import { contrastarListado, notaListado } from '@/lib/comprasListado';
 import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, describirNoCoincide, mismasLineas } from '@/lib/comprasCoincidencias';
 
@@ -81,7 +81,8 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
       const proveedor = unificarProveedor(a.proveedor, conocidos);
       const fecha = a.fecha ?? new Date(item.recibido ?? item.created_at).toLocaleDateString('sv-SE');
       const doc = { tipo: a.tipo, proveedor, numero: a.numero, fecha, total: a.total, albaranes: a.albaranes };
-      const leidas = lineasDeCompra(a.lineas, proveedor, d.alias, prods, a.clase === 'gasto');
+      const atrasado = a.clase === 'genero' && a.lineas.length > 0 && esAtrasado(fecha);
+      const leidas = lineasDeCompra(a.lineas, proveedor, d.alias, prods, a.clase === 'gasto', atrasado);
       let lineas: CompraLinea[] = leidas.lineas;
       const hallada = forzar ? null : buscarCoincidencia(doc, vistas);
       // Solo es repetido si además trae los mismos productos, precios y
@@ -157,7 +158,7 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
       }
 
       let total = a.total;
-      let nota = [explicacion, notaQuitadas(leidas.quitadas)].filter(Boolean).join(' ') || null;
+      let nota = [explicacion, notaQuitadas(leidas.quitadas), atrasado ? notaAtrasado(fecha) : null].filter(Boolean).join(' ') || null;
       if (coincide?.tipo === 'parcial') {
         // Fuera las líneas que ya entraron con los albaranes guardados (mismo
         // importe, una por una): quedan las de los albaranes que faltan.

@@ -240,13 +240,15 @@ export const PROVEEDORES_CONOCIDOS: { nombre: string; cif?: string; pistas: stri
   { nombre: 'Arraiza Gutiérrez, S.L.', cif: 'B48077069', pistas: ['arraiza', 'pescadosarraiza'] },
   { nombre: 'Arrainko Anaiak, S.L.', cif: 'B75560151', pistas: ['arrainko'] },
   { nombre: 'Pescados Bizkaimar, S.L.U.', cif: 'B95750824', pistas: ['bizkaimar'] },
-  { nombre: 'Las Capotinas, S.A.', pistas: ['capotinas'] },
+  { nombre: 'Las Capotinas, S.A.', cif: 'A48142921', pistas: ['capotinas'] },
   { nombre: 'Conifres, S.L.', cif: 'B48482376', pistas: ['conifres'] },
   { nombre: 'José Crespo, S.A.', cif: 'A48102883', pistas: ['jose crespo', 'crespopescados'] },
   { nombre: 'Pescados y Mariscos Gaizka, S.L.', cif: 'B95091203', pistas: ['gaizka'] },
-  { nombre: 'Pérez Viñas Comercial, S.L.', pistas: ['perez vinas', 'perez vins', 'perez vinns'] },
+  // Factura con el nombre en un logo: el CIF sale en el código TicketBAI.
+  { nombre: 'Pérez Viñas Comercial, S.L.', cif: 'B95903530', pistas: ['perez vinas', 'perez vins', 'perez vinns'] },
   { nombre: 'Pescados Triana, S.A.', cif: 'A48161715', pistas: ['triana'] },
   { nombre: 'Pescados Txalupa, S.L.', cif: 'B95681201', pistas: ['txalupa'] },
+  { nombre: 'Kazaeder, S.L.', cif: 'B95523791', pistas: ['kazaeder'] },
   // Cabecera en logo: se reconoce por el CIF del pie.
   { nombre: 'Frío Bilbao, S.A.', cif: 'A48137426', pistas: ['frio bilbao', 'friobilbao'] },
   // Bolsas, secamanos y papel: material de limpieza.
@@ -349,6 +351,20 @@ function leerNumeroFactura(filas: string[]): string | null {
     const m = l.match(new RegExp(String.raw`factura\b(?:\s*simplificada)?[^\d]{0,25}?(${NUM_DOC})`, 'i'));
     if (m) return m[1].replace(/\s+/g, ' ').trim();
   }
+  // El nº va en la fila de debajo de los títulos de columna:
+  //  · «Serie  Número  F. Expedición» → «G  7638  17/10/2026» (Capotinas).
+  //  · «NUMERO  FECHA  COD_CLI…» → «21779  15/10/2026…» (Arraiza, Kazaeder).
+  //  · «FACTURA  FECHA OPERACIÓN  N.I.F.» → «4 910611  17/10/26» (Pérez Viñas).
+  for (let i = 0; i + 1 < filas.length; i++) {
+    const cab = filas[i];
+    if (/\bserie\b/i.test(cab) && /\bn[uú]mero\b/i.test(cab)) {
+      const m = filas[i + 1].match(/\b([A-Z]{1,3})\s+(\d{3,7})\s+\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}/);
+      if (m) return `${m[1]} ${m[2]}`;
+    }
+    if (/\d/.test(cab) || !/\bfecha\b/i.test(cab) || !/^\s*(n[uú]mero|factura|n[º°o]\.?\s*factura)\b/i.test(cab)) continue;
+    const n = filas[i + 1].split(/\s+/).find((t) => /^[A-Z]{0,3}\d{4,}$/.test(t));
+    if (n) return n;
+  }
   return null;
 }
 
@@ -356,7 +372,7 @@ function leerNumeroFactura(filas: string[]): string | null {
 // «Alb. nº 12345»), sin repetir.
 function leerAlbaranesCitados(filas: string[]): string[] {
   const vistos = new Map<string, string>();
-  const re = new RegExp(String.raw`\balb(?:ar[aá]n(?:es)?|\.)\s*(?:n[º°o.]{1,2}\s*)?:?\s*${FECHA_DELANTE}(${NUM_DOC})`, 'gi');
+  const re = new RegExp(String.raw`\balb(?:ar[aá]n(?:es)?|\.)\s*(?:n[º°o.]{1,2}\s*)?:?\s*(?:\/\s*)?${FECHA_DELANTE}(${NUM_DOC})`, 'gi');
   for (const l of filas) {
     for (const m of l.matchAll(re)) {
       const n = m[1].replace(/\s+/g, ' ').trim();
@@ -414,7 +430,8 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
   const yFin =
     filas.find((f) => {
       const t = textoFila(f);
-      return f.cy > yPrimera + 1 && FIN_TABLA.test(t) && (!CABECERA.test(t) || FIN_FUERTE.test(t));
+      // «suma y sigue … 1.245,02»: la tabla sigue en la página siguiente.
+      return f.cy > yPrimera + 1 && FIN_TABLA.test(t) && !/suma\s+y\s+sigue/i.test(t) && (!CABECERA.test(t) || FIN_FUERTE.test(t));
     })?.cy ?? Infinity;
   const productos = candidatas.filter((f) => f.cy < yFin - 1);
   // Filas con solo dos números: kg y, en principio, importe (en 4b se

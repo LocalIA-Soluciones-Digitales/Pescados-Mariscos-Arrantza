@@ -496,3 +496,100 @@ describe('casos reales 18-10: gastos sin stock y listado del gremio', () => {
     ]);
   });
 });
+
+describe('formatos revisados 18-10', () => {
+  const CABECERA_CAPOTINAS = [
+    'Cliente:  2926',
+    'TAMAYO HUERTA DAVID',
+    'Las Capotinas, S.A.',
+    'FACTURA',
+    'MERCABILBAO - Puestos 121-123',
+    '48970 Basauri (Bizkaia)  Serie  Número  F. Expedición  F. Operación',
+    'Tfno Oficina: 944079261 - Tfno Gaizka: 664460570 - FAX: 944594017  G  7638  17/10/2026  17/10/2026',
+    'Código Artículo  Descripción  Unidades  Precio  Importe(EUR)',
+  ];
+
+  it('Capotinas, factura semanal de 2 páginas: todas las líneas, sus albaranes, nº G 7638 y el líquido', () => {
+    const a = leerAlbaran(
+      cajas([
+        ...CABECERA_CAPOTINAS,
+        'Albarán nº  / 27.713  de fecha13/10/2026',
+        '34  ANCHOA  6,000  3,400  20,40',
+        '3330  hielo  3,000  7,000  21,00',
+        'Albarán nº  / 27.871  de fecha14/10/2026',
+        '72  CALAMAR  4,000  8,900  35,60',
+        'suma y sigue ...  1.245,02',
+        ...CABECERA_CAPOTINAS,
+        'Albarán nº  / 28.289  de fecha17/10/2026',
+        '239  VOLANTA  19,000  10,900  207,10',
+        '324  SALMON 6/7  18,400  8,800  161,92',
+        'Forma de pago  Base IVA  %IVA  Cuota IVA  %Rec  Recargo',
+        'GREMIO  424,62  10,00  42,46  1,40  5,94',
+        'Vencimientos',
+        '17-10-2026  473,02',
+        'Importe neto  424,62  Líquido(EUR):  473,02',
+        'TBAI-A48142921-171026-FiyQlckqQaVeA-103',
+      ]),
+    );
+    expect(a.tipo).toBe('factura');
+    expect(a.proveedor).toBe('Las Capotinas, S.A.');
+    expect(a.numero).toBe('G 7638');
+    expect(a.albaranes).toEqual(['27.713', '27.871', '28.289']);
+    expect(a.lineas.map((l) => [l.texto, l.importe])).toEqual([
+      ['ANCHOA', 20.4],
+      ['hielo', 21],
+      ['CALAMAR', 35.6],
+      ['VOLANTA', 207.1],
+      ['SALMON 6/7', 161.92],
+    ]);
+    expect(a.total).toBe(473.02);
+  });
+
+  it('Pérez Viñas (logo sin nombre): proveedor por el CIF del TicketBAI y nº de la fila de debajo', () => {
+    const a = leerAlbaran(
+      cajas([
+        'TAMAYO HUERTA DAVID',
+        'FACTURA  FECHA OPERACIÓN  N.I.F.',
+        '4 910611  17/10/26  78880797C  Cod.Cliente: 2926',
+        'Código  Descripción artículo  Lote  Unidad/Kg  Precio  Importe  %IVA',
+        'ALBARAN:254.707  FECHA:17/10/2026',
+        '6951  CAMARON COCIDO CONGELADO 300 U  1,00  23,000  23,00  10',
+        '6601  PATAS DE PULPO  0,25  6,00  7,900  47,40  10',
+        '9031058  CIGALA ESCOCESA 0 (8-12) 4x1.5  6,00  24,950  149,70  10',
+        'Fecha expedición 17/10/2026  Base Imponible  %IVA  Importe IVA  %R.E.  Importe R.E.  TOTAL FACTURA',
+        'TBAI-B95903530-171026-  220,10  220,10  10,00  22,01  1,40  3,08',
+        '245,19',
+      ]),
+    );
+    expect(a.proveedor).toBe('Pérez Viñas Comercial, S.L.');
+    expect(a.numero).toBe('910611');
+    expect(a.albaranes).toEqual(['254.707']);
+    expect(a.lineas.map((l) => [l.kg, l.importe])).toEqual([
+      [1, 23],
+      [6, 47.4],
+      [6, 149.7],
+    ]);
+    expect(a.total).toBe(245.19);
+  });
+
+  it('Kazaeder y Arraiza (mismo programa): nº de la fila NUMERO/FECHA y la línea VIRREY', () => {
+    const a = leerAlbaran(
+      cajas([
+        'KAZAEDER, S.L.',
+        'Nif B95523791',
+        'FACTURA',
+        'NUMERO  FECHA  COD_CLI  NIF  PEDIDO  PROVEEDOR  PAG',
+        '13118  21/08/2026  2926  78880797C  1',
+        'Bultos  Detalle Producto  Lote  Talla  Zona  Arte  Marca  Env  Bruto  Neto  Precio  Importe',
+        '1  VIRREY  0313303  VI  27  SF  SFVI  3,80  3,80  15,50  58,90',
+        'SUBTOTAL  DESCUENTOS  BASES  IVA%  CUOTAS  REC%  CUOTA/R  TOTAL',
+        '58,90  58,90  10,00  5,89  1,40  0,82  65,61 €',
+      ]),
+    );
+    expect(a.proveedor).toBe('Kazaeder, S.L.');
+    expect(a.numero).toBe('13118');
+    expect(a.fecha).toBe('2026-08-21');
+    expect(a.lineas).toEqual([{ texto: 'VIRREY', kg: 3.8, precio: 15.5, importe: 58.9, estado: 'ok' }]);
+    expect(a.total).toBe(65.61);
+  });
+});
