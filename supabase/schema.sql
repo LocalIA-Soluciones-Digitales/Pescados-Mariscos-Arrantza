@@ -3628,19 +3628,19 @@ set allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp', 'applica
     file_size_limit = 10485760
 where id = 'compras';
 
--- Aviso al móvil de los desarrolladores (en pruebas; luego, a David con
--- enviar_push) cuando entra un documento por correo.
+-- Aviso al móvil (David y desarrolladores) cuando entra un documento por
+-- correo. Tag por documento: si llegan varios, no se pisan.
 create or replace function public.trg_compras_correo_aviso()
 returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
-  perform public.enviar_push_desarrollador(
+  perform public.enviar_push(
     new.cliente_id,
     'Compra por correo',
     coalesce(nullif(new.remitente_original, ''), new.remitente, 'Correo') || ': ' || new.nombre,
-    'compras-correo',
-    '/admin?tab=compras'
+    'compras',
+    'compras-correo-' || new.id
   );
   return new;
 end;
