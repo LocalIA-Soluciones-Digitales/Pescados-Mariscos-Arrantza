@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { useCompras } from '@/hooks/useCompras';
 import type { Compra, CompraCorreo, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
@@ -1329,12 +1329,42 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
 }
 
 /* ------------------------------------------------------------------ */
-/*  Día: flechas para ir día a día o elegirlo en el calendario         */
+/*  Periodo: un día, una semana (lunes a domingo), un mes o todo       */
 /* ------------------------------------------------------------------ */
+type ModoPeriodo = 'dia' | 'semana' | 'mes' | 'todo';
+// `ref`: un día cualquiera del periodo (YYYY-MM-DD).
+type Periodo = { modo: ModoPeriodo; ref: string };
+
 function sumarDias(fecha: string, n: number): string {
   const [y, m, d] = fecha.split('-').map(Number);
   return new Date(y, m - 1, d + n).toLocaleDateString('sv-SE');
 }
+
+function inicioSemana(fecha: string): string {
+  const [y, m, d] = fecha.split('-').map(Number);
+  return sumarDias(fecha, -((new Date(y, m - 1, d).getDay() + 6) % 7));
+}
+
+// Desde y hasta (incluidos); null = todos los días.
+function rangoPeriodo(p: Periodo): [string, string] | null {
+  if (p.modo === 'todo') return null;
+  if (p.modo === 'dia') return [p.ref, p.ref];
+  if (p.modo === 'semana') {
+    const lunes = inicioSemana(p.ref);
+    return [lunes, sumarDias(lunes, 6)];
+  }
+  const [y, m] = p.ref.split('-').map(Number);
+  return [`${p.ref.slice(0, 7)}-01`, new Date(y, m, 0).toLocaleDateString('sv-SE')];
+}
+
+function moverPeriodo(p: Periodo, n: number): Periodo {
+  if (p.modo === 'dia') return { ...p, ref: sumarDias(p.ref, n) };
+  if (p.modo === 'semana') return { ...p, ref: sumarDias(inicioSemana(p.ref), 7 * n) };
+  const [y, m] = p.ref.split('-').map(Number);
+  return { ...p, ref: new Date(y, m - 1 + n, 1).toLocaleDateString('sv-SE') };
+}
+
+const enPeriodo = (fecha: string, r: [string, string] | null) => !r || (fecha >= r[0] && fecha <= r[1]);
 
 function nombreDia(fecha: string): string {
   const hoy = hoyISO();
@@ -1351,13 +1381,40 @@ function nombreDia(fecha: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
-function SelectorDia({ dia, onDia, total, n }: { dia: string | null; onDia: (d: string | null) => void; total: number; n: number }) {
+function nombrePeriodo(p: Periodo): string {
+  const rango = rangoPeriodo(p);
+  if (!rango) return 'Todos los días';
+  if (p.modo === 'dia') return nombreDia(p.ref);
+  const [desde, hasta] = rango;
+  const hoy = hoyISO();
+  const año = Number(desde.slice(0, 4));
+  const conAño = año !== new Date().getFullYear() ? ` ${año}` : '';
+  if (p.modo === 'mes') {
+    const t = new Date(año, Number(desde.slice(5, 7)) - 1, 1).toLocaleDateString('es-ES', { month: 'long' });
+    return `${t.charAt(0).toUpperCase()}${t.slice(1)}${conAño}`;
+  }
+  if (desde <= hoy && hoy <= hasta) return 'Esta semana';
+  const corto = (f: string) => {
+    const [y, m, d] = f.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  };
+  return `Del ${corto(desde)} al ${corto(hasta)}${conAño}`;
+}
+
+const MODOS: { valor: ModoPeriodo; texto: string }[] = [
+  { valor: 'dia', texto: 'Día' },
+  { valor: 'semana', texto: 'Semana' },
+  { valor: 'mes', texto: 'Mes' },
+  { valor: 'todo', texto: 'Todo' },
+];
+
+function SelectorPeriodo({ periodo, onPeriodo, total, n }: { periodo: Periodo; onPeriodo: (p: Periodo) => void; total: number; n: number }) {
   const calendario = useRef<HTMLInputElement>(null);
   const hoy = hoyISO();
-  const base = dia ?? hoy;
-  const anterior = dia ? sumarDias(base, -1) : sumarDias(hoy, -1);
-  const siguiente = dia ? sumarDias(base, 1) : hoy;
-  const puedeSiguiente = !dia || dia < hoy;
+  const rango = rangoPeriodo(periodo);
+  const conFlechas = periodo.modo !== 'todo';
+  const puedeSiguiente = !!rango && rango[1] < hoy;
+  const esActual = !!rango && rango[0] <= hoy && hoy <= rango[1];
 
   const abrirCalendario = () => {
     const el = calendario.current;
@@ -1371,76 +1428,104 @@ function SelectorDia({ dia, onDia, total, n }: { dia: string | null; onDia: (d: 
   };
 
   const flecha = 'w-9 h-9 md:w-8 md:h-8 flex-shrink-0 rounded-full flex items-center justify-center text-foreground-600 hover:bg-background-100 hover:text-foreground-950 disabled:opacity-30 disabled:hover:bg-transparent transition-colors';
+  const unidad = periodo.modo === 'dia' ? 'Día' : periodo.modo === 'semana' ? 'Semana' : 'Mes';
+  const resumen = `${n} ${n === 1 ? 'albarán' : 'albaranes'} · ${formatEUR(total)}`;
 
   return (
-    <div className="flex items-center gap-1 mb-3 p-1 rounded-2xl bg-background-50 border border-background-200/70 shadow-card">
-      <button type="button" onClick={() => onDia(anterior)} aria-label="Día anterior" title="Día anterior" className={flecha}>
-        <i className="ri-arrow-left-s-line text-lg"></i>
-      </button>
-      <div className="relative min-w-0 flex-1 sm:flex-none">
-        <button
-          type="button"
-          onClick={abrirCalendario}
-          className="w-full sm:w-auto inline-flex items-center gap-2 min-h-9 md:h-8 px-2 sm:px-3 py-0.5 rounded-xl sm:rounded-full hover:bg-background-100 text-left"
-          title="Elegir día en el calendario"
-        >
-          <i className="ri-calendar-line text-foreground-500 flex-shrink-0"></i>
-          <span className="min-w-0 flex flex-col">
-            <span className="text-sm font-semibold text-foreground-950 truncate leading-tight">{dia ? nombreDia(dia) : 'Todos los días'}</span>
-            {/* Móvil: el total del día va debajo del nombre para que la barra quepa. */}
-            {dia && (
-              <span className="sm:hidden text-[11px] text-foreground-500 tabular-nums truncate leading-tight">
-                {n} {n === 1 ? 'albarán' : 'albaranes'} · {formatEUR(total)}
-              </span>
-            )}
-          </span>
-        </button>
-        <input
-          ref={calendario}
-          type="date"
-          value={dia ?? ''}
-          max={hoy}
-          onChange={(e) => e.target.value && onDia(e.target.value)}
-          tabIndex={-1}
-          aria-label="Elegir día en el calendario"
-          // Táctil (iPhone sobre todo): showPicker() no abre nada, el calendario
-          // solo sale si el dedo toca el propio campo; por eso ahí el campo
-          // invisible tapa el botón. Con ratón lo abre el botón (showPicker).
-          // text-base: con letra < 16px el iPhone hace zoom al tocarlo.
-          className="absolute inset-0 z-10 block w-full h-full opacity-0 appearance-none text-base cursor-pointer pointer-events-none [@media(pointer:coarse)]:pointer-events-auto"
-        />
-      </div>
-      <button
-        type="button"
-        onClick={() => onDia(siguiente)}
-        disabled={!puedeSiguiente}
-        aria-label="Día siguiente"
-        title="Día siguiente"
-        className={flecha}
-      >
-        <i className="ri-arrow-right-s-line text-lg"></i>
-      </button>
-      <div className="sm:ml-auto flex items-center gap-1 sm:gap-2 pr-1 flex-shrink-0">
-        {dia && (
-          <span className="hidden sm:inline text-xs text-foreground-500 tabular-nums whitespace-nowrap">
-            {n} {n === 1 ? 'albarán' : 'albaranes'} · {formatEUR(total)}
-          </span>
-        )}
-        {dia && dia !== hoy && (
-          <button type="button" onClick={() => onDia(hoy)} className="h-9 md:h-8 px-2.5 sm:px-3 rounded-full text-xs font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-950">
-            Hoy
+    <div className="mb-3 p-1 rounded-2xl bg-background-50 border border-background-200/70 shadow-card">
+      <div className="flex items-center gap-1">
+        {conFlechas && (
+          <button type="button" onClick={() => onPeriodo(moverPeriodo(periodo, -1))} aria-label={`${unidad} anterior`} title={`${unidad} anterior`} className={flecha}>
+            <i className="ri-arrow-left-s-line text-lg"></i>
           </button>
         )}
-        {dia && (
+        <div className="relative min-w-0 flex-1 sm:flex-none">
           <button
             type="button"
-            onClick={() => onDia(null)}
-            className="h-9 md:h-8 px-2.5 sm:px-3 rounded-full text-xs font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-950 whitespace-nowrap"
+            onClick={conFlechas ? abrirCalendario : undefined}
+            className={`w-full sm:w-auto inline-flex items-center gap-2 min-h-9 md:h-8 px-2 sm:px-3 py-0.5 rounded-xl sm:rounded-full text-left ${conFlechas ? 'hover:bg-background-100' : 'cursor-default'}`}
+            title={conFlechas ? 'Elegir en el calendario' : undefined}
           >
-            Todos
+            <i className="ri-calendar-line text-foreground-500 flex-shrink-0"></i>
+            <span className="min-w-0 flex flex-col">
+              <span className="text-sm font-semibold text-foreground-950 truncate leading-tight">{nombrePeriodo(periodo)}</span>
+              {/* Móvil: el total va debajo del nombre para que la barra quepa. */}
+              <span className="sm:hidden text-[11px] text-foreground-500 tabular-nums truncate leading-tight">{resumen}</span>
+            </span>
+          </button>
+          {conFlechas && (
+            <input
+              ref={calendario}
+              type={periodo.modo === 'mes' ? 'month' : 'date'}
+              value={periodo.modo === 'mes' ? periodo.ref.slice(0, 7) : periodo.ref}
+              max={periodo.modo === 'mes' ? hoy.slice(0, 7) : hoy}
+              onChange={(e) => e.target.value && onPeriodo({ ...periodo, ref: periodo.modo === 'mes' ? `${e.target.value}-01` : e.target.value })}
+              tabIndex={-1}
+              aria-label="Elegir en el calendario"
+              // Táctil (iPhone sobre todo): showPicker() no abre nada, el calendario
+              // solo sale si el dedo toca el propio campo; por eso ahí el campo
+              // invisible tapa el botón. Con ratón lo abre el botón (showPicker).
+              // text-base: con letra < 16px el iPhone hace zoom al tocarlo.
+              className="absolute inset-0 z-10 block w-full h-full opacity-0 appearance-none text-base cursor-pointer pointer-events-none [@media(pointer:coarse)]:pointer-events-auto"
+            />
+          )}
+        </div>
+        {conFlechas && (
+          <button
+            type="button"
+            onClick={() => onPeriodo(moverPeriodo(periodo, 1))}
+            disabled={!puedeSiguiente}
+            aria-label={`${unidad} siguiente`}
+            title={`${unidad} siguiente`}
+            className={flecha}
+          >
+            <i className="ri-arrow-right-s-line text-lg"></i>
           </button>
         )}
+        <div className="sm:ml-auto flex items-center gap-1 sm:gap-2 pr-1 flex-shrink-0">
+          <span className="hidden sm:inline text-xs text-foreground-500 tabular-nums whitespace-nowrap">{resumen}</span>
+          {conFlechas && !esActual && (
+            <button
+              type="button"
+              onClick={() => onPeriodo({ ...periodo, ref: hoy })}
+              className="h-9 md:h-8 px-2.5 sm:px-3 rounded-full text-xs font-medium text-foreground-600 hover:bg-background-100 hover:text-foreground-950 whitespace-nowrap"
+            >
+              {periodo.modo === 'dia' ? 'Hoy' : periodo.modo === 'semana' ? 'Esta semana' : 'Este mes'}
+            </button>
+          )}
+        </div>
       </div>
+      <div className="mt-1 flex gap-0.5 p-0.5 rounded-xl bg-background-100/80" role="group" aria-label="Ver por">
+        {MODOS.map((m) => (
+          <button
+            key={m.valor}
+            type="button"
+            // Al cambiar de modo se queda en el mismo sitio: el día visto pasa a su semana o su mes.
+            onClick={() => onPeriodo({ modo: m.valor, ref: periodo.modo === 'todo' ? hoy : periodo.ref })}
+            aria-pressed={periodo.modo === m.valor}
+            className={`flex-1 h-8 md:h-7 rounded-lg text-xs font-medium transition-colors ${
+              periodo.modo === m.valor ? 'bg-background-50 text-foreground-950 shadow-card' : 'text-foreground-500 hover:text-foreground-950'
+            }`}
+          >
+            {m.texto}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Separador de cada día cuando se ve una semana, un mes o todo.
+function CabeceraDia({ fecha, n, total, primera }: { fecha: string; n: number; total: number; primera: boolean }) {
+  return (
+    <div className={`flex items-baseline gap-2 px-1 pb-1 ${primera ? 'pt-0' : 'pt-4'} md:px-4 md:py-2 md:bg-background-100 md:border-b md:border-background-200/70`}>
+      <span className="text-sm font-semibold text-foreground-950">{nombreDia(fecha)}</span>
+      <span className="text-xs text-foreground-400 tabular-nums">
+        {fecha.slice(8, 10)}/{fecha.slice(5, 7)}
+      </span>
+      <span className="ml-auto text-xs text-foreground-500 tabular-nums whitespace-nowrap">
+        {n} {n === 1 ? 'albarán' : 'albaranes'} · <span className="font-semibold text-foreground-800">{formatEUR(total)}</span>
+      </span>
     </div>
   );
 }
@@ -1454,15 +1539,15 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
   const [abiertaId, setAbiertaId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<'pendientes' | 'confirmadas' | 'anuladas' | 'todas'>('pendientes');
   const [busqueda, setBusqueda] = useState('');
-  // Día del albarán que se está viendo (null = todos los días). Se entra en hoy.
-  const [dia, setDia] = useState<string | null>(() => hoyISO());
+  // Periodo que se está viendo (día, semana, mes o todo). Se entra en hoy.
+  const [periodo, setPeriodo] = useState<Periodo>(() => ({ modo: 'dia', ref: hoyISO() }));
   // Con el panel abierto de un día para otro, «Hoy» pasa al día nuevo.
   const hoyVisto = useRef(hoyISO());
   useEffect(() => {
     const alVolver = () => {
       const hoy = hoyISO();
       if (hoy === hoyVisto.current) return;
-      setDia((d) => (d === hoyVisto.current ? hoy : d));
+      setPeriodo((p) => (p.ref === hoyVisto.current ? { ...p, ref: hoy } : p));
       hoyVisto.current = hoy;
     };
     const t = setInterval(alVolver, 60_000);
@@ -1481,7 +1566,7 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
       setAbiertaId(ids[0]);
     } else if (ids.length > 1) {
       setFiltro('pendientes');
-      setDia(null);
+      setPeriodo({ modo: 'todo', ref: hoyISO() });
       setAviso(`Guardados ${ids.length} albaranes: los tienes en «Por revisar».`);
     }
   };
@@ -1495,7 +1580,8 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
     if (files.length) bandeja.añadir(files);
   };
 
-  const delDia = dia ? datos.compras.filter((c) => c.fecha === dia) : datos.compras;
+  const rango = rangoPeriodo(periodo);
+  const delDia = datos.compras.filter((c) => enPeriodo(c.fecha, rango));
   const cuentas = {
     pendientes: delDia.filter((c) => c.estado === 'pendiente').length,
     confirmadas: delDia.filter((c) => c.estado === 'confirmada').length,
@@ -1504,7 +1590,9 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
   };
   const totalDia = delDia.filter((c) => c.estado !== 'anulada').reduce((s, c) => s + (c.total ?? 0), 0);
   // Que no se olvide lo pendiente de otros días aunque se esté viendo uno.
-  const pendientesOtrosDias = dia ? pendientes.filter((c) => c.fecha !== dia).length : 0;
+  const pendientesOtrosDias = pendientes.filter((c) => !enPeriodo(c.fecha, rango)).length;
+  // Semana, mes o todo: la lista va por días, cada uno con su cabecera.
+  const porDias = periodo.modo !== 'dia';
   const q = normalizarCompra(busqueda);
   const visibles = delDia
     .filter((c) =>
@@ -1518,8 +1606,19 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
     )
     .filter((c) => !q || normalizarCompra([c.proveedor, c.numero, ...c.lineas.map((l) => l.texto)].join(' ')).includes(q))
     .sort((a, b) =>
-      filtro === 'pendientes' ? b.created_at.localeCompare(a.created_at) : b.fecha.localeCompare(a.fecha) || b.created_at.localeCompare(a.created_at),
+      filtro === 'pendientes' && !porDias
+        ? b.created_at.localeCompare(a.created_at)
+        : b.fecha.localeCompare(a.fecha) || b.created_at.localeCompare(a.created_at),
     );
+  const mostradas = visibles.slice(0, porDias ? 300 : 100);
+  // Albaranes y total de cada día (sin los anulados en el total).
+  const resumenDias = new Map<string, { n: number; total: number }>();
+  for (const c of mostradas) {
+    const r = resumenDias.get(c.fecha) ?? { n: 0, total: 0 };
+    r.n++;
+    if (c.estado !== 'anulada') r.total += c.total ?? 0;
+    resumenDias.set(c.fecha, r);
+  }
   const PESTANAS: { valor: typeof filtro; texto: string; n: number }[] = [
     { valor: 'pendientes', texto: 'Por revisar', n: cuentas.pendientes },
     { valor: 'confirmadas', texto: 'Confirmados', n: cuentas.confirmadas },
@@ -1575,12 +1674,12 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
         </aside>
 
         <section className="order-3 min-w-0">
-          <SelectorDia dia={dia} onDia={setDia} total={totalDia} n={cuentas.todas - cuentas.anuladas} />
+          <SelectorPeriodo periodo={periodo} onPeriodo={setPeriodo} total={totalDia} n={cuentas.todas - cuentas.anuladas} />
           {pendientesOtrosDias > 0 && (
             <button
               type="button"
               onClick={() => {
-                setDia(null);
+                setPeriodo({ modo: 'todo', ref: hoyISO() });
                 setFiltro('pendientes');
               }}
               className="w-full mb-3 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-left text-xs text-amber-800 hover:bg-amber-100"
@@ -1588,8 +1687,8 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
               <i className="ri-error-warning-line text-base leading-none"></i>
               <span className="flex-1">
                 {pendientesOtrosDias === 1
-                  ? 'Tienes 1 albarán de otro día sin revisar.'
-                  : `Tienes ${pendientesOtrosDias} albaranes de otros días sin revisar.`}
+                  ? `Tienes 1 albarán de ${periodo.modo === 'dia' ? 'otro día' : 'otras fechas'} sin revisar.`
+                  : `Tienes ${pendientesOtrosDias} albaranes de ${periodo.modo === 'dia' ? 'otros días' : 'otras fechas'} sin revisar.`}
               </span>
               <span className="font-semibold whitespace-nowrap">
                 {pendientesOtrosDias === 1 ? 'Verlo' : 'Verlos'} <i className="ri-arrow-right-s-line"></i>
@@ -1639,8 +1738,10 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
               <p className="text-sm font-semibold text-foreground-950">
                 {q
                   ? 'Nada coincide con la búsqueda'
-                  : dia
-                    ? `No hay albaranes ${filtro === 'pendientes' ? 'por revisar ' : ''}con fecha ${nombreDia(dia).toLowerCase()}`
+                  : periodo.modo === 'dia'
+                    ? `No hay albaranes ${filtro === 'pendientes' ? 'por revisar ' : ''}con fecha ${nombreDia(periodo.ref).toLowerCase()}`
+                    : periodo.modo !== 'todo'
+                    ? `No hay albaranes ${filtro === 'pendientes' ? 'por revisar ' : ''}${periodo.modo === 'semana' ? 'esa semana' : 'ese mes'}`
                     : filtro === 'pendientes'
                       ? 'No hay albaranes por revisar'
                       : 'Todavía no hay albaranes aquí'}
@@ -1648,8 +1749,8 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
               <p className="text-xs text-foreground-500 max-w-xs">
                 {q
                   ? 'Prueba con otro proveedor, número o producto.'
-                  : dia
-                    ? 'Muévete con las flechas, elige otro día en el calendario o pulsa «Todos».'
+                  : periodo.modo !== 'todo'
+                    ? 'Muévete con las flechas, elige otra fecha en el calendario o pulsa «Todo».'
                     : filtro === 'pendientes'
                     ? 'Haz la foto del albarán (o sube el PDF) y aparecerá aquí, ya leído, para revisarlo y confirmarlo.'
                     : 'Los albaranes confirmados y anulados se quedan aquí, con su foto.'}
@@ -1664,8 +1765,13 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
                 <span className="text-right">Total</span>
                 <span></span>
               </div>
-              {visibles.slice(0, 100).map((c) => (
-                <FilaCompra key={c.id} compra={c} onAbrir={() => setAbiertaId(c.id)} />
+              {mostradas.map((c, i) => (
+                <Fragment key={c.id}>
+                  {porDias && c.fecha !== mostradas[i - 1]?.fecha && (
+                    <CabeceraDia fecha={c.fecha} n={resumenDias.get(c.fecha)!.n} total={resumenDias.get(c.fecha)!.total} primera={i === 0} />
+                  )}
+                  <FilaCompra compra={c} onAbrir={() => setAbiertaId(c.id)} />
+                </Fragment>
               ))}
             </div>
           )}
