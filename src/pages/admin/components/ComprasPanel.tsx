@@ -1537,7 +1537,7 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
   const bandeja = useBandeja();
   const [aviso, setAviso] = useState<string | null>(null);
   const [abiertaId, setAbiertaId] = useState<string | null>(null);
-  const [filtro, setFiltro] = useState<'pendientes' | 'confirmadas' | 'anuladas' | 'todas'>('pendientes');
+  const [filtro, setFiltro] = useState<'pendientes' | 'confirmadas' | 'anuladas' | 'todas'>('confirmadas');
   const [busqueda, setBusqueda] = useState('');
   // Periodo que se está viendo (día, semana, mes o todo). Se entra en hoy.
   const [periodo, setPeriodo] = useState<Periodo>(() => ({ modo: 'dia', ref: hoyISO() }));
@@ -1697,20 +1697,42 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
           )}
           <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-3">
             <div className="flex gap-0.5 md:gap-1 p-1 rounded-full bg-background-100 border border-background-200/70 overflow-x-auto scrollbar-hide w-full md:w-auto md:self-start">
-              {PESTANAS.map((t) => (
-                <button
-                  key={t.valor}
-                  type="button"
-                  onClick={() => setFiltro(t.valor)}
-                  aria-pressed={filtro === t.valor}
-                  className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1 md:gap-1.5 h-9 md:h-8 px-2 md:px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                    filtro === t.valor ? 'bg-background-50 text-foreground-950 shadow-card' : 'text-foreground-500 hover:text-foreground-950'
-                  }`}
-                >
-                  {t.texto}
-                  <span className={`tabular-nums text-[11px] ${filtro === t.valor ? 'text-foreground-500' : 'text-foreground-400'}`}>{t.n}</span>
-                </button>
-              ))}
+              {PESTANAS.map((t) => {
+                // «Por revisar» en amarillo mientras quede algo pendiente
+                // (de cualquier fecha), para que no pase desapercibido.
+                const avisar = t.valor === 'pendientes' && pendientes.length > 0;
+                // Si lo pendiente es de otras fechas, la cuenta es la total y
+                // al pulsar se ven todas (como «Verlos»).
+                const fuera = avisar && t.n === 0;
+                const activa = filtro === t.valor;
+                return (
+                  <button
+                    key={t.valor}
+                    type="button"
+                    onClick={() => {
+                      setFiltro(t.valor);
+                      if (fuera) setPeriodo({ modo: 'todo', ref: hoyISO() });
+                    }}
+                    aria-pressed={activa}
+                    title={avisar ? `${pendientes.length} por revisar en total` : undefined}
+                    className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1 md:gap-1.5 h-9 md:h-8 px-2 md:px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                      avisar
+                        ? activa
+                          ? 'bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-300 shadow-card'
+                          : 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-300 hover:bg-amber-100'
+                        : activa
+                          ? 'bg-background-50 text-foreground-950 shadow-card'
+                          : 'text-foreground-500 hover:text-foreground-950'
+                    }`}
+                  >
+                    {avisar && <i className="ri-error-warning-fill text-amber-500"></i>}
+                    {t.texto}
+                    <span className={`tabular-nums text-[11px] ${avisar ? 'font-semibold text-amber-700' : activa ? 'text-foreground-500' : 'text-foreground-400'}`}>
+                      {fuera ? pendientes.length : t.n}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
             <label className="relative md:ml-auto md:w-72">
               <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm pointer-events-none"></i>
