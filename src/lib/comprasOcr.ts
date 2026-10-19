@@ -254,6 +254,10 @@ export const PROVEEDORES_CONOCIDOS: { nombre: string; cif?: string; pistas: stri
   // Bolsas, secamanos y papel: material de limpieza.
   { nombre: 'J.L. Castañares, S.L.', cif: 'B95555421', pistas: ['castanares', 'castaares'], gasto: true },
   { nombre: 'Consorcio de Aguas Bilbao Bizkaia', cif: 'P4800005C', pistas: ['consorcio de aguas', 'consorciodeaguas', 'partzuergoa'], gasto: true },
+  // Luz (Yoigo LUZ y GAS), teléfono e internet (Yoigo) y cuota de autónomos.
+  { nombre: 'Energía Colectiva, S.L. (Yoigo Luz y Gas)', cif: 'B98670003', pistas: ['energia colectiva', 'yoigo luz'], gasto: true },
+  { nombre: 'Xfera Móviles, S.A.U. (Yoigo)', cif: 'A82528548', pistas: ['xfera'], gasto: true },
+  { nombre: 'Seguridad Social (autónomos)', cif: 'Q2827003A', pistas: ['tgss', 'seguridad social'], gasto: true },
 ];
 
 function proveedorConocido(filas: string[]): (typeof PROVEEDORES_CONOCIDOS)[number] | null {
@@ -412,6 +416,8 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
   if (listado) return { ...r, ...listado, tipo: 'factura', clase: 'listado', proveedor: 'Listado del gremio', numero: null, albaranes: [] };
   const aguas = leerAguas(texto);
   if (aguas) return { ...r, ...aguas, tipo: 'factura', numero: leerNumeroFactura(texto) ?? r.numero };
+  const fijo = leerLuz(texto) ?? leerTelefono(texto) ?? leerAutonomos(texto);
+  if (fijo) return { ...r, ...fijo, tipo: 'factura', clase: 'gasto', albaranes: [] };
 
   // 1) Filas de números de producto, por debajo de la cabecera de la tabla.
   const iCab = filas.findIndex((f) => esCabecera(textoFila(f)));
@@ -574,6 +580,87 @@ function leerAguas(texto: string[]): Pick<AlbaranLeido, 'lineas' | 'total' | 'cl
     { texto: 'Basuras', kg: null, precio: null, importe: nums[1], estado: 'ok' },
   ];
   return { clase: 'gasto', lineas, total: sumaLineas(lineas) };
+}
+
+// Gastos fijos de cada mes (luz, teléfono, autónomos): todo en una línea
+// por concepto, sin kg ni stock. `texto` son las filas ya agrupadas.
+type GastoFijo = Pick<AlbaranLeido, 'proveedor' | 'numero' | 'fecha' | 'total' | 'lineas'>;
+
+const buscar = (texto: string[], re: RegExp) => {
+  for (const l of texto) {
+    const m = l.match(re);
+    if (m) return m;
+  }
+  return null;
+};
+const importeDe = (texto: string[], re: RegExp) => {
+  const m = buscar(texto, new RegExp(re.source + String.raw`\s*:?\s*(${NUM})`, 'i'));
+  return m ? aNumero(m[m.length - 1]) : null;
+};
+const gasto = (texto: string, importe: number): LineaLeida => ({ texto, kg: null, precio: null, importe, estado: 'ok' });
+
+// Yoigo LUZ y GAS (Energía Colectiva): «Total a pagar 148,56 €», una por
+// contrato (cada suministro tiene el suyo).
+function leerLuz(texto: string[]): GastoFijo | null {
+  if (!texto.some((l) => /energ[ií]a colectiva|yoigo\s*luz/i.test(l))) return null;
+  const tipo = buscar(texto, /factura de(?:l)?\s+(?:la\s+)?(luz|gas)/i);
+  const total = importeDe(texto, /total a pagar/);
+  if (!tipo || total == null) return null;
+  const concepto = tipo[1].toLowerCase() === 'gas' ? 'Gas' : 'Luz';
+  const contrato = buscar(texto, /\bcontrato\s+(\d{5,})/i)?.[1];
+  const emision = buscar(texto, /fecha emisi[oó]n:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i)?.[1];
+  return {
+    proveedor: 'Energía Colectiva, S.L. (Yoigo Luz y Gas)',
+    numero: buscar(texto, /\b(E\d{2}[A-Z]{2}\d{6,})\b/)?.[1] ?? null,
+    fecha: emision ? leerFecha(emision) : null,
+    total,
+    lineas: [gasto(contrato ? `${concepto} (contrato ${contrato})` : concepto, total)],
+  };
+}
+
+// Yoigo (Xfera Móviles): fibra y móviles, una factura por contrato. El
+// plazo del móvil («Servicios de terceros») va aparte del «Total factura»
+// pero se paga en el mismo recibo.
+function leerTelefono(texto: string[]): GastoFijo | null {
+  if (!texto.some((l) => /xfera\s+m[oó]viles/i.test(l))) return null;
+  const total = importeDe(texto, /total a pagar/);
+  if (total == null) return null;
+  const factura = importeDe(texto, /total factura/);
+  const terceros = importeDe(texto, /servicios de terceros y otros pagos/);
+  const contrato = buscar(texto, /n[uú]mero de contrato:?\s*\S*?(\d{8})\b/i)?.[1];
+  const emision = buscar(texto, /fecha de emisi[oó]n:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/i)?.[1];
+  const concepto = `Teléfono e internet${contrato ? ` (contrato ${contrato})` : ''}`;
+  const lineas =
+    factura != null && terceros != null && Math.abs(factura + terceros - total) < 0.01
+      ? [gasto(concepto, factura), gasto('Plazo del móvil (servicios de terceros)', terceros)]
+      : [gasto(concepto, total)];
+  return {
+    proveedor: 'Xfera Móviles, S.A.U. (Yoigo)',
+    numero: buscar(texto, /n[uú]mero de factura:?\s*([A-Z0-9]{8,})/i)?.[1] ?? null,
+    fecha: emision ? leerFecha(emision) : null,
+    total,
+    lineas,
+  };
+}
+
+// Recibo del banco de la cuota de autónomos (TGSS): «PERIODO LIQUIDACION:
+// 08/2026-08/2026» y el importe debajo de «Importe». El nº es el mes, para
+// que el mismo recibo no entre dos veces.
+function leerAutonomos(texto: string[]): GastoFijo | null {
+  if (!texto.some((l) => /tgss.*aut[oó]nomos|cotizaci[oó]n.*aut[oó]nomos/i.test(l))) return null;
+  const periodo = buscar(texto, /periodo liquidaci[oó]n:?\s*(\d{2})\/(\d{4})/i);
+  const i = texto.findIndex((l) => /^\s*importe\s*$/i.test(l));
+  const total = i >= 0 ? texto.slice(i + 1, i + 4).map(decimales).find((n) => n.length)?.at(-1) ?? null : null;
+  if (total == null) return null;
+  const mes = periodo ? `${periodo[1]}/${periodo[2]}` : null;
+  const cargo = buscar(texto, /^\s*(\d{2}\.\d{2}\.\d{2})\s+tgss/i)?.[1];
+  return {
+    proveedor: 'Seguridad Social (autónomos)',
+    numero: mes ? `RETA ${mes}` : null,
+    fecha: cargo ? leerFecha(cargo) : null,
+    total,
+    lineas: [gasto(mes ? `Cuota de autónomos ${mes}` : 'Cuota de autónomos', total)],
+  };
 }
 
 export function sumaLineas(lineas: { importe: number | null }[]): number {

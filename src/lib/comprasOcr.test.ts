@@ -593,3 +593,70 @@ describe('formatos revisados 18-10', () => {
     expect(a.total).toBe(65.61);
   });
 });
+
+describe('gastos fijos: luz, teléfono y autónomos (facturas reales de 07–10/2026)', () => {
+  it('luz de Yoigo LUZ y GAS: total a pagar, nº E26… y contrato; sin stock', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Factura de la luz del  DAVID TAMAYO HUERTA',
+        '2 al 30 de junio de 2026  Cl Jesus Aranburu , 1 Ba 3 48950 (Erandio)',
+        'Número de factura  RESUMEN DE LA FACTURA',
+        'E26YG0000489549',
+        'Fecha emisión: 14/07/26',
+        'Potencia  37,57 €',
+        'Energía  77,97 €',
+        'IVA 21%  (sobre  122,78  €)  25,78 €',
+        'electrodomésticos  Total a pagar  148,56 €',
+        'Periodo P1 (Punta) — 4,058701 €/kW·mes  ×  0,97  meses  ×  6,6  kW  25,98 €',
+        'Contrato 1027848',
+        'Factura emitida en València por Energía Colectiva SL. CIF ES B98670003',
+      ]),
+    );
+    expect(a).toMatchObject({ tipo: 'factura', clase: 'gasto', numero: 'E26YG0000489549', fecha: '2026-07-14', total: 148.56 });
+    expect(a.proveedor).toBe('Energía Colectiva, S.L. (Yoigo Luz y Gas)');
+    expect(a.lineas).toEqual([{ texto: 'Luz (contrato 1027848)', kg: null, precio: null, importe: 148.56, estado: 'ok' }]);
+  });
+
+  it('teléfono de Yoigo: el plazo del móvil va en línea aparte y suma al total', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Número de Factura:  YC260013946816',
+        'Periodo facturado:  Del  01/09/2026  al  30/09/2026',
+        'Fecha de emisión:  01/10/2026  DAVID TAMAYO HUERTA',
+        'Número de contrato:  YGC26060125194833',
+        'TOTAL A PAGAR  37,80€',
+        'FIBRA 600Mb + LA SINFÍN GB ILIMITADOS + PRIME  01 Sep - 30 Sep  28,60€  34,60€',
+        'LA DUO ADICIONAL  01 Sep -  30Sep  7,44€  9,00€',
+        'Base imponible  (21%)  25,04€',
+        'Total factura  30,30€',
+        'Servicios de terceros y otros pagos  7,50€',
+        'TOTAL A PAGAR  37,80€',
+        'XFERA MÓVILES, S.A.U. Parque Empresarial CIF A-82528548',
+      ]),
+    );
+    expect(a).toMatchObject({ clase: 'gasto', numero: 'YC260013946816', fecha: '2026-10-01', total: 37.8 });
+    expect(a.lineas.map((l) => [l.texto, l.importe])).toEqual([
+      ['Teléfono e internet (contrato 25194833)', 30.3],
+      ['Plazo del móvil (servicios de terceros)', 7.5],
+    ]);
+  });
+
+  it('cuota de autónomos: recibo del banco con el mes como nº', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Domiciliación de pagos',
+        'Cargo',
+        '31.08.26 XXXX XXXX XX XXXXXX2123 ES10 XXXX XXXX XXXX XXXX 2123',
+        'Fecha Valor  Entidad ordenante/Identificador(*)  Titular',
+        '31.08.26 TGSS. COTIZACION 005 R.E.AUTONOMOS  DAVID TAMAYO HUERTA',
+        'ES75005Q2827003A',
+        'PERIODO LIQUIDACION: 08/2026-08/2026',
+        'Importe',
+        'DAVID TAMAYO HUERTA  03810-00  328,61',
+        '48901 BARAKALDO  BIZKAIA  328,61  Director Ejecutivo',
+      ]),
+    );
+    expect(a).toMatchObject({ tipo: 'factura', clase: 'gasto', proveedor: 'Seguridad Social (autónomos)', numero: 'RETA 08/2026', fecha: '2026-08-31', total: 328.61 });
+    expect(a.lineas).toEqual([{ texto: 'Cuota de autónomos 08/2026', kg: null, precio: null, importe: 328.61, estado: 'ok' }]);
+  });
+});
