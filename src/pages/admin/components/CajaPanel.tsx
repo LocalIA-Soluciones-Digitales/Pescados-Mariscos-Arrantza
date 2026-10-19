@@ -679,7 +679,7 @@ function VistaDia({
 
   const eliminar = async (m: CajaMovimiento) => {
     const mensaje = esGastoDeCompra(m)
-      ? `Este gasto de ${formatEUR(m.importe)} viene de un albarán de Compras: si lo borras aquí, los kg que sumó siguen en el stock. Para deshacer las dos cosas, anúlalo desde la pestaña Compras.\n\n¿Borrar solo el gasto?`
+      ? `Este gasto de ${formatEUR(m.importe)} viene de un albarán de Gastos: si lo borras aquí, los kg que sumó siguen en el stock. Para deshacer las dos cosas, anúlalo desde la pestaña Gastos.\n\n¿Borrar solo el gasto?`
       : `¿Eliminar este movimiento de ${formatEUR(m.importe)}?`;
     if (!confirm(mensaje)) return;
     await onEliminar(m.id);

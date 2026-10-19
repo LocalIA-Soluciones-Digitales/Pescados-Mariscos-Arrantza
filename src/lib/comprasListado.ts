@@ -9,12 +9,12 @@ type CompraBasica = { proveedor: string | null; fecha: string; numero: string | 
 export interface ContrasteListado {
   total: number;
   recibos: number;
-  // En Compras con el mismo importe (o el mismo nº).
+  // En Gastos con el mismo importe (o el mismo nº).
   estan: number;
   faltan: ReciboListado[];
   // Mismo nº de factura (o mismo día) pero otro importe.
   distintos: { recibo: ReciboListado; guardado: number | null }[];
-  // En Compras de un mayorista del listado, en esas fechas, y que el
+  // En Gastos de un mayorista del listado, en esas fechas, y que el
   // listado no trae: repetidas o con el proveedor mal puesto.
   sobran: CompraBasica[];
 }
@@ -89,17 +89,17 @@ export const MARCA_LISTADO = 'Listado del gremio';
 export function notaListado(c: ContrasteListado, al: string | null): string {
   const partes = [
     `${MARCA_LISTADO}${al ? ` al ${dia(al)}` : ''}: no cuenta como gasto, solo para contrastar. ${c.recibos} facturas, ${eur(c.total)}.`,
-    c.estan === c.recibos ? 'Todas están en Compras.' : `En Compras: ${c.estan} de ${c.recibos}.`,
+    c.estan === c.recibos ? 'Todas están en Gastos.' : `En Gastos: ${c.estan} de ${c.recibos}.`,
   ];
   if (c.faltan.length)
     partes.push(`Faltan: ${c.faltan.map((f) => `${nombre(f.proveedor)} ${dia(f.fecha)} nº ${f.factura} ${eur(f.importe)}`).join('; ')}.`);
   if (c.distintos.length)
     partes.push(
-      `Con otro importe: ${c.distintos.map((d) => `${nombre(d.recibo.proveedor)} nº ${d.recibo.factura} ${eur(d.recibo.importe)} (en Compras ${eur(d.guardado)})`).join('; ')}.`,
+      `Con otro importe: ${c.distintos.map((d) => `${nombre(d.recibo.proveedor)} nº ${d.recibo.factura} ${eur(d.recibo.importe)} (en Gastos ${eur(d.guardado)})`).join('; ')}.`,
     );
   if (c.sobran.length)
     partes.push(
-      `En Compras y no en el listado (¿repetidas o proveedor mal leído?): ${c.sobran.map((s) => `${s.proveedor} ${dia(s.fecha)} ${eur(s.total)}`).join('; ')}.`,
+      `En Gastos y no en el listado (¿repetidas o proveedor mal leído?): ${c.sobran.map((s) => `${s.proveedor} ${dia(s.fecha)} ${eur(s.total)}`).join('; ')}.`,
     );
   return partes.join(' ');
 }
