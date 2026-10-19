@@ -193,8 +193,16 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
     [anotar],
   );
 
+  // Panel abierto desde antes de publicar una versión nueva: al leer un PDF
+  // pide un trozo de la web que ya no existe. No es culpa del documento: se
+  // devuelve a la cola y se pide recargar (lo leerá el panel ya al día).
+  const [desfasado, setDesfasado] = useState(false);
+  const desfasadoRef = useRef(false);
+  const versionVieja = (e: unknown) =>
+    /dynamically imported module|importing a module script failed|error loading dynamically|chunkloaderror/i.test(e instanceof Error ? e.message : String(e));
+
   const procesarPendientes = useCallback(async () => {
-    if (ocupado.current) return;
+    if (ocupado.current || desfasadoRef.current) return;
     ocupado.current = true;
     try {
       const vistas = [...ref.current.datos.compras];
@@ -217,6 +225,12 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
             await anotar(item.id, { estado: 'metido', compra_id: compra.id, nota: compra.nota });
           }
         } catch (e) {
+          if (versionVieja(e)) {
+            await anotar(item.id, { estado: 'nuevo', tomado_at: null, nota: null });
+            desfasadoRef.current = true;
+            setDesfasado(true);
+            break;
+          }
           await anotar(item.id, { estado: 'error', nota: e instanceof Error ? e.message : String(e) });
         }
       }
@@ -280,7 +294,7 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
     return data?.signedUrl ?? null;
   }, []);
 
-  return { correo, leyendo, reintentar, guardarIgualmente, descartar, urlArchivo };
+  return { correo, leyendo, desfasado, reintentar, guardarIgualmente, descartar, urlArchivo };
 }
 
 export type CorreoCompras = ReturnType<typeof useCorreoCompras>;

@@ -258,6 +258,8 @@ export const PROVEEDORES_CONOCIDOS: { nombre: string; cif?: string; pistas: stri
   { nombre: 'Energía Colectiva, S.L. (Yoigo Luz y Gas)', cif: 'B98670003', pistas: ['energia colectiva', 'yoigo luz'], gasto: true },
   { nombre: 'Xfera Móviles, S.A.U. (Yoigo)', cif: 'A82528548', pistas: ['xfera'], gasto: true },
   { nombre: 'Seguridad Social (autónomos)', cif: 'Q2827003A', pistas: ['tgss', 'seguridad social'], gasto: true },
+  // Modelos 130, 110 y 115 que presenta la gestoría (Gestiones AIO).
+  { nombre: 'Hacienda Foral de Bizkaia', pistas: ['hacienda foral', 'foru ogasun'], gasto: true },
 ];
 
 function proveedorConocido(filas: string[]): (typeof PROVEEDORES_CONOCIDOS)[number] | null {
@@ -416,7 +418,7 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
   if (listado) return { ...r, ...listado, tipo: 'factura', clase: 'listado', proveedor: 'Listado del gremio', numero: null, albaranes: [] };
   const aguas = leerAguas(texto);
   if (aguas) return { ...r, ...aguas, tipo: 'factura', numero: leerNumeroFactura(texto) ?? r.numero };
-  const fijo = leerLuz(texto) ?? leerTelefono(texto) ?? leerAutonomos(texto);
+  const fijo = leerLuz(texto) ?? leerTelefono(texto) ?? leerAutonomos(texto) ?? leerModeloHacienda(texto);
   if (fijo) return { ...r, ...fijo, tipo: 'factura', clase: 'gasto', albaranes: [] };
 
   // 1) Filas de números de producto, por debajo de la cabecera de la tabla.
@@ -660,6 +662,35 @@ function leerAutonomos(texto: string[]): GastoFijo | null {
     fecha: cargo ? leerFecha(cargo) : null,
     total,
     lineas: [gasto(mes ? `Cuota de autónomos ${mes}` : 'Cuota de autónomos', total)],
+  };
+}
+
+// Autoliquidaciones de la Hacienda Foral que manda la gestoría cada
+// trimestre: 130 (pago fraccionado del IRPF), 110 (retenciones de la
+// nómina) y 115 (retención del alquiler). El nº es el de liquidación.
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const MODELOS: { re: RegExp; modelo: string; concepto: string }[] = [
+  { re: /pago fraccionado/i, modelo: '130', concepto: 'IRPF pago fraccionado' },
+  { re: /arrendamiento o subarrendamiento/i, modelo: '115', concepto: 'Retención del alquiler' },
+  { re: /rendimientos del trabajo/i, modelo: '110', concepto: 'Retenciones de la nómina' },
+];
+
+function leerModeloHacienda(texto: string[]): GastoFijo | null {
+  if (!texto.some((l) => /hacienda foral|foru ogasun/i.test(l)) || !texto.some((l) => /autoliquidaci/i.test(l))) return null;
+  const m = MODELOS.find((k) => texto.some((l) => k.re.test(l)));
+  const fila = texto.find((l) => /total pago fraccionado|importe total a ingresar/i.test(l));
+  const total = fila ? (decimales(fila).at(-1) ?? null) : null;
+  if (!m || total == null) return null;
+  const trimestre = buscar(texto, /\b(20\d{2})\s+TRIM\s*([1-4])\b/i);
+  const periodo = trimestre ? ` ${trimestre[2]}T ${trimestre[1]}` : '';
+  const envio = buscar(texto, /\b(\d{1,2}) de ([a-z]+) de (\d{4})\b/i);
+  const mes = envio ? MESES.indexOf(envio[2].toLowerCase()) + 1 : 0;
+  return {
+    proveedor: 'Hacienda Foral de Bizkaia',
+    numero: buscar(texto, /n\.?\s*º\s*liquidaci[oó]n\s+([A-Z0-9]{6,})/i)?.[1] ?? `${m.modelo}${periodo}`,
+    fecha: envio && mes ? `${envio[3]}-${String(mes).padStart(2, '0')}-${envio[1].padStart(2, '0')}` : null,
+    total,
+    lineas: [gasto(`${m.concepto} (modelo ${m.modelo})${periodo}`, total)],
   };
 }
 

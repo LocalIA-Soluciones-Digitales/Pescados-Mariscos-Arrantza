@@ -660,3 +660,44 @@ describe('gastos fijos: luz, teléfono y autónomos (facturas reales de 07–10/
     expect(a.lineas).toEqual([{ texto: 'Cuota de autónomos 08/2026', kg: null, precio: null, importe: 328.61, estado: 'ok' }]);
   });
 });
+
+describe('impuestos de la gestoría (Hacienda Foral, 3T 2026)', () => {
+  it('modelo 115: retención del alquiler, nº de liquidación y fecha de envío', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Atxikipenak eta konturako sarrerak',
+        'Retenciones e ingresos a cuenta',
+        'Autolikidazioa / Autoliquidación',
+        'Likidazio zk. / N.º liquidación  W55943231',
+        'Rendimientos procedentes del arrendamiento o subarrendamiento de inmuebles urbanos',
+        '2026  TRIM3',
+        'Errentamenduen zenbatekoa /Importe arrendamientos  02  4.800,00',
+        'Atxikipenak / Retenciones  03  912,00',
+        'Sartu beharreko zenbatekoa, guztira / Importe total a ingresar ( 03 +  06 )  07  912,00',
+        'Data eta bidalketa zk. / Fecha y n.º envío',
+        '06 de Octubre de 2026  016599500',
+        'Foru Ogasunaren zigilu elektronikoa / Sello electrónico de la Hacienda Foral',
+      ]),
+    );
+    expect(a).toMatchObject({ clase: 'gasto', proveedor: 'Hacienda Foral de Bizkaia', numero: 'W55943231', fecha: '2026-10-06', total: 912 });
+    expect(a.lineas.map((l) => l.texto)).toEqual(['Retención del alquiler (modelo 115) 3T 2026']);
+  });
+
+  it('modelo 130: cuenta el total del pago fraccionado, no el 5 % bruto', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Pago fraccionado  130',
+        'Autoliquidación',
+        'N.º liquidación  W55995184',
+        '2026  TRIM3',
+        'Importe pago fraccionado  (5% 01 )  5,00  %  02  2.769,42',
+        'Cuota a ingresar  ( 02 – 03 )  04  769,42',
+        'Total pago fraccionado  ( 04 + 08 + 12 + 18 + 20 )  28  769,42',
+        '19 de Octubre de 2026  016641930',
+        'Sello electrónico de la Hacienda Foral',
+      ]),
+    );
+    expect(a).toMatchObject({ numero: 'W55995184', fecha: '2026-10-19', total: 769.42 });
+    expect(a.lineas[0].texto).toBe('IRPF pago fraccionado (modelo 130) 3T 2026');
+  });
+});

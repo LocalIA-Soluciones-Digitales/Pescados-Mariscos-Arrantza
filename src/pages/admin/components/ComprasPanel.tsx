@@ -1156,6 +1156,16 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
         )}
       </div>
 
+      {correo.desfasado && (
+        <div className="mx-3 mb-2 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+          <i className="ri-refresh-line text-base"></i>
+          <span className="flex-1">La web se ha actualizado: recarga para leer lo nuevo del correo.</span>
+          <button type="button" onClick={() => window.location.reload()} className="font-semibold hover:underline">
+            Recargar
+          </button>
+        </div>
+      )}
+
       {atencion.length === 0 ? (
         <div className="mx-3 mb-3 flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
           <i className="ri-checkbox-circle-fill text-base text-emerald-500"></i>
