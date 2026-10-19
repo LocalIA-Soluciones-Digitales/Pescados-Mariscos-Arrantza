@@ -13,9 +13,27 @@
 const URL_WEB = 'https://ukhfaphloxlszomccgde.supabase.co/functions/v1/compras-correo';
 const CLAVE = 'PEGAR_AQUI_LA_CLAVE';
 const ETIQUETA = 'Arrantza-recogido';
-// Qué correos se recogen: lo que reenvía David (y, si algún día lo mandan
-// directamente aquí, los proveedores). Solo con adjunto y de los últimos días.
-const BUSQUEDA = 'from:(d-tamayo@hotmail.com) has:attachment newer_than:14d -label:' + ETIQUETA;
+// Qué correos se recogen: lo que reenvía David a mano y lo que llega por la
+// regla de reenvío automático de Gmail, que deja como remitente al proveedor
+// (por eso van sus direcciones). Proveedor nuevo → añadirlo aquí y en el
+// filtro de reenvío de Gmail. Solo con adjunto y de los últimos días.
+const REMITENTES = [
+  'd-tamayo@hotmail.com',
+  'noresponder@pescadosarraiza.es',
+  'facturacion@pescadosadelaida.com',
+  'conifres@conifres.com',
+  'crespopescados@gmail.com',
+  'xtad@ubis.bz', // Triana y Kazaeder
+  'gre.pescados@gmail.com', // listado del gremio (solo para contrastar)
+  'efactura@consorciodeaguas.com',
+  'administracion@perezvinascomercial.com',
+  'facturacion@lascapotinas.com',
+  'facturacion@friobilbao.es',
+  'facturapymgaizka@gmail.com',
+  'cliente@yoigoluzygas.com',
+  'info@gestionesaio.com',
+];
+const BUSQUEDA = 'from:(' + REMITENTES.join(' OR ') + ') has:attachment newer_than:14d -label:' + ETIQUETA;
 const TIPOS = /\.(pdf|jpe?g|png|webp)$/i;
 
 function recoger() {
