@@ -23,6 +23,25 @@ function formatFecha(fecha: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 }
 
+// Miniatura de una hoja: girando mientras se lee, punto rojo si falló.
+function Miniatura({ hoja }: { hoja: Hoja }) {
+  return (
+    <div className="relative w-10 h-[52px] flex-shrink-0 rounded-md overflow-hidden border border-background-200/70 bg-background-100">
+      {hoja.leida?.miniatura && <img src={hoja.leida.miniatura} alt="" className="w-full h-full object-cover object-top" />}
+      {!hoja.leida && (
+        <span className="absolute inset-0 flex items-center justify-center text-primary-500">
+          <i className="ri-loader-4-line animate-spin"></i>
+        </span>
+      )}
+      {hoja.leida?.fallo && (
+        <span title={hoja.leida.fallo} className="absolute left-0.5 bottom-0.5 w-4 h-4 rounded-full bg-red-500 text-white flex items-center justify-center">
+          <i className="ri-error-warning-line text-[10px]"></i>
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function BandejaAlbaranes({
   bandeja,
   datos,
@@ -174,102 +193,101 @@ export function BandejaAlbaranes({
         </button>
       </div>
 
-      {grupos.map((g, gi) => (
-        <div key={g.hojas[0].id} className={`rounded-xl border p-3 ${g.saltar ? 'border-amber-300 bg-amber-50/60' : 'border-background-200/70'}`}>
-          {gi > 0 && (
-            <button
-              type="button"
-              onClick={() => fijar(g.hojas[0].id, true)}
-              className="mb-2 inline-flex items-center gap-1 text-[11px] font-medium text-primary-600 hover:underline"
-            >
-              <i className="ri-link"></i> Es otra página del albarán de arriba
-            </button>
-          )}
-          <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground-950 truncate">
-                {g.hojas.some((h) => !h.leida) && !g.proveedor ? 'Leyendo…' : g.proveedor || 'Proveedor sin leer'}
-              </p>
-              <p className="text-xs text-foreground-500">
-                {g.numero ? `nº ${g.numero} · ` : ''}
-                {g.lineas} {g.lineas === 1 ? 'línea' : 'líneas'} · {formatEUR(g.total)}
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 overflow-x-auto mt-2 pb-1">
-            {g.hojas.map((h, hi) => (
-              <div key={h.id} className="flex-shrink-0 w-[72px]">
-                <div className="relative w-[72px] h-24 rounded-lg overflow-hidden border border-background-200/70 bg-background-100">
-                  {h.leida?.miniatura && <img src={h.leida.miniatura} alt={`Hoja ${hi + 1}`} className="w-full h-full object-cover object-top" />}
-                  {!h.leida && (
-                    <span className="absolute inset-0 flex items-center justify-center text-primary-500">
-                      <i className="ri-loader-4-line animate-spin text-xl"></i>
-                    </span>
-                  )}
-                  {h.leida?.fallo && (
-                    <span title={h.leida.fallo} className="absolute left-1 bottom-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center">
-                      <i className="ri-error-warning-line text-xs"></i>
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => quitar([h.id])}
-                    disabled={!!guardando}
-                    aria-label="Quitar hoja"
-                    className="absolute right-1 top-1 w-6 h-6 rounded-full bg-foreground-950/60 text-background-50 flex items-center justify-center"
-                  >
-                    <i className="ri-close-line text-sm"></i>
-                  </button>
-                </div>
-                {hi > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => fijar(h.id, false)}
-                    className="mt-1 w-full text-[10px] font-medium text-foreground-500 hover:text-primary-600"
-                    title="Esta hoja es de otro albarán"
-                  >
-                    <i className="ri-scissors-cut-line"></i> Separar
-                  </button>
-                ) : (
-                  <p className="mt-1 text-center text-[10px] text-foreground-400">Pág. 1</p>
-                )}
+      {/* Una fila por albarán; con muchos, la lista tiene su propio scroll
+          y el botón de guardar queda siempre a la vista. */}
+      <div className={`space-y-1.5 ${grupos.length > 5 ? 'max-h-[55vh] overflow-y-auto -mx-1 px-1' : ''}`}>
+        {grupos.map((g, gi) => (
+          <div key={g.hojas[0].id} className={`rounded-xl border px-2.5 py-2 ${g.saltar ? 'border-amber-300 bg-amber-50/60' : 'border-background-200/70'}`}>
+            <div className="flex items-center gap-2.5">
+              <Miniatura hoja={g.hojas[0]} />
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-semibold text-foreground-950 truncate" title={g.proveedor ?? undefined}>
+                  {g.hojas.some((h) => !h.leida) && !g.proveedor ? 'Leyendo…' : g.proveedor || 'Proveedor sin leer'}
+                </p>
+                <p className="text-[11px] text-foreground-500 truncate">
+                  {g.numero ? `nº ${g.numero} · ` : ''}
+                  {g.lineas} {g.lineas === 1 ? 'línea' : 'líneas'}
+                  {g.hojas.length > 1 ? ` · ${g.hojas.length} págs.` : ''}
+                </p>
               </div>
-            ))}
+              <span className="text-[13px] font-semibold text-foreground-950 tabular-nums whitespace-nowrap">{formatEUR(g.total)}</span>
+              {gi > 0 && (
+                <button
+                  type="button"
+                  onClick={() => fijar(g.hojas[0].id, true)}
+                  disabled={!!guardando}
+                  title="Unir con el de arriba (es otra página suya)"
+                  aria-label="Unir con el albarán de arriba"
+                  className="w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center text-foreground-400 hover:bg-background-100 hover:text-primary-600"
+                >
+                  <i className="ri-link"></i>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => quitar(g.hojas.map((h) => h.id))}
+                disabled={!!guardando}
+                title="Quitar"
+                aria-label="Quitar este albarán"
+                className="w-7 h-7 flex-shrink-0 rounded-full flex items-center justify-center text-foreground-400 hover:bg-background-100 hover:text-red-600"
+              >
+                <i className="ri-close-line"></i>
+              </button>
+            </div>
+            {/* Más páginas del mismo albarán: se pueden separar o quitar. */}
+            {g.hojas.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto mt-2 pl-[50px] pb-0.5">
+                {g.hojas.slice(1).map((h) => (
+                  <div key={h.id} className="flex-shrink-0 flex flex-col items-center gap-0.5">
+                    <Miniatura hoja={h} />
+                    <button
+                      type="button"
+                      onClick={() => fijar(h.id, false)}
+                      disabled={!!guardando}
+                      title="Esta hoja es de otro albarán"
+                      className="text-[10px] font-medium text-foreground-500 hover:text-primary-600"
+                    >
+                      <i className="ri-scissors-cut-line"></i> Separar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {g.repetida && (
+              <label className="mt-1.5 flex items-start gap-2 text-[11px] text-amber-800">
+                <input
+                  type="checkbox"
+                  checked={!g.saltar}
+                  onChange={(e) =>
+                    setForzadas((p) => {
+                      const s = new Set(p);
+                      if (e.target.checked) s.add(g.hojas[0].id);
+                      else s.delete(g.hojas[0].id);
+                      return s;
+                    })
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  {describirCoincidencia(g.repetida, formatFecha)} No se guardará otra vez salvo que marques esta casilla.
+                </span>
+              </label>
+            )}
+            {g.listado && (
+              <p className="mt-1.5 flex items-start gap-2 text-[11px] text-sky-800">
+                <i className="ri-scales-3-line mt-0.5"></i>
+                <span>{g.aviso} No se guarda.</span>
+              </p>
+            )}
+            {g.coincide && !g.repetida && (
+              <p className="mt-1.5 flex items-start gap-2 text-[11px] text-amber-800">
+                <i className="ri-error-warning-line mt-0.5"></i>
+                <span>{g.aviso}</span>
+              </p>
+            )}
           </div>
-          {g.repetida && (
-            <label className="mt-2 flex items-start gap-2 text-[11px] text-amber-800">
-              <input
-                type="checkbox"
-                checked={!g.saltar}
-                onChange={(e) =>
-                  setForzadas((p) => {
-                    const s = new Set(p);
-                    if (e.target.checked) s.add(g.hojas[0].id);
-                    else s.delete(g.hojas[0].id);
-                    return s;
-                  })
-                }
-                className="mt-0.5"
-              />
-              <span>
-                {describirCoincidencia(g.repetida, formatFecha)} No se guardará otra vez salvo que marques esta casilla.
-              </span>
-            </label>
-          )}
-          {g.listado && (
-            <p className="mt-2 flex items-start gap-2 text-[11px] text-sky-800">
-              <i className="ri-scales-3-line mt-0.5"></i>
-              <span>{g.aviso} No se guarda.</span>
-            </p>
-          )}
-          {g.coincide && !g.repetida && (
-            <p className="mt-2 flex items-start gap-2 text-[11px] text-amber-800">
-              <i className="ri-error-warning-line mt-0.5"></i>
-              <span>{g.aviso}</span>
-            </p>
-          )}
-        </div>
-      ))}
+        ))}
+      </div>
 
       {grupos.length === 1 && hojas.length === 1 && !leyendo && (
         <p className="text-[11px] text-foreground-400">¿Tiene más páginas? Haz otra foto y se juntará con esta.</p>
