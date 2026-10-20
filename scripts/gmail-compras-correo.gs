@@ -1,13 +1,7 @@
 // Apps Script de soporte.localia@gmail.com: cada 5 minutos recoge los
-// correos con factura o albarán y manda cada adjunto a la web (Edge Function
-// compras-correo). Al terminar le pone la etiqueta «Arrantza-recogido» al
-// correo, para no volver a mandarlo.
-//
-// Qué se recoge:
-//   · lo que David reenvía a mano desde d-tamayo@hotmail.com, y
-//   · lo que llega por el filtro de reenvío automático de su Gmail. Gmail lo
-//     marca con la cabecera «X-Forwarded-For» y deja como remitente al
-//     proveedor, así que los proveedores solo se apuntan en ese filtro.
+// correos con factura o albarán que reenvía David y manda cada adjunto a la
+// web (Edge Function compras-correo). Al terminar le pone la etiqueta
+// «Arrantza-recogido» al correo, para no volver a mandarlo.
 //
 // Instalación (una vez):
 //   1. script.google.com con la cuenta soporte.localia@gmail.com → Nuevo proyecto.
@@ -19,24 +13,17 @@
 const URL_WEB = 'https://ukhfaphloxlszomccgde.supabase.co/functions/v1/compras-correo';
 const CLAVE = 'PEGAR_AQUI_LA_CLAVE';
 const ETIQUETA = 'Arrantza-recogido';
-const REENVIO_A_MANO = 'd-tamayo@hotmail.com';
-const BUSQUEDA = 'has:attachment newer_than:14d -in:sent -label:' + ETIQUETA;
+// Qué correos se recogen: lo que reenvía David (y, si algún día lo mandan
+// directamente aquí, los proveedores). Solo con adjunto y de los últimos días.
+const BUSQUEDA = 'from:(d-tamayo@hotmail.com) has:attachment newer_than:14d -label:' + ETIQUETA;
 const TIPOS = /\.(pdf|jpe?g|png|webp)$/i;
-
-// ¿Viene de David? Reenviado a mano o por su filtro automático de Gmail.
-function esDeDavid(msg) {
-  if (msg.getFrom().toLowerCase().indexOf(REENVIO_A_MANO) >= 0) return true;
-  return !!msg.getHeader('X-Forwarded-For');
-}
 
 function recoger() {
   const etiqueta = GmailApp.getUserLabelByName(ETIQUETA) || GmailApp.createLabel(ETIQUETA);
-  const hilos = GmailApp.search(BUSQUEDA, 0, 50);
+  const hilos = GmailApp.search(BUSQUEDA, 0, 20);
   for (const hilo of hilos) {
-    const mensajes = hilo.getMessages().filter(esDeDavid);
-    if (!mensajes.length) continue;
     let todoBien = true;
-    for (const msg of mensajes) {
+    for (const msg of hilo.getMessages()) {
       const adjuntos = msg.getAttachments({ includeInlineImages: false });
       adjuntos.forEach((adj, i) => {
         if (!TIPOS.test(adj.getName()) && adj.getContentType() !== 'application/pdf') return;
