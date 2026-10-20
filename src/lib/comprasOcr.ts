@@ -305,12 +305,15 @@ function leerProveedor(filas: string[]): string | null {
 // productos (que va por proveedor) no se reparte entre variantes.
 export function unificarProveedor(leido: string | null, conocidos: string[]): string | null {
   if (!leido) return leido;
+  // Ya es el nombre de la lista: no se cambia por otro parecido
+  // («Bizkaimar» no es «Hacienda Foral de Bizkaia»).
+  if (PROVEEDORES_CONOCIDOS.some((p) => p.nombre === leido)) return leido;
   const palabras = (t: string) =>
     new Set(
       normalizarCompra(t)
         .replace(/\bs\.?\s?(l|a)\.?\s?u?\.?\b/g, ' ')
         .split(/[^a-z0-9]+/)
-        .filter((w) => w.length >= 4 && !['pescados', 'mariscos', 'comercial', 'distribucion'].includes(w)),
+        .filter((w) => w.length >= 4 && !['pescados', 'mariscos', 'comercial', 'distribucion', 'bizkaia', 'bilbao'].includes(w)),
     );
   const a = palabras(leido);
   let mejor: { nombre: string; parecido: number } | null = null;

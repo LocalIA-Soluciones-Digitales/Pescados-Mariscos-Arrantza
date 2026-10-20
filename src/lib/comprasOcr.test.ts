@@ -235,6 +235,9 @@ describe('proveedor', () => {
   it('unificarProveedor usa el nombre ya conocido si es el mismo mal leído', () => {
     const conocidos = ['Pescados Bizkaimar, S.L.U', 'Las Capotinas, S.A.', 'Arraiza Gutierrez, S.L.'];
     expect(unificarProveedor('PESCA S BIZKAIMAR,S.L.U', conocidos)).toBe('Pescados Bizkaimar, S.L.U');
+    // «Bizkaimar» empieza como «Bizkaia»: no es la Hacienda Foral.
+    expect(unificarProveedor('Pescados Bizkaimar, S.L.U.', ['Hacienda Foral de Bizkaia'])).toBe('Pescados Bizkaimar, S.L.U.');
+    expect(unificarProveedor('PESCA S BIZKAIMAR,S.L.U', ['Hacienda Foral de Bizkaia', 'Consorcio de Aguas Bilbao Bizkaia'])).toBe('PESCA S BIZKAIMAR,S.L.U');
     expect(unificarProveedor('ARRAIZA GUTIERREZ, S.L.', conocidos)).toBe('Arraiza Gutierrez, S.L.');
     expect(unificarProveedor('JOSE CRESPO, S.A.', conocidos)).toBe('JOSE CRESPO, S.A.');
   });
