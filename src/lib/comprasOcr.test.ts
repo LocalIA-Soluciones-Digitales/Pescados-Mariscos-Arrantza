@@ -701,3 +701,26 @@ describe('impuestos de la gestoría (Hacienda Foral, 3T 2026)', () => {
     expect(a.lineas[0].texto).toBe('IRPF pago fraccionado (modelo 130) 3T 2026');
   });
 });
+
+describe('factura de la gestoría (Gestiones AIO)', () => {
+  it('nº tras la fecha, gasto sin stock y líneas sin «Uds.» ni IVA como kg y precio', () => {
+    const a = leerAlbaran(
+      cajas([
+        'GESTIONES AIO, S.L.',
+        'N.I.F.: B95688909',
+        'Documento  Fecha  Número  Página',
+        'FACTURA  29/09/2026  26 / 1200  1 de 1',
+        'Descripción  Uds.  Precio  Dto.  I.V.A.  Importe',
+        'Servicios de Asesoria  1,00  69,51  0,00  21,00  69,51',
+        'Nominas y Seguros Sociales  1,00  17,38  0,00  21,00  17,38',
+        'B. imponible  % I.V.A.  Imp. I.V.A.  Imp. recargo  TOTAL FACTURA  105,14',
+        '86,89  18,25  TOTAL A PAGAR  105,14',
+      ]),
+    );
+    expect(a).toMatchObject({ clase: 'gasto', proveedor: 'Gestiones AIO, S.L. (gestoría)', numero: '26 / 1200', fecha: '2026-09-29', total: 105.14 });
+    expect(a.lineas).toEqual([
+      { texto: 'Servicios de Asesoria', kg: null, precio: null, importe: 69.51, estado: 'ok' },
+      { texto: 'Nominas y Seguros Sociales', kg: null, precio: null, importe: 17.38, estado: 'ok' },
+    ]);
+  });
+});

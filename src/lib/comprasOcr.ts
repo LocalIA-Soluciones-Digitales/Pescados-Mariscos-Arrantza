@@ -260,6 +260,8 @@ export const PROVEEDORES_CONOCIDOS: { nombre: string; cif?: string; pistas: stri
   { nombre: 'Seguridad Social (autónomos)', cif: 'Q2827003A', pistas: ['tgss', 'seguridad social'], gasto: true },
   // Modelos 130, 110 y 115 que presenta la gestoría (Gestiones AIO).
   { nombre: 'Hacienda Foral de Bizkaia', pistas: ['hacienda foral', 'foru ogasun'], gasto: true },
+  // La gestoría: su factura de asesoría, nóminas y seguros sociales.
+  { nombre: 'Gestiones AIO, S.L. (gestoría)', cif: 'B95688909', pistas: ['gestiones aio', 'gestionesaio'], gasto: true },
 ];
 
 function proveedorConocido(filas: string[]): (typeof PROVEEDORES_CONOCIDOS)[number] | null {
@@ -354,7 +356,8 @@ function leerTipo(filas: string[]): 'albaran' | 'factura' {
 
 function leerNumeroFactura(filas: string[]): string | null {
   for (const l of filas) {
-    const m = l.match(new RegExp(String.raw`factura\b(?:\s*simplificada)?[^\d]{0,25}?(${NUM_DOC})`, 'i'));
+    // «FACTURA  29/09/2026  26 / 1200» (gestoría): la fecha va antes del nº.
+    const m = l.match(new RegExp(String.raw`factura\b(?:\s*simplificada)?[^\d]{0,25}?(?:\d{1,2}\/\d{1,2}\/\d{2,4}\s+)?(${NUM_DOC})`, 'i'));
     if (m) return m[1].replace(/\s+/g, ' ').trim();
   }
   // El nº va en la fila de debajo de los títulos de columna:
@@ -540,6 +543,12 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
       const m = l.match(new RegExp(String.raw`(total|l[ií]quido|a\s+pagar)[^\d-]{0,30}(${NUM})`, 'i'));
       if (m && !/cr[eé]dito/i.test(l)) r.total = aNumero(m[2]);
     }
+  }
+  // Servicios (gestoría…): si cantidad × precio no da el importe, esas
+  // columnas eran «Uds.» e «I.V.A.»: vale solo el importe. Las que cuadran
+  // (6 fardos de secamanos a 2,63 de Castañares) se dejan como están.
+  if (r.clase === 'gasto') {
+    r.lineas = r.lineas.map((l) => (l.estado === 'revisar' && l.importe != null ? { ...l, kg: null, precio: null, estado: 'ok' as const } : l));
   }
   return r;
 }
