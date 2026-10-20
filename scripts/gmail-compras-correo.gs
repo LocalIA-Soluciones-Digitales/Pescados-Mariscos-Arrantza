@@ -1,7 +1,13 @@
 // Apps Script de soporte.localia@gmail.com: cada 5 minutos recoge los
-// correos con factura o albarán que reenvía David y manda cada adjunto a la
-// web (Edge Function compras-correo). Al terminar le pone la etiqueta
-// «Arrantza-recogido» al correo, para no volver a mandarlo.
+// correos con factura o albarán y manda cada adjunto a la web (Edge Function
+// compras-correo). Al terminar le pone la etiqueta «Arrantza-recogido» al
+// correo, para no volver a mandarlo.
+//
+// Qué se recoge:
+//   · lo que David reenvía a mano desde d-tamayo@hotmail.com, y
+//   · lo que llega por el filtro de reenvío automático de su Gmail. Gmail lo
+//     marca con la cabecera «X-Forwarded-For» y deja como remitente al
+//     proveedor, así que los proveedores solo se apuntan en ese filtro.
 //
 // Instalación (una vez):
 //   1. script.google.com con la cuenta soporte.localia@gmail.com → Nuevo proyecto.
@@ -13,35 +19,24 @@
 const URL_WEB = 'https://ukhfaphloxlszomccgde.supabase.co/functions/v1/compras-correo';
 const CLAVE = 'PEGAR_AQUI_LA_CLAVE';
 const ETIQUETA = 'Arrantza-recogido';
-// Qué correos se recogen: lo que reenvía David a mano y lo que llega por la
-// regla de reenvío automático de Gmail, que deja como remitente al proveedor
-// (por eso van sus direcciones). Proveedor nuevo → añadirlo aquí y en el
-// filtro de reenvío de Gmail. Solo con adjunto y de los últimos días.
-const REMITENTES = [
-  'd-tamayo@hotmail.com',
-  'noresponder@pescadosarraiza.es',
-  'facturacion@pescadosadelaida.com',
-  'conifres@conifres.com',
-  'crespopescados@gmail.com',
-  'xtad@ubis.bz', // Triana y Kazaeder
-  'gre.pescados@gmail.com', // listado del gremio (solo para contrastar)
-  'efactura@consorciodeaguas.com',
-  'administracion@perezvinascomercial.com',
-  'facturacion@lascapotinas.com',
-  'facturacion@friobilbao.es',
-  'facturapymgaizka@gmail.com',
-  'cliente@yoigoluzygas.com',
-  'info@gestionesaio.com',
-];
-const BUSQUEDA = 'from:(' + REMITENTES.join(' OR ') + ') has:attachment newer_than:14d -label:' + ETIQUETA;
+const REENVIO_A_MANO = 'd-tamayo@hotmail.com';
+const BUSQUEDA = 'has:attachment newer_than:14d -in:sent -label:' + ETIQUETA;
 const TIPOS = /\.(pdf|jpe?g|png|webp)$/i;
+
+// ¿Viene de David? Reenviado a mano o por su filtro automático de Gmail.
+function esDeDavid(msg) {
+  if (msg.getFrom().toLowerCase().indexOf(REENVIO_A_MANO) >= 0) return true;
+  return !!msg.getHeader('X-Forwarded-For');
+}
 
 function recoger() {
   const etiqueta = GmailApp.getUserLabelByName(ETIQUETA) || GmailApp.createLabel(ETIQUETA);
-  const hilos = GmailApp.search(BUSQUEDA, 0, 20);
+  const hilos = GmailApp.search(BUSQUEDA, 0, 50);
   for (const hilo of hilos) {
+    const mensajes = hilo.getMessages().filter(esDeDavid);
+    if (!mensajes.length) continue;
     let todoBien = true;
-    for (const msg of hilo.getMessages()) {
+    for (const msg of mensajes) {
       const adjuntos = msg.getAttachments({ includeInlineImages: false });
       adjuntos.forEach((adj, i) => {
         if (!TIPOS.test(adj.getName()) && adj.getContentType() !== 'application/pdf') return;
