@@ -513,6 +513,9 @@ function CompraEditor({
       (sinProducto
         ? `\n\nOjo: ${sinProducto === 1 ? 'una línea va' : `${sinProducto} líneas van`} sin producto nuestro (en naranja): no ${sinProducto === 1 ? 'sumará' : 'sumarán'} al stock.`
         : '') +
+      (merluzas
+        ? `\n\nOjo: ${merluzas === 1 ? 'una línea de merluza va' : `${merluzas} líneas de merluza van`} sin elegir si es merluza o pescadilla: no ${merluzas === 1 ? 'sumará' : 'sumarán'} al stock.`
+        : '') +
       (sugeridos ? `\n\n${sugeridos === 1 ? 'Un producto está elegido' : `${sugeridos} productos están elegidos`} por parecido de nombre: ¿los has comprobado?` : '') +
       (repetida ? `\n\nOjo: ${describirCoincidencia(repetida, formatFecha)} No lo confirmes dos veces.` : '');
     if (!confirm(msg)) return;
@@ -601,6 +604,8 @@ function CompraEditor({
         title={
           duda === 'sin_producto'
             ? 'No se ha sabido a qué producto nuestro va: elígelo'
+            : duda === 'merluza'
+            ? 'La factura no dice si es merluza o pescadilla: elígelo'
             : duda === 'parecido'
             ? 'Sugerido por el nombre: compruébalo esta primera vez'
             : motivo === 'recordado'
@@ -666,12 +671,14 @@ function CompraEditor({
   const dudas = lineas.map((_, i) => infoLinea(i).duda);
   const sugeridos = dudas.filter((d) => d === 'parecido').length;
   const sinProducto = dudas.filter((d) => d === 'sin_producto').length;
-  const porRevisar = sugeridos + sinProducto;
+  const merluzas = dudas.filter((d) => d === 'merluza').length;
+  const porRevisar = sugeridos + sinProducto + merluzas;
   // Solo se pinta en verde si cuadra y no queda ningún producto por mirar.
   const todoBien = cuadra && !porRevisar;
   const textoDuda = {
     sin_producto: 'No se ha sabido a qué producto nuestro va: elígelo (o quita la línea si no es género).',
     parecido: 'Elegido por parecido de nombre: comprueba que es este.',
+    merluza: 'La factura no dice si es merluza o pescadilla (solo cambia el precio): elige cuál es.',
   };
   const sit = editable ? situacion({ ...compra, lineas: lineasDatos, total: totalNum }, porRevisar) : situacion(compra, 0);
 
@@ -892,13 +899,19 @@ function CompraEditor({
                       naranja): elígelo en el desplegable, o quita la línea si no es género.
                     </p>
                   )}
+                  {merluzas > 0 && (
+                    <p>
+                      {merluzas === 1 ? 'Una línea de merluza' : `${merluzas} líneas de merluza`}: la factura no dice si es merluza o pescadilla
+                      (solo cambia el precio). Elige cuál es en el desplegable.
+                    </p>
+                  )}
                   {sugeridos > 0 && (
                     <p>
                       {sugeridos === 1 ? 'Un producto está elegido' : `${sugeridos} productos están elegidos`} por parecido de nombre (borde naranja):
                       compruébalos esta primera vez.
                     </p>
                   )}
-                  <p>Al confirmar se recuerdan y la próxima vez salen solos.</p>
+                  {sinProducto + sugeridos > 0 && <p>Al confirmar se recuerdan y la próxima vez salen solos.</p>}
                 </div>
               </div>
             )}

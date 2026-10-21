@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canon, esAtrasado, leerDictado, lineasDeCompra, notaQuitadas, sugerirProducto, type ProductoBasico } from './comprasProductos';
+import { canon, dudaLinea, esAtrasado, leerDictado, lineasDeCompra, notaQuitadas, sugerirProducto, type ProductoBasico } from './comprasProductos';
 
 // Nombres reales de la carta de Arrantza.
 const PRODUCTOS: ProductoBasico[] = [
@@ -149,5 +149,23 @@ describe('revisión 18-10', () => {
       true,
     );
     expect(lineas[0]).toMatchObject({ producto_id: 'rey', sumar_stock: false });
+  });
+});
+
+describe('merluza o pescadilla (pendiente de regla, 21-10)', () => {
+  const alias = [
+    { proveedor_norm: 'pescados bizkaimar, s.l.u.', texto_norm: 'merluza (merluccius merluccius)', producto_id: 'merluza' },
+  ];
+  it('la merluza genérica no se propone ni sale de la memoria: la elige David', () => {
+    expect(sugerir('MERLUZA-CARIOCA-PESCADILLA / Merluccius Merluccius')).toBeNull();
+    expect(sugerirProducto('MERLUZA (MERLUCCIUS MERLUCCIUS)', 'Pescados Bizkaimar, S.L.U.', alias, PRODUCTOS)).toBeNull();
+    expect(dudaLinea({ texto: 'MERLUZA (MERLUCCIUS MERLUCCIUS)', producto_id: null }, 'Pescados Bizkaimar, S.L.U.', alias, PRODUCTOS)).toBe('merluza');
+    // Ya elegida por David: no queda duda.
+    expect(dudaLinea({ texto: 'MERLUZA (MERLUCCIUS MERLUCCIUS)', producto_id: 'merluza' }, 'Pescados Bizkaimar, S.L.U.', alias, PRODUCTOS)).toBeNull();
+  });
+  it('la volanta y la merluza de pintxo sí dicen lo que son', () => {
+    expect(sugerir('MERLUZA DE VOLANTA')).toBe('merluza');
+    expect(sugerir('VOLANTA')).toBe('merluza');
+    expect(sugerir('MERLUZA PINTXO')).toBe('merluza-pintxo');
   });
 });

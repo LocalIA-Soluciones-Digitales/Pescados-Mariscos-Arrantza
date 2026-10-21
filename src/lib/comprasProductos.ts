@@ -107,6 +107,16 @@ const SINONIMOS: Record<string, string> = {
 
 export const NO_PRODUCTO = /\b(hielo|transporte|portes?|envases?|cajas?|bolsas?|palets?|gastos?)\b/i;
 
+// «MERLUZA-CARIOCA-PESCADILLA / Merluccius Merluccius» (Adelaida) o
+// «MERLUZA (MERLUCCIUS MERLUCCIUS)» (Bizkaimar) sirven igual para la merluza
+// que para la pescadilla: solo cambia el precio. Hasta que David confirme una
+// regla (¿por precio?), no se propone nada ni se usa la memoria: lo elige él
+// en cada albarán. «Volanta», kokotxas, colas, etc. sí dicen lo que son.
+export function esMerluzaGenerica(texto: string): boolean {
+  const t = normalizarCompra(texto);
+  return /\b(merluza|merluccius|pescadilla)\b/.test(t) && !/volanta|kokotxa|cocochas?|\bcolas?\b|pintxo|pincho|lomos?|filetes?|rodajas?|chilena/.test(t);
+}
+
 // Igualar escritura vasca y castellana y quitar plurales: «Txitxarro» y
 // «CHICHARRO» quedan iguales, igual que «Bakalao»/«BACALAO» o «Lirios»/«LIRIO».
 export function canon(palabra: string): string {
@@ -169,7 +179,7 @@ export function sugerirProducto(
   productos: ProductoBasico[],
 ): Sugerencia | null {
   const t = normalizarCompra(texto);
-  if (!t) return null;
+  if (!t || esMerluzaGenerica(texto)) return null;
   const p = normalizarCompra(proveedor);
   const delProveedor = alias.find((a) => a.texto_norm === t && a.proveedor_norm === p);
   if (delProveedor && delProveedor.producto_id == null) return null;
@@ -198,10 +208,11 @@ export function sugerirProducto(
 
 // Lo que David tiene que mirar a mano antes de confirmar una línea:
 // 'sin_producto' = no se ha sabido ligar a un producto nuestro ·
-// 'parecido' = elegido solo por parecido de nombre (puede estar mal).
+// 'parecido' = elegido solo por parecido de nombre (puede estar mal) ·
+// 'merluza' = la factura no dice si es merluza o pescadilla.
 // No cuentan los gastos (agua, limpieza…), el hielo o los portes, ni lo
 // que David ya quitó otras veces.
-export type DudaLinea = 'sin_producto' | 'parecido';
+export type DudaLinea = 'sin_producto' | 'parecido' | 'merluza';
 export function dudaLinea(
   linea: { texto: string; producto_id: string | null; importe?: number | null },
   proveedor: string | null,
@@ -212,7 +223,7 @@ export function dudaLinea(
   if (!linea.producto_id) {
     if (!linea.texto.trim()) return linea.importe != null ? 'sin_producto' : null;
     if (NO_PRODUCTO.test(linea.texto) || esLineaQuitada(linea.texto, proveedor, alias)) return null;
-    return 'sin_producto';
+    return esMerluzaGenerica(linea.texto) ? 'merluza' : 'sin_producto';
   }
   const s = sugerirProducto(linea.texto, proveedor, alias, productos);
   return s?.motivo === 'parecido' && s.id === linea.producto_id ? 'parecido' : null;
