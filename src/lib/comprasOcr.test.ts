@@ -616,7 +616,7 @@ describe('gastos fijos: luz, teléfono y autónomos (facturas reales de 07–10/
       ]),
     );
     expect(a).toMatchObject({ tipo: 'factura', clase: 'gasto', numero: 'E26YG0000489549', fecha: '2026-07-14', total: 148.56 });
-    expect(a.proveedor).toBe('Energía Colectiva, S.L. (Yoigo Luz y Gas)');
+    expect(a.proveedor).toBe('Yoigo Luz y Gas (Energía Colectiva, S.L.)');
     expect(a.lineas).toEqual([{ texto: 'Luz (contrato 1027848)', kg: null, precio: null, importe: 148.56, estado: 'ok' }]);
   });
 

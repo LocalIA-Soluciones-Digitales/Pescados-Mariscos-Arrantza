@@ -255,8 +255,8 @@ export const PROVEEDORES_CONOCIDOS: { nombre: string; cif?: string; pistas: stri
   { nombre: 'J.L. Castañares, S.L.', cif: 'B95555421', pistas: ['castanares', 'castaares'], gasto: true },
   { nombre: 'Consorcio de Aguas Bilbao Bizkaia', cif: 'P4800005C', pistas: ['consorcio de aguas', 'consorciodeaguas', 'partzuergoa'], gasto: true },
   // Luz (Yoigo LUZ y GAS), teléfono e internet (Yoigo) y cuota de autónomos.
-  { nombre: 'Energía Colectiva, S.L. (Yoigo Luz y Gas)', cif: 'B98670003', pistas: ['energia colectiva', 'yoigo luz'], gasto: true },
-  { nombre: 'Xfera Móviles, S.A.U. (Yoigo)', cif: 'A82528548', pistas: ['xfera'], gasto: true },
+  { nombre: 'Yoigo Luz y Gas (Energía Colectiva, S.L.)', cif: 'B98670003', pistas: ['energia colectiva', 'yoigo luz'], gasto: true },
+  { nombre: 'Yoigo Móvil e Internet (Xfera Móviles, S.A.U.)', cif: 'A82528548', pistas: ['xfera'], gasto: true },
   { nombre: 'Seguridad Social (autónomos)', cif: 'Q2827003A', pistas: ['tgss', 'seguridad social'], gasto: true },
   // Modelos 130, 110 y 115 que presenta la gestoría (Gestiones AIO).
   { nombre: 'Hacienda Foral de Bizkaia', pistas: ['hacienda foral', 'foru ogasun'], gasto: true },
@@ -624,7 +624,7 @@ function leerLuz(texto: string[]): GastoFijo | null {
   const contrato = buscar(texto, /\bcontrato\s+(\d{5,})/i)?.[1];
   const emision = buscar(texto, /fecha emisi[oó]n:?\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i)?.[1];
   return {
-    proveedor: 'Energía Colectiva, S.L. (Yoigo Luz y Gas)',
+    proveedor: 'Yoigo Luz y Gas (Energía Colectiva, S.L.)',
     numero: buscar(texto, /\b(E\d{2}[A-Z]{2}\d{6,})\b/)?.[1] ?? null,
     fecha: emision ? leerFecha(emision) : null,
     total,
@@ -649,7 +649,7 @@ function leerTelefono(texto: string[]): GastoFijo | null {
       ? [gasto(concepto, factura), gasto('Plazo del móvil (servicios de terceros)', terceros)]
       : [gasto(concepto, total)];
   return {
-    proveedor: 'Xfera Móviles, S.A.U. (Yoigo)',
+    proveedor: 'Yoigo Móvil e Internet (Xfera Móviles, S.A.U.)',
     numero: buscar(texto, /n[uú]mero de factura:?\s*([A-Z0-9]{8,})/i)?.[1] ?? null,
     fecha: emision ? leerFecha(emision) : null,
     total,
