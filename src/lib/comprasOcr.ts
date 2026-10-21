@@ -371,13 +371,18 @@ function leerNumeroFactura(filas: string[]): string | null {
   //  · «Serie  Número  F. Expedición» → «G  7638  17/10/2026» (Capotinas).
   //  · «NUMERO  FECHA  COD_CLI…» → «21779  15/10/2026…» (Arraiza, Kazaeder).
   //  · «FACTURA  FECHA OPERACIÓN  N.I.F.» → «4 910611  17/10/26» (Pérez Viñas).
+  //  · «FECHA  FACTURA  CLIENTE  N.I.F.» → «20/10/2026  16728  2926» (Bizkaimar):
+  //    la fecha va delante; vale si el nº va antes que el código de cliente.
   for (let i = 0; i + 1 < filas.length; i++) {
     const cab = filas[i];
     if (/\bserie\b/i.test(cab) && /\bn[uú]mero\b/i.test(cab)) {
       const m = filas[i + 1].match(/\b([A-Z]{1,3})\s+(\d{3,7})\s+\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}/);
       if (m) return `${m[1]} ${m[2]}`;
     }
-    if (/\d/.test(cab) || !/\bfecha\b/i.test(cab) || !/^\s*(n[uú]mero|factura|n[º°o]\.?\s*factura)\b/i.test(cab)) continue;
+    if (/\d/.test(cab) || !/\bfecha\b/i.test(cab)) continue;
+    const delante = /^\s*(n[uú]mero|factura|n[º°o]\.?\s*factura)\b/i.test(cab);
+    const fechaDelante = /^\s*fecha\s+factura\b/i.test(cab) && (!/\bcliente\b/i.test(cab) || cab.search(/\bfactura\b/i) < cab.search(/\bcliente\b/i));
+    if (!delante && !fechaDelante) continue;
     const n = filas[i + 1].split(/\s+/).find((t) => /^[A-Z]{0,3}\d{4,}$/.test(t));
     if (n) return n;
   }

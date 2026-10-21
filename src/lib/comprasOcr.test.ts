@@ -707,6 +707,27 @@ describe('impuestos de la gestoría (Hacienda Foral, 3T 2026)', () => {
   });
 });
 
+describe('factura de Bizkaimar (20-10-2026)', () => {
+  it('el nº va debajo de «FECHA  FACTURA», no se confunde con la Hacienda Foral', () => {
+    const a = leerAlbaran(
+      cajas([
+        'PESCADOS BIZKAIMAR, S.L.U',
+        'PUESTO 112 MERCABILBAO  TAMAYO HUERTA DAVID',
+        'CIF.:  B95750824  CE',
+        'FECHA  FACTURA  FACTURA  CLIENTE  N.I.F.  TELÉFONO  PÁG.',
+        '20/10/2026  16728  2926  ES78880797C  619609888  1',
+        'CÓDIGO  DESCRIPCIÓN  UNIDADES  PRECIO  IMPORTE(EUR)',
+        'Albarán nº  / 23.339  de fecha  20/10/2026',
+        '1.90  MERLUZA (MERLUCCIUS MERLUCCIUS)  17,620  7,40  130,39',
+        '03.3  GULA DEL NORTE  10,000  1,90  19,00',
+        'TOTAL IMPORTE  Base IVA  %IVA  Cuota IVA  %Rec  Recargo  TOTAL',
+        '149,39  149,39  10,00  14,94  1,40  2,09  166,42',
+      ]),
+    );
+    expect(a).toMatchObject({ tipo: 'factura', proveedor: 'Pescados Bizkaimar, S.L.U.', numero: '16728', fecha: '2026-10-20' });
+  });
+});
+
 describe('factura de la gestoría (Gestiones AIO)', () => {
   it('nº tras la fecha, gasto sin stock y líneas sin «Uds.» ni IVA como kg y precio', () => {
     const a = leerAlbaran(

@@ -196,34 +196,51 @@ function Captura({ onFotos }: { onFotos: (f: File[]) => void }) {
 /* ------------------------------------------------------------------ */
 /*  Resumen (columna izquierda en el ordenador; dos cifras en el móvil) */
 /* ------------------------------------------------------------------ */
-function Resumen({ compras, dudasDe }: { compras: Compra[]; dudasDe: (c: Compra) => number }) {
+function Resumen({ compras, dudasDe, onVerPendientes }: { compras: Compra[]; dudasDe: (c: Compra) => number; onVerPendientes: () => void }) {
   const pendientes = compras.filter((c) => c.estado === 'pendiente');
-  const listas = pendientes.filter((c) => situacion(c, dudasDe(c)).etiqueta === 'Lista para confirmar').length;
+  const etiquetas = pendientes.map((c) => situacion(c, dudasDe(c)).etiqueta);
+  const listas = etiquetas.filter((e) => e === 'Lista para confirmar').length;
+  const porElegir = etiquetas.filter((e) => e === 'Elegir productos').length;
   const mes = hoyISO().slice(0, 7);
   const confirmadasMes = compras.filter((c) => c.estado === 'confirmada' && c.fecha.startsWith(mes));
   const cifra = (valor: string, texto: string, detalle?: string, textoCorto = texto) => (
-    <div className="px-4 py-3 min-w-0">
+    <>
       <p className="text-[11px] font-medium text-foreground-400 truncate">
         <span className="lg:hidden">{textoCorto}</span>
         <span className="hidden lg:inline">{texto}</span>
       </p>
       <p className="text-lg font-semibold text-foreground-950 tabular-nums leading-tight mt-0.5">{valor}</p>
       {detalle && <p className="text-[11px] text-foreground-500 mt-0.5">{detalle}</p>}
-    </div>
+    </>
   );
+  // Qué falta en lo pendiente, en palabras: «1 listo para confirmar · 1 con productos por elegir».
+  const queFalta = [
+    listas ? `${listas} ${listas === 1 ? 'listo' : 'listos'} para confirmar` : null,
+    porElegir ? `${porElegir} con productos por elegir` : null,
+    pendientes.length - listas - porElegir ? `${pendientes.length - listas - porElegir} por repasar` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-1 bg-background-50 border border-background-200/70 rounded-2xl shadow-card divide-x lg:divide-x-0 lg:divide-y divide-background-200/70">
-      {cifra(
-        String(pendientes.length),
-        'Por revisar',
-        pendientes.length ? `${formatEUR(pendientes.reduce((t, c) => t + (c.total ?? 0), 0))} · ${listas} listos para confirmar` : 'Todo al día',
+    <div className="grid grid-cols-2 lg:grid-cols-1 bg-background-50 border border-background-200/70 rounded-2xl shadow-card divide-x lg:divide-x-0 lg:divide-y divide-background-200/70 overflow-hidden">
+      {pendientes.length ? (
+        <button type="button" onClick={onVerPendientes} title="Ver los que faltan por revisar" className="group px-4 py-3 min-w-0 text-left bg-amber-50/50 hover:bg-amber-50">
+          {cifra(String(pendientes.length), 'Por revisar', `${formatEUR(pendientes.reduce((t, c) => t + (c.total ?? 0), 0))} · ${queFalta}`)}
+          <span className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-800">
+            Verlos <i className="ri-arrow-right-s-line transition-transform group-hover:translate-x-0.5"></i>
+          </span>
+        </button>
+      ) : (
+        <div className="px-4 py-3 min-w-0">{cifra('0', 'Por revisar', 'Todo al día')}</div>
       )}
+      <div className="px-4 py-3 min-w-0">
       {cifra(
         formatEUR(confirmadasMes.reduce((t, c) => t + (c.total ?? 0), 0)),
         'Compras confirmadas este mes',
         `${confirmadasMes.length} ${confirmadasMes.length === 1 ? 'albarán' : 'albaranes'}`,
         'Confirmado este mes',
       )}
+      </div>
     </div>
   );
 }
@@ -1642,7 +1659,6 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
       setAbiertaId(ids[0]);
     } else if (ids.length > 1) {
       setFiltro('pendientes');
-      setPeriodo({ modo: 'todo', ref: hoyISO() });
       setAviso(`Guardados ${ids.length} albaranes: los tienes en «Por revisar».`);
     }
   };
@@ -1656,12 +1672,26 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
     if (files.length) bandeja.añadir(files);
   };
 
+  // Se entra en «Por revisar» si queda algo pendiente (de cualquier fecha).
+  const entrada = useRef(false);
+  useEffect(() => {
+    if (entrada.current || datos.loading) return;
+    entrada.current = true;
+    if (datos.compras.some((c) => c.estado === 'pendiente')) setFiltro('pendientes');
+  }, [datos.loading, datos.compras]);
+
   const rango = rangoPeriodo(periodo);
   const delDia = datos.compras.filter((c) => enPeriodo(c.fecha, rango));
   const totalDia = delDia.filter((c) => c.estado !== 'anulada').reduce((s, c) => s + (c.total ?? 0), 0);
-  // Que no se olvide lo pendiente de otros días aunque se esté viendo uno.
-  const pendientesOtrosDias = pendientes.filter((c) => !enPeriodo(c.fecha, rango)).length;
   const q = normalizarCompra(busqueda);
+  // «Por revisar» y la búsqueda no miran el periodo: salen todos, de
+  // cualquier fecha, agrupados por día.
+  const sinPeriodo = !!q || filtro === 'pendientes';
+  // Elegir un día, semana o mes desde «Por revisar» es querer ver ese periodo.
+  const elegirPeriodo = (p: Periodo) => {
+    setPeriodo(p);
+    if (filtro === 'pendientes' && !q) setFiltro('todas');
+  };
   // Se busca en proveedor, nº, fecha, lo leído en cada línea y el producto
   // nuestro elegido («pescadilla» encuentra la «MERLUZA» de Bizkaimar).
   const nombreProducto = useMemo(() => new Map(productos.map((p) => [p.id, p.nombre_es])), [productos]);
@@ -1674,9 +1704,9 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
         ...c.lineas.flatMap((l) => [l.texto, l.producto_id ? nombreProducto.get(l.producto_id) : null]),
       ].join(' '),
     ).includes(q);
-  const encontradas = q ? datos.compras.filter(coincide) : delDia;
+  const encontradas = q ? datos.compras.filter(coincide) : filtro === 'pendientes' ? pendientes : delDia;
   const cuentas = {
-    pendientes: encontradas.filter((c) => c.estado === 'pendiente').length,
+    pendientes: q ? encontradas.filter((c) => c.estado === 'pendiente').length : pendientes.length,
     confirmadas: encontradas.filter((c) => c.estado === 'confirmada').length,
     anuladas: encontradas.filter((c) => c.estado === 'anulada').length,
     todas: encontradas.length,
@@ -1687,8 +1717,9 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
         (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
       )
     : [];
-  // Semana, mes, todo o búsqueda: la lista va por días, cada uno con su cabecera.
-  const porDias = periodo.modo !== 'dia' || !!q;
+  // Semana, mes, todo, «Por revisar» o búsqueda: la lista va por días, cada
+  // uno con su cabecera.
+  const porDias = periodo.modo !== 'dia' || sinPeriodo;
   const visibles = encontradas
     .filter((c) => !proveedorSel || (c.proveedor ?? 'Sin proveedor') === proveedorSel)
     .filter((c) =>
@@ -1700,11 +1731,7 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
             ? c.estado === 'confirmada'
             : c.estado === 'anulada',
     )
-    .sort((a, b) =>
-      filtro === 'pendientes' && !porDias
-        ? b.created_at.localeCompare(a.created_at)
-        : b.fecha.localeCompare(a.fecha) || b.created_at.localeCompare(a.created_at),
-    );
+    .sort((a, b) => b.fecha.localeCompare(a.fecha) || b.created_at.localeCompare(a.created_at));
   const mostradas = visibles.slice(0, porDias ? 300 : 100);
   // Albaranes y total de cada día (sin los anulados en el total).
   const resumenDias = new Map<string, { n: number; total: number }>();
@@ -1764,52 +1791,36 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
             <Correo correo={correo} compras={datos.compras} onAbrir={setAbiertaId} />
           </div>
           <div className="order-2">
-            <Resumen compras={datos.compras} dudasDe={dudasDe} />
+            <Resumen
+              compras={datos.compras}
+              dudasDe={dudasDe}
+              onVerPendientes={() => {
+                buscar('');
+                setFiltro('pendientes');
+              }}
+            />
           </div>
         </aside>
 
         <section className="order-3 min-w-0">
-          <SelectorPeriodo periodo={periodo} onPeriodo={setPeriodo} total={totalDia} n={cuentas.todas - cuentas.anuladas} />
-          {pendientesOtrosDias > 0 && !q && (
-            <button
-              type="button"
-              onClick={() => {
-                setPeriodo({ modo: 'todo', ref: hoyISO() });
-                setFiltro('pendientes');
-              }}
-              className="w-full mb-3 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-left text-xs text-amber-800 hover:bg-amber-100"
-            >
-              <i className="ri-error-warning-line text-base leading-none"></i>
-              <span className="flex-1">
-                {pendientesOtrosDias === 1
-                  ? `Tienes 1 albarán de ${periodo.modo === 'dia' ? 'otro día' : 'otras fechas'} sin revisar.`
-                  : `Tienes ${pendientesOtrosDias} albaranes de ${periodo.modo === 'dia' ? 'otros días' : 'otras fechas'} sin revisar.`}
-              </span>
-              <span className="font-semibold whitespace-nowrap">
-                {pendientesOtrosDias === 1 ? 'Verlo' : 'Verlos'} <i className="ri-arrow-right-s-line"></i>
-              </span>
-            </button>
-          )}
+          {/* Con «Por revisar» o buscando, el periodo no cuenta: se ve apagado. */}
+          <div className={`transition-opacity ${sinPeriodo ? 'opacity-50 hover:opacity-100' : ''}`}>
+            <SelectorPeriodo periodo={periodo} onPeriodo={elegirPeriodo} total={totalDia} n={delDia.filter((c) => c.estado !== 'anulada').length} />
+          </div>
           <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-3">
             <div className="flex gap-0.5 md:gap-1 p-1 rounded-full bg-background-100 border border-background-200/70 overflow-x-auto scrollbar-hide w-full md:w-auto md:self-start">
               {PESTANAS.map((t) => {
                 // «Por revisar» en amarillo mientras quede algo pendiente
                 // (de cualquier fecha), para que no pase desapercibido.
                 const avisar = t.valor === 'pendientes' && pendientes.length > 0;
-                // Si lo pendiente es de otras fechas, la cuenta es la total y
-                // al pulsar se ven todas (como «Verlos»).
-                const fuera = avisar && t.n === 0 && !q;
                 const activa = filtro === t.valor;
                 return (
                   <button
                     key={t.valor}
                     type="button"
-                    onClick={() => {
-                      setFiltro(t.valor);
-                      if (fuera) setPeriodo({ modo: 'todo', ref: hoyISO() });
-                    }}
+                    onClick={() => setFiltro(t.valor)}
                     aria-pressed={activa}
-                    title={avisar ? `${pendientes.length} por revisar en total` : undefined}
+                    title={t.valor === 'pendientes' ? 'Todos los que faltan por revisar, de cualquier fecha' : undefined}
                     className={`flex-1 md:flex-none inline-flex items-center justify-center gap-1 md:gap-1.5 h-9 md:h-8 px-2 md:px-3 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
                       avisar
                         ? activa
@@ -1823,7 +1834,7 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
                     {avisar && <i className="ri-error-warning-fill text-amber-500"></i>}
                     {t.texto}
                     <span className={`tabular-nums text-[11px] ${avisar ? 'font-semibold text-amber-700' : activa ? 'text-foreground-500' : 'text-foreground-400'}`}>
-                      {fuera ? pendientes.length : t.n}
+                      {t.n}
                     </span>
                   </button>
                 );
@@ -1851,6 +1862,13 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
               )}
             </label>
           </div>
+          {!q && filtro === 'pendientes' && pendientes.length > 0 && (
+            <p className="mb-3 px-1 text-xs text-foreground-500">
+              {pendientes.length === 1 ? 'Falta por revisar 1 albarán' : `Faltan por revisar ${pendientes.length} albaranes`}, de{' '}
+              <span className="font-medium text-foreground-800">cualquier fecha</span> ·{' '}
+              {formatEUR(pendientes.reduce((t, c) => t + (c.total ?? 0), 0))}. Ábrelos para confirmarlos.
+            </p>
+          )}
           {q && (
             <div className="mb-3 space-y-2">
               <p className="text-xs text-foreground-500 px-1">
@@ -1897,22 +1915,22 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
               <p className="text-sm font-semibold text-foreground-950">
                 {q
                   ? 'Nada coincide con la búsqueda'
-                  : periodo.modo === 'dia'
-                    ? `No hay albaranes ${filtro === 'pendientes' ? 'por revisar ' : ''}con fecha ${nombreDia(periodo.ref).toLowerCase()}`
-                    : periodo.modo !== 'todo'
-                    ? `No hay albaranes ${filtro === 'pendientes' ? 'por revisar ' : ''}${periodo.modo === 'semana' ? 'esa semana' : 'ese mes'}`
-                    : filtro === 'pendientes'
-                      ? 'No hay albaranes por revisar'
-                      : 'Todavía no hay albaranes aquí'}
+                  : filtro === 'pendientes'
+                    ? 'Todo revisado: no queda ningún albarán por confirmar'
+                    : periodo.modo === 'dia'
+                      ? `No hay albaranes con fecha ${nombreDia(periodo.ref).toLowerCase()}`
+                      : periodo.modo !== 'todo'
+                        ? `No hay albaranes ${periodo.modo === 'semana' ? 'esa semana' : 'ese mes'}`
+                        : 'Todavía no hay albaranes aquí'}
               </p>
               <p className="text-xs text-foreground-500 max-w-xs">
                 {q
                   ? 'Prueba con otro proveedor, número o producto.'
-                  : periodo.modo !== 'todo'
-                    ? 'Muévete con las flechas, elige otra fecha en el calendario o pulsa «Todo».'
-                    : filtro === 'pendientes'
+                  : filtro === 'pendientes'
                     ? 'Haz la foto del albarán (o sube el PDF) y aparecerá aquí, ya leído, para revisarlo y confirmarlo.'
-                    : 'Los albaranes confirmados y anulados se quedan aquí, con su foto.'}
+                    : periodo.modo !== 'todo'
+                      ? 'Muévete con las flechas, elige otra fecha en el calendario o pulsa «Todo».'
+                      : 'Los albaranes confirmados y anulados se quedan aquí, con su foto.'}
               </p>
             </div>
           ) : (
