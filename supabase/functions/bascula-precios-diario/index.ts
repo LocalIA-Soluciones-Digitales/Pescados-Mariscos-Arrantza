@@ -2,17 +2,24 @@
 // mantener los precios de la web al día y avisar de cambios. (El nombre
 // "diario" es histórico: la báscula 1 se lee cada 5 minutos.)
 //
-//   POST /bascula-precios-diario   { "origen": "pescaderia_1" }
+//   POST /bascula-precios-diario   { "origen": "web" }
+//   "origen": "web" (la báscula que alimenta la web), "vigilada" (la otra) o
+//             una báscula concreta ("pescaderia_1" / "pescaderia_2").
 //   Opcional: "simular": true  — calcula y devuelve los cambios sin escribir nada
-//             "vigilar": true  — solo registra: ver más abajo
+//
+// Qué báscula alimenta la web lo elige David en el panel de gestión
+// (Básculas › «La web lee de»): settings.bascula_web_origen, por defecto la 1.
+// La otra se lee siempre en modo "vigilar" (ver más abajo). Ej.: cuando la
+// encargada de la pescadería 2 está de vacaciones solo abre la 2 y David
+// cambia artículos y precios allí.
 //   Header: x-webhook-secret: <BASCULA_SYNC_SECRET>
 //     o bien la sesión de un desarrollador o de un usuario del negocio
 //     (Authorization: Bearer <jwt>): es el botón de actualizar de la pestaña
 //     Básculas › Cambios y diferencias del panel de gestión, que lanza al momento la misma
 //     lectura que el cron.
 //
-// Lo dispara un cron: la báscula 1 cada 5 minutos y la 2 cada hora (ver
-// supabase/schema.sql). Si la báscula está apagada o da 502 (pasa a menudo,
+// Lo dispara un cron: la báscula de la web cada 5 minutos y la otra cada hora
+// (ver supabase/schema.sql). Si la báscula está apagada o da 502 (pasa a menudo,
 // ver bascula-sync), no pasa nada: se apunta el intento para el panel y se sale con 200.
 // Si a las 13:30 aún no se ha podido leer ese día, avisa por push una sola
 // vez (solo la báscula que alimenta la web, no la vigilada). Domingo y lunes
@@ -45,8 +52,8 @@
 // La primera ejecución solo guarda la foto de partida (no hay con qué
 // comparar) y actualiza precios, sin avisar de "nuevos".
 //
-// Modo "vigilar" (báscula 2): la web solo sigue los precios de la báscula 1,
-// pero se vigila la 2 para saber si alguien la cambia. Hace los pasos 1, 2 y
+// Modo "vigilar" (la báscula que no alimenta la web): no toca la web, pero
+// se vigila para saber si alguien la cambia. Hace los pasos 1, 2 y
 // la foto del 4 sin tocar la web. En las dos básculas los avisos push van
 // solo a los desarrolladores (public.enviar_push_desarrollador), y los
 // cambios se ven en la pestaña Básculas › Cambios y diferencias del panel de gestión.
@@ -62,6 +69,10 @@ const LOTE_MAX = 100;
 const MAX_PAGINAS = 50;
 const ORIGENES_VALIDOS = ['pescaderia_1', 'pescaderia_2'];
 const NOMBRE_ORIGEN: Record<string, string> = { pescaderia_1: 'báscula 1', pescaderia_2: 'báscula 2' };
+// Qué báscula alimenta la web (la elige David en el panel) y cuál lo hizo en
+// la última lectura que tocó la web: si no coinciden, acaba de cambiarse.
+const CLAVE_WEB_ORIGEN = 'bascula_web_origen';
+const CLAVE_WEB_SINCRONIZADA = 'bascula_web_sincronizada';
 const HORA_AVISO_FALLO_MIN = 13 * 60 + 30; // 13:30 Madrid
 // Si la báscula devuelve menos de la mitad de artículos que la foto
 // anterior, se da la lectura por incompleta en vez de marcar la otra mitad
@@ -463,32 +474,38 @@ async function atender(req: Request): Promise<Response> {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const body = await req.json().catch(() => ({}));
-  const origen = typeof body.origen === 'string' ? body.origen : '';
-  if (!ORIGENES_VALIDOS.includes(origen)) {
-    return new Response(`"origen" inválido o ausente. Valores válidos: ${ORIGENES_VALIDOS.join(', ')}`, { status: 400 });
-  }
-  const simular = body.simular === true;
-  const vigilar = body.vigilar === true;
-
-  const cfg = leerCfgOrigen(origen);
   const clienteId = Deno.env.get('BASCULA_CLIENTE_ID') ?? '';
-  if (!cfg.proxyId || !cfg.publicKey || !cfg.privateKey || !clienteId) {
-    return new Response(`Faltan secretos de configuración de la báscula para el origen "${origen}"`, { status: 500 });
-  }
-
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  const claveOk = `bascula_catalogo_ok_${origen}`;
-  const claveFallo = `bascula_catalogo_fallo_avisado_${origen}`;
-  const claveVigilancia = `bascula_vigilancia_${origen}`;
-  const { fecha, minutos, cerrada } = horaMadrid();
-
   const leerSetting = async (key: string) => {
     const { data } = await supabase.from('settings').select('value').eq('cliente_id', clienteId).eq('key', key).maybeSingle();
     return data?.value as unknown;
   };
   const guardarSetting = (key: string, value: unknown) =>
     supabase.from('settings').upsert({ cliente_id: clienteId, key, value }, { onConflict: 'key,cliente_id' });
+
+  const elegida = await leerSetting(CLAVE_WEB_ORIGEN);
+  const origenWeb = typeof elegida === 'string' && ORIGENES_VALIDOS.includes(elegida) ? elegida : 'pescaderia_1';
+  const body = await req.json().catch(() => ({}));
+  const pedido = typeof body.origen === 'string' ? body.origen : '';
+  const origen = pedido === 'web' ? origenWeb
+    : pedido === 'vigilada' ? ORIGENES_VALIDOS.find((o) => o !== origenWeb)!
+    : pedido;
+  if (!ORIGENES_VALIDOS.includes(origen)) {
+    return new Response(`"origen" inválido o ausente. Valores válidos: web, vigilada, ${ORIGENES_VALIDOS.join(', ')}`, { status: 400 });
+  }
+  const simular = body.simular === true;
+  const vigilar = origen !== origenWeb;
+
+  const cfg = leerCfgOrigen(origen);
+  if (!cfg.proxyId || !cfg.publicKey || !cfg.privateKey || !clienteId) {
+    return new Response(`Faltan secretos de configuración de la báscula para el origen "${origen}"`, { status: 500 });
+  }
+
+  const claveOk = `bascula_catalogo_ok_${origen}`;
+  const claveFallo = `bascula_catalogo_fallo_avisado_${origen}`;
+  const claveVigilancia = `bascula_vigilancia_${origen}`;
+  const { fecha, minutos, cerrada } = horaMadrid();
+
   // Los avisos de las básculas van solo a los desarrolladores, no al
   // pescadero; también se ven en el panel de gestión (Básculas › Cambios y diferencias).
   // url: adónde lleva el aviso al tocarlo (por defecto, la pestaña Básculas › Cambios y diferencias del panel de gestión).
@@ -569,9 +586,7 @@ async function atender(req: Request): Promise<Response> {
   }
 
   const cambios = primeraVez ? [] : compararCatalogos(anterior, actual);
-  const codigosRenombrados = new Set(cambios.filter((c) => c.tipo === 'renombrado').map((c) => c.codigo));
-  const codigosEliminados = new Set(cambios.filter((c) => c.tipo === 'eliminado').map((c) => c.codigo));
-  const codigosCambioFamilia = new Set(cambios.filter((c) => c.tipo === 'familia').map((c) => c.codigo));
+  const eliminadosFoto = cambios.filter((c) => c.tipo === 'eliminado').map((c) => c.codigo);
 
   // Registra los cambios y sustituye la foto por la lectura de ahora.
   const guardarFoto = async (): Promise<string | null> => {
@@ -594,8 +609,8 @@ async function atender(req: Request): Promise<Response> {
         .upsert(distintos.map((a) => ({ cliente_id: clienteId, origen, ...a })), { onConflict: 'cliente_id,origen,codigo' });
       if (errFoto) return errFoto.message;
     }
-    if (codigosEliminados.size > 0) {
-      await supabase.from('bascula_catalogo').delete().eq('cliente_id', clienteId).eq('origen', origen).in('codigo', [...codigosEliminados]);
+    if (eliminadosFoto.length > 0) {
+      await supabase.from('bascula_catalogo').delete().eq('cliente_id', clienteId).eq('origen', origen).in('codigo', eliminadosFoto);
     }
     return null;
   };
@@ -609,6 +624,32 @@ async function atender(req: Request): Promise<Response> {
     await enviarAvisos(cambios, new Map());
     return json(resultado);
   }
+
+  // Lo que la web tiene que aplicar: los cambios de esta báscula desde la
+  // lectura anterior. Justo después de cambiar en el panel la báscula de la
+  // web, en cambio, se compara con la última foto de la báscula que la
+  // alimentaba hasta ahora: así la web pasa a ser igual que esta (artículos
+  // que solo tiene esta, nombres, familias y los que le faltan) aunque esos
+  // cambios ya se hubieran apuntado antes en modo vigilar.
+  let cambiosWeb = cambios;
+  const sincronizada = await leerSetting(CLAVE_WEB_SINCRONIZADA);
+  if (typeof sincronizada === 'string' && sincronizada !== origen && ORIGENES_VALIDOS.includes(sincronizada)) {
+    const { data: filasBase, error: errBase } = await supabase
+      .from('bascula_catalogo')
+      .select('codigo, nombre, familia, precio, unidades, iva')
+      .eq('cliente_id', clienteId)
+      .eq('origen', sincronizada);
+    if (errBase) return json({ error: errBase.message }, 500);
+    if ((filasBase ?? []).length > 0) {
+      const base = new Map<string, Articulo>(
+        (filasBase ?? []).map((f) => [f.codigo as string, { ...(f as Articulo), precio: Number(f.precio), iva: Number(f.iva) }]),
+      );
+      cambiosWeb = compararCatalogos(base, actual);
+    }
+  }
+  const codigosRenombrados = new Set(cambiosWeb.filter((c) => c.tipo === 'renombrado').map((c) => c.codigo));
+  const codigosEliminados = new Set(cambiosWeb.filter((c) => c.tipo === 'eliminado').map((c) => c.codigo));
+  const codigosCambioFamilia = new Set(cambiosWeb.filter((c) => c.tipo === 'familia').map((c) => c.codigo));
 
   // Precios de la tienda online: productos con código de esta báscula.
   const { data: mapeos, error: errMapeos } = await supabase
@@ -627,7 +668,7 @@ async function atender(req: Request): Promise<Response> {
   }
   // Un código que reaparece hoy con otro artículo (David reutiliza el código
   // de uno que borró) ya no es del producto antiguo: ese enlace ha caducado.
-  const codigosNuevos = new Set(cambios.filter((c) => c.tipo === 'nuevo').map((c) => c.codigo));
+  const codigosNuevos = new Set(cambiosWeb.filter((c) => c.tipo === 'nuevo').map((c) => c.codigo));
   const enlacesCaducados = new Map<string, string>(); // código → producto antiguo
   for (const m of mapeos ?? []) {
     const p = m.productos as unknown as { id: string; nombre_es: string } | null;
@@ -635,7 +676,7 @@ async function atender(req: Request): Promise<Response> {
     if (p && a && codigosNuevos.has(a.codigo) && !mismoNombre(p.nombre_es, a.nombre)) enlacesCaducados.set(a.codigo, p.id);
   }
   const codigosConProducto = new Set([...codigoPorProducto.values()].filter((c) => !enlacesCaducados.has(c)));
-  const candidatosAlta = [...new Set(cambios.filter((c) => c.tipo === 'nuevo' || c.tipo === 'familia').map((c) => c.codigo))]
+  const candidatosAlta = [...new Set(cambiosWeb.filter((c) => c.tipo === 'nuevo' || c.tipo === 'familia').map((c) => c.codigo))]
     .map((codigo) => actual.get(codigo))
     .filter((a): a is Articulo => !!a && !!CATEGORIA_POR_FAMILIA[a.familia] && !codigosConProducto.has(a.codigo)
       && a.precio > 0 && !NO_ES_PRODUCTO.test(a.nombre));
@@ -697,13 +738,14 @@ async function atender(req: Request): Promise<Response> {
     }
   }
 
-  // Precios de hostelería: artículos importados de esta báscula, solo si
-  // el código sigue en la misma familia de la que se importó la tarifa.
+  // Precios de hostelería: artículos importados de una báscula (las dos
+  // tienen los mismos códigos y manda la que alimenta la web), solo si el
+  // código sigue en la misma familia de la que se importó la tarifa.
   const { data: listas, error: errListas } = await supabase
     .from('hosteleria_listas_precio')
     .select('id, bascula_familia, hosteleria_articulos (id, codigo_bascula, nombre, precio, unidad, activo)')
     .eq('cliente_id', clienteId)
-    .eq('bascula_origen', origen);
+    .in('bascula_origen', ORIGENES_VALIDOS);
   if (errListas) return json({ error: errListas.message }, 500);
 
   const preciosHosteleria: { id: string; codigo: string; nombre: string; antes: number; despues: number; unidad: 'kg' | 'un' }[] = [];
@@ -719,7 +761,7 @@ async function atender(req: Request): Promise<Response> {
   }
   const listasHosteleria = (listas ?? []).map((l) => ({
     id: l.id as string,
-    ...cambiosLista(l.bascula_familia as string, (l.hosteleria_articulos ?? []) as FilaLista[], actual, cambios),
+    ...cambiosLista(l.bascula_familia as string, (l.hosteleria_articulos ?? []) as FilaLista[], actual, cambiosWeb),
   }));
 
   // Precios de campañas de reserva (Navidad…): artículos de reservas_articulos
@@ -728,7 +770,7 @@ async function atender(req: Request): Promise<Response> {
     .from('reservas_eventos')
     .select('id, cliente_id, bascula_familia, reservas_articulos (id, codigo_bascula, nombre_es, precio, unidad, activo)')
     .eq('cliente_id', clienteId)
-    .eq('bascula_origen', origen);
+    .in('bascula_origen', ORIGENES_VALIDOS);
   if (errCampanas) return json({ error: errCampanas.message }, 500);
 
   const preciosReservas: { id: string; codigo: string; nombre: string; antes: number; despues: number; unidad: 'kg' | 'un' }[] = [];
@@ -745,7 +787,7 @@ async function atender(req: Request): Promise<Response> {
   const listasReservas = (campanas ?? []).map((e) => ({
     id: e.id as string,
     cliente_id: e.cliente_id as string,
-    ...cambiosLista(e.bascula_familia as string, (e.reservas_articulos ?? []) as FilaLista[], actual, cambios),
+    ...cambiosLista(e.bascula_familia as string, (e.reservas_articulos ?? []) as FilaLista[], actual, cambiosWeb),
   }));
 
   // Fotos para las altas: primero la tienda visible, luego hostelería y
@@ -776,6 +818,7 @@ async function atender(req: Request): Promise<Response> {
 
   const resultado = {
     origen, fecha, primeraVez, simulado: simular,
+    cambioDeBascula: cambiosWeb !== cambios ? sincronizada : null,
     articulos: actual.size,
     cambios: cambios.map((c) => ({ codigo: c.codigo, tipo: c.tipo, antes: c.antes, despues: c.despues })),
     preciosProductos, nombresProductos, categoriasProductos, preciosHosteleria, preciosReservas, sinActualizar,
@@ -915,5 +958,6 @@ async function atender(req: Request): Promise<Response> {
   await enviarAvisos(cambios, enWeb);
 
   await guardarLecturaOk();
+  await guardarSetting(CLAVE_WEB_SINCRONIZADA, origen);
   return json(resultado);
 }

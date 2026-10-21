@@ -4,8 +4,9 @@ import { ORIGENES, type Origen } from '@/types/origen';
 
 // Registro de cambios de las dos básculas para la pestaña Básculas
 // (Cambios y diferencias) del panel de gestión.
-// bascula-precios-diario lee la báscula 1 cada 5 minutos y la 2 cada hora: la 1 alimenta los
-// precios de la web y la 2 solo se vigila. Cada diferencia con la lectura
+// bascula-precios-diario lee cada 5 minutos la báscula que alimenta la web
+// (la 1, salvo que David elija la 2 en «La web lee de») y la otra cada hora,
+// solo vigilada. Cada diferencia con la lectura
 // anterior queda en bascula_catalogo_cambios. Aquí se junta con el estado de
 // la última lectura de cada una y con lo que difiere entre ambas (deberían
 // coincidir).
@@ -95,10 +96,13 @@ export function useBasculasCambios() {
   const [visto, setVisto] = useState(leerVisto);
   const [leyendo, setLeyendo] = useState(false);
   const [lectura, setLectura] = useState<LecturaManual[] | null>(null);
+  // Báscula de la que la web copia artículos y precios (settings.bascula_web_origen).
+  const [origenWeb, setOrigenWeb] = useState<Origen>('pescaderia_1');
+  const [cambiandoWeb, setCambiandoWeb] = useState(false);
 
   const fetchDatos = useCallback(async (silencioso = false) => {
     if (!silencioso) setLoading(true);
-    const [resCambios, resEstados, resFotos] = await Promise.all([
+    const [resCambios, resEstados, resFotos, resWeb] = await Promise.all([
       supabase
         .from('bascula_catalogo_cambios')
         .select('id, origen, codigo, tipo, antes, despues, created_at')
@@ -106,7 +110,9 @@ export function useBasculasCambios() {
         .limit(1000),
       leerEstados(),
       supabase.from('bascula_catalogo').select('origen, codigo, nombre, familia, precio, unidades').in('origen', ORIGENES),
+      supabase.rpc('bascula_web_origen'),
     ]);
+    if (!resWeb.error && ORIGENES.includes(resWeb.data as Origen)) setOrigenWeb(resWeb.data as Origen);
     setCambios((resCambios.data ?? []) as CambioBascula[]);
     setEstados(resEstados);
 
@@ -143,15 +149,16 @@ export function useBasculasCambios() {
     };
   }, [fetchDatos]);
 
-  // La báscula 1 en modo normal (precios de la web) y la 2 solo vigilada,
-  // igual que los dos crons.
+  // La báscula de la web en modo normal y la otra solo vigilada, igual que
+  // los dos crons (la función decide cuál es cuál y no hace caso de
+  // «vigilar»; se manda por si aún corre una versión anterior de la función).
   const actualizar = useCallback(async () => {
     setLeyendo(true);
     setLectura(null);
     const resultados = await Promise.all(
       ORIGENES.map(async (origen): Promise<LecturaManual> => {
         const { data, error } = await supabase.functions.invoke('bascula-precios-diario', {
-          body: { origen, vigilar: origen !== 'pescaderia_1' },
+          body: { origen, vigilar: origen !== origenWeb },
         });
         if (error) return { origen, ok: false, cambios: 0, mensaje: error.message };
         if (data?.omitido) return { origen, ok: false, cambios: 0, mensaje: data.mensaje ?? data.omitido };
@@ -161,6 +168,25 @@ export function useBasculasCambios() {
     setLectura(resultados);
     await fetchDatos(true);
     setLeyendo(false);
+  }, [fetchDatos, origenWeb]);
+
+  // Cambia la báscula de la que lee la web y la lee al momento: la web pasa a
+  // tener sus artículos y precios sin esperar a la siguiente vuelta del cron.
+  const cambiarOrigenWeb = useCallback(async (origen: Origen): Promise<string | null> => {
+    setCambiandoWeb(true);
+    const { error } = await supabase.rpc('cambiar_bascula_web', { p_origen: origen });
+    if (error) {
+      setCambiandoWeb(false);
+      return error.message;
+    }
+    setOrigenWeb(origen);
+    const { data, error: errLectura } = await supabase.functions.invoke('bascula-precios-diario', { body: { origen: 'web' } });
+    await fetchDatos(true);
+    setCambiandoWeb(false);
+    if (errLectura || data?.omitido) {
+      return `Cambiado. La ${origen === 'pescaderia_1' ? 'báscula 1' : 'báscula 2'} no responde ahora mismo: la web se pondrá al día en cuanto se pueda leer (se intenta cada 5 minutos).`;
+    }
+    return null;
   }, [fetchDatos]);
 
   const nuevos = useMemo(() => cambios.filter((c) => c.created_at > visto).length, [cambios, visto]);
@@ -175,5 +201,8 @@ export function useBasculasCambios() {
     setVisto(ahora);
   }, [cambios]);
 
-  return { cambios, estados, diferencias, loading, nuevos, visto, marcarVisto, leyendo, lectura, actualizar };
+  return {
+    cambios, estados, diferencias, loading, nuevos, visto, marcarVisto, leyendo, lectura, actualizar,
+    origenWeb, cambiandoWeb, cambiarOrigenWeb,
+  };
 }

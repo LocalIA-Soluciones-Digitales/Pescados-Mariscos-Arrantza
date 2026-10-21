@@ -4,15 +4,16 @@ import SearchInput from '@/components/base/SearchInput';
 import { useRealtimeTable } from '@/hooks/useRealtimeTable';
 import { leerEstados } from '@/hooks/useBasculasCambios';
 import { tiendaCerradaHoy } from '@/lib/tiendaCerrada';
+import type { Origen } from '@/types/origen';
 
-// Catálogo completo de la báscula 1 (la que manda los precios de la web), tal
+// Catálogo completo de la báscula que manda los precios de la web (la 1, o la
+// 2 si David la elige en «La web lee de»), tal
 // cual está en la báscula: por código y agrupado por familia. Sale de la
 // última lectura de bascula-precios-diario (public.bascula_catalogo), que se
 // hace cada 5 minutos; la lista se refresca sola en cuanto esa lectura trae
 // algo distinto (realtime + sondeo de useRealtimeTable) y marca lo que acaba
 // de cambiar. Solo lectura: los artículos se cambian en la báscula.
 
-const ORIGEN = 'pescaderia_1';
 const CLAVE_PLEGADAS = 'admin_bascula_plegadas';
 
 // Familias de la tienda (fijas). Las demás toman el nombre de la tarifa de
@@ -106,7 +107,7 @@ function Stat({ valor, label, icono, activo, onClick }: { valor: number; label: 
   );
 }
 
-export default function BasculaCatalogoPanel() {
+export default function BasculaCatalogoPanel({ origen: ORIGEN }: { origen: Origen }) {
   const [articulos, setArticulos] = useState<Articulo[]>([]);
   const [nombresFamilia, setNombresFamilia] = useState<Record<string, string>>({});
   const [destinos, setDestinos] = useState<Map<string, Set<Destino>>>(new Map());
@@ -157,7 +158,7 @@ export default function BasculaCatalogoPanel() {
     setLectura(set[ORIGEN] ?? null);
     setRecientes(new Set((altas.data ?? []).map((c) => c.codigo as string)));
     setLoading(false);
-  }, []);
+  }, [ORIGEN]);
 
   // Nombres de familia, fotos y dónde sale cada código en la web: cambia
   // poco, se lee al entrar.
@@ -166,9 +167,9 @@ export default function BasculaCatalogoPanel() {
     (async () => {
       const [host, res, cod] = await Promise.all([
         supabase.from('hosteleria_listas_precio')
-          .select('nombre, bascula_familia, hosteleria_articulos (codigo_bascula, activo, imagen_url)').eq('bascula_origen', ORIGEN),
+          .select('nombre, bascula_familia, hosteleria_articulos (codigo_bascula, activo, imagen_url)').not('bascula_familia', 'is', null),
         supabase.from('reservas_eventos')
-          .select('nombre_es, activo, bascula_familia, reservas_articulos (codigo_bascula, activo, imagen_url)').eq('bascula_origen', ORIGEN),
+          .select('nombre_es, activo, bascula_familia, reservas_articulos (codigo_bascula, activo, imagen_url)').not('bascula_familia', 'is', null),
         supabase.from('productos_codigos_bascula').select('codigo_bascula, productos (visible_web, imagen_url)').eq('origen', ORIGEN),
       ]);
       if (!vivo) return;
@@ -209,7 +210,7 @@ export default function BasculaCatalogoPanel() {
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [ORIGEN]);
 
   useEffect(() => {
     cargarCatalogo();

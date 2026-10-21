@@ -409,6 +409,50 @@ $$;
 revoke all on function public.bascula_vigilancia_estado() from public;
 grant execute on function public.bascula_vigilancia_estado() to authenticated;
 
+-- De qué báscula copia la web artículos y precios (settings.bascula_web_origen,
+-- por defecto la 1). David la cambia a la 2 desde Básculas › «¿De qué báscula
+-- lee la web?» cuando solo abre la pescadería 2. settings solo lo escriben los
+-- desarrolladores: estas dos funciones lo abren al negocio.
+create or replace function public.bascula_web_origen()
+returns text
+language sql stable security definer set search_path = public
+as $$
+  select coalesce(
+    (select value #>> '{}' from public.settings
+      where key = 'bascula_web_origen' and (is_developer() or cliente_id = mi_cliente_id())
+      limit 1),
+    'pescaderia_1');
+$$;
+
+revoke all on function public.bascula_web_origen() from public;
+grant execute on function public.bascula_web_origen() to authenticated;
+
+create or replace function public.cambiar_bascula_web(p_origen text)
+returns text
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_cliente uuid := mi_cliente_id();
+begin
+  if p_origen not in ('pescaderia_1', 'pescaderia_2') then
+    raise exception 'Báscula no válida: %', p_origen;
+  end if;
+  if v_cliente is null and is_developer() then
+    select cliente_id into v_cliente from public.settings where key like 'bascula_vigilancia_%' limit 1;
+  end if;
+  if v_cliente is null then
+    raise exception 'Sin permiso';
+  end if;
+  insert into public.settings (cliente_id, key, value)
+  values (v_cliente, 'bascula_web_origen', to_jsonb(p_origen))
+  on conflict (key, cliente_id) do update set value = excluded.value;
+  return p_origen;
+end;
+$$;
+
+revoke all on function public.cambiar_bascula_web(text) from public;
+grant execute on function public.cambiar_bascula_web(text) to authenticated;
+
 -- ============================================================
 -- Vigilante de bascula-sync (02/10/2026): avisa por push al desarrollador
 -- cuando una báscula lleva más de 30 min sin sincronizar ventas en horario
@@ -3011,9 +3055,9 @@ create policy "bascula_catalogo_cambios_select_admin"
 create index if not exists idx_bascula_catalogo_cambios_fecha
   on public.bascula_catalogo_cambios (cliente_id, origen, created_at desc);
 
--- Cada 5 minutos (en :02, :07…, desfasado de bascula-sync): la báscula 1
--- alimenta los precios de la web. Si está apagada no pasa nada y se
--- reintenta en la siguiente vuelta.
+-- Cada 5 minutos (en :02, :07…, desfasado de bascula-sync): la báscula que
+-- alimenta los precios de la web ("web": la 1, o la 2 si David la elige en el
+-- panel). Si está apagada no pasa nada y se reintenta en la siguiente vuelta.
 -- select cron.schedule(
 --   'bascula-precios-diario-pescaderia-1',
 --   '2-59/5 * * * *',
@@ -3021,13 +3065,13 @@ create index if not exists idx_bascula_catalogo_cambios_fecha
 --   select net.http_post(
 --     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/bascula-precios-diario',
 --     headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', '<BASCULA_SYNC_SECRET>'),
---     body := jsonb_build_object('origen', 'pescaderia_1')
+--     body := jsonb_build_object('origen', 'web')
 --   );
 --   $$
 -- );
 
--- Vigilancia de la báscula 2: la web solo sigue la báscula 1, pero cada
--- hora se lee la 2 (modo "vigilar": registra cambios en
+-- Vigilancia de la otra báscula ("vigilada"): cada hora se lee la que no
+-- alimenta la web (modo "vigilar": registra cambios en
 -- bascula_catalogo_cambios y guarda la foto sin tocar la web; si hay
 -- cambios avisa solo a los desarrolladores). Si está apagada no hace nada.
 -- Los cambios de las dos se ven en el panel de desarrollo (Básculas).
@@ -3038,7 +3082,7 @@ create index if not exists idx_bascula_catalogo_cambios_fecha
 --   select net.http_post(
 --     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/bascula-precios-diario',
 --     headers := jsonb_build_object('Content-Type', 'application/json', 'x-webhook-secret', '<BASCULA_SYNC_SECRET>'),
---     body := jsonb_build_object('origen', 'pescaderia_2', 'vigilar', true),
+--     body := jsonb_build_object('origen', 'vigilada'),
 --     timeout_milliseconds := 60000
 --   );
 --   $$

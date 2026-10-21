@@ -10,7 +10,6 @@ type Periodo = '24h' | '7d' | '30d' | 'todo';
 
 const NOMBRE_BASCULA: Record<Origen, string> = { pescaderia_1: 'Báscula 1', pescaderia_2: 'Báscula 2' };
 const CORTO_BASCULA: Record<Origen, string> = { pescaderia_1: 'B1', pescaderia_2: 'B2' };
-const PAPEL_BASCULA: Record<Origen, string> = { pescaderia_1: 'Precios de la web', pescaderia_2: 'Solo vigilada' };
 
 const TIPOS: { value: Tipo; label: string; icono: string; clase: string }[] = [
   { value: 'precio', label: 'Precio', icono: 'ri-price-tag-3-line', clase: 'bg-amber-50 text-amber-700 ring-amber-200' },
@@ -128,7 +127,7 @@ function Variacion({ c }: { c: CambioBascula }) {
   );
 }
 
-function TarjetaEstado({ origen, estado }: { origen: Origen; estado?: EstadoLectura }) {
+function TarjetaEstado({ origen, estado, web }: { origen: Origen; estado?: EstadoLectura; web: boolean }) {
   const conectada = estado?.conectada !== false;
   // Domingo y lunes la tienda cierra: una báscula apagada no es un fallo.
   const cerrada = !conectada && tiendaCerradaHoy();
@@ -144,7 +143,7 @@ function TarjetaEstado({ origen, estado }: { origen: Origen; estado?: EstadoLect
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-foreground-950">{NOMBRE_BASCULA[origen]}</p>
-          <span className="text-[11px] text-foreground-400">{PAPEL_BASCULA[origen]}</span>
+          <span className="text-[11px] text-foreground-400">{web ? 'Precios de la web' : 'Solo vigilada'}</span>
         </div>
         <p className="text-xs text-foreground-500 truncate">
           {!estado
@@ -177,7 +176,7 @@ const chipFiltro = (activo: boolean) =>
   }`;
 
 export default function BasculasCambiosPanel({ datos }: { datos: Datos }) {
-  const { cambios, estados, diferencias, loading, nuevos, visto, marcarVisto, leyendo, lectura, actualizar } = datos;
+  const { cambios, estados, diferencias, loading, nuevos, visto, marcarVisto, leyendo, lectura, actualizar, origenWeb } = datos;
 
   // ?buscar=714 (aviso push de un artículo) abre la lista filtrada por ese código.
   const [busqueda, setBusqueda] = useState(() => new URLSearchParams(window.location.search).get('buscar') ?? '');
@@ -265,7 +264,7 @@ export default function BasculasCambiosPanel({ datos }: { datos: Datos }) {
       <div className="px-4 md:px-8 pt-4 space-y-4">
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
           {ORIGENES.map((o) => (
-            <TarjetaEstado key={o} origen={o} estado={estados[o]} />
+            <TarjetaEstado key={o} origen={o} estado={estados[o]} web={o === origenWeb} />
           ))}
           <button
             type="button"
