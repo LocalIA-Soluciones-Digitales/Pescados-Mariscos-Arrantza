@@ -632,7 +632,9 @@ async function atender(req: Request): Promise<Response> {
   // que solo tiene esta, nombres, familias y los que le faltan) aunque esos
   // cambios ya se hubieran apuntado antes en modo vigilar.
   let cambiosWeb = cambios;
-  const sincronizada = await leerSetting(CLAVE_WEB_SINCRONIZADA);
+  // Sin apunte (antes de existir el selector la web siempre leía la 1) se
+  // da por hecho que la web venía de la báscula 1.
+  const sincronizada = (await leerSetting(CLAVE_WEB_SINCRONIZADA)) ?? 'pescaderia_1';
   if (typeof sincronizada === 'string' && sincronizada !== origen && ORIGENES_VALIDOS.includes(sincronizada)) {
     const { data: filasBase, error: errBase } = await supabase
       .from('bascula_catalogo')
@@ -880,6 +882,7 @@ async function atender(req: Request): Promise<Response> {
     if (caducado) {
       await supabase.from('productos_codigos_bascula').delete()
         .eq('cliente_id', clienteId).eq('codigo_bascula', a.codigo).eq('producto_id', caducado);
+      await supabase.from('productos').update({ visible_web: false }).eq('id', caducado);
     }
     for (const o of ORIGENES_VALIDOS) {
       const { data: ocupado } = await supabase.from('productos_codigos_bascula').select('producto_id')
