@@ -4,7 +4,7 @@ import type { Compra, CompraCorreo, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
 import { esProveedorGasto, normalizarCompra, sumaLineas } from '@/lib/comprasOcr';
 import { MARCA_LISTADO } from '@/lib/comprasListado';
-import { leerDictado, NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
+import { dudaLinea, leerDictado, NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
 import { esPdf } from '@/lib/comprasPdf';
 import type { MarcasAlbaran } from '@/lib/comprasMarcas';
 import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, describirNoCoincide } from '@/lib/comprasCoincidencias';
@@ -121,10 +121,13 @@ const textoImpuestos = (pct: number) => (pct < 0.05 ? '' : ` + IVA y recargo ${p
 
 // Cómo está un albarán de un vistazo: lo que hay que hacer con él.
 type Situacion = { etiqueta: string; icono: string; clase: string };
-function situacion(c: Compra): Situacion {
+// `dudas`: líneas sin producto nuestro o elegido solo por parecido (ver
+// dudaLinea); con alguna, nunca está «Lista para confirmar».
+function situacion(c: Compra, dudas: number): Situacion {
   if (c.estado === 'confirmada') return { etiqueta: 'Confirmado', icono: 'ri-checkbox-circle-fill', clase: 'bg-emerald-50 text-emerald-700 ring-emerald-200' };
   if (c.estado === 'anulada') return { etiqueta: 'Anulado', icono: 'ri-close-circle-line', clase: 'bg-background-100 text-foreground-500 ring-background-200' };
   if (!c.lineas.length) return { etiqueta: 'Sin productos', icono: 'ri-edit-line', clase: 'bg-amber-50 text-amber-700 ring-amber-200' };
+  if (dudas) return { etiqueta: 'Elegir productos', icono: 'ri-question-line', clase: 'bg-amber-50 text-amber-700 ring-amber-200' };
   const lista = c.lineas.every(lineaCuadra) && impuestosTotal(sumaLineas(c.lineas), c.total) != null;
   return lista
     ? { etiqueta: 'Lista para confirmar', icono: 'ri-check-double-line', clase: 'bg-emerald-50 text-emerald-700 ring-emerald-200' }
@@ -193,9 +196,9 @@ function Captura({ onFotos }: { onFotos: (f: File[]) => void }) {
 /* ------------------------------------------------------------------ */
 /*  Resumen (columna izquierda en el ordenador; dos cifras en el móvil) */
 /* ------------------------------------------------------------------ */
-function Resumen({ compras }: { compras: Compra[] }) {
+function Resumen({ compras, dudasDe }: { compras: Compra[]; dudasDe: (c: Compra) => number }) {
   const pendientes = compras.filter((c) => c.estado === 'pendiente');
-  const listas = pendientes.filter((c) => situacion(c).etiqueta === 'Lista para confirmar').length;
+  const listas = pendientes.filter((c) => situacion(c, dudasDe(c)).etiqueta === 'Lista para confirmar').length;
   const mes = hoyISO().slice(0, 7);
   const confirmadasMes = compras.filter((c) => c.estado === 'confirmada' && c.fecha.startsWith(mes));
   const cifra = (valor: string, texto: string, detalle?: string, textoCorto = texto) => (
@@ -239,8 +242,8 @@ function Marcas({ compra }: { compra: Compra }) {
   );
 }
 
-function FilaCompra({ compra, onAbrir }: { compra: Compra; onAbrir: () => void }) {
-  const s = situacion(compra);
+function FilaCompra({ compra, dudas, onAbrir }: { compra: Compra; dudas: number; onAbrir: () => void }) {
+  const s = situacion(compra, dudas);
   const chip = (
     <span className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-medium ring-1 ring-inset whitespace-nowrap ${s.clase}`}>
       <i className={`${s.icono} text-xs`}></i>
@@ -295,7 +298,8 @@ function FilaCompra({ compra, onAbrir }: { compra: Compra; onAbrir: () => void }
 /* ------------------------------------------------------------------ */
 /*  Revisión de un albarán                                             */
 /* ------------------------------------------------------------------ */
-type LineaForm = { texto: string; kg: string; precio: string; importe: string; producto_id: string; sumar_stock: boolean };
+// `elegida`: David ha tocado el desplegable de esta línea (ya no es duda).
+type LineaForm = { texto: string; kg: string; precio: string; importe: string; producto_id: string; sumar_stock: boolean; elegida?: boolean };
 
 function CompraEditor({
   compra,
@@ -384,7 +388,7 @@ function CompraEditor({
     const actual = lineas[i];
     const antes = sugerir(actual.texto);
     const libre = !actual.producto_id || actual.producto_id === antes?.id;
-    cambiarLinea(i, libre ? { texto, producto_id: sugerir(texto)?.id ?? '' } : { texto });
+    cambiarLinea(i, libre ? { texto, producto_id: sugerir(texto)?.id ?? '', elegida: false } : { texto });
   };
 
   // Para los albaranes escritos a mano: «rape 4,64 a 21,50» → una línea.
@@ -489,6 +493,10 @@ function CompraEditor({
       `Se apuntará un gasto de ${formatEUR(totalNum)} en Contabilidad` +
       (alStock.length ? ` y se sumarán ${aTexto(Math.round(kg * 100) / 100)} kg al stock de ${alStock.length} producto(s).` : '.') +
       (cuadra ? '' : '\n\nOjo: la suma de las líneas no cuadra con el total.') +
+      (sinProducto
+        ? `\n\nOjo: ${sinProducto === 1 ? 'una línea va' : `${sinProducto} líneas van`} sin producto nuestro (en naranja): no ${sinProducto === 1 ? 'sumará' : 'sumarán'} al stock.`
+        : '') +
+      (sugeridos ? `\n\n${sugeridos === 1 ? 'Un producto está elegido' : `${sugeridos} productos están elegidos`} por parecido de nombre: ¿los has comprobado?` : '') +
       (repetida ? `\n\nOjo: ${describirCoincidencia(repetida, formatFecha)} No lo confirmes dos veces.` : '');
     if (!confirm(msg)) return;
     const d = datosCompra();
@@ -512,14 +520,14 @@ function CompraEditor({
         ? 'Factura anulada'
         : 'Albarán anulado';
   const textoLeido = compra.ocr_texto && !compra.ocr_texto.startsWith('No se pudo leer') ? compra.ocr_texto : null;
-  const sit = situacion(compra);
 
   // Piezas de cada línea, compartidas por la tarjeta (móvil) y la fila (ordenador).
   const infoLinea = (i: number) => {
     const d = lineasDatos[i];
     const completa = d.kg != null && d.precio != null && d.importe != null;
     const s = d.producto_id ? sugerir(lineas[i].texto) : null;
-    return { completa, ok: lineaCuadra(d), motivo: s && s.id === d.producto_id ? s.motivo : null };
+    const duda = lineas[i].elegida ? null : dudaLinea(d, proveedor, datos.alias, productos);
+    return { completa, ok: lineaCuadra(d), motivo: s && s.id === d.producto_id ? s.motivo : null, duda };
   };
   const iconoEstado = (ok: boolean) => (
     <span
@@ -553,7 +561,7 @@ function CompraEditor({
     );
   };
   const selectProducto = (i: number, compacto = false) => {
-    const motivo = infoLinea(i).motivo;
+    const { motivo, duda } = infoLinea(i);
     // Ya confirmado o anulado: un desplegable bloqueado corta el nombre y no se
     // puede abrir, así que se enseña el nombre entero como texto.
     if (!editable) {
@@ -570,11 +578,13 @@ function CompraEditor({
       {!compacto && <i className="ri-store-2-line absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground-400 text-sm pointer-events-none"></i>}
       <select
         value={lineas[i].producto_id}
-        onChange={(e) => cambiarLinea(i, { producto_id: e.target.value })}
+        onChange={(e) => cambiarLinea(i, { producto_id: e.target.value, elegida: true })}
         disabled={!editable}
         aria-label="Producto nuestro"
         title={
-          motivo === 'parecido'
+          duda === 'sin_producto'
+            ? 'No se ha sabido a qué producto nuestro va: elígelo'
+            : duda === 'parecido'
             ? 'Sugerido por el nombre: compruébalo esta primera vez'
             : motivo === 'recordado'
               ? 'Recordado de otras compras a este proveedor'
@@ -583,7 +593,7 @@ function CompraEditor({
         className={`w-full bg-background-100 border rounded-lg text-sm focus:outline-none focus:border-foreground-300/60 ${
           compacto ? 'h-9 px-2' : 'pl-8 pr-2 py-2'
         } ${lineas[i].producto_id ? 'text-foreground-950' : 'text-foreground-400'} ${
-          motivo === 'parecido' ? 'border-amber-400 ring-2 ring-amber-200/70' : motivo === 'recordado' ? 'border-emerald-300' : 'border-background-200/70'
+          duda ? 'border-amber-400 ring-2 ring-amber-200/70' : motivo === 'recordado' ? 'border-emerald-300' : 'border-background-200/70'
         }`}
       >
         <option value="">Sin producto</option>
@@ -636,7 +646,17 @@ function CompraEditor({
     ) : (
       <span />
     );
-  const sugeridos = lineas.filter((_, i) => infoLinea(i).motivo === 'parecido').length;
+  const dudas = lineas.map((_, i) => infoLinea(i).duda);
+  const sugeridos = dudas.filter((d) => d === 'parecido').length;
+  const sinProducto = dudas.filter((d) => d === 'sin_producto').length;
+  const porRevisar = sugeridos + sinProducto;
+  // Solo se pinta en verde si cuadra y no queda ningún producto por mirar.
+  const todoBien = cuadra && !porRevisar;
+  const textoDuda = {
+    sin_producto: 'No se ha sabido a qué producto nuestro va: elígelo (o quita la línea si no es género).',
+    parecido: 'Elegido por parecido de nombre: comprueba que es este.',
+  };
+  const sit = editable ? situacion({ ...compra, lineas: lineasDatos, total: totalNum }, porRevisar) : situacion(compra, 0);
 
   // Esc cierra (si la foto a pantalla completa está abierta, la cierra ella).
   useEffect(() => {
@@ -645,9 +665,20 @@ function CompraEditor({
     return () => window.removeEventListener('keydown', alPulsar);
   }, [visor, onClose]);
 
+  const tituloCuadre = porRevisar
+    ? porRevisar === 1
+      ? 'Falta elegir 1 producto'
+      : `Faltan por elegir ${porRevisar} productos`
+    : cuadra
+      ? 'Cuadra'
+      : totalNum == null
+        ? 'Falta el total'
+        : lineas.length === 0
+          ? 'Sin productos'
+          : 'No cuadra';
   const resumenCuadre = (
     <>
-      <span className="font-semibold">{cuadra ? 'Cuadra' : totalNum == null ? 'Falta el total' : lineas.length === 0 ? 'Sin productos' : 'No cuadra'}</span>
+      <span className="font-semibold">{tituloCuadre}</span>
       <span className="opacity-90">
         {' · '}Productos {formatEUR(suma)}
         {cuadra ? textoImpuestos(impuestos) : lineas.length === 0 ? ' · solo se apuntará el gasto' : ''}
@@ -834,14 +865,25 @@ function CompraEditor({
                 </div>
               )}
             </div>
-            {editable && sugeridos > 0 && (
-              <p className="flex items-start gap-2 mb-2.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+            {editable && porRevisar > 0 && (
+              <div className="flex items-start gap-2 mb-2.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
                 <i className="ri-lightbulb-line text-sm leading-none mt-px"></i>
-                <span>
-                  {sugeridos === 1 ? 'Un producto está elegido' : `${sugeridos} productos están elegidos`} por parecido de nombre (borde naranja):
-                  compruébalos esta primera vez. Al confirmar se recuerdan y la próxima vez salen solos.
-                </span>
-              </p>
+                <div className="space-y-1">
+                  {sinProducto > 0 && (
+                    <p>
+                      {sinProducto === 1 ? 'Una línea no se ha sabido ligar' : `${sinProducto} líneas no se han sabido ligar`} a un producto nuestro (borde
+                      naranja): elígelo en el desplegable, o quita la línea si no es género.
+                    </p>
+                  )}
+                  {sugeridos > 0 && (
+                    <p>
+                      {sugeridos === 1 ? 'Un producto está elegido' : `${sugeridos} productos están elegidos`} por parecido de nombre (borde naranja):
+                      compruébalos esta primera vez.
+                    </p>
+                  )}
+                  <p>Al confirmar se recuerdan y la próxima vez salen solos.</p>
+                </div>
+              </div>
             )}
             {lineas.length === 0 && (
               <div className="flex flex-col items-center text-center gap-1 rounded-2xl border border-dashed border-background-200 p-5 text-foreground-400">
@@ -857,11 +899,11 @@ function CompraEditor({
             {/* Móvil: una tarjeta por línea, con números grandes para el dedo. */}
             <div className="md:hidden space-y-2.5">
               {lineas.map((l, i) => {
-                const { ok, completa } = infoLinea(i);
+                const { ok, completa, duda } = infoLinea(i);
                 return (
-                  <div key={i} className={`rounded-2xl border p-3 ${ok ? 'border-background-200/70 bg-background-50' : 'border-amber-300 bg-amber-50/60'}`}>
+                  <div key={i} className={`rounded-2xl border p-3 ${ok && !duda ? 'border-background-200/70 bg-background-50' : 'border-amber-300 bg-amber-50/60'}`}>
                     <div className="flex items-center gap-2">
-                      {iconoEstado(ok)}
+                      {iconoEstado(ok && !duda)}
                       <PuntoColor tipo="producto" />
                       <input
                         value={l.texto}
@@ -888,6 +930,7 @@ function CompraEditor({
                       {selectProducto(i)}
                       {botonStock(i)}
                     </div>
+                    {editable && duda && <p className="text-[11px] text-amber-700 mt-1.5">{textoDuda[duda]}</p>}
                   </div>
                 );
               })}
@@ -909,11 +952,11 @@ function CompraEditor({
                   <span></span>
                 </div>
                 {lineas.map((l, i) => {
-                  const { ok, completa } = infoLinea(i);
+                  const { ok, completa, duda } = infoLinea(i);
                   return (
-                    <div key={i} className={`border-t border-background-200/70 px-3 py-2 ${ok ? '' : 'bg-amber-50/60'}`}>
+                    <div key={i} className={`border-t border-background-200/70 px-3 py-2 ${ok && !duda ? '' : 'bg-amber-50/60'}`}>
                       <div className="grid grid-cols-[22px_minmax(0,1.25fr)_76px_12px_80px_12px_88px_minmax(0,1fr)_36px_32px] items-center gap-2">
-                        {iconoEstado(ok)}
+                        {iconoEstado(ok && !duda)}
                         <input
                           value={l.texto}
                           onChange={(e) => cambiarTexto(i, e.target.value)}
@@ -936,6 +979,7 @@ function CompraEditor({
                           {completa ? 'Kg × €/kg no da el importe: revisa los números.' : 'Falta algún número.'}
                         </p>
                       )}
+                      {editable && duda && <p className="pl-[30px] mt-0.5 text-[11px] text-amber-700">{textoDuda[duda]}</p>}
                     </div>
                   );
                 })}
@@ -944,20 +988,22 @@ function CompraEditor({
           </section>
 
           {/* Total y cuadre */}
-          <div className={`rounded-2xl p-4 md:flex md:items-center md:gap-4 ${cuadra ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+          <div className={`rounded-2xl p-4 md:flex md:items-center md:gap-4 ${todoBien ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
             <div className="flex items-center gap-3 md:flex-1 md:min-w-0">
               <span
                 className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  cuadra ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
+                  todoBien ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'
                 }`}
               >
-                <i className={`${cuadra ? 'ri-check-double-line' : 'ri-scales-3-line'} text-xl`}></i>
+                <i className={`${todoBien ? 'ri-check-double-line' : porRevisar ? 'ri-question-line' : 'ri-scales-3-line'} text-xl`}></i>
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold">{cuadra ? 'Cuadra' : totalNum == null ? 'Falta el total' : lineas.length === 0 ? 'Sin productos' : 'No cuadra'}</p>
+                <p className="font-semibold">{tituloCuadre}</p>
                 <p className="text-xs opacity-90">
                   Productos {formatEUR(suma)}
-                  {cuadra
+                  {porRevisar
+                    ? `${cuadra ? textoImpuestos(impuestos) : ''} · elige los productos en naranja`
+                    : cuadra
                     ? textoImpuestos(impuestos)
                     : totalNum == null
                       ? ' · escribe lo que pone el albarán'
@@ -994,15 +1040,15 @@ function CompraEditor({
         </div>
 
         {editable && (
-          <p className={`md:hidden flex-shrink-0 border-t px-4 py-2 text-xs truncate ${cuadra ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
-            <i className={`${cuadra ? 'ri-check-double-line' : 'ri-scales-3-line'} mr-1`}></i>
+          <p className={`md:hidden flex-shrink-0 border-t px-4 py-2 text-xs truncate ${todoBien ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>
+            <i className={`${todoBien ? 'ri-check-double-line' : porRevisar ? 'ri-question-line' : 'ri-scales-3-line'} mr-1`}></i>
             {resumenCuadre}
           </p>
         )}
         <div className="flex items-center gap-2 px-4 sm:px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-background-200/70 flex-shrink-0">
           {editable ? (
             <>
-              <p className={`hidden md:block flex-1 min-w-0 truncate text-xs ${cuadra ? 'text-emerald-700' : 'text-amber-700'}`}>{resumenCuadre}</p>
+              <p className={`hidden md:block flex-1 min-w-0 truncate text-xs ${todoBien ? 'text-emerald-700' : 'text-amber-700'}`}>{resumenCuadre}</p>
               <button
                 type="button"
                 disabled={trabajando}
@@ -1586,6 +1632,9 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
   }, []);
 
   const pendientes = datos.compras.filter((c) => c.estado === 'pendiente');
+  // Líneas por mirar a mano de un albarán pendiente (sin producto o por parecido).
+  const dudasDe = (c: Compra) =>
+    c.estado === 'pendiente' ? c.lineas.filter((l) => dudaLinea(l, c.proveedor, datos.alias, productos)).length : 0;
   const abierta = datos.compras.find((c) => c.id === abiertaId) ?? null;
 
   const alGuardar = (ids: string[]) => {
@@ -1715,7 +1764,7 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
             <Correo correo={correo} compras={datos.compras} onAbrir={setAbiertaId} />
           </div>
           <div className="order-2">
-            <Resumen compras={datos.compras} />
+            <Resumen compras={datos.compras} dudasDe={dudasDe} />
           </div>
         </aside>
 
@@ -1880,7 +1929,7 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
                   {porDias && c.fecha !== mostradas[i - 1]?.fecha && (
                     <CabeceraDia fecha={c.fecha} n={resumenDias.get(c.fecha)!.n} total={resumenDias.get(c.fecha)!.total} primera={i === 0} />
                   )}
-                  <FilaCompra compra={c} onAbrir={() => setAbiertaId(c.id)} />
+                  <FilaCompra compra={c} dudas={dudasDe(c)} onAbrir={() => setAbiertaId(c.id)} />
                 </Fragment>
               ))}
             </div>
