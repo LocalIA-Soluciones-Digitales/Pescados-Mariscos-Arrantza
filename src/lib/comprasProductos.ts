@@ -14,7 +14,7 @@
 // que David quita al revisar (p. ej. «Forma de pago…» leída como línea) se
 // recuerda con producto_id null y ya no sale en los albaranes de ese
 // proveedor.
-import { normalizarCompra, type LineaLeida } from './comprasOcr';
+import { esProveedorGasto, normalizarCompra, type LineaLeida } from './comprasOcr';
 import type { CompraLinea } from '@/types/compra';
 
 export interface ProductoBasico {
@@ -194,6 +194,28 @@ export function sugerirProducto(
     }
   }
   return mejor ? { id: mejor.id, motivo: 'parecido' } : null;
+}
+
+// Lo que David tiene que mirar a mano antes de confirmar una línea:
+// 'sin_producto' = no se ha sabido ligar a un producto nuestro ·
+// 'parecido' = elegido solo por parecido de nombre (puede estar mal).
+// No cuentan los gastos (agua, limpieza…), el hielo o los portes, ni lo
+// que David ya quitó otras veces.
+export type DudaLinea = 'sin_producto' | 'parecido';
+export function dudaLinea(
+  linea: { texto: string; producto_id: string | null; importe?: number | null },
+  proveedor: string | null,
+  alias: AliasBasico[],
+  productos: ProductoBasico[],
+): DudaLinea | null {
+  if (esProveedorGasto(proveedor)) return null;
+  if (!linea.producto_id) {
+    if (!linea.texto.trim()) return linea.importe != null ? 'sin_producto' : null;
+    if (NO_PRODUCTO.test(linea.texto) || esLineaQuitada(linea.texto, proveedor, alias)) return null;
+    return 'sin_producto';
+  }
+  const s = sugerirProducto(linea.texto, proveedor, alias, productos);
+  return s?.motivo === 'parecido' && s.id === linea.producto_id ? 'parecido' : null;
 }
 
 /* ------------------------------------------------------------------ */
