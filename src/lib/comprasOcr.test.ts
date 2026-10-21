@@ -3,6 +3,7 @@ import {
   agruparLineas,
   aNumero,
   cuadrarLinea,
+  esProveedorGasto,
   leerAlbaran,
   limpiarNombre,
   normalizarCompra,
@@ -682,7 +683,7 @@ describe('impuestos de la gestoría (Hacienda Foral, 3T 2026)', () => {
         'Foru Ogasunaren zigilu elektronikoa / Sello electrónico de la Hacienda Foral',
       ]),
     );
-    expect(a).toMatchObject({ clase: 'gasto', proveedor: 'Hacienda Foral de Bizkaia', numero: 'W55943231', fecha: '2026-10-06', total: 912 });
+    expect(a).toMatchObject({ clase: 'gasto', proveedor: 'Hacienda · Retenciones del alquiler (mod. 115)', numero: 'W55943231', fecha: '2026-10-06', total: 912 });
     expect(a.lineas.map((l) => l.texto)).toEqual(['Retención del alquiler (modelo 115) 3T 2026']);
   });
 
@@ -700,7 +701,8 @@ describe('impuestos de la gestoría (Hacienda Foral, 3T 2026)', () => {
         'Sello electrónico de la Hacienda Foral',
       ]),
     );
-    expect(a).toMatchObject({ numero: 'W55995184', fecha: '2026-10-19', total: 769.42 });
+    expect(a).toMatchObject({ proveedor: 'Hacienda · IRPF de David, trimestre (mod. 130)', numero: 'W55995184', fecha: '2026-10-19', total: 769.42 });
+    expect(esProveedorGasto(a.proveedor)).toBe(true);
     expect(a.lineas[0].texto).toBe('IRPF pago fraccionado (modelo 130) 3T 2026');
   });
 });

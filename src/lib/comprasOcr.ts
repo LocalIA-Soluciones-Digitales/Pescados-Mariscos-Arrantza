@@ -260,6 +260,10 @@ export const PROVEEDORES_CONOCIDOS: { nombre: string; cif?: string; pistas: stri
   { nombre: 'Seguridad Social (autónomos)', cif: 'Q2827003A', pistas: ['tgss', 'seguridad social'], gasto: true },
   // Modelos 130, 110 y 115 que presenta la gestoría (Gestiones AIO).
   { nombre: 'Hacienda Foral de Bizkaia', pistas: ['hacienda foral', 'foru ogasun'], gasto: true },
+  // Nombre que se guarda: lo que se paga, de un vistazo.
+  { nombre: 'Hacienda · IRPF de David, trimestre (mod. 130)', pistas: [], gasto: true },
+  { nombre: 'Hacienda · Retenciones de la nómina (mod. 110)', pistas: [], gasto: true },
+  { nombre: 'Hacienda · Retenciones del alquiler (mod. 115)', pistas: [], gasto: true },
   // La gestoría: su factura de asesoría, nóminas y seguros sociales.
   { nombre: 'Gestiones AIO, S.L. (gestoría)', cif: 'B95688909', pistas: ['gestiones aio', 'gestionesaio'], gasto: true },
 ];
@@ -681,10 +685,10 @@ function leerAutonomos(texto: string[]): GastoFijo | null {
 // trimestre: 130 (pago fraccionado del IRPF), 110 (retenciones de la
 // nómina) y 115 (retención del alquiler). El nº es el de liquidación.
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-const MODELOS: { re: RegExp; modelo: string; concepto: string }[] = [
-  { re: /pago fraccionado/i, modelo: '130', concepto: 'IRPF pago fraccionado' },
-  { re: /arrendamiento o subarrendamiento/i, modelo: '115', concepto: 'Retención del alquiler' },
-  { re: /rendimientos del trabajo/i, modelo: '110', concepto: 'Retenciones de la nómina' },
+const MODELOS: { re: RegExp; modelo: string; concepto: string; proveedor: string }[] = [
+  { re: /pago fraccionado/i, modelo: '130', concepto: 'IRPF pago fraccionado', proveedor: 'Hacienda · IRPF de David, trimestre (mod. 130)' },
+  { re: /arrendamiento o subarrendamiento/i, modelo: '115', concepto: 'Retención del alquiler', proveedor: 'Hacienda · Retenciones del alquiler (mod. 115)' },
+  { re: /rendimientos del trabajo/i, modelo: '110', concepto: 'Retenciones de la nómina', proveedor: 'Hacienda · Retenciones de la nómina (mod. 110)' },
 ];
 
 function leerModeloHacienda(texto: string[]): GastoFijo | null {
@@ -698,7 +702,7 @@ function leerModeloHacienda(texto: string[]): GastoFijo | null {
   const envio = buscar(texto, /\b(\d{1,2}) de ([a-z]+) de (\d{4})\b/i);
   const mes = envio ? MESES.indexOf(envio[2].toLowerCase()) + 1 : 0;
   return {
-    proveedor: 'Hacienda Foral de Bizkaia',
+    proveedor: m.proveedor,
     numero: buscar(texto, /n\.?\s*º\s*liquidaci[oó]n\s+([A-Z0-9]{6,})/i)?.[1] ?? `${m.modelo}${periodo}`,
     fecha: envio && mes ? `${envio[3]}-${String(mes).padStart(2, '0')}-${envio[1].padStart(2, '0')}` : null,
     total,
