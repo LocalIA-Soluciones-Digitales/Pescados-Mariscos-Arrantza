@@ -169,3 +169,25 @@ describe('merluza o pescadilla (pendiente de regla, 21-10)', () => {
     expect(sugerir('MERLUZA PINTXO')).toBe('merluza-pintxo');
   });
 });
+
+describe('la memoria reconoce otra lectura del mismo artículo (22-10)', () => {
+  const alias = [
+    { proveedor_norm: 'conifres, s.l.', texto_norm: '[4002] camaron cocido pequeno +350 pzas kilo', producto_id: 'kiskilla' },
+    { proveedor_norm: 'adelaida', texto_norm: 'zapatero/palometa / lithognathus mormyrus (', producto_id: 'zapatero' },
+    { proveedor_norm: 'capotinas', texto_norm: 'lubina 800/900', producto_id: 'lubina' },
+    { proveedor_norm: 'capotinas', texto_norm: 'lubina 1100/1400', producto_id: 'lubina-grande' },
+    { proveedor_norm: 'capotinas', texto_norm: 'salmon', producto_id: 'salmon' },
+  ];
+  const PRODS = [...PRODUCTOS, { id: 'kiskilla', nombre_es: 'Kiskilla' }, { id: 'zapatero', nombre_es: 'Zapatero' }, { id: 'lubina', nombre_es: 'Lubina' }, { id: 'lubina-grande', nombre_es: 'Lubina (+1 kg)' }];
+  const s = (texto: string, prov: string) => sugerirProducto(texto, prov, alias, PRODS);
+  it('sin el código del principio o cortada al final, sale como recordada', () => {
+    expect(s('CAMARON COCIDO PEQUEÑO +350 PZAS KILO', 'Conifres, S.L.')).toEqual({ id: 'kiskilla', motivo: 'recordado' });
+    expect(s('ZAPATERO/PALOMETA / LITHOGNATHUS', 'Adelaida')).toEqual({ id: 'zapatero', motivo: 'recordado' });
+    expect(s('ZAPATERO/PALOMETA', 'Adelaida')).toEqual({ id: 'zapatero', motivo: 'recordado' });
+  });
+  it('no mezcla tallas distintas ni palabras que solo empiezan igual', () => {
+    expect(s('LUBINA', 'Capotinas')?.motivo).not.toBe('recordado');
+    expect(s('SALMONETE M', 'Capotinas')?.id).toBe('salmonete');
+    expect(s('ZAPATERO/PALOMETA', 'Otro proveedor')?.motivo).not.toBe('recordado');
+  });
+});

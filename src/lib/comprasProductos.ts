@@ -172,6 +172,37 @@ function puntuar(albaran: string[], nombreProducto: string): number {
   return mejor;
 }
 
+// El lector no siempre lee igual el mismo artículo del mismo proveedor:
+// «[4002] CAMARON COCIDO…» / «CAMARON COCIDO…» (Conifres) o
+// «ZAPATERO/PALOMETA / LITHOGNATHUS MORMYRUS (» cortado en
+// «zapatero/palometa / lithognathus» (Adelaida). Se quita el código del
+// principio y el paréntesis sin cerrar del final, y vale si uno empieza por el
+// otro hasta el final de una palabra.
+function claveMemoria(texto: string): string {
+  return normalizarCompra(texto)
+    .replace(/^\[\d+\]\s*/, '')
+    .replace(/\([^)]*$/, '')
+    .replace(/[\s/.,;:-]+$/, '')
+    .trim();
+}
+function mismaLectura(a: string, b: string): boolean {
+  if (a === b) return true;
+  const [corta, larga] = a.length <= b.length ? [a, b] : [b, a];
+  return corta.length >= 5 && larga.startsWith(corta) && /^[\s/(-]/.test(larga.slice(corta.length));
+}
+
+// Lo que David ya eligió para otra lectura del mismo artículo de este
+// proveedor; solo si todas esas lecturas van al mismo producto («LUBINA» a
+// secas no vale: «LUBINA 800/900» y «LUBINA 1100/1400» son productos distintos).
+function recordadoParecido(texto: string, proveedor: string, alias: AliasBasico[], productos: ProductoBasico[]): string | null {
+  const t = claveMemoria(texto);
+  if (!t) return null;
+  const ids = new Set(alias.filter((a) => a.proveedor_norm === proveedor && mismaLectura(t, claveMemoria(a.texto_norm))).map((a) => a.producto_id));
+  if (ids.size !== 1) return null;
+  const [id] = [...ids];
+  return id && productos.some((x) => x.id === id) ? id : null;
+}
+
 export function sugerirProducto(
   texto: string,
   proveedor: string | null,
@@ -185,6 +216,8 @@ export function sugerirProducto(
   if (delProveedor && delProveedor.producto_id == null) return null;
   const recordado = delProveedor ?? alias.find((a) => a.texto_norm === t && a.producto_id != null);
   if (recordado?.producto_id && productos.some((x) => x.id === recordado.producto_id)) return { id: recordado.producto_id, motivo: 'recordado' };
+  const otraLectura = delProveedor ? null : recordadoParecido(texto, p, alias, productos);
+  if (otraLectura) return { id: otraLectura, motivo: 'recordado' };
   if (NO_PRODUCTO.test(t)) return null;
 
   // «JUREL/ CHICHARRO» son dos nombres; la barra de una talla («30/40») no.
