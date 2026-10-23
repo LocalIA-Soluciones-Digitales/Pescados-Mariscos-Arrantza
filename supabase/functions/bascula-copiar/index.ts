@@ -17,8 +17,8 @@
 // - Es reanudable: cada llamada compara origen y destino y solo escribe lo
 //   que todavía difiere, parando antes de "limite_seg" segundos. Se repite
 //   hasta que devuelva "pendiente": false.
-// - El stock que lleva cada báscula es suyo: los artículos copiados entran
-//   con stock 0 en el destino.
+// - El stock que lleva cada báscula es suyo: un artículo que ya existía en
+//   el destino conserva el stock que tenía; los nuevos entran con stock 0.
 // - Para borrar, ETWS borra TODO lo que coincida con la consulta (sin
 //   filtro, la tabla entera). Por eso se borra código a código con
 //   seek+filter (búsqueda exacta, ver bascula-catalogo) y solo tras leer
@@ -145,11 +145,11 @@ function contenido(fila: Fila, origen: Fila): string {
   );
 }
 
-function paraEscribir(fila: Fila, tabla: string): Fila {
+function paraEscribir(fila: Fila, tabla: string, enDestino?: Fila): Fila {
   const copia: Fila = { ...fila };
   delete copia._oid_;
   for (const campo of CAMPOS_IMAGEN) if (!copia[campo]) delete copia[campo];
-  if (tabla === 'artigos') copia.stock = 0;
+  if (tabla === 'artigos') copia.stock = enDestino?.stock ?? 0;
   return copia;
 }
 
@@ -247,8 +247,9 @@ Deno.serve(async (req: Request) => {
     // familia que aún no existe. Los borrados, al final.
     for (const tabla of tablas) {
       const pendientes = planes[tabla].escribir;
+      const enDestino = new Map(datos[tabla].destino.map((f) => [String(f.codigo), f]));
       for (let i = 0; i < pendientes.length && !tiempoAgotado(); i += ESCRITURA_LOTE) {
-        const lote_ = pendientes.slice(i, i + ESCRITURA_LOTE).map((f) => paraEscribir(f, tabla));
+        const lote_ = pendientes.slice(i, i + ESCRITURA_LOTE).map((f) => paraEscribir(f, tabla, enDestino.get(String(f.codigo))));
         const res = await llamarETWS(cfgDestino, 'PUT', `/year/${tabla}`, '?no_rebuild=1', JSON.stringify(lote_));
         if (!res.ok) throw new Error(`Error escribiendo ${tabla} ${lote_.map((f) => f.codigo).join(',')} (HTTP ${res.status}): ${await res.text()}`);
         hechos.escritos += lote_.length;
