@@ -55,12 +55,18 @@ export function contrastarListado(recibos: ReciboListado[], compras: CompraBasic
     pendientes = siguen;
   }
   const sinCasar = pendientes;
-  // Varios albaranes del mismo día por una sola factura (Capotinas).
+  // Varios albaranes por una sola factura: los del mismo día o, si no
+  // cuadran, los de la semana hasta la factura (Capotinas factura el sábado
+  // todos los albaranes de la semana, 24-10).
   for (const rec of sinCasar) {
     const prov = normalizarCompra(unificarProveedor(rec.proveedor, conocidos));
-    const delDia = vivas.filter((c) => !usadas.has(c) && normalizarCompra(c.proveedor) === prov && c.fecha === rec.fecha);
+    const suyos = (margen: number) =>
+      vivas.filter((c) => !usadas.has(c) && normalizarCompra(c.proveedor) === prov && dias(rec.fecha, c.fecha) >= 0 && dias(rec.fecha, c.fecha) <= margen);
+    const sumar = (cs: CompraBasica[]) => Math.round(cs.reduce((t, c) => t + (c.total ?? 0), 0) * 100) / 100;
+    const mismoDia = suyos(0);
+    const delDia = mismoDia.length && Math.abs(sumar(mismoDia) - rec.importe) <= 0.05 ? mismoDia : suyos(6);
     delDia.forEach((c) => usadas.add(c));
-    const suma = Math.round(delDia.reduce((t, c) => t + (c.total ?? 0), 0) * 100) / 100;
+    const suma = sumar(delDia);
     if (!delDia.length) r.faltan.push(rec);
     else if (Math.abs(suma - rec.importe) <= 0.05) r.estan++;
     else r.distintos.push({ recibo: rec, guardado: suma });
@@ -104,6 +110,24 @@ export function notaListado(c: ContrasteListado, al: string | null): string {
   return partes.join(' ');
 }
 
+// Los recibos van en una segunda línea de la nota (no se enseña): así el
+// contraste se rehace con lo que hay en Gastos ahora, no con lo que había
+// cuando llegó el listado (las facturas del mismo correo se leen después).
+export function conRecibos(nota: string, al: string | null, recibos: ReciboListado[]): string {
+  return `${nota}\n${JSON.stringify({ al, recibos })}`;
+}
+
+function recibosDeNota(nota: string): { al: string | null; recibos: ReciboListado[] } | null {
+  const linea = nota.split('\n')[1];
+  if (!linea) return null;
+  try {
+    const d = JSON.parse(linea) as { al?: string | null; recibos?: ReciboListado[] };
+    return Array.isArray(d.recibos) ? { al: d.al ?? null, recibos: d.recibos } : null;
+  } catch {
+    return null;
+  }
+}
+
 // La nota guardada, otra vez en datos, para enseñarla como tabla.
 export interface NotaListado {
   al: string | null;
@@ -128,8 +152,24 @@ const aEuros = (s: string): number | null => {
 };
 const IMPORTE = '(-?[\\d.]+,\\d{2} €|sin total)';
 
-export function leerNotaListado(nota: string | null): NotaListado | null {
-  if (!nota?.startsWith(MARCA_LISTADO)) return null;
+// Con los recibos guardados, contrastado en vivo con `compras`; si no
+// (listados viejos), lo que dijo la nota al llegar.
+export function leerNotaListado(texto: string | null, compras?: CompraBasica[]): NotaListado | null {
+  if (!texto?.startsWith(MARCA_LISTADO)) return null;
+  const guardado = compras && recibosDeNota(texto);
+  if (guardado) {
+    const c = contrastarListado(guardado.recibos, compras);
+    return {
+      al: guardado.al && dia(guardado.al),
+      recibos: c.recibos,
+      total: c.total,
+      estan: c.estan,
+      faltan: c.faltan.map((f) => ({ proveedor: nombre(f.proveedor), dia: dia(f.fecha), factura: f.factura, importe: f.importe })),
+      distintos: c.distintos.map((d) => ({ proveedor: nombre(d.recibo.proveedor), factura: d.recibo.factura, importe: d.recibo.importe, guardado: d.guardado })),
+      sobran: c.sobran.map((s) => ({ proveedor: s.proveedor ?? '', dia: dia(s.fecha), total: s.total })),
+    };
+  }
+  const nota = texto.split('\n')[0];
   const al = nota.match(/^[^:]* al (\d{2}-\d{2}):/)?.[1] ?? null;
   const cab = nota.match(/(\d+) facturas, ([\d.]+,\d{2}) €\./);
   const estan = /Todas están en Gastos\./.test(nota) && cab ? Number(cab[1]) : Number(nota.match(/En Gastos: (\d+) de \d+\./)?.[1] ?? NaN);

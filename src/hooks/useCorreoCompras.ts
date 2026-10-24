@@ -18,7 +18,7 @@ import { leerAlbaran, unificarProveedor } from '@/lib/comprasOcr';
 import { juntarHojas, leerArchivo } from '@/lib/comprasBandeja';
 import { calcularMarcas } from '@/lib/comprasMarcas';
 import { esAtrasado, lineasDeCompra, notaAtrasado, notaQuitadas } from '@/lib/comprasProductos';
-import { contrastarListado, notaListado } from '@/lib/comprasListado';
+import { conRecibos, contrastarListado, notaListado } from '@/lib/comprasListado';
 import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, describirNoCoincide, mismasLineas } from '@/lib/comprasCoincidencias';
 
 const COLUMNAS =
@@ -74,7 +74,8 @@ export function useCorreoCompras(datos: ComprasDatos, productos: Producto[]) {
       const a = leerAlbaran(junto.cajas);
       // Listado del gremio: no es compra. Solo se contrasta con lo guardado.
       if (a.clase === 'listado') {
-        await anotar(item.id, { estado: 'descartado', nota: notaListado(contrastarListado(a.recibos, vistas), a.fecha) });
+        const nota = notaListado(contrastarListado(a.recibos, vistas), a.fecha);
+        await anotar(item.id, { estado: 'descartado', nota: conRecibos(nota, a.fecha, a.recibos) });
         return null;
       }
       const conocidos = vistas.map((c) => c.proveedor).filter((p): p is string => !!p);

@@ -1187,7 +1187,7 @@ function ListadoGremio({
   onAbrir: (id: string) => void;
 }) {
   const [ver, setVer] = useState(abierto);
-  const l = leerNotaListado(item.nota);
+  const l = leerNotaListado(item.nota, compras);
   // Los listados viejos solo guardaron «no cuenta como gasto».
   if (!l || l.recibos == null)
     return (
@@ -1301,7 +1301,7 @@ function ListadoGremio({
 
           {l.distintos.length > 0 && (
             <div>
-              {cabecera('Otro importe', l.distintos.length, 'text-sky-700', 'ri-arrow-left-right-line')}
+              {cabecera('Otro importe', l.distintos.length, 'text-sky-700', 'ri-arrow-left-right-line', '¿falta un albarán?')}
               <ul className="divide-y divide-background-200/60">
                 {l.distintos.map((d, i) => (
                   <li key={i} className={fila}>
