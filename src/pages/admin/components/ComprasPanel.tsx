@@ -3,7 +3,7 @@ import type { useCompras } from '@/hooks/useCompras';
 import type { Compra, CompraCorreo, CompraLinea } from '@/types/compra';
 import type { Producto } from '@/types/producto';
 import { esProveedorGasto, normalizarCompra, sumaLineas } from '@/lib/comprasOcr';
-import { MARCA_LISTADO } from '@/lib/comprasListado';
+import { leerNotaListado, MARCA_LISTADO } from '@/lib/comprasListado';
 import { dudaLinea, leerDictado, NO_PRODUCTO, sugerirProducto } from '@/lib/comprasProductos';
 import { esPdf } from '@/lib/comprasPdf';
 import type { MarcasAlbaran } from '@/lib/comprasMarcas';
@@ -1164,6 +1164,215 @@ const ICONO_CORREO: Partial<Record<CompraCorreo['estado'], { icono: string; clas
   nuevo: { icono: 'ri-time-line', clase: 'bg-background-100 text-foreground-500', caja: 'border-background-200/70' },
 };
 
+// «ARRAINKO ANAIAK» → «Arrainko Anaiak».
+const titulo = (s: string) => s.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, a: string, b: string) => a + b.toUpperCase());
+const fechaDia = (dia: string) => {
+  const [d, m] = dia.split('-').map(Number);
+  return new Date(2000, m - 1, d).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+};
+
+// Listado del gremio: qué facturas del gremio faltan en Gastos, cuáles tienen
+// otro importe y qué hay en Gastos que el gremio no trae.
+function ListadoGremio({
+  item,
+  documento,
+  compras,
+  abierto,
+  onAbrir,
+}: {
+  item: CompraCorreo;
+  documento: React.ReactNode;
+  compras: Compra[];
+  abierto: boolean;
+  onAbrir: (id: string) => void;
+}) {
+  const [ver, setVer] = useState(abierto);
+  const l = leerNotaListado(item.nota);
+  // Los listados viejos solo guardaron «no cuenta como gasto».
+  if (!l || l.recibos == null)
+    return (
+      <li className="flex items-center gap-2.5 rounded-xl border border-background-200 bg-background-50 p-3">
+        <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-sky-100 text-sky-700">
+          <i className="ri-scales-3-line"></i>
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground-950 truncate leading-tight">Listado del gremio</p>
+          {documento}
+        </div>
+      </li>
+    );
+
+  const completo = l.estan === l.recibos && !l.faltan.length && !l.distintos.length && !l.sobran.length;
+  const sumaFaltan = l.faltan.reduce((t, f) => t + (f.importe ?? 0), 0);
+  const pct = l.recibos ? Math.round(((l.estan ?? 0) / l.recibos) * 100) : 0;
+  // La compra de Gastos que el listado no trae, para poder abrirla.
+  const compraDe = (s: { proveedor: string; dia: string; total: number | null }) =>
+    compras.find(
+      (c) =>
+        c.estado !== 'anulada' &&
+        c.proveedor === s.proveedor &&
+        `${c.fecha.slice(8, 10)}-${c.fecha.slice(5, 7)}` === s.dia &&
+        (s.total == null ? c.total == null : c.total != null && Math.abs(c.total - s.total) <= 0.01),
+    );
+  const cabecera = (texto: string, n: number, clase: string, icono: string, ayuda?: string) => (
+    <div className="flex items-center gap-1.5 px-3 pt-3 pb-1">
+      <i className={`${icono} ${clase} text-xs`}></i>
+      <span className={`text-[11px] font-semibold uppercase tracking-wide ${clase}`}>{texto}</span>
+      <span className="text-[11px] font-semibold text-foreground-400 tabular-nums">{n}</span>
+      {ayuda && <span className="ml-auto text-[10px] text-foreground-400 truncate">{ayuda}</span>}
+    </div>
+  );
+  const fila = 'flex items-center gap-2 px-3 py-1.5';
+
+  return (
+    <li className="rounded-xl border border-background-200 bg-background-50 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setVer((v) => !v)}
+        aria-expanded={ver}
+        className="w-full flex items-center gap-2.5 p-3 text-left hover:bg-background-100/50 transition-colors"
+      >
+        <span
+          className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+            completo ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+          }`}
+        >
+          <i className={completo ? 'ri-check-double-line' : 'ri-scales-3-line'}></i>
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground-950 truncate leading-tight">
+            Listado del gremio
+            {l.al && <span className="font-normal text-foreground-500"> · al {fechaDia(l.al)}</span>}
+          </p>
+          <p className="text-[11px] text-foreground-500 leading-tight truncate">
+            {completo
+              ? `Todo en Gastos · ${l.recibos} facturas`
+              : `${l.estan ?? 0} de ${l.recibos} en Gastos${l.faltan.length ? ` · faltan ${l.faltan.length}` : ''}`}
+          </p>
+        </div>
+        <i className={`ri-arrow-down-s-line text-base text-foreground-400 transition-transform ${ver ? 'rotate-180' : ''}`}></i>
+      </button>
+
+      {ver && (
+        <div className="border-t border-background-200/70">
+          <div className="px-3 pt-2.5">
+            <div className="flex items-baseline justify-between text-[11px] text-foreground-500">
+              <span>
+                <span className="font-semibold text-foreground-900 tabular-nums">{l.estan ?? 0}</span> de{' '}
+                <span className="tabular-nums">{l.recibos}</span> facturas en Gastos
+              </span>
+              <span className="tabular-nums">{formatEUR(l.total)}</span>
+            </div>
+            <div
+              className="mt-1.5 h-1.5 rounded-full bg-background-200 overflow-hidden"
+              role="progressbar"
+              aria-valuenow={pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div className={`h-full rounded-full ${completo ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }}></div>
+            </div>
+          </div>
+
+          {l.faltan.length > 0 && (
+            <div>
+              {cabecera('Faltan en Gastos', l.faltan.length, 'text-amber-700', 'ri-error-warning-line', 'hay que subirlas')}
+              <ul className="divide-y divide-background-200/60">
+                {l.faltan.map((f, i) => (
+                  <li key={i} className={fila}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-foreground-900 truncate">{titulo(f.proveedor)}</p>
+                      <p className="text-[11px] text-foreground-500 tabular-nums truncate">
+                        {fechaDia(f.dia)} · nº {f.factura}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-foreground-900 tabular-nums whitespace-nowrap">{formatEUR(f.importe)}</span>
+                  </li>
+                ))}
+              </ul>
+              {l.faltan.length > 1 && (
+                <div className="flex justify-between px-3 py-1.5 bg-amber-50/70 text-[11px] text-amber-800">
+                  <span>Total que falta</span>
+                  <span className="font-semibold tabular-nums">{formatEUR(sumaFaltan)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {l.distintos.length > 0 && (
+            <div>
+              {cabecera('Otro importe', l.distintos.length, 'text-sky-700', 'ri-arrow-left-right-line')}
+              <ul className="divide-y divide-background-200/60">
+                {l.distintos.map((d, i) => (
+                  <li key={i} className={fila}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-foreground-900 truncate">{titulo(d.proveedor)}</p>
+                      <p className="text-[11px] text-foreground-500 tabular-nums truncate">
+                        nº {d.factura} · en Gastos {formatEUR(d.guardado)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-semibold text-foreground-900 tabular-nums whitespace-nowrap">{formatEUR(d.importe)}</p>
+                      {d.importe != null && d.guardado != null && (
+                        <p className="text-[10px] text-sky-700 tabular-nums whitespace-nowrap">
+                          {d.importe > d.guardado ? '+' : ''}
+                          {formatEUR(Math.round((d.importe - d.guardado) * 100) / 100)}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {l.sobran.length > 0 && (
+            <div>
+              {cabecera('No están en el listado', l.sobran.length, 'text-foreground-600', 'ri-question-line', '¿repetida o mal leída?')}
+              <ul className="divide-y divide-background-200/60">
+                {l.sobran.map((s, i) => {
+                  const compra = compraDe(s);
+                  const contenido = (
+                    <>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-foreground-900 truncate">{s.proveedor}</p>
+                        <p className="text-[11px] text-foreground-500 tabular-nums">{fechaDia(s.dia)}</p>
+                      </div>
+                      <span className="text-xs font-semibold text-foreground-900 tabular-nums whitespace-nowrap">{formatEUR(s.total)}</span>
+                      {compra && <i className="ri-arrow-right-s-line text-foreground-400"></i>}
+                    </>
+                  );
+                  return (
+                    <li key={i}>
+                      {compra ? (
+                        <button
+                          type="button"
+                          onClick={() => onAbrir(compra.id)}
+                          title="Abrir en Gastos"
+                          className={`${fila} w-full text-left hover:bg-background-100/60 transition-colors`}
+                        >
+                          {contenido}
+                        </button>
+                      ) : (
+                        <div className={fila}>{contenido}</div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          <div className="mt-2 flex items-center justify-between gap-2 px-3 py-2 border-t border-background-200/70 bg-background-100/40">
+            <span className="text-[10px] text-foreground-400 whitespace-nowrap">No cuenta como gasto</span>
+            <div className="min-w-0">{documento}</div>
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
 function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: Compra[]; onAbrir: (id: string) => void }) {
   const [verGuardados, setVerGuardados] = useState(false);
   const [trabajando, setTrabajando] = useState<string | null>(null);
@@ -1333,19 +1542,8 @@ function Correo({ correo, compras, onAbrir }: { correo: CorreoCompras; compras: 
 
       {listados.length > 0 && (
         <ul className="px-3 pb-3 space-y-2">
-          {listados.slice(0, 2).map((c) => (
-            <li key={c.id} className="rounded-xl border border-sky-200 bg-sky-50/60 p-3">
-              <div className="flex items-center gap-2.5">
-                <span className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-sky-100 text-sky-700">
-                  <i className="ri-scales-3-line"></i>
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground-950 truncate leading-tight">Listado del gremio</p>
-                  {documento(c)}
-                </div>
-              </div>
-              <p className="mt-2 text-xs text-foreground-700 leading-snug">{c.nota?.slice(MARCA_LISTADO.length).replace(/^[^:]*:\s*/, '')}</p>
-            </li>
+          {listados.slice(0, 2).map((c, i) => (
+            <ListadoGremio key={c.id} item={c} documento={documento(c)} compras={compras} abierto={i === 0} onAbrir={onAbrir} />
           ))}
         </ul>
       )}

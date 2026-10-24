@@ -103,3 +103,68 @@ export function notaListado(c: ContrasteListado, al: string | null): string {
     );
   return partes.join(' ');
 }
+
+// La nota guardada, otra vez en datos, para enseñarla como tabla.
+export interface NotaListado {
+  al: string | null;
+  recibos: number | null;
+  total: number | null;
+  estan: number | null;
+  faltan: { proveedor: string; dia: string; factura: string; importe: number | null }[];
+  distintos: { proveedor: string; factura: string; importe: number | null; guardado: number | null }[];
+  sobran: { proveedor: string; dia: string; total: number | null }[];
+}
+
+const SECCIONES = {
+  faltan: 'Faltan: ',
+  distintos: 'Con otro importe: ',
+  sobran: 'En Gastos y no en el listado (¿repetidas o proveedor mal leído?): ',
+} as const;
+
+// «3530,84 €» o «3.530,84 €» → 3530.84; «sin total» → null.
+const aEuros = (s: string): number | null => {
+  const n = Number(s.replace(/[€\s.]/g, '').replace(',', '.'));
+  return s.includes('sin total') || !Number.isFinite(n) ? null : n;
+};
+const IMPORTE = '(-?[\\d.]+,\\d{2} €|sin total)';
+
+export function leerNotaListado(nota: string | null): NotaListado | null {
+  if (!nota?.startsWith(MARCA_LISTADO)) return null;
+  const al = nota.match(/^[^:]* al (\d{2}-\d{2}):/)?.[1] ?? null;
+  const cab = nota.match(/(\d+) facturas, ([\d.]+,\d{2}) €\./);
+  const estan = /Todas están en Gastos\./.test(nota) && cab ? Number(cab[1]) : Number(nota.match(/En Gastos: (\d+) de \d+\./)?.[1] ?? NaN);
+  // Cada sección llega hasta la siguiente (o hasta el final), sin el punto.
+  const trozo = (clave: keyof typeof SECCIONES) => {
+    const i = nota.indexOf(SECCIONES[clave]);
+    if (i < 0) return [];
+    const desde = i + SECCIONES[clave].length;
+    const fin = Math.min(
+      ...Object.values(SECCIONES)
+        .map((m) => nota.indexOf(m, desde))
+        .filter((j) => j >= 0),
+      nota.length,
+    );
+    return nota.slice(desde, fin).trim().replace(/\.$/, '').split('; ');
+  };
+  const faltan = trozo('faltan').flatMap((t) => {
+    const m = t.match(new RegExp(`^(.+) (\\d{2}-\\d{2}) nº (\\S+) ${IMPORTE}$`));
+    return m ? [{ proveedor: m[1], dia: m[2], factura: m[3], importe: aEuros(m[4]) }] : [];
+  });
+  const distintos = trozo('distintos').flatMap((t) => {
+    const m = t.match(new RegExp(`^(.+) nº (\\S+) ${IMPORTE} \\(en Gastos ${IMPORTE}\\)$`));
+    return m ? [{ proveedor: m[1], factura: m[2], importe: aEuros(m[3]), guardado: aEuros(m[4]) }] : [];
+  });
+  const sobran = trozo('sobran').flatMap((t) => {
+    const m = t.match(new RegExp(`^(.+) (\\d{2}-\\d{2}) ${IMPORTE}$`));
+    return m ? [{ proveedor: m[1], dia: m[2], total: aEuros(m[3]) }] : [];
+  });
+  return {
+    al,
+    recibos: cab ? Number(cab[1]) : null,
+    total: cab ? aEuros(cab[2]) : null,
+    estan: Number.isFinite(estan) ? estan : null,
+    faltan,
+    distintos,
+    sobran,
+  };
+}
