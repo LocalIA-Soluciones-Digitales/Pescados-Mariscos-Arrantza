@@ -273,7 +273,18 @@ function proveedorConocido(filas: string[]): (typeof PROVEEDORES_CONOCIDOS)[numb
   const porCif = PROVEEDORES_CONOCIDOS.find((p) => p.cif && todo.includes(p.cif));
   if (porCif) return porCif;
   const cabecera = normalizarCompra(filas.slice(0, 12).join(' '));
-  return PROVEEDORES_CONOCIDOS.find((p) => p.pistas.some((k) => cabecera.includes(k))) ?? null;
+  const enCabecera = PROVEEDORES_CONOCIDOS.find((p) => p.pistas.some((k) => cabecera.includes(k)));
+  if (enCabecera) return enCabecera;
+  // Foto con otro ticket encima (LUZA sobre Capotinas, 24-10): la cabecera
+  // baja. Más abajo solo vale el nombre entero con la sociedad o el email
+  // («Tfno Gaizka» sale en el albarán de Capotinas y no es Gaizka).
+  const resto = filas.map(normalizarCompra);
+  const emails = resto.flatMap((l) => [...l.matchAll(/([a-z0-9._-]+)\s?@/g)].map((m) => m[1]));
+  return (
+    PROVEEDORES_CONOCIDOS.find(
+      (p) => resto.some((l) => l.includes(normalizarCompra(p.nombre))) || emails.some((e) => p.pistas.some((k) => e.includes(k.replace(/\s/g, '')))),
+    ) ?? null
+  );
 }
 
 // ¿Es de un proveedor que no vende género? Por el nombre ya guardado.

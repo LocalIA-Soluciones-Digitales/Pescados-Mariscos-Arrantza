@@ -223,6 +223,38 @@ describe('proveedor', () => {
     expect(a.proveedor).toBe('Arraiza Gutiérrez, S.L.');
   });
 
+  it('con otro ticket encima en la foto, el proveedor sale del nombre entero más abajo (LUZA sobre Capotinas, 24-10)', () => {
+    const a = leerAlbaran(
+      cajas([
+        'LUZA  245',
+        '6  ITO  me 00  Kgx  Impote',
+        'TOTAL:  10,590  5.305  kgx  0 kgX  32,00-  11.90 -',
+        '16,90  192,00  38,62',
+        '30.90  12,90  89,65',
+        'IVA I  136,63',
+        '35',
+        'I',
+        '63130',
+        'Cliente: 2926',
+        'TAMAYO HUERTADAVID',
+        'arana,14,pb-ll',
+        'capotinas  48901  BARAKALDO',
+        'BIZKAIA - ESPAÑA',
+        'PESCADOSY  MARISCOS',
+        'Forma de pago:  GREMIO',
+        'Las Capotinas, S.A.',
+        'MERCABILBAO - Puestos 121-123  Albarán',
+        'Tfno Oficina: 944079261 - Tfno Gaizka: 664460570 - FAX: 944594017  Serie  Número  Fecha',
+        'EMAIL: lascapotinassa @gmail.com  29047  24/10/2026',
+      ]),
+    );
+    expect(a.proveedor).toBe('Las Capotinas, S.A.');
+    // Solo por el email también vale; «Tfno Gaizka» no es Gaizka.
+    expect(leerAlbaran(cajas(['LUZA  245', ...Array(12).fill('35'), 'Tfno Gaizka: 664460570', 'EMAIL: lascapotinassa @gmail.com'])).proveedor).toBe(
+      'Las Capotinas, S.A.',
+    );
+  });
+
   it('sin CIF ni nombre, nunca toma una dirección web como proveedor', () => {
     const a = leerAlbaran(cajas(['XQ 0071 8.5.', 'infodperecadoearrasss.com', 'Pescados del Puerto']));
     expect(a.proveedor).toBe('Pescados del Puerto');
