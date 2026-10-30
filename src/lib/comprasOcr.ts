@@ -451,7 +451,7 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
   if (listado) return { ...r, ...listado, tipo: 'factura', clase: 'listado', proveedor: 'Listado del gremio', numero: null, albaranes: [] };
   const aguas = leerAguas(texto);
   if (aguas) return { ...r, ...aguas, tipo: 'factura', numero: leerNumeroFactura(texto) ?? r.numero };
-  const fijo = leerLuz(texto) ?? leerTelefono(texto) ?? leerAutonomos(texto) ?? leerModeloHacienda(texto);
+  const fijo = leerNomina(texto) ?? leerLuz(texto) ?? leerTelefono(texto) ?? leerAutonomos(texto) ?? leerModeloHacienda(texto);
   if (fijo) return { ...r, ...fijo, tipo: 'factura', clase: 'gasto', albaranes: [] };
 
   // 1) Filas de números de producto, por debajo de la cabecera de la tabla.
@@ -704,6 +704,41 @@ function leerAutonomos(texto: string[]): GastoFijo | null {
     fecha: cargo ? leerFecha(cargo) : null,
     total,
     lineas: [gasto(mes ? `Cuota de autónomos ${mes}` : 'Cuota de autónomos', total)],
+  };
+}
+
+// Nómina de un trabajador (la hace la gestoría). Cuenta el LÍQUIDO, lo que
+// se le paga: el IRPF que se le retiene ya va en el modelo 110 y su parte
+// de Seguridad Social en el recibo de seguros sociales; con el bruto se
+// pagaría dos veces. Una por trabajador y mes: el nº es «NÓMINA mm/aaaa».
+const MESES_CORTOS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+
+function leerNomina(texto: string[]): GastoFijo | null {
+  const iLiquido = texto.findIndex((l) => /l[ií]quido\s+a\s+percibir/i.test(l));
+  const iTrab = texto.findIndex((l) => /^\s*trabajador\/?a?\b/i.test(l));
+  if (iLiquido < 0 || iTrab < 0) return null;
+  const total = texto.slice(iLiquido, iLiquido + 3).map(decimales).find((n) => n.length)?.at(-1) ?? null;
+  if (total == null) return null;
+  // «PEREZ LOPEZ ANA  DEPENDIENT  1 OCT 22  …»: apellidos y nombre.
+  const nombre = (texto[iTrab + 1] ?? '').split(/\s{2,}/)[0].trim().toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+  // «MENS 01 OCT 26 a 31 OCT 26»
+  const p = buscar(texto, /\b\d{2}\s+([A-Z]{3})\s+(\d{2})\s+a\s+(\d{2})\s+[A-Z]{3}\s+\d{2}\b/);
+  const m = p ? MESES_CORTOS.indexOf(p[1].toUpperCase()) + 1 : 0;
+  const mes = m ? `${String(m).padStart(2, '0')}/20${p![2]}` : null;
+  // Fecha de la firma («31 OCTUBRE 2026»); si no, el último día del periodo.
+  const firma = buscar(texto, new RegExp(String.raw`^\s*(\d{1,2})\s+(${MESES.join('|')})\s+(\d{4})\b`, 'i'));
+  const mesFirma = firma ? MESES.indexOf(firma[2].toLowerCase()) + 1 : 0;
+  const fecha = firma
+    ? `${firma[3]}-${String(mesFirma).padStart(2, '0')}-${firma[1].padStart(2, '0')}`
+    : mes
+      ? `${mes.slice(3)}-${mes.slice(0, 2)}-${p![3]}`
+      : null;
+  return {
+    proveedor: nombre ? `Nómina · ${nombre}` : 'Nómina',
+    numero: mes ? `NÓMINA ${mes}` : null,
+    fecha,
+    total,
+    lineas: [gasto(`Sueldo neto${mes ? ` ${mes}` : ''} (líquido a percibir)`, total)],
   };
 }
 

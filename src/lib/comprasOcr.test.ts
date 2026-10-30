@@ -813,3 +813,42 @@ describe('factura de la gestoría (Gestiones AIO)', () => {
     ]);
   });
 });
+
+describe('nómina de la gestoría (octubre 2026, datos inventados)', () => {
+  it('cuenta el líquido, no el bruto (el IRPF va en el 110 y la S.S. en los seguros sociales)', () => {
+    const a = leerAlbaran(
+      cajas([
+        'PEREZ  LOPEZ  ANA',
+        'NIF. 78880797C  53',
+        'EMPRESA  DOMICILIO  Nº INS. S.S.',
+        'TAMAYO HUERTA DAVID  JESUS ARAMBURU, 1  48/1230310-21',
+        'TRABAJADOR/A  CATEGORIA  NºMATRIC  ANTIGUEDAD  D.N.I.',
+        'PEREZ LOPEZ ANA  DEPENDIENT  1 OCT 22  00000000T',
+        'Nº AFILIACION. S.S.  TARIFA COD.CT SECCION  NRO.  PERIODO  TOT. DIAS',
+        '48/00000000-00  5  100  1  MENS 01 OCT 26 a 31 OCT 26  30',
+        'CUANTIA  PRECIO  CONCEPTO  DEVENGOS  DEDUCCIONES',
+        '30,00  40,000  1  *Salario Base  1.200,00',
+        '30,00  5,000  201  *A Cuenta Convenio  150,00',
+        '30,00  10,000  203  *Base Paga Extra  300,00',
+        '999  TRIBUTACION I.R.P.F.  9,00  148,50',
+        'REM. TOTAL  P.P.EXTRAS  BASE S.S.  BASE A.T. Y DES.  BASE I.R.P.F.  T. DEVENGADO  T. A DEDUCIR',
+        '1.650,00  1.650,00  1.650,00  1.650,00  1.650,00  255,00',
+        'FECHA  SELLO EMPRESA  RECIBI',
+        '31 OCTUBRE  2026',
+        'BARAKALDO',
+        'LIQUIDO A PERCIBIR',
+        '1.395,00',
+        'CONCEPTO  BASE  TIPO  APORTACIÓN EMPRESARIAL',
+        '1. Contingencias comunes....  1.650,00  23,60  389,40',
+      ]),
+    );
+    expect(a).toMatchObject({
+      clase: 'gasto',
+      proveedor: 'Nómina · Perez Lopez Ana',
+      numero: 'NÓMINA 10/2026',
+      fecha: '2026-10-31',
+      total: 1395,
+    });
+    expect(a.lineas).toEqual([{ texto: 'Sueldo neto 10/2026 (líquido a percibir)', kg: null, precio: null, importe: 1395, estado: 'ok' }]);
+  });
+});
