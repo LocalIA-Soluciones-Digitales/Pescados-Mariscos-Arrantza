@@ -249,6 +249,8 @@ describe('proveedor', () => {
       ]),
     );
     expect(a.proveedor).toBe('Las Capotinas, S.A.');
+    // El nº va bajo «Serie Número Fecha», sin serie en los albaranes.
+    expect(a.numero).toBe('29047');
     // Solo por el email también vale; «Tfno Gaizka» no es Gaizka.
     expect(leerAlbaran(cajas(['LUZA  245', ...Array(12).fill('35'), 'Tfno Gaizka: 664460570', 'EMAIL: lascapotinassa @gmail.com'])).proveedor).toBe(
       'Las Capotinas, S.A.',
@@ -418,6 +420,35 @@ describe('casos reales 16/17-10', () => {
       ['CAMARON COCIDO PEQUEÑO +350 PZAS KILO', 1, 28],
     ]);
     expect(a.total).toBe(111.4);
+  });
+
+  it('Conifres: factura de dos albaranes, lee también las líneas tras el primer «Subtotal»', () => {
+    const a = leerAlbaran(
+      cajas([
+        'Factura Nº M11031',
+        'Fecha:  Cliente Código:',
+        '23/10/2026  43002926  78880797C',
+        fila('Descripción  Lote', 'Cantidad', 'Precio', 'Importe'),
+        'Pedido: PV25138 ( Orden 01525-002-0077 ) Albarán: 23/10/2026 AM/OUT/11357',
+        fila('[4126] TUBO PELUDIN EXTRA RIAZOR  [PF26042]RIAZ0015', '24,000', '9,250', '222,00 €'),
+        'Técnica de pesca:  Redes de arrastre  Área de pesca:  41.0  Atlantic, Southwest',
+        fila('[3150] BUEY TXANGURRO  [22-1-28]BRUÑ0055', '1,000', '44,000', '44,00 €'),
+        'Subtotal:  266,00  €',
+        'Pedido: PV25172 ( Orden 01525-002-0116 ) Albarán: 23/10/2026 AM/OUT/11391',
+        fila('[4137] CAMARON PEQUEÑO +350 PZAS KILO  412510', '2,000', '26,000', '52,00 €'),
+        'Subtotal:  52,00  €',
+        'Técnica de pesca:  Nasas y trampas  Área de pesca:  27.0  Atlantic, Northeast',
+        'Base Imponible  318,00 €',
+        'Total  354,25 €',
+      ]),
+    );
+    expect(a.albaranes).toEqual(['AM/OUT/11357', 'AM/OUT/11391']);
+    expect(a.lineas.map((l) => [l.texto, l.kg, l.importe])).toEqual([
+      ['TUBO PELUDIN EXTRA RIAZOR', 24, 222],
+      ['BUEY TXANGURRO', 1, 44],
+      ['CAMARON PEQUEÑO +350 PZAS KILO', 2, 26 * 2],
+    ]);
+    expect(a.total).toBe(354.25);
   });
 
   it('Gaizka: el albarán que cita la factura lleva serie («G / 926.237»)', () => {

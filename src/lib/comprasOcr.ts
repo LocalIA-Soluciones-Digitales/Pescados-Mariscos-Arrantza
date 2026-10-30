@@ -350,6 +350,13 @@ function leerNumero(filas: string[]): string | null {
       l.match(/\bn[º°o.]{1,2}\s*:?\s*([A-Z]{0,3}-?\d{4,})/i);
     if (m) return m[1];
   }
+  // «Serie  Número  Fecha» → «EMAIL: …gmail.com  29357  28/10/2026»
+  // (albarán de Capotinas, sin serie): el nº va en la fila de debajo.
+  for (let i = 0; i + 1 < filas.length; i++) {
+    if (!/\bserie\b/i.test(filas[i]) || !/\bn[uú]mero\b/i.test(filas[i])) continue;
+    const m = filas[i + 1].match(/(?:^|\s)(\d{3,7})\s+\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b/);
+    if (m) return m[1];
+  }
   return null;
 }
 
@@ -462,8 +469,11 @@ export function leerAlbaran(ocr: OcrCaja[]): AlbaranLeido {
   // 2) La tabla acaba en la primera fila de totales tras el primer producto.
   const yPrimera = candidatas[0]?.cy ?? Infinity;
   const yFin =
-    filas.find((f) => {
+    filas.find((f, i) => {
       const t = textoFila(f);
+      // «Subtotal: 429,75» y luego «Pedido: … Albarán: …» (Conifres junta
+      // varios albaranes en una factura): la tabla sigue con el siguiente.
+      if (/^\s*subtotal\b/i.test(t) && !FIN_TABLA.test(t.replace(/subtotal/i, '')) && /\b(pedido|albar[aá]n)\b/i.test(textoFila(filas[i + 1] ?? f))) return false;
       // «suma y sigue … 1.245,02»: la tabla sigue en la página siguiente.
       return f.cy > yPrimera + 1 && FIN_TABLA.test(t) && !/suma\s+y\s+sigue/i.test(t) && (!CABECERA.test(t) || FIN_FUERTE.test(t));
     })?.cy ?? Infinity;
