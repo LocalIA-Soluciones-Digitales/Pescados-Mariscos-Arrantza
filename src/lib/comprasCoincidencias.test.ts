@@ -118,6 +118,12 @@ describe('casos reales 16/17-10', () => {
     expect(buscarCoincidencia(factura('2026-10-16'), [d17, d16])).toEqual({ tipo: 'cubierta', con: [d16] });
     expect(buscarCoincidencia(factura('2026-10-17'), [d16, d17])).toEqual({ tipo: 'cubierta', con: [d17] });
   });
+
+  it('José Crespo: la factura del 29-10 no es el albarán igual del 17-10 (otra semana)', () => {
+    const d17 = doc({ proveedor: CRESPO, fecha: '2026-10-17', total: 22.28 });
+    expect(buscarCoincidencia(nuevo({ proveedor: CRESPO, tipo: 'factura', fecha: '2026-10-29', total: 22.28 }), [d17])).toBeNull();
+    expect(buscarCoincidencia(nuevo({ proveedor: CRESPO, tipo: 'factura', fecha: '2026-10-31', total: 22.28 }), [d17])).toBeNull();
+  });
 });
 
 describe('confirmarCoincidencia', () => {

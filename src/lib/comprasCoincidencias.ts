@@ -36,6 +36,7 @@ export type Coincidencia<T> =
   | { tipo: 'posible'; con: T[] };
 
 const DIAS_FACTURA = 35;
+const DIAS_UN_ALBARAN = 6;
 const MAX_SUBCONJUNTO = 14;
 
 const redondear = (n: number) => Math.round(n * 100) / 100;
@@ -138,10 +139,13 @@ export function buscarCoincidencia<T extends DocCompra>(nuevo: DocNuevo, compras
     // El más cercano a la fecha de la factura primero: José Crespo repite
     // el mismo pedido varios días y cada factura va con el de su día.
     .sort((a, b) => Math.abs(dias(nuevo.fecha, a.fecha)) - Math.abs(dias(nuevo.fecha, b.fecha)) || b.fecha.localeCompare(a.fecha));
-  const exacto = candidatos.filter((c) => mismoImporte(c.total!, nuevo.total!));
+  // Un solo albarán con el mismo importe vale si es de esa semana: José
+  // Crespo repite 2 kg de langostino (22,28 €) y las facturas del 29 y el
+  // 31-10 se tomaron por el albarán del 17-10 y no se guardaron.
+  const exacto = candidatos.filter((c) => mismoImporte(c.total!, nuevo.total!) && dias(nuevo.fecha, c.fecha) <= DIAS_UN_ALBARAN);
   if (exacto.length) return { tipo: 'cubierta', con: [exacto[0]] };
   const suma = subconjuntoQueSuma(candidatos, nuevo.total);
-  if (suma) return { tipo: 'cubierta', con: suma };
+  if (suma && (suma.length > 1 || dias(nuevo.fecha, suma[0].fecha) <= DIAS_UN_ALBARAN)) return { tipo: 'cubierta', con: suma };
   // Un albarán del mismo día sin total (a mano, sin leer): solo se avisa.
   const sinTotal = vivas.filter((c) => c.tipo !== 'factura' && delProveedor(c, nuevo.proveedor) && c.total == null && Math.abs(dias(c.fecha, nuevo.fecha)) <= 1);
   return sinTotal.length ? { tipo: 'posible', con: sinTotal } : null;
