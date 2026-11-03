@@ -144,6 +144,8 @@ const common = {
   "products.badge_premium": "Especialidad",
   "products.badge_new": "Novedad",
   "products.badge_agotado": "Agotado",
+  "products.stock_left": "Quedan {{cantidad}}",
+  "products.stock_last": "Últimos {{cantidad}}",
   "products.image_coming_soon": "Foto próximamente",
   "products.loading": "Cargando catálogo…",
   "products.add_to_order": "Añadir al pedido",

@@ -55,7 +55,7 @@ export const SOLICITUDES_INFO_ITEMS = [
 ];
 
 export const PRODUCTOS_INFO_ITEMS = [
-  { icon: 'ri-toggle-line', text: 'Marca "Disponible"/"Agotado" para que se refleje al instante en la web.' },
+  { icon: 'ri-toggle-line', text: 'Lo marcado "Agotado" deja de salir en la web al instante; al volver a "Disponible", reaparece.' },
   { icon: 'ri-star-line', text: 'La estrella añade el producto a la Selección del día en la portada.' },
   { icon: 'ri-price-tag-3-line', text: 'La etiqueta (Novedad, Especialidad, Temporada) se muestra como distintivo en la web.' },
   { icon: 'ri-alert-line', text: 'Si el stock baja del mínimo, aquí se avisa con un icono de alerta.' },
@@ -66,6 +66,7 @@ export const STOCK_INFO_ITEMS = [
   { icon: 'ri-subtract-line', text: 'Usa un valor negativo para descontar kg, por ejemplo si llega producto en mal estado.' },
   { icon: 'ri-shopping-basket-line', text: 'El stock también baja solo con cada pedido y con cada venta pesada en cualquiera de las dos básculas.' },
   { icon: 'ri-mail-line', text: 'Si baja del aviso mínimo, se envía un correo automáticamente.' },
+  { icon: 'ri-global-line', text: 'Los clientes ven en la web lo que queda ("Quedan 3,5 kg"); por debajo del aviso mínimo sale como "Últimos…". A 0 se marca agotado y deja de salir.' },
   { icon: 'ri-barcode-line', text: 'Cada báscula tiene su propio catálogo de códigos: indica el código de cada terminal donde se venda este producto.' },
 ];
 
@@ -77,6 +78,7 @@ export const COMPRAS_INFO_ITEMS = [
   { icon: 'ri-checkbox-circle-line', text: 'Al revisarla, lo verde cuadra (kg × €/kg = importe) y lo naranja hay que mirarlo. «Confirmar» apunta el gasto en Contabilidad y suma los kg al stock.' },
   { icon: 'ri-brain-line', text: 'El producto que elijas para cada nombre del albarán se recuerda para ese proveedor: la próxima vez sale ya puesto.' },
   { icon: 'ri-arrow-go-back-line', text: 'Si te equivocas, abre el albarán confirmado y «Anular»: se borra el gasto y se restan los kg del stock. La foto se guarda siempre.' },
+  { icon: 'ri-calendar-check-line', text: '«Gastos fijos» (alquileres, limpieza, nómina en metálico…) no llevan factura: se apuntan solos el día 1 en Contabilidad. Corrige el importe del mes ahí mismo o cambia la lista con «Cambiar la lista».' },
 ];
 
 export const BASCULA_INFO_ITEMS = [

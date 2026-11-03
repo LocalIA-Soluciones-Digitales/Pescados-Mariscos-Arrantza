@@ -7,7 +7,6 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { useCart, enMinimo } from '@/hooks/useCart';
 import type { CartItem } from '@/hooks/useCart';
 import CartDrawer from '@/pages/productos/components/CartDrawer';
-import SolicitudStockModal from '@/pages/productos/components/SolicitudStockModal';
 import SelectorPiezasModal from '@/components/feature/SelectorPiezasModal';
 import { temporada } from '@/mocks/productos';
 import { useProductosPublicos } from '@/hooks/useProductosPublicos';
@@ -36,12 +35,11 @@ type CategoryFilter =
   | 'cefalopodos'
   | 'bivalvos'
   | 'crustaceos_grandes'
-  | 'gambas_langostinos'
-  | 'agotado';
+  | 'gambas_langostinos';
 
 /** All possible filter chips. The toolbar only renders the ones that currently
- *  have matching products (see `filterCounts`) — except `todos` and `agotado`,
- *  which are always shown regardless of count. */
+ *  have matching products (see `filterCounts`) — except `todos`, which is
+ *  always shown regardless of count. Lo agotado no sale en la tienda. */
 const categories: { key: CategoryFilter; labelKey: string }[] = [
   { key: 'todos', labelKey: 'products.filter_all' },
   { key: 'pescado', labelKey: 'products.filter_fish' },
@@ -57,11 +55,10 @@ const categories: { key: CategoryFilter; labelKey: string }[] = [
   { key: 'bivalvos', labelKey: 'products.filter_shellfish' },
   { key: 'crustaceos_grandes', labelKey: 'products.filter_large_crustaceans' },
   { key: 'gambas_langostinos', labelKey: 'products.filter_prawns_shrimp' },
-  { key: 'agotado', labelKey: 'products.filter_agotado' },
 ];
 
 /** Chips that must always stay visible, even with zero matching products. */
-const alwaysVisibleFilters: CategoryFilter[] = ['todos', 'agotado'];
+const alwaysVisibleFilters: CategoryFilter[] = ['todos'];
 
 /* ------------------------------------------------------------------ */
 /*  Product counts per filter — computed from live Supabase data      */
@@ -71,7 +68,6 @@ function computeCategoryCounts(productos: Producto[]): Record<CategoryFilter, nu
   const mainCats = ['pescado', 'especial', 'raciones', 'marisco', 'congelados', 'preparados'] as CategoryFilter[];
 
   counts.todos = productos.length;
-  counts.agotado = productos.filter((p) => !p.disponible).length;
 
   mainCats.forEach((cat) => {
     counts[cat] = productos.filter((p) => p.categoria === cat).length;
@@ -128,6 +124,38 @@ function getBadgeLabel(badge: Producto['estado']) {
     new: 'products.badge_new',
   };
   return map[badge] || 'products.badge_available';
+}
+
+/* ------------------------------------------------------------------ */
+/*  Stock que ve el cliente                                           */
+/* ------------------------------------------------------------------ */
+interface StockWeb {
+  cantidad: number;
+  porUnidad: boolean;
+  // Por debajo del mínimo que David puso en Stock: «Últimos …».
+  poco: boolean;
+}
+
+/** Lo que queda de cada producto con control de stock. Si saca el género de
+ *  otro (stock_de, p. ej. Cola de Merluza de Merluza), lo que queda de ese.
+ *  Se redondea hacia abajo para no prometer de más. */
+function stockPorProducto(productos: Producto[]): Map<string, StockWeb> {
+  const porId = new Map(productos.map((p) => [p.id, p]));
+  const stock = new Map<string, StockWeb>();
+  for (const p of productos) {
+    const base = p.stock_de ? porId.get(p.stock_de) : p;
+    if (!base?.gestion_stock) continue;
+    const porUnidad = esPorUnidad(base.precio);
+    const n = Number(base.stock_kg);
+    const cantidad = porUnidad ? Math.floor(n) : Math.floor(n * 10) / 10;
+    if (!(cantidad > 0)) continue;
+    stock.set(p.id, { cantidad, porUnidad, poco: n <= Number(base.stock_minimo) });
+  }
+  return stock;
+}
+
+function formatStockWeb(s: StockWeb): string {
+  return s.porUnidad ? `${s.cantidad} ud` : `${formatNumKg(s.cantidad)} kg`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -419,7 +447,7 @@ function StickyToolbar({
   };
 
   // Only show chips for families that currently have matching products —
-  // "todos" and "agotado" stay visible regardless of their count.
+  // "todos" stays visible regardless of its count.
   const availableCategories = useMemo(
     () => categories.filter((cat) => alwaysVisibleFilters.includes(cat.key) || filterCounts[cat.key] > 0),
     [filterCounts],
@@ -650,34 +678,6 @@ function StickyToolbar({
                       {renderGroupHeader('suministro', 'ri-truck-line')}
                     </div>
                   )}
-
-                  {/* Out of stock — a status rather than a family, kept apart and always visible */}
-                  <div className="mt-2 pt-2 border-t border-background-200/60">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onCategoryChange('agotado');
-                        setFilterOpen(false);
-                      }}
-                      className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full text-xs md:text-sm font-medium whitespace-nowrap cursor-pointer transition-all duration-300 w-full ${
-                        activeCategory === 'agotado'
-                          ? 'bg-foreground-700 text-background-50'
-                          : 'bg-background-100 text-foreground-500 hover:text-foreground-950 hover:bg-background-200/70'
-                      }`}
-                    >
-                      <i className="ri-forbid-line text-sm"></i>
-                      {t('products.filter_agotado')}
-                      <span
-                        className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold leading-none ${
-                          activeCategory === 'agotado'
-                            ? 'bg-background-50/20 text-background-50'
-                            : 'bg-background-200/60 text-foreground-400'
-                        }`}
-                      >
-                        {filterCounts.agotado}
-                      </span>
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
@@ -825,7 +825,7 @@ function ProductCard({
   onDecrease,
   onSetKg,
   onEditPiezas,
-  onRequestStock,
+  stock,
 }: {
   product: Producto;
   index: number;
@@ -839,12 +839,11 @@ function ProductCard({
   onDecrease: (productId: string) => void;
   onSetKg: (productId: string, kg: number) => void;
   onEditPiezas: (p: Producto) => void;
-  onRequestStock: (p: Producto) => void;
+  stock?: StockWeb;
 }) {
   const { t, i18n } = useTranslation();
   const { ref, isVisible } = useScrollAnimation({ threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
   const badgeStyle = badgeStyleMap[product.estado];
-  const agotado = !product.disponible;
   const porUnidad = esPorUnidad(product.precio);
   const paso = pasoCantidad(product.precio);
   const conPiezas = admitePiezas(product);
@@ -908,7 +907,7 @@ function ProductCard({
             // Foto entera: se ve completa (contain) y el hueco sobrante se
             // rellena con la misma foto ampliada y difuminada, para que no
             // queden bandas vacías a los lados.
-            <div className={`absolute inset-0 ${agotado ? 'opacity-40 grayscale' : ''}`}>
+            <div className="absolute inset-0">
               <img
                 src={product.imagen_url}
                 alt=""
@@ -929,7 +928,7 @@ function ProductCard({
             <img
               src={product.imagen_url}
               alt={pickLang(product, 'nombre', i18n.language)}
-              className={`w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.03] ${agotado ? 'opacity-40 grayscale' : ''}`}
+              className={`w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-[1.03]`}
               loading="lazy"
               decoding="async"
             />
@@ -938,20 +937,27 @@ function ProductCard({
           <ProductImagePlaceholder label={t('products.image_coming_soon')} />
         )}
 
-        {/* Color-coded badge — "agotado" takes priority over the highlight badge */}
+        {/* Color-coded badge */}
         <div className="absolute top-2 left-2 md:top-4 md:left-4">
-          {agotado ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full bg-foreground-200/90 text-foreground-700 text-[10px] md:text-[11px] font-medium whitespace-nowrap">
-              <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-foreground-500"></span>
-              {t('products.badge_agotado')}
-            </span>
-          ) : (
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full ${badgeStyle.bg} ${badgeStyle.text} text-[10px] md:text-[11px] font-medium whitespace-nowrap`}>
-              <span className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${badgeStyle.dot}`}></span>
-              {t(getBadgeLabel(product.estado))}
-            </span>
-          )}
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full ${badgeStyle.bg} ${badgeStyle.text} text-[10px] md:text-[11px] font-medium whitespace-nowrap`}>
+            <span className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${badgeStyle.dot}`}></span>
+            {t(getBadgeLabel(product.estado))}
+          </span>
         </div>
+
+        {/* Lo que queda en la tienda (solo productos con control de stock) */}
+        {stock && (
+          <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4">
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full text-[10px] md:text-[11px] font-medium whitespace-nowrap backdrop-blur-sm ${
+                stock.poco ? 'bg-amber-100/90 text-amber-800' : 'bg-background-50/90 text-foreground-700'
+              }`}
+            >
+              <i className="ri-stack-line"></i>
+              {t(stock.poco ? 'products.stock_last' : 'products.stock_left', { cantidad: formatStockWeb(stock) })}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Info — cleaner, less text */}
@@ -977,16 +983,7 @@ function ProductCard({
           <span className="text-[11px] md:text-lg font-semibold text-foreground-950 leading-none">
             {product.precio}
           </span>
-          {agotado ? (
-            <button
-              type="button"
-              onClick={() => onRequestStock(product)}
-              className="inline-flex items-center gap-1 px-2.5 py-2 md:px-4 md:py-2 rounded-full bg-primary-50 text-primary-600 text-[11px] md:text-xs font-medium whitespace-nowrap cursor-pointer hover:bg-primary-100 transition-colors"
-            >
-              <i className="ri-notification-3-line"></i>
-              {t('stock_request.cta_button')}
-            </button>
-          ) : !isInCart ? (
+          {!isInCart ? (
             <button
               type="button"
               onClick={() => onAddToCart(product)}
@@ -998,7 +995,7 @@ function ProductCard({
         </div>
 
         {/* Quantity stepper — editable by text or ±0.5kg steps, shown once in cart */}
-        {!agotado && isInCart && cartItem && (
+        {isInCart && cartItem && (
           <div className="flex items-center justify-between gap-2 mt-2 animate-added-pop">
             <div className="flex items-center bg-background-100 rounded-full p-0.5">
               <button
@@ -1065,7 +1062,7 @@ function ProductCard({
             </button>
           </div>
         )}
-        {!agotado && isInCart && cartItem?.piezas && (
+        {isInCart && cartItem?.piezas && (
           <p className="mt-1 text-[10px] md:text-[11px] text-foreground-500 tabular-nums">
             {t('pieces.summary_total', { kg: formatNumKg(cartItem.kg) })}
           </p>
@@ -1118,7 +1115,7 @@ function CatalogGrid({
   onDecrease,
   onSetKg,
   onEditPiezas,
-  onRequestStock,
+  stockPorId,
   removingProductId,
   highlightedProductId,
   groupBy,
@@ -1132,7 +1129,7 @@ function CatalogGrid({
   onDecrease: (productId: string) => void;
   onSetKg: (productId: string, kg: number) => void;
   onEditPiezas: (p: Producto) => void;
-  onRequestStock: (p: Producto) => void;
+  stockPorId: Map<string, StockWeb>;
   removingProductId: string | null;
   highlightedProductId?: string | null;
   groupBy?: 'subcategory';
@@ -1160,7 +1157,7 @@ function CatalogGrid({
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-4 md:gap-6 lg:gap-8">
         {products.map((product, idx) => (
-          <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onEditPiezas={onEditPiezas} onRequestStock={onRequestStock} />
+          <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onEditPiezas={onEditPiezas} stock={stockPorId.get(product.id)} />
         ))}
       </div>
     );
@@ -1225,7 +1222,7 @@ function CatalogGrid({
               {items.map((product) => {
                 const idx = globalIdx++;
                 return (
-                  <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onEditPiezas={onEditPiezas} onRequestStock={onRequestStock} />
+                  <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onEditPiezas={onEditPiezas} stock={stockPorId.get(product.id)} />
                 );
               })}
             </div>
@@ -1242,7 +1239,7 @@ function CatalogGrid({
             {ungrouped.map((product) => {
               const idx = globalIdx++;
               return (
-                <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onEditPiezas={onEditPiezas} onRequestStock={onRequestStock} />
+                <ProductCard key={product.id} product={product} index={idx} isInCart={isInCart(product.id)} cartItem={getItem(product.id)} isRemoving={removingProductId === product.id} isHighlighted={highlightedProductId === product.id} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} onIncrease={onIncrease} onDecrease={onDecrease} onSetKg={onSetKg} onEditPiezas={onEditPiezas} stock={stockPorId.get(product.id)} />
               );
             })}
           </div>
@@ -1421,7 +1418,9 @@ function RestaurantSupplySection() {
 /* ------------------------------------------------------------------ */
 export default function Productos() {
   const { productos, loading } = useProductosPublicos();
-  return <CatalogoTienda productos={productos} productosLoading={loading} />;
+  // Lo que David marca agotado (o se queda sin stock) no sale en la tienda.
+  const disponibles = useMemo(() => productos.filter((p) => p.disponible), [productos]);
+  return <CatalogoTienda productos={disponibles} productosLoading={loading} />;
 }
 
 // El mismo catálogo (fichas, filtros, buscador, aviso de añadido y cesta)
@@ -1441,7 +1440,6 @@ export function CatalogoTienda({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('todos');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [solicitudProducto, setSolicitudProducto] = useState<Producto | null>(null);
 
   // Deep link from other pages (e.g. home carousel) — land directly on the
   // product's card in the catalog, without applying any name filter.
@@ -1585,13 +1583,12 @@ export function CatalogoTienda({
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const categoryCounts = useMemo(() => computeCategoryCounts(productos), [productos]);
+  const stockPorId = useMemo(() => stockPorProducto(productos), [productos]);
 
   const filteredProducts = useMemo(() => {
     let result = productos;
 
-    if (activeCategory === 'agotado') {
-      result = result.filter(p => !p.disponible);
-    } else if (activeCategory !== 'todos') {
+    if (activeCategory !== 'todos') {
       const mainCategories = ['pescado', 'especial', 'raciones', 'marisco', 'congelados', 'preparados'];
       if (mainCategories.includes(activeCategory)) {
         result = result.filter(p => p.categoria === activeCategory);
@@ -1860,7 +1857,7 @@ export function CatalogoTienda({
                 onDecrease={handleDecreaseKg}
                 onSetKg={handleSetKg}
                 onEditPiezas={setPiezasProducto}
-                onRequestStock={setSolicitudProducto}
+                stockPorId={stockPorId}
                 removingProductId={removingProductId}
                 highlightedProductId={highlightedCardId}
                 groupBy={shouldGroupBySubcategory ? 'subcategory' : undefined}
@@ -1918,10 +1915,6 @@ export function CatalogoTienda({
         />
       )}
 
-      {/* Solicitud de aviso de stock */}
-      {solicitudProducto && (
-        <SolicitudStockModal product={solicitudProducto} onClose={() => setSolicitudProducto(null)} />
-      )}
 
       {/* Toast notification */}
       <AddToCartToast

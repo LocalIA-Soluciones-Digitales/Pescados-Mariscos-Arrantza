@@ -41,6 +41,9 @@ export interface Producto {
   stock_minimo: number;
   stock_alerta_enviada: boolean;
   gestion_stock: boolean;
+  // Saca el género de otro producto (p. ej. Cola de Merluza de Merluza):
+  // su stock es el de ese. Se configura por SQL.
+  stock_de?: string | null;
   // false = no sale en la tienda online (p. ej. ya no está en la báscula),
   // pero se conserva con su foto e historial.
   visible_web: boolean;

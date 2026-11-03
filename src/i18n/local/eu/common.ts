@@ -164,6 +164,8 @@ const common = {
   "products.badge_premium": "Berezitasuna",
   "products.badge_new": "Berria",
   "products.badge_agotado": "Agortuta",
+  "products.stock_left": "{{cantidad}} geratzen dira",
+  "products.stock_last": "Azken {{cantidad}}",
   "products.image_coming_soon": "Argazkia laster",
   "products.loading": "Katalogoa kargatzen…",
   "products.add_to_order": "Eskaerara gehitu",
