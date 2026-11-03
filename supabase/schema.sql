@@ -3704,3 +3704,88 @@ begin
     alter publication supabase_realtime add table public.compras_correo;
   end if;
 end $$;
+
+-- ============================================================
+-- Gastos fijos mensuales (alquileres, limpieza, nómina en metálico…)
+-- No llevan factura ni albarán: aquí está la lista de lo que se paga cada
+-- mes y el día 1 se apunta cada uno en Contabilidad como gasto extra
+-- (caja_movimientos.gasto_fijo_id dice de cuál viene). David cambia la
+-- lista y el apunte de cada mes desde la pestaña Gastos.
+-- ============================================================
+
+create table if not exists public.gastos_fijos (
+  id uuid primary key default gen_random_uuid(),
+  cliente_id uuid not null references public.clientes (id),
+  concepto text not null check (trim(concepto) <> ''),
+  importe numeric(10, 2) not null check (importe >= 0),
+  activo boolean not null default true,
+  orden int not null default 0,
+  -- Último mes (día 1) en que ya se apuntó: así cada mes entra una sola vez
+  -- y, si David borra el apunte de un mes, no vuelve a aparecer.
+  ultimo_mes date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists trg_gastos_fijos_updated_at on public.gastos_fijos;
+create trigger trg_gastos_fijos_updated_at
+  before update on public.gastos_fijos
+  for each row execute function public.set_updated_at();
+
+alter table public.gastos_fijos enable row level security;
+
+drop policy if exists "gastos_fijos_admin" on public.gastos_fijos;
+create policy "gastos_fijos_admin"
+  on public.gastos_fijos for all
+  to authenticated
+  using (is_developer() or cliente_id = mi_cliente_id())
+  with check (is_developer() or cliente_id = mi_cliente_id());
+
+alter table public.caja_movimientos
+  add column if not exists gasto_fijo_id uuid references public.gastos_fijos (id) on delete set null;
+
+-- Apunta en Contabilidad, con fecha día 1, los gastos fijos activos que aún
+-- no se hayan apuntado ese mes (por defecto el mes actual, hora de Madrid).
+-- Desde cron (sin usuario) para todos los clientes; desde el panel, solo los
+-- de quien llama. Devuelve cuántos apuntó.
+create or replace function public.apuntar_gastos_fijos(p_mes date default null)
+returns int
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_mes date := date_trunc('month', coalesce(p_mes, (now() at time zone 'Europe/Madrid')::date))::date;
+  v_n int;
+begin
+  with marcados as (
+    update public.gastos_fijos g
+    set ultimo_mes = v_mes
+    where g.activo
+      and g.importe > 0
+      and (g.ultimo_mes is null or g.ultimo_mes < v_mes)
+      and (auth.uid() is null or is_developer() or g.cliente_id = mi_cliente_id())
+    returning g.id, g.cliente_id, g.concepto, g.importe
+  )
+  insert into public.caja_movimientos (cliente_id, fecha, tipo, concepto, importe, origen, gasto_fijo_id)
+  select m.cliente_id, v_mes, 'gasto_extra', m.concepto, m.importe, null, m.id
+  from marcados m;
+  get diagnostics v_n = row_count;
+  return v_n;
+end;
+$$;
+
+revoke all on function public.apuntar_gastos_fijos(date) from public, anon;
+grant execute on function public.apuntar_gastos_fijos(date) to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'gastos_fijos'
+  ) then
+    alter publication supabase_realtime add table public.gastos_fijos;
+  end if;
+end $$;
+
+-- El día 1 de cada mes a las 00:05 UTC (01:05 o 02:05 en Madrid). Si el cron
+-- fallara, el panel también lo lanza al abrir la pestaña Gastos.
+-- select cron.schedule('gastos-fijos-mensuales', '5 0 1 * *', 'select public.apuntar_gastos_fijos()');

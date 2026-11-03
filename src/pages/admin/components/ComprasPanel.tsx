@@ -11,6 +11,7 @@ import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, descr
 import type { CorreoCompras } from '@/hooks/useCorreoCompras';
 import { useBandeja } from '@/hooks/useBandeja';
 import { BandejaAlbaranes } from './BandejaAlbaranes';
+import GastosFijos from './GastosFijos';
 import { FotoMarcada, PuntoColor, VisorAlbaran } from './AlbaranLeido';
 
 type ComprasDatos = ReturnType<typeof useCompras>;
@@ -2001,7 +2002,7 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
           <div className="order-4 empty:hidden">
             <Correo correo={correo} compras={datos.compras} onAbrir={setAbiertaId} />
           </div>
-          <div className="order-2">
+          <div className="order-2 space-y-4">
             <Resumen
               compras={datos.compras}
               dudasDe={dudasDe}
@@ -2010,6 +2011,7 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
                 setFiltro('pendientes');
               }}
             />
+            <GastosFijos />
           </div>
         </aside>
 
