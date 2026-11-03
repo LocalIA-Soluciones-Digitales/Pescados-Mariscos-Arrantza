@@ -135,7 +135,7 @@ function situacion(c: Compra, dudas: number): Situacion {
 }
 
 function resumenProductos(c: Compra): string {
-  if (c.origen === 'fijo') return 'Gasto fijo mensual, sin factura';
+  if (c.origen === 'fijo') return 'Gasto fijo mensual · sin factura';
   const nombres = c.lineas.map((l) => l.texto).filter(Boolean);
   if (!nombres.length) return c.lineas.length ? `${c.lineas.length} líneas sin nombre` : 'Sin productos leídos';
   const vistos = nombres.slice(0, 3).map((n) => n.charAt(0) + n.slice(1).toLowerCase());

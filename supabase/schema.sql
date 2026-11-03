@@ -3706,7 +3706,7 @@ begin
 end $$;
 
 -- ============================================================
--- Gastos fijos mensuales (alquileres, limpieza, nómina en metálico…)
+-- Gastos fijos mensuales (alquileres, limpieza, parte de la nómina en efectivo…)
 -- No llevan factura ni albarán: aquí está la lista de lo que se paga cada
 -- mes y el día 1 cada uno entra en Gastos como una compra ya confirmada
 -- (origen 'fijo', proveedor = concepto) con su gasto en Contabilidad.
