@@ -853,18 +853,15 @@ create trigger trg_pedidos_descontar_stock
 
 -- Suma al stock lo que trae el pescadero cada mañana, de forma atómica
 -- (evita condiciones de carrera frente a un simple "leer y volver a
--- escribir" desde el cliente). Una entrada positiva (p_kg > 0) es la
--- única forma de quitar el "agotado" automático que pone
--- marcar_agotado_por_stock: si es una baja (p_kg < 0, se puso malo, hay
--- que tirar) no reactiva el producto por sí sola.
+-- escribir" desde el cliente). No toca "disponible": el agotado solo lo
+-- pone y lo quita David a mano.
 create or replace function public.sumar_stock(p_producto_id uuid, p_kg numeric)
 returns numeric as $$
   select set_config('arrantza.stock_tipo', case when p_kg > 0 then 'entrada' else 'baja' end, true),
          set_config('arrantza.stock_origen', '', true),
          set_config('arrantza.stock_ref', '', true);
   update public.productos
-  set stock_kg = stock_kg + p_kg,
-      disponible = case when p_kg > 0 then true else disponible end
+  set stock_kg = stock_kg + p_kg
   where id = p_producto_id
   returning stock_kg;
 $$ language sql set search_path = public;
@@ -872,27 +869,11 @@ $$ language sql set search_path = public;
 revoke all on function public.sumar_stock(uuid, numeric) from public;
 grant execute on function public.sumar_stock(uuid, numeric) to authenticated;
 
--- Marca el producto como agotado (disponible = false) en cuanto su stock
--- llega a 0, venga la bajada de una venta en báscula, un pedido web o una
--- baja manual — así el catálogo público deja de ofrecerlo sin que el
--- pescadero tenga que acordarse de hacerlo a mano. Solo actúa "hacia
--- abajo": volver a ponerlo disponible exige una entrada real vía
--- sumar_stock (ver arriba) o el toggle manual del panel de Productos, no
--- ocurre solo porque stock_kg vuelva a subir por casualidad.
-create or replace function public.marcar_agotado_por_stock()
-returns trigger as $$
-begin
-  if coalesce(new.gestion_stock, true) and new.stock_kg <= 0 then
-    new.disponible := false;
-  end if;
-  return new;
-end;
-$$ language plpgsql set search_path = public;
-
+-- Ya no se marca agotado solo al llegar a 0 (03-11-2026): el stock puede
+-- ir por detrás (las compras se apuntan por la noche) y la web debe seguir
+-- ofreciéndolo. "Agotado" es solo lo que David marca a mano.
 drop trigger if exists trg_productos_agotado_stock on public.productos;
-create trigger trg_productos_agotado_stock
-  before update of stock_kg on public.productos
-  for each row execute function public.marcar_agotado_por_stock();
+drop function if exists public.marcar_agotado_por_stock();
 
 -- Historial de movimientos de stock: una fila por cada cambio de
 -- productos.stock_kg, sea cual sea su causa, para poder reconstruir con
@@ -3519,8 +3500,7 @@ begin
     if coalesce((l->>'sumar_stock')::boolean, true) and v_kg > 0 then
       -- Si el producto saca su género de otro (stock_de), suma a ese.
       update public.productos p
-      set stock_kg = p.stock_kg + v_kg,
-          disponible = true
+      set stock_kg = p.stock_kg + v_kg
       from public.productos v
       where v.id = v_prod and p.id = coalesce(v.stock_de, v.id);
     end if;

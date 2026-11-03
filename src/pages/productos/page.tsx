@@ -132,13 +132,14 @@ function getBadgeLabel(badge: Producto['estado']) {
 interface StockWeb {
   cantidad: number;
   porUnidad: boolean;
-  // Por debajo del mínimo que David puso en Stock: «Últimos …».
-  poco: boolean;
+  // 'poco': por debajo del mínimo que David puso en Stock. 'consultar': a 0
+  // o en negativo (las compras se apuntan por la noche), se sigue vendiendo.
+  estado: 'hay' | 'poco' | 'consultar';
 }
 
-/** Lo que queda de cada producto con control de stock. Si saca el género de
- *  otro (stock_de, p. ej. Cola de Merluza de Merluza), lo que queda de ese.
- *  Se redondea hacia abajo para no prometer de más. */
+/** Lo que queda de cada producto con control de stock (sin control: nada).
+ *  Si saca el género de otro (stock_de, p. ej. Cola de Merluza de Merluza),
+ *  lo que queda de ese. Se redondea hacia abajo para no prometer de más. */
 function stockPorProducto(productos: Producto[]): Map<string, StockWeb> {
   const porId = new Map(productos.map((p) => [p.id, p]));
   const stock = new Map<string, StockWeb>();
@@ -148,11 +149,17 @@ function stockPorProducto(productos: Producto[]): Map<string, StockWeb> {
     const porUnidad = esPorUnidad(base.precio);
     const n = Number(base.stock_kg);
     const cantidad = porUnidad ? Math.floor(n) : Math.floor(n * 10) / 10;
-    if (!(cantidad > 0)) continue;
-    stock.set(p.id, { cantidad, porUnidad, poco: n <= Number(base.stock_minimo) });
+    const estado = !(cantidad > 0) ? 'consultar' : n <= Number(base.stock_minimo) ? 'poco' : 'hay';
+    stock.set(p.id, { cantidad, porUnidad, estado });
   }
   return stock;
 }
+
+const stockEstilo: Record<StockWeb['estado'], { dot: string; text: string; key: string }> = {
+  hay: { dot: 'bg-emerald-500', text: 'text-emerald-700', key: 'products.stock_left' },
+  poco: { dot: 'bg-amber-500 animate-pulse', text: 'text-amber-700', key: 'products.stock_last' },
+  consultar: { dot: 'bg-foreground-300', text: 'text-foreground-500', key: 'products.stock_ask' },
+};
 
 function formatStockWeb(s: StockWeb): string {
   return s.porUnidad ? `${s.cantidad} ud` : `${formatNumKg(s.cantidad)} kg`;
@@ -945,19 +952,6 @@ function ProductCard({
           </span>
         </div>
 
-        {/* Lo que queda en la tienda (solo productos con control de stock) */}
-        {stock && (
-          <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4">
-            <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 md:px-2.5 md:py-1 rounded-full text-[10px] md:text-[11px] font-medium whitespace-nowrap backdrop-blur-sm ${
-                stock.poco ? 'bg-amber-100/90 text-amber-800' : 'bg-background-50/90 text-foreground-700'
-              }`}
-            >
-              <i className="ri-stack-line"></i>
-              {t(stock.poco ? 'products.stock_last' : 'products.stock_left', { cantidad: formatStockWeb(stock) })}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Info — cleaner, less text */}
@@ -968,7 +962,7 @@ function ProductCard({
 
         {/* Sin origen (p. ej. artículos de hostelería) se deja el hueco para
             que todas las fichas de la fila queden alineadas. */}
-        <p className="text-[10px] md:text-xs text-foreground-400 mb-3 md:mb-4 min-h-[1.25em]">
+        <p className="text-[10px] md:text-xs text-foreground-400 min-h-[1.25em]">
           {pickLang(product, 'origen', i18n.language) && (
             <>
               <span className="w-3 h-3 md:w-3.5 md:h-3.5 inline-flex items-center justify-center mr-0.5 md:mr-1 align-middle">
@@ -976,6 +970,17 @@ function ProductCard({
               </span>
               {pickLang(product, 'origen', i18n.language)}
             </>
+          )}
+        </p>
+
+        {/* Existencias: solo productos con control de stock. El hueco se
+            deja igual en todos para que las fichas de la fila cuadren. */}
+        <p className="mt-1 md:mt-1.5 mb-3 md:mb-4 min-h-[1.25em] text-[10px] md:text-xs font-medium">
+          {stock && (
+            <span className={`inline-flex items-center gap-1.5 ${stockEstilo[stock.estado].text}`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${stockEstilo[stock.estado].dot}`}></span>
+              {t(stockEstilo[stock.estado].key, { cantidad: formatStockWeb(stock) })}
+            </span>
           )}
         </p>
 

@@ -66,7 +66,7 @@ export const STOCK_INFO_ITEMS = [
   { icon: 'ri-subtract-line', text: 'Usa un valor negativo para descontar kg, por ejemplo si llega producto en mal estado.' },
   { icon: 'ri-shopping-basket-line', text: 'El stock también baja solo con cada pedido y con cada venta pesada en cualquiera de las dos básculas.' },
   { icon: 'ri-mail-line', text: 'Si baja del aviso mínimo, se envía un correo automáticamente.' },
-  { icon: 'ri-global-line', text: 'Los clientes ven en la web lo que queda ("Quedan 3,5 kg"); por debajo del aviso mínimo sale como "Últimos…". A 0 se marca agotado y deja de salir.' },
+  { icon: 'ri-global-line', text: 'Los clientes ven en la web lo que queda ("En stock · 3,5 kg"); por debajo del aviso mínimo, "Últimas existencias"; a 0, "Consultar disponibilidad". Llegar a 0 no lo quita de la web: solo lo marcado "Agotado" en Productos.' },
   { icon: 'ri-barcode-line', text: 'Cada báscula tiene su propio catálogo de códigos: indica el código de cada terminal donde se venda este producto.' },
 ];
 

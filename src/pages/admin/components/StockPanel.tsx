@@ -78,18 +78,8 @@ function StockRow({
     setEntrada('');
     setMovimiento('entrada');
     setVersionHistorial((v) => v + 1);
-    const nuevoStock = data as number;
-    // Refleja aquí lo que hace el trigger marcar_agotado_por_stock en la base
-    // de datos: solo una entrada real puede quitar el agotado; una bajada a 0
-    // (venta, báscula, merma) siempre lo pone.
-    const nuevoDisponible = producto.gestion_stock
-      ? nuevoStock <= 0
-        ? false
-        : esEntrada
-          ? true
-          : producto.disponible
-      : producto.disponible;
-    onPatch({ stock_kg: nuevoStock, disponible: nuevoDisponible });
+    // El stock ya no toca "Agotado": eso solo lo marca David en Productos.
+    onPatch({ stock_kg: data as number });
   };
 
   const guardarMinimo = async (v: number) => {
@@ -171,7 +161,7 @@ function StockRow({
               {!producto.disponible && (
                 <span
                   className="inline-flex items-center gap-1 px-1.5 py-px rounded-full text-[10px] font-medium bg-foreground-800 text-background-50 whitespace-nowrap"
-                  title="Sin stock: se marcó agotado automáticamente. Registra una entrada para volver a ponerlo disponible."
+                  title="Marcado agotado en Productos: no sale en la web hasta que vuelvas a ponerlo disponible."
                 >
                   <i className="ri-close-circle-line"></i> Agotado
                 </span>
