@@ -68,3 +68,35 @@ describe('listado real del 17-10 contra Compras', () => {
     ]);
   });
 });
+
+describe('listado real del 31-10 contra Compras', () => {
+  const tipo = (c: ReturnType<typeof compra>, t: 'albaran' | 'factura') => ({ ...c, tipo: t });
+  const recibos = [
+    ['JOSE CRESPO, S.A.', '2026-10-29', '020196', 22.28],
+    ['JOSE CRESPO, S.A.', '2026-10-30', '020344', 43.67],
+    ['JOSE CRESPO, S.A.', '2026-10-31', '020443', 22.28],
+    ['LAS CAPOTINAS, S.A.', '2026-10-31', '008024', 4565.13],
+    ['PESCADOS TRIANA, S.A.', '2026-10-27', '012300', 10],
+  ].map(([proveedor, fecha, factura, importe]) => ({ proveedor, fecha, factura, importe }) as { proveedor: string; fecha: string; factura: string; importe: number });
+  const compras = [
+    // Factura del listado anterior: no es la 020196 que falta.
+    tipo(compra('José Crespo, S.A.', '2026-10-23', '19818', 44.56), 'factura'),
+    tipo(compra('José Crespo, S.A.', '2026-10-30', '20344', 43.67), 'factura'),
+    tipo(compra('Las Capotinas, S.A.', '2026-10-27', '29194', 1265.25), 'albaran'),
+    tipo(compra('Las Capotinas, S.A.', '2026-10-28', '29357', 597.94), 'albaran'),
+    tipo(compra('Las Capotinas, S.A.', '2026-10-29', '29521', 957.69), 'albaran'),
+    tipo(compra('Las Capotinas, S.A.', '2026-10-30', '29662', 1097.24), 'albaran'),
+    tipo(compra('Pescados Triana, S.A.', '2026-10-27', '12300', 10), 'factura'),
+    // Ni nóminas ni impuestos salen nunca en el listado del gremio.
+    tipo(compra('Nómina · Perez Lopez Ana', '2026-10-31', 'NÓMINA 10/2026', 1395), 'factura'),
+    tipo(compra('Hacienda · Retenciones de la nómina (mod. 110)', '2026-10-28', 'W1', 490.98), 'factura'),
+  ];
+
+  it('las facturas de Crespo que no están faltan; Capotinas, la diferencia del albarán que falta', () => {
+    const c = contrastarListado(recibos, compras);
+    expect(c.faltan.map((f) => f.factura)).toEqual(['020196', '020443']);
+    expect(c.distintos).toEqual([{ recibo: expect.objectContaining({ factura: '008024' }), guardado: 3918.12 }]);
+    expect(c.sobran).toEqual([]);
+    expect(c.estan).toBe(2);
+  });
+});

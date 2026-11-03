@@ -4,7 +4,7 @@
 // está todo lo que el gremio dice que se ha comprado.
 import { normalizarCompra, PROVEEDORES_CONOCIDOS, unificarProveedor, type ReciboListado } from './comprasOcr';
 
-type CompraBasica = { proveedor: string | null; fecha: string; numero: string | null; total: number | null; estado: string };
+type CompraBasica = { proveedor: string | null; fecha: string; numero: string | null; total: number | null; estado: string; tipo?: string };
 
 export interface ContrasteListado {
   total: number;
@@ -18,6 +18,11 @@ export interface ContrasteListado {
   // listado no trae: repetidas o con el proveedor mal puesto.
   sobran: CompraBasica[];
 }
+
+// Nóminas, Hacienda, autónomos, luz, teléfono, gestoría…: no los compra el
+// gremio, así que nunca salen en el listado.
+const NO_GREMIO = PROVEEDORES_CONOCIDOS.filter((k) => k.gasto).map((k) => normalizarCompra(k.nombre));
+const esDelGremio = (c: CompraBasica) => !/^n[oó]mina\b/i.test(c.proveedor ?? '') && !NO_GREMIO.includes(normalizarCompra(c.proveedor));
 
 const dias = (a: string, b: string) => Math.round((Date.parse(a) - Date.parse(b)) / 864e5);
 // «013337» y «13337», «M10780» y «M-10780» son el mismo nº.
@@ -57,11 +62,22 @@ export function contrastarListado(recibos: ReciboListado[], compras: CompraBasic
   const sinCasar = pendientes;
   // Varios albaranes por una sola factura: los del mismo día o, si no
   // cuadran, los de la semana hasta la factura (Capotinas factura el sábado
-  // todos los albaranes de la semana, 24-10).
+  // todos los albaranes de la semana, 24-10). Solo albaranes y de la semana
+  // del listado: la factura 19818 de Crespo (23-10, del listado anterior) no
+  // es la 020196 que falta (31-10).
+  const desde = recibos.map((x) => x.fecha).sort()[0] ?? '';
   for (const rec of sinCasar) {
     const prov = normalizarCompra(unificarProveedor(rec.proveedor, conocidos));
     const suyos = (margen: number) =>
-      vivas.filter((c) => !usadas.has(c) && normalizarCompra(c.proveedor) === prov && dias(rec.fecha, c.fecha) >= 0 && dias(rec.fecha, c.fecha) <= margen);
+      vivas.filter(
+        (c) =>
+          !usadas.has(c) &&
+          c.tipo !== 'factura' &&
+          c.fecha >= desde &&
+          normalizarCompra(c.proveedor) === prov &&
+          dias(rec.fecha, c.fecha) >= 0 &&
+          dias(rec.fecha, c.fecha) <= margen,
+      );
     const sumar = (cs: CompraBasica[]) => Math.round(cs.reduce((t, c) => t + (c.total ?? 0), 0) * 100) / 100;
     const mismoDia = suyos(0);
     const delDia = mismoDia.length && Math.abs(sumar(mismoDia) - rec.importe) <= 0.05 ? mismoDia : suyos(6);
@@ -78,7 +94,8 @@ export function contrastarListado(recibos: ReciboListado[], compras: CompraBasic
     const nombres = PROVEEDORES_CONOCIDOS.map((k) => k.nombre);
     const desconocido = (c: CompraBasica) => !nombres.includes(unificarProveedor(c.proveedor, nombres) ?? '');
     r.sobran = vivas.filter(
-      (c) => !usadas.has(c) && c.fecha >= fechas[0] && c.fecha <= fechas.at(-1)! && (provs.has(normalizarCompra(c.proveedor)) || desconocido(c)),
+      (c) =>
+        !usadas.has(c) && esDelGremio(c) && c.fecha >= fechas[0] && c.fecha <= fechas.at(-1)! && (provs.has(normalizarCompra(c.proveedor)) || desconocido(c)),
     );
   }
   r.total = Math.round(r.total * 100) / 100;
