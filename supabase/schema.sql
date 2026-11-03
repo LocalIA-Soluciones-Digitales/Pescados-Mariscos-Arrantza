@@ -3708,9 +3708,11 @@ end $$;
 -- ============================================================
 -- Gastos fijos mensuales (alquileres, limpieza, nómina en metálico…)
 -- No llevan factura ni albarán: aquí está la lista de lo que se paga cada
--- mes y el día 1 se apunta cada uno en Contabilidad como gasto extra
--- (caja_movimientos.gasto_fijo_id dice de cuál viene). David cambia la
--- lista y el apunte de cada mes desde la pestaña Gastos.
+-- mes y el día 1 cada uno entra en Gastos como una compra ya confirmada
+-- (origen 'fijo', proveedor = concepto) con su gasto en Contabilidad.
+-- David la abre en Gastos para cambiar concepto, fecha o importe
+-- (editar_gasto_fijo) o la anula como cualquier otra. La lista en sí se
+-- cambia por SQL.
 -- ============================================================
 
 create table if not exists public.gastos_fijos (
@@ -3721,7 +3723,7 @@ create table if not exists public.gastos_fijos (
   activo boolean not null default true,
   orden int not null default 0,
   -- Último mes (día 1) en que ya se apuntó: así cada mes entra una sola vez
-  -- y, si David borra el apunte de un mes, no vuelve a aparecer.
+  -- y, si David anula el de un mes, no vuelve a aparecer.
   ultimo_mes date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -3741,34 +3743,44 @@ create policy "gastos_fijos_admin"
   using (is_developer() or cliente_id = mi_cliente_id())
   with check (is_developer() or cliente_id = mi_cliente_id());
 
-alter table public.caja_movimientos
+alter table public.compras drop constraint if exists compras_origen_check;
+alter table public.compras add constraint compras_origen_check check (origen in ('foto', 'email', 'fijo'));
+alter table public.compras
   add column if not exists gasto_fijo_id uuid references public.gastos_fijos (id) on delete set null;
 
--- Apunta en Contabilidad, con fecha día 1, los gastos fijos activos que aún
--- no se hayan apuntado ese mes (por defecto el mes actual, hora de Madrid).
--- Desde cron (sin usuario) para todos los clientes; desde el panel, solo los
--- de quien llama. Devuelve cuántos apuntó.
+-- Mete en Gastos (y en Contabilidad), con fecha día 1, los gastos fijos
+-- activos que aún no hayan entrado ese mes (por defecto el mes actual, hora
+-- de Madrid). Desde cron (sin usuario) para todos los clientes; desde el
+-- panel, solo los de quien llama. Devuelve cuántos metió.
 create or replace function public.apuntar_gastos_fijos(p_mes date default null)
 returns int
 language plpgsql security definer set search_path = public
 as $$
 declare
   v_mes date := date_trunc('month', coalesce(p_mes, (now() at time zone 'Europe/Madrid')::date))::date;
-  v_n int;
+  g record;
+  v_caja uuid;
+  v_n int := 0;
 begin
-  with marcados as (
-    update public.gastos_fijos g
+  for g in
+    update public.gastos_fijos f
     set ultimo_mes = v_mes
-    where g.activo
-      and g.importe > 0
-      and (g.ultimo_mes is null or g.ultimo_mes < v_mes)
-      and (auth.uid() is null or is_developer() or g.cliente_id = mi_cliente_id())
-    returning g.id, g.cliente_id, g.concepto, g.importe
-  )
-  insert into public.caja_movimientos (cliente_id, fecha, tipo, concepto, importe, origen, gasto_fijo_id)
-  select m.cliente_id, v_mes, 'gasto_extra', m.concepto, m.importe, null, m.id
-  from marcados m;
-  get diagnostics v_n = row_count;
+    where f.activo
+      and f.importe > 0
+      and (f.ultimo_mes is null or f.ultimo_mes < v_mes)
+      and (auth.uid() is null or is_developer() or f.cliente_id = mi_cliente_id())
+    returning f.id, f.cliente_id, f.concepto, f.importe
+  loop
+    insert into public.caja_movimientos (cliente_id, fecha, tipo, concepto, importe, origen)
+    values (g.cliente_id, v_mes, 'gasto_factura', 'Gasto fijo ' || g.concepto, g.importe, null)
+    returning id into v_caja;
+
+    insert into public.compras (cliente_id, estado, fecha, proveedor, total, lineas, tipo, origen, nota,
+                                caja_movimiento_id, confirmada_at, gasto_fijo_id)
+    values (g.cliente_id, 'confirmada', v_mes, g.concepto, g.importe, '[]'::jsonb, 'albaran', 'fijo',
+            'Gasto fijo mensual', v_caja, now(), g.id);
+    v_n := v_n + 1;
+  end loop;
   return v_n;
 end;
 $$;
@@ -3776,15 +3788,33 @@ $$;
 revoke all on function public.apuntar_gastos_fijos(date) from public, anon;
 grant execute on function public.apuntar_gastos_fijos(date) to authenticated;
 
-do $$
+-- Cambia concepto, fecha o importe de un gasto fijo ya metido, y su gasto
+-- en Contabilidad con él. Con los permisos de quien llama (RLS).
+create or replace function public.editar_gasto_fijo(p_id uuid, p_concepto text, p_fecha date, p_importe numeric)
+returns void
+language plpgsql set search_path = public
+as $$
+declare
+  c public.compras;
 begin
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'gastos_fijos'
-  ) then
-    alter publication supabase_realtime add table public.gastos_fijos;
+  if nullif(trim(p_concepto), '') is null or p_importe is null or p_importe <= 0 then
+    raise exception 'Faltan el concepto o el importe';
   end if;
-end $$;
+  update public.compras
+  set proveedor = trim(p_concepto), fecha = p_fecha, total = p_importe
+  where id = p_id and origen = 'fijo' and estado = 'confirmada'
+  returning * into c;
+  if c.id is null then
+    raise exception 'Gasto fijo no encontrado';
+  end if;
+  update public.caja_movimientos
+  set concepto = 'Gasto fijo ' || c.proveedor, fecha = c.fecha, importe = c.total
+  where id = c.caja_movimiento_id;
+end;
+$$;
+
+revoke all on function public.editar_gasto_fijo(uuid, text, date, numeric) from public, anon;
+grant execute on function public.editar_gasto_fijo(uuid, text, date, numeric) to authenticated;
 
 -- El día 1 de cada mes a las 00:05 UTC (01:05 o 02:05 en Madrid). Si el cron
 -- fallara, el panel también lo lanza al abrir la pestaña Gastos.

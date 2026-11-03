@@ -11,7 +11,6 @@ import { buscarCoincidencia, confirmarCoincidencia, describirCoincidencia, descr
 import type { CorreoCompras } from '@/hooks/useCorreoCompras';
 import { useBandeja } from '@/hooks/useBandeja';
 import { BandejaAlbaranes } from './BandejaAlbaranes';
-import GastosFijos from './GastosFijos';
 import { FotoMarcada, PuntoColor, VisorAlbaran } from './AlbaranLeido';
 
 type ComprasDatos = ReturnType<typeof useCompras>;
@@ -136,6 +135,7 @@ function situacion(c: Compra, dudas: number): Situacion {
 }
 
 function resumenProductos(c: Compra): string {
+  if (c.origen === 'fijo') return 'Gasto fijo mensual, sin factura';
   const nombres = c.lineas.map((l) => l.texto).filter(Boolean);
   if (!nombres.length) return c.lineas.length ? `${c.lineas.length} líneas sin nombre` : 'Sin productos leídos';
   const vistos = nombres.slice(0, 3).map((n) => n.charAt(0) + n.slice(1).toLowerCase());
@@ -256,6 +256,9 @@ function Marcas({ compra }: { compra: Compra }) {
         <span className="ml-1.5 inline-flex items-center h-5 px-1.5 rounded-md bg-sky-50 text-sky-700 text-[10px] font-semibold align-middle">FACTURA</span>
       )}
       {compra.origen === 'email' && <i title="Llegó por correo" className="ri-mail-line ml-1.5 text-xs text-foreground-400 align-middle"></i>}
+      {compra.origen === 'fijo' && (
+        <span className="ml-1.5 inline-flex items-center h-5 px-1.5 rounded-md bg-violet-50 text-violet-700 text-[10px] font-semibold align-middle">FIJO</span>
+      )}
     </>
   );
 }
@@ -310,6 +313,107 @@ function FilaCompra({ compra, dudas, onAbrir }: { compra: Compra; dudas: number;
         <i className="ri-arrow-right-s-line text-foreground-300 group-hover:text-foreground-500"></i>
       </div>
     </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Gasto fijo mensual (sin factura ni albarán)                        */
+/* ------------------------------------------------------------------ */
+// Entra solo el día 1 ya confirmado (apuntar_gastos_fijos). Aquí se
+// cambian concepto, fecha e importe, y su gasto en Contabilidad con ellos.
+function GastoFijoEditor({ compra, datos, onClose }: { compra: Compra; datos: ComprasDatos; onClose: () => void }) {
+  const confirmada = compra.estado === 'confirmada';
+  const [concepto, setConcepto] = useState(compra.proveedor ?? '');
+  const [fecha, setFecha] = useState(compra.fecha);
+  const [importe, setImporte] = useState(aTexto(compra.total));
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const n = aNum(importe);
+  const valido = concepto.trim() !== '' && !!fecha && n != null && n > 0;
+  const cambiado = concepto.trim() !== (compra.proveedor ?? '') || fecha !== compra.fecha || n !== Number(compra.total);
+
+  const hacer = async (accion: () => Promise<void>) => {
+    setGuardando(true);
+    setError(null);
+    try {
+      await accion();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo guardar');
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-foreground-950/40 p-0 md:p-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Gasto fijo"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full md:max-w-md bg-background-50 rounded-t-2xl md:rounded-2xl shadow-2xl p-5 space-y-4"
+      >
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-heading font-semibold text-foreground-950">Gasto fijo mensual</h2>
+            <p className="text-xs text-foreground-500 mt-0.5">Sin factura ni albarán: entra solo cada día 1 y cuenta en Contabilidad.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="w-8 h-8 rounded-full flex items-center justify-center text-foreground-400 hover:text-foreground-950 hover:bg-background-100">
+            <i className="ri-close-line text-lg"></i>
+          </button>
+        </div>
+        <label className="block">
+          <span className="text-[11px] font-medium text-foreground-500">Concepto</span>
+          <input value={concepto} onChange={(e) => setConcepto(e.target.value)} disabled={!confirmada} className={inputCls} />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="text-[11px] font-medium text-foreground-500">Fecha</span>
+            <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} disabled={!confirmada} className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-medium text-foreground-500">Importe (€)</span>
+            <input value={importe} onChange={(e) => setImporte(e.target.value)} inputMode="decimal" disabled={!confirmada} className={`${inputCls} text-right tabular-nums`} />
+          </label>
+        </div>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        {confirmada ? (
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              disabled={guardando}
+              onClick={() => {
+                if (window.confirm(`¿Anular «${compra.proveedor}» de este mes? Se quita de Contabilidad; el mes que viene vuelve a entrar.`))
+                  hacer(() => datos.anularCompra(compra.id));
+              }}
+              className="h-10 px-4 rounded-full text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+            >
+              Anular
+            </button>
+            <button
+              type="button"
+              disabled={!valido || !cambiado || guardando}
+              onClick={() => n != null && hacer(() => datos.editarGastoFijo(compra.id, concepto.trim(), fecha, n))}
+              className="ml-auto h-10 px-5 rounded-full bg-primary-500 text-background-50 text-sm font-semibold hover:bg-primary-600 disabled:opacity-40"
+            >
+              {guardando ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 pt-1">
+            <p className="text-xs text-foreground-500 mr-auto">Anulado: no cuenta en Contabilidad.</p>
+            <button
+              type="button"
+              disabled={guardando}
+              onClick={() => hacer(() => datos.borrarCompra(compra))}
+              className="h-10 px-4 rounded-full text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
+            >
+              Borrar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -2002,7 +2106,7 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
           <div className="order-4 empty:hidden">
             <Correo correo={correo} compras={datos.compras} onAbrir={setAbiertaId} />
           </div>
-          <div className="order-2 space-y-4">
+          <div className="order-2">
             <Resumen
               compras={datos.compras}
               dudasDe={dudasDe}
@@ -2011,7 +2115,6 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
                 setFiltro('pendientes');
               }}
             />
-            <GastosFijos />
           </div>
         </aside>
 
@@ -2168,7 +2271,12 @@ export default function ComprasPanel({ datos, productos, correo }: { datos: Comp
         </section>
       </div>
 
-      {abierta && <CompraEditor key={abierta.id} compra={abierta} datos={datos} productos={productos} onClose={() => setAbiertaId(null)} />}
+      {abierta &&
+        (abierta.origen === 'fijo' ? (
+          <GastoFijoEditor key={abierta.id} compra={abierta} datos={datos} onClose={() => setAbiertaId(null)} />
+        ) : (
+          <CompraEditor key={abierta.id} compra={abierta} datos={datos} productos={productos} onClose={() => setAbiertaId(null)} />
+        ))}
     </div>
   );
 }

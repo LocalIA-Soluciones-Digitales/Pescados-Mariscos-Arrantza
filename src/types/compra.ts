@@ -21,8 +21,9 @@ export interface Compra {
   lineas: CompraLinea[];
   // Factura: puede cubrir varios albaranes (sus nº en `albaranes`).
   tipo: 'albaran' | 'factura';
-  // 'email': entró sola desde el correo (compras_correo).
-  origen: 'foto' | 'email';
+  // 'email': entró sola desde el correo (compras_correo). 'fijo': gasto fijo
+  // mensual sin papel (alquiler, limpieza…), entra solo el día 1.
+  origen: 'foto' | 'email' | 'fijo';
   albaranes: string[];
   // Por qué cuenta lo que cuenta (p. ej. la diferencia de una factura semanal).
   nota: string | null;

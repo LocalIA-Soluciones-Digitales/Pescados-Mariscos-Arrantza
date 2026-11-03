@@ -47,6 +47,10 @@ export function useCompras() {
 
   useEffect(() => {
     fetchCompras();
+    // Gastos fijos del mes, por si el cron del día 1 no corrió (no repite).
+    supabase.rpc('apuntar_gastos_fijos').then(({ data: n }) => {
+      if (n) fetchCompras(true);
+    });
   }, [fetchCompras]);
 
   const fetchSilent = useCallback(() => fetchCompras(true), [fetchCompras]);
@@ -93,6 +97,16 @@ export function useCompras() {
   const anularCompra = useCallback(
     async (id: string) => {
       const { error } = await supabase.rpc('anular_compra', { p_id: id });
+      if (error) throw new Error(error.message);
+      await fetchCompras(true);
+    },
+    [fetchCompras],
+  );
+
+  // Gasto fijo mensual: concepto, fecha e importe, y su gasto en Contabilidad.
+  const editarGastoFijo = useCallback(
+    async (id: string, concepto: string, fecha: string, importe: number) => {
+      const { error } = await supabase.rpc('editar_gasto_fijo', { p_id: id, p_concepto: concepto, p_fecha: fecha, p_importe: importe });
       if (error) throw new Error(error.message);
       await fetchCompras(true);
     },
@@ -192,6 +206,7 @@ export function useCompras() {
     guardarCompra,
     confirmarCompra,
     anularCompra,
+    editarGastoFijo,
     borrarCompra,
     reemplazarLectura,
     cambiarImagen,

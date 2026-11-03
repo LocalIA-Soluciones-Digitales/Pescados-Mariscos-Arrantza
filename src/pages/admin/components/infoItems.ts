@@ -78,7 +78,7 @@ export const COMPRAS_INFO_ITEMS = [
   { icon: 'ri-checkbox-circle-line', text: 'Al revisarla, lo verde cuadra (kg × €/kg = importe) y lo naranja hay que mirarlo. «Confirmar» apunta el gasto en Contabilidad y suma los kg al stock.' },
   { icon: 'ri-brain-line', text: 'El producto que elijas para cada nombre del albarán se recuerda para ese proveedor: la próxima vez sale ya puesto.' },
   { icon: 'ri-arrow-go-back-line', text: 'Si te equivocas, abre el albarán confirmado y «Anular»: se borra el gasto y se restan los kg del stock. La foto se guarda siempre.' },
-  { icon: 'ri-calendar-check-line', text: '«Gastos fijos» (alquileres, limpieza, nómina en metálico…) no llevan factura: se apuntan solos el día 1 en Contabilidad. Corrige el importe del mes ahí mismo o cambia la lista con «Cambiar la lista».' },
+  { icon: 'ri-calendar-check-line', text: '«Gastos fijos» (alquileres, limpieza, nómina en metálico…) no llevan factura: entran solos el día 1 como uno más de la lista (marcados FIJO), uno por concepto. Ábrelo para cambiar el importe o anúlalo.' },
 ];
 
 export const BASCULA_INFO_ITEMS = [

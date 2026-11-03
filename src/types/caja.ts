@@ -18,8 +18,6 @@ export interface CajaMovimiento {
   // Solo los ingresos llevan tienda — los gastos son generales para el
   // negocio conjunto (David compra una vez y reparte entre las dos).
   origen: Origen | null;
-  // Apunte automático de un gasto fijo mensual (ver gastos_fijos).
-  gasto_fijo_id?: string | null;
   created_at: string;
   updated_at: string;
 }

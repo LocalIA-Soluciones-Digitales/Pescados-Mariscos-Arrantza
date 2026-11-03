@@ -18,6 +18,8 @@ export interface DocCompra {
   fecha: string; // YYYY-MM-DD
   total: number | null;
   albaranes: string[];
+  // 'fijo': gasto fijo mensual sin papel; no se empareja con nada.
+  origen?: string;
 }
 
 export type DocNuevo = Omit<DocCompra, 'id' | 'estado'>;
@@ -71,7 +73,7 @@ function subconjuntoQueSuma<T extends DocCompra>(candidatos: T[], total: number)
 }
 
 export function buscarCoincidencia<T extends DocCompra>(nuevo: DocNuevo, compras: T[], excepto?: string): Coincidencia<T> | null {
-  const vivas = compras.filter((c) => c.id !== excepto && c.estado !== 'anulada');
+  const vivas = compras.filter((c) => c.id !== excepto && c.estado !== 'anulada' && c.origen !== 'fijo');
   const clave = claveNumero(nuevo.numero);
 
   // 1) El mismo documento. Una captura de la factura del PDF puede haberse
