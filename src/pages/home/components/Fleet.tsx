@@ -16,7 +16,7 @@ export default function Fleet() {
           className={`relative h-[380px] sm:h-[440px] md:h-auto md:aspect-[21/9] overflow-hidden md:rounded-2xl transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}
         >
           <img
-            src="https://ukhfaphloxlszomccgde.supabase.co/storage/v1/object/public/pescados-mariscos-arrantza/marketing/arrantza-gallery-07.png"
+            src="/gallery/arrantza-gallery-07.jpg"
             alt="Flota de bajura del Cantábrico volviendo a puerto al atardecer"
             className="absolute inset-0 w-full h-full object-cover object-[center_65%] md:object-center"
             loading="lazy"
