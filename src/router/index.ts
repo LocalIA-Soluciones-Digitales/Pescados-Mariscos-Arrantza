@@ -1,6 +1,6 @@
 import { useNavigate, type NavigateFunction } from "react-router-dom";
 import { useLocation, useRoutes } from "react-router-dom";
-import { useEffect } from "react";
+import { Suspense, createElement, useEffect } from "react";
 import routes from "./config";
 import { logPageview } from "@/lib/visitLog";
 
@@ -28,5 +28,7 @@ export function AppRoutes() {
     window.scrollTo(0, 0);
     logPageview(location.pathname);
   }, [location.pathname]);
-  return element;
+  // Mientras llega el trozo de la página (solo la primera vez que se entra)
+  // no se pinta nada: es una fracción de segundo y evita un parpadeo.
+  return createElement(Suspense, { fallback: null }, element);
 }

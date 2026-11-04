@@ -102,7 +102,7 @@ export default function Navbar() {
               className="flex items-center gap-2 group"
             >
               <img
-                src="/logo.png"
+                src="/logo-128.png"
                 alt="Arrantza"
                 className="w-8 h-8 md:w-9 md:h-9 shrink-0 rounded-full object-cover shadow-[0_1px_4px_rgba(0,0,0,0.35)]"
               />
